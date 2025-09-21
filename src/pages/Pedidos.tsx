@@ -29,7 +29,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { showSuccess, showError, showLoading, dismissToast } from "@/utils/toast"; // Importando do utilitário
-import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { useIsMobile } from "@/hooks/use-mobile"; // Corrigido para usar useIsMobile
 import { Search, PlusCircle, Filter, ChevronDown, Edit, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -39,7 +39,7 @@ const Pedidos = () => {
   const { supabase } = useSession();
   const navigate = useNavigate();
   const location = useLocation();
-  const isMobile = useMediaQuery("(max-width: 768px)");
+  const isMobile = useIsMobile(); // Corrigido para usar useIsMobile
 
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [loading, setLoading] = useState(true);
