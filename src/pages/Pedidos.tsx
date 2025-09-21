@@ -517,7 +517,7 @@ const PedidosPage: React.FC = () => {
                     <CardTitle className="text-lg font-semibold truncate">
                       Pedido #{pedido.order_number}
                     </CardTitle>
-                    <CardDescription className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
+                    <CardDescription className="text-sm text-muted-foreground flex items-center gap-1 mt-1 w-full">
                       <User className="h-3 w-3 flex-shrink-0" />
                       <span className="truncate flex-1">
                         {pedido.clientes?.nome || 'Cliente Desconhecido'}
