@@ -5,7 +5,7 @@ import { Cliente } from '@/types/cliente';
 import { Produto } from '@/types/produto';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Plus, Search, Filter, Eye, Edit, Trash2, Loader2, CalendarIcon, DollarSign, FileText, Wrench, History, MessageSquare, MoreHorizontal } from 'lucide-react';
+import { Plus, Search, Filter, Eye, Edit, Trash2, Loader2, CalendarIcon, DollarSign, FileText, Wrench, History, MessageSquare, MoreHorizontal, User } from 'lucide-react'; // Adicionado 'User' aqui
 import { PedidoForm } from '@/components/PedidoForm';
 import { PedidoDetails } from '@/components/PedidoDetails';
 import { showSuccess, showError } from '@/utils/toast';
@@ -37,7 +37,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { OrderStatusIndicator } from '@/components/OrderStatusIndicator'; // Importar o novo componente
+import { OrderStatusIndicator } from '@/components/OrderStatusIndicator';
 
 const PedidosPage: React.FC = () => {
   const { supabase, session } = useSession();
@@ -506,7 +506,7 @@ const PedidosPage: React.FC = () => {
                     </CardDescription>
                   </div>
                   <div className="flex-shrink-0">
-                    <OrderStatusIndicator status={pedido.status} /> {/* Usando o novo componente */}
+                    <OrderStatusIndicator status={pedido.status} />
                   </div>
                 </div>
               </CardHeader>
@@ -580,7 +580,7 @@ const PedidosPage: React.FC = () => {
                       </DropdownMenuItem>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <DropdownMenuItem onSelect={(e) => e.preventDefault()}> {/* Prevent dropdown close on trigger */}
+                          <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
                             <Trash2 className="h-4 w-4 mr-2 text-destructive" />
                             <span className="text-destructive">Excluir</span>
                           </DropdownMenuItem>
