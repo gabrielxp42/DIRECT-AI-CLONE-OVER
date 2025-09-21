@@ -21,11 +21,14 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const openAIClient = useRef(getOpenAIClient()).current;
 
+  // Referências para os objetos de áudio para os sons
+  const startSound = useRef(new Audio('/sounds/record_start.mp3')).current;
+  const stopSound = useRef(new Audio('/sounds/record_stop.mp3')).current;
+
   const MIN_AUDIO_DURATION_MS = 500;
 
   // Detecta o melhor MIME type para gravação de áudio
   const getSupportedMimeType = () => {
-    // Priorize webm com codec opus para maior compatibilidade com APIs como OpenAI Whisper
     const preferredMimeTypes = [
       'audio/webm;codecs=opus',
       'audio/webm',
@@ -58,9 +61,17 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
       audioChunksRef.current = [];
       setRecordingDuration(0);
 
-      intervalRef.current = setInterval(() => {
-        setRecordingDuration(prev => prev + 100);
-      }, 100);
+      // Evento onstart do MediaRecorder para maior confiabilidade
+      mediaRecorderRef.current.onstart = () => {
+        console.log('[AudioRecorder] Gravação iniciada com sucesso.');
+        setIsRecording(true);
+        showSuccess("Gravação iniciada...");
+        startSound.play().catch(e => console.warn("Erro ao reproduzir som de início:", e)); // Toca o som de início
+        
+        intervalRef.current = setInterval(() => {
+          setRecordingDuration(prev => prev + 100);
+        }, 100);
+      };
 
       mediaRecorderRef.current.ondataavailable = (event) => {
         audioChunksRef.current.push(event.data);
@@ -75,6 +86,15 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
         
         audioStreamRef.current?.getTracks().forEach(track => track.stop());
         audioStreamRef.current = null;
+
+        stopSound.play().catch(e => console.warn("Erro ao reproduzir som de fim:", e)); // Toca o som de fim
+
+        // Adicionado: Verifica se algum dado de áudio foi realmente coletado
+        if (audioChunksRef.current.length === 0) {
+          showError("Nenhum áudio foi gravado. Tente novamente.");
+          setIsProcessing(false);
+          return;
+        }
 
         if (recordingDuration < MIN_AUDIO_DURATION_MS) {
           showError(`Áudio muito curto. Mínimo de ${MIN_AUDIO_DURATION_MS / 1000} segundos.`);
@@ -108,7 +128,6 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
             } else if (lowerCaseMessage.includes('unknown error')) {
               userFriendlyErrorMessage = "Não foi possível transcrever o áudio. Tente novamente.";
             } else {
-              // Fallback para outros erros, mostrando a mensagem original para depuração se necessário
               userFriendlyErrorMessage = `Erro na transcrição: ${error.message}`;
             }
           }
@@ -119,8 +138,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
       };
 
       mediaRecorderRef.current.start();
-      setIsRecording(true);
-      showSuccess("Gravação iniciada...");
+      // setIsRecording(true) e showSuccess movidos para onstart para maior confiabilidade
     } catch (err: any) {
       console.error("Erro ao acessar o microfone:", err);
       showError("Para interagir com o assistente por voz, precisamos da sua permissão para acessar o microfone. Por favor, permita o acesso nas configurações do seu navegador para continuar a usar o recurso de voz. 🎙️");
