@@ -45,7 +45,7 @@ const Index = () => {
       {/* Nova seção de Ações Rápidas */}
       <div className="mb-8">
         <h2 className="text-xl font-semibold mb-4">Ações Rápidas</h2>
-        <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-3"> {/* Ajustado para 5 colunas em lg */}
+        <div className="grid grid-cols-5 gap-2"> {/* Força 5 colunas em todas as telas */}
           <QuickActionCard 
             title="Pendentes" 
             icon={Clock} 
@@ -86,7 +86,6 @@ const Index = () => {
             count={isLoading ? undefined : stats?.deliveredOrdersCount}
             loading={isLoading}
           />
-          {/* O atalho para o chat AI foi removido conforme solicitado */}
         </div>
       </div>
 
