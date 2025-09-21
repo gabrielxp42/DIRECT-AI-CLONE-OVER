@@ -15,10 +15,14 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
+  const [isHoldRecording, setIsHoldRecording] = useState(false); // Novo estado para diferenciar gravação por 'hold'
+  
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const audioStreamRef = useRef<MediaStream | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const longPressTimeoutRef = useRef<NodeJS.Timeout | null>(null); // Timer para detectar 'long press'
+  
   const openAIClient = useRef(getOpenAIClient()).current;
 
   // Referências para os objetos de áudio para os sons
@@ -26,10 +30,10 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
   const stopSound = useRef(new Audio('/sounds/record_stop.mp3')).current;
 
   const MIN_AUDIO_DURATION_MS = 500; // 0.5 segundos
+  const LONG_PRESS_DELAY = 300; // Tempo em ms para considerar um 'long press'
 
   // Detecta o melhor MIME type para gravação de áudio
   const getSupportedMimeType = () => {
-    // Priorize webm com codec opus para maior compatibilidade com APIs como OpenAI Whisper
     const preferredMimeTypes = [
       'audio/webm;codecs=opus',
       'audio/webm',
@@ -48,9 +52,10 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
     return 'audio/webm'; // Fallback padrão se nada mais for suportado
   };
 
-  const startRecording = async (e: React.MouseEvent | React.TouchEvent) => {
-    e.preventDefault();
-    if (disabled || isRecording || isProcessing) return;
+  // Função auxiliar para iniciar o processo de gravação
+  const startRecordingProcess = async () => {
+    if (disabled || isProcessing) return; // Prevenção adicional
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       audioStreamRef.current = stream;
@@ -62,12 +67,11 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
       audioChunksRef.current = [];
       setRecordingDuration(0);
 
-      // Evento onstart do MediaRecorder para maior confiabilidade
       mediaRecorderRef.current.onstart = () => {
         console.log('[AudioRecorder] Gravação iniciada com sucesso.');
         setIsRecording(true);
         showSuccess("Gravação iniciada...");
-        startSound.play().catch(e => console.warn("Erro ao reproduzir som de início:", e)); // Toca o som de início
+        startSound.play().catch(e => console.warn("Erro ao reproduzir som de início:", e));
         
         intervalRef.current = setInterval(() => {
           setRecordingDuration(prev => prev + 100);
@@ -88,11 +92,8 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
         audioStreamRef.current?.getTracks().forEach(track => track.stop());
         audioStreamRef.current = null;
 
-        stopSound.play().catch(e => console.warn("Erro ao reproduzir som de fim:", e)); // Toca o som de fim
+        stopSound.play().catch(e => console.warn("Erro ao reproduzir som de fim:", e));
 
-        // Verifica se algum dado de áudio foi realmente coletado OU se a duração foi muito curta.
-        // Isso ajuda a capturar casos onde ondataavailable pode não disparar para gravações muito curtas
-        // ou imediatamente após a concessão de permissão.
         if (audioChunksRef.current.length === 0 || recordingDuration < MIN_AUDIO_DURATION_MS) {
           let errorMessage = "Nenhum áudio foi gravado ou o áudio foi muito curto.";
           if (audioChunksRef.current.length === 0) {
@@ -147,10 +148,63 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
     }
   };
 
-  const stopRecording = (e: React.MouseEvent | React.TouchEvent) => {
-    e.preventDefault();
+  // Função auxiliar para parar o processo de gravação
+  const stopRecordingProcess = () => {
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
+    }
+  };
+
+  // Manipulador para o início do pressionar (mouse ou toque)
+  const handlePressStart = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault(); // Previne o evento de clique em dispositivos de toque
+    if (disabled || isProcessing || isRecording) return; // Se já estiver gravando (por toque), não faz nada
+
+    longPressTimeoutRef.current = setTimeout(() => {
+      setIsHoldRecording(true); // Marca como gravação por 'hold'
+      startRecordingProcess();
+    }, LONG_PRESS_DELAY);
+  };
+
+  // Manipulador para o fim do pressionar (mouse ou toque)
+  const handlePressEnd = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault(); // Previne o evento de clique em dispositivos de toque
+    if (longPressTimeoutRef.current) {
+      clearTimeout(longPressTimeoutRef.current);
+      longPressTimeoutRef.current = null;
+    }
+
+    if (isHoldRecording) {
+      stopRecordingProcess();
+      setIsHoldRecording(false); // Reseta o estado de 'hold'
+    }
+  };
+
+  // Manipulador para cancelar o pressionar (ex: mouse sai do botão, toque cancelado)
+  const handlePressCancel = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    if (longPressTimeoutRef.current) {
+      clearTimeout(longPressTimeoutRef.current);
+      longPressTimeoutRef.current = null;
+    }
+    if (isHoldRecording) {
+      stopRecordingProcess();
+      setIsHoldRecording(false);
+    }
+  };
+
+  // Manipulador para o evento de clique (toque rápido)
+  const handleClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    // Só lida com o clique se não houver um 'long press' em andamento ou recém-concluído
+    if (disabled || isProcessing || isHoldRecording || longPressTimeoutRef.current) {
+      return;
+    }
+
+    if (isRecording) { // Se já estiver gravando (deve ser por toque)
+      stopRecordingProcess();
+    } else { // Não está gravando
+      startRecordingProcess();
     }
   };
 
@@ -169,14 +223,15 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
         className={`h-10 w-10 rounded-full transition-all duration-200 
                     ${isRecording ? 'bg-yellow-600 text-white animate-pulse' : 'bg-yellow-500 text-white hover:bg-yellow-600'}
                     ${disabled || isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
-        onMouseDown={startRecording}
-        onMouseUp={stopRecording}
-        onMouseLeave={stopRecording}
-        onTouchStart={startRecording}
-        onTouchEnd={stopRecording}
-        onTouchCancel={stopRecording}
+        onMouseDown={handlePressStart}
+        onMouseUp={handlePressEnd}
+        onMouseLeave={handlePressCancel}
+        onTouchStart={handlePressStart}
+        onTouchEnd={handlePressEnd}
+        onTouchCancel={handlePressCancel}
+        onClick={handleClick}
         disabled={disabled || isProcessing}
-        title={isRecording ? "Solte para parar" : "Pressione e segure para gravar"}
+        title={isRecording ? "Toque para parar / Solte para parar" : "Toque para gravar / Pressione e segure para gravar"}
         style={{ userSelect: 'none', WebkitUserSelect: 'none', touchAction: 'manipulation' }}
       >
         {isProcessing ? (
