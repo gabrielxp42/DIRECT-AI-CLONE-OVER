@@ -4,13 +4,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { DollarSign, Users, CreditCard, Activity, Wallet, Truck } from "lucide-react";
+import { DollarSign, Users, CreditCard, Activity, Plus, MessageSquare, ShoppingCart, Package, User, Clock, Wrench } from "lucide-react";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { Skeleton } from "@/components/ui/skeleton";
-import { DashboardShortcutCard } from "@/components/DashboardShortcutCard";
+import { QuickActionCard } from "@/components/QuickActionCard"; // Importar o novo componente
+import { useAIAssistant } from '@/contexts/AIAssistantProvider'; // Importar o hook do assistente AI
 
 const Index = () => {
   const { data: stats, isLoading, error } = useDashboardData();
+  const { open: openAIAssistant } = useAIAssistant(); // Hook para abrir o assistente AI
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -39,26 +41,51 @@ const Index = () => {
   return (
     <div>
       <h1 className="text-3xl font-bold mb-6 text-left">Dashboard</h1>
-      <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
-        {/* New Shortcut Cards */}
-        <DashboardShortcutCard
-          title="Falta Pagar"
-          count={isLoading ? '...' : stats?.pendingPaymentOrders || 0}
-          icon={Wallet}
-          to="/pedidos"
-          filterState={{ filterStatus: 'pendente-pagamento' }}
-          loading={isLoading}
-        />
-        <DashboardShortcutCard
-          title="Pedidos Entregues"
-          count={isLoading ? '...' : stats?.deliveredOrders || 0}
-          icon={Truck}
-          to="/pedidos"
-          filterState={{ filterStatus: 'entregue' }}
-          loading={isLoading}
-        />
+      
+      {/* Nova seção de Ações Rápidas */}
+      <div className="mb-8">
+        <h2 className="text-xl font-semibold mb-4">Ações Rápidas</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+          <QuickActionCard 
+            title="Novo Pedido" 
+            icon={Plus} 
+            to="/pedidos" 
+            filterState={{ openForm: true }} 
+          />
+          <QuickActionCard 
+            title="Novo Cliente" 
+            icon={User} 
+            to="/clientes" 
+            filterState={{ openForm: true }} 
+          />
+          <QuickActionCard 
+            title="Novo Produto" 
+            icon={Package} 
+            to="/produtos" 
+            filterState={{ openForm: true }} 
+          />
+          <QuickActionCard 
+            title="Pedidos Pendentes" 
+            icon={Clock} 
+            to="/pedidos" 
+            filterState={{ filterStatus: 'pendente' }} 
+          />
+          <QuickActionCard 
+            title="Pedidos Processando" 
+            icon={Wrench} 
+            to="/pedidos" 
+            filterState={{ filterStatus: 'processando' }} 
+          />
+          <QuickActionCard 
+            title="Abrir Chat AI" 
+            icon={MessageSquare} 
+            onClick={openAIAssistant} 
+          />
+        </div>
+      </div>
 
-        {/* Existing Cards */}
+      {/* Cards de Visão Geral Existentes */}
+      <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">

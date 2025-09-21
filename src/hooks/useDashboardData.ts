@@ -10,8 +10,6 @@ export interface DashboardStats {
   customersGrowth: number;
   ordersGrowth: number;
   ticketGrowth: number;
-  pendingPaymentOrders: number;
-  deliveredOrders: number;
 }
 
 export const useDashboardData = () => {
@@ -47,30 +45,6 @@ export const useDashboardData = () => {
 
       if (previousOrdersError) throw new Error(previousOrdersError.message);
 
-      // Fetch ALL orders for specific counts (pending payment, delivered)
-      const { data: allOrders, error: allOrdersError } = await supabase
-        .from("pedidos")
-        .select("id, status");
-
-      if (allOrdersError) throw new Error(allOrdersError.message);
-
-      // Fetch current month customers
-      const { data: currentCustomers, error: currentCustomersError } = await supabase
-        .from("clientes")
-        .select("id, created_at")
-        .gte("created_at", firstDayCurrentMonth.toISOString());
-
-      if (currentCustomersError) throw new Error(currentCustomersError.message);
-
-      // Fetch previous month customers
-      const { data: previousCustomers, error: previousCustomersError } = await supabase
-        .from("clientes")
-        .select("id, created_at")
-        .gte("created_at", firstDayPreviousMonth.toISOString())
-        .lte("created_at", lastDayPreviousMonth.toISOString());
-
-      if (previousCustomersError) throw new Error(previousCustomersError.message);
-
       // Fetch active orders (pending status)
       const { data: activeOrders, error: activeOrdersError } = await supabase
         .from("pedidos")
@@ -95,12 +69,6 @@ export const useDashboardData = () => {
       const customersGrowth = previousNewCustomers > 0 ? ((newCustomers - previousNewCustomers) / previousNewCustomers) * 100 : 0;
       const ticketGrowth = previousAverageTicket > 0 ? ((averageTicket - previousAverageTicket) / previousAverageTicket) * 100 : 0;
 
-      // Calculate new shortcut stats
-      const pendingPaymentOrders = allOrders?.filter(order => 
-        order.status !== 'pago' && order.status !== 'cancelado' && order.status !== 'entregue'
-      ).length || 0;
-      const deliveredOrders = allOrders?.filter(order => order.status === 'entregue').length || 0;
-
       return {
         totalSales,
         newCustomers,
@@ -110,8 +78,6 @@ export const useDashboardData = () => {
         customersGrowth,
         ordersGrowth: 0, // We don't have historical active orders data
         ticketGrowth,
-        pendingPaymentOrders,
-        deliveredOrders,
       };
     },
     enabled: !!supabase,
