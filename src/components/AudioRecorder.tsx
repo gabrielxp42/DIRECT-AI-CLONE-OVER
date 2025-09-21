@@ -23,7 +23,8 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
 
   const MIN_AUDIO_DURATION_MS = 500; // 0.5 segundos, um pouco acima do mínimo de 0.1s da OpenAI para segurança
 
-  const startRecording = async () => {
+  const startRecording = async (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault(); // Previne o comportamento padrão do navegador (zoom, seleção de texto)
     if (disabled || isRecording || isProcessing) return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -88,7 +89,8 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
     }
   };
 
-  const stopRecording = () => {
+  const stopRecording = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault(); // Previne o comportamento padrão do navegador
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
     }
@@ -116,6 +118,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
         onTouchCancel={stopRecording}
         disabled={disabled || isProcessing}
         title={isRecording ? "Solte para parar" : "Pressione e segure para gravar"}
+        style={{ userSelect: 'none', WebkitUserSelect: 'none', touchAction: 'manipulation' }} // Adicionado para prevenir zoom/seleção
       >
         {isProcessing ? (
           <Loader2 className="h-5 w-5 animate-spin" />
