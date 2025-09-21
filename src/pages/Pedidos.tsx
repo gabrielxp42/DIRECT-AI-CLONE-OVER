@@ -5,7 +5,7 @@ import { Cliente } from '@/types/cliente';
 import { Produto } from '@/types/produto';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Plus, Search, Filter, Eye, Edit, Trash2, Loader2, CalendarIcon, DollarSign, FileText, Wrench, History, MessageSquare, MoreHorizontal, User, Clock, CheckCircle, XCircle, Package } from 'lucide-react'; // Adicionado Clock, CheckCircle, XCircle, Package para o getStatusBadge
+import { Plus, Search, Filter, Eye, Edit, Trash2, Loader2, CalendarIcon, DollarSign, FileText, Wrench, History, MessageSquare, MoreHorizontal, User, Clock, CheckCircle, XCircle, Package } from 'lucide-react';
 import { PedidoForm } from '@/components/PedidoForm';
 import { PedidoDetails } from '@/components/PedidoDetails';
 import { showSuccess, showError } from '@/utils/toast';
@@ -38,8 +38,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { OrderStatusIndicator } from '@/components/OrderStatusIndicator';
-import { useIsMobile } from '@/hooks/use-mobile'; // Importar o hook useIsMobile
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"; // Importar Tooltip
+import { useIsMobile } from '@/hooks/use-mobile';
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const PedidosPage: React.FC = () => {
   const { supabase, session } = useSession();
@@ -60,13 +60,12 @@ const PedidosPage: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState<string>('todos');
   const [filterDateRange, setFilterDateRange] = useState<{ from?: Date; to?: Date }>({});
 
-  const isMobile = useIsMobile(); // Usar o hook aqui
+  const isMobile = useIsMobile();
 
   const fetchPedidos = useCallback(async () => {
     if (!session || !supabase) return;
     setLoading(true);
     try {
-      // Buscar pedidos primeiro
       const { data: pedidosData, error: pedidosError } = await supabase
         .from('pedidos')
         .select(`
@@ -74,11 +73,10 @@ const PedidosPage: React.FC = () => {
           clientes (id, nome, telefone, email, endereco)
         `)
         .eq('user_id', session.user.id)
-        .order('order_number', { ascending: false }); // Ordenar por número do pedido
+        .order('order_number', { ascending: false });
 
       if (pedidosError) throw pedidosError;
 
-      // Buscar itens dos pedidos
       const pedidoIds = pedidosData?.map(pedido => pedido.id) || [];
       const { data: itemsData, error: itemsError } = await supabase
         .from('pedido_items')
@@ -90,7 +88,6 @@ const PedidosPage: React.FC = () => {
 
       if (itemsError) throw itemsError;
 
-      // Buscar serviços dos pedidos (verificando se a tabela existe)
       let servicosData: any[] = [];
       let servicosError: any = null;
       
@@ -103,7 +100,6 @@ const PedidosPage: React.FC = () => {
         servicosData = data || [];
         servicosError = error;
       } catch (e) {
-        // Se a tabela pedido_servicos não existir, tentamos servicos
         try {
           const { data, error } = await supabase
             .from('servicos')
@@ -113,7 +109,6 @@ const PedidosPage: React.FC = () => {
           servicosData = data || [];
           servicosError = error;
         } catch (innerError) {
-          // Se nenhuma tabela de serviços existir, continuamos sem serviços
           servicosData = [];
           servicosError = null;
         }
@@ -124,28 +119,26 @@ const PedidosPage: React.FC = () => {
         servicosData = [];
       }
 
-      // Buscar histórico de status para todos os pedidos
       const { data: allHistoryData, error: historyError } = await supabase
         .from('pedido_status_history')
         .select('*')
         .in('pedido_id', pedidoIds)
-        .order('created_at', { ascending: false }); // Order by date to easily get the latest
+        .order('created_at', { ascending: false });
 
       if (historyError) {
         console.warn('Aviso: Não foi possível carregar histórico de status:', historyError.message);
       }
 
-      // Mapear histórico e última observação para cada pedido
       const pedidosCompletos = pedidosData?.map(pedido => {
         const orderHistory = allHistoryData?.filter(historyItem => historyItem.pedido_id === pedido.id) || [];
-        const latestObservation = orderHistory.length > 0 ? orderHistory[0].observacao : null; // Get the latest (first after sorting)
+        const latestObservation = orderHistory.length > 0 ? orderHistory[0].observacao : null;
         
         return {
           ...pedido,
           pedido_items: itemsData?.filter(item => item.pedido_id === pedido.id) || [],
           servicos: servicosData?.filter(servico => servico.pedido_id === pedido.id) || [],
-          status_history: orderHistory, // Assign all history
-          latest_status_observation: latestObservation, // Assign the latest observation
+          status_history: orderHistory,
+          latest_status_observation: latestObservation,
         };
       }) || [];
 
@@ -186,7 +179,7 @@ const PedidosPage: React.FC = () => {
   }, [fetchPedidos, fetchClientesAndProdutos]);
 
   const handleCreatePedido = () => {
-    setEditingPedido(null); // Garante que é um novo pedido
+    setEditingPedido(null);
     setIsFormOpen(true);
   };
 
@@ -219,11 +212,10 @@ const PedidosPage: React.FC = () => {
       const { error } = await supabase
         .from('pedidos')
         .update({ status: newStatus })
-        .eq('id', statusChangeChangePedido.id);
+        .eq('id', statusChangePedido.id);
       
       if (error) throw error;
       
-      // Se houver observação, adicionar ao histórico
       if (observacao && observacao.trim()) {
         const { error: historyError } = await supabase
           .from('pedido_status_history')
@@ -262,10 +254,8 @@ const PedidosPage: React.FC = () => {
 
     try {
       if (pedidoId) {
-        // Update existing pedido
         const { items, servicos, ...pedidoData } = data;
 
-        // Update pedido main data
         const { error: pedidoError } = await supabase
           .from('pedidos')
           .update(pedidoData)
@@ -273,7 +263,6 @@ const PedidosPage: React.FC = () => {
           .eq('user_id', session.user.id);
         if (pedidoError) throw pedidoError;
 
-        // Handle items: delete old, insert new
         await supabase.from('pedido_items').delete().eq('pedido_id', pedidoId);
         if (items && items.length > 0) {
           const itemsToInsert = items.map(item => ({ ...item, pedido_id: pedidoId }));
@@ -281,8 +270,6 @@ const PedidosPage: React.FC = () => {
           if (itemsError) throw itemsError;
         }
 
-        // Handle servicos: delete old, insert new
-        // Verificar qual tabela de serviços existe
         let servicosTable = 'pedido_servicos';
         try {
           await supabase.from('pedido_servicos').select('*').limit(1);
@@ -299,7 +286,6 @@ const PedidosPage: React.FC = () => {
 
         showSuccess("Pedido atualizado com sucesso!");
       } else {
-        // Create new pedido
         const { items, servicos, ...pedidoData } = data;
         const { data: newPedido, error: pedidoError } = await supabase
           .from('pedidos')
@@ -315,7 +301,6 @@ const PedidosPage: React.FC = () => {
           if (itemsError) throw itemsError;
         }
 
-        // Verificar qual tabela de serviços existe
         let servicosTable = 'pedido_servicos';
         try {
           await supabase.from('pedido_servicos').select('*').limit(1);
@@ -343,22 +328,18 @@ const PedidosPage: React.FC = () => {
   const handleDeletePedido = async (id: string) => {
     if (!supabase) return;
     try {
-      // Delete associated status history first
       const { error: historyError } = await supabase
         .from('pedido_status_history')
         .delete()
         .eq('pedido_id', id);
       if (historyError) console.warn('Aviso: Erro ao excluir histórico de status:', historyError.message);
 
-      // Delete associated items
       const { error: itemsError } = await supabase
         .from('pedido_items')
         .delete()
         .eq('pedido_id', id);
       if (itemsError) throw itemsError;
 
-      // Delete associated services
-      // Verificar qual tabela de serviços existe
       let servicosTable = 'pedido_servicos';
       try {
         await supabase.from('pedido_servicos').select('*').limit(1);
@@ -374,7 +355,6 @@ const PedidosPage: React.FC = () => {
         console.warn('Aviso: Não foi possível excluir serviços:', servicosError.message);
       }
 
-      // Then delete the pedido
       const { error } = await supabase
         .from('pedidos')
         .delete()
@@ -392,21 +372,21 @@ const PedidosPage: React.FC = () => {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'pendente':
-        return <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-300"><Clock className="h-3 w-3 mr-1" /> Pendente</Badge>;
+        return <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-300 text-[0.65rem] px-1 py-0.5 whitespace-normal leading-tight"><Clock className="h-3 w-3 mr-1" /> Pendente</Badge>;
       case 'processando':
-        return <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300"><Wrench className="h-3 w-3 mr-1" /> Processando</Badge>;
+        return <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300 text-[0.65rem] px-1 py-0.5 whitespace-normal leading-tight"><Wrench className="h-3 w-3 mr-1" /> Processando</Badge>;
       case 'enviado':
-        return <Badge variant="outline" className="bg-purple-100 text-purple-800 border-purple-300"><CheckCircle className="h-3 w-3 mr-1" /> Enviado</Badge>;
+        return <Badge variant="outline" className="bg-purple-100 text-purple-800 border-purple-300 text-[0.65rem] px-1 py-0.5 whitespace-normal leading-tight"><CheckCircle className="h-3 w-3 mr-1" /> Enviado</Badge>;
       case 'entregue':
-        return <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300"><CheckCircle className="h-3 w-3 mr-1" /> Entregue</Badge>;
+        return <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300 text-[0.65rem] px-1 py-0.5 whitespace-normal leading-tight"><CheckCircle className="h-3 w-3 mr-1" /> Entregue</Badge>;
       case 'cancelado':
-        return <Badge variant="outline" className="bg-red-100 text-red-800 border-red-300"><XCircle className="h-3 w-3 mr-1" /> Cancelado</Badge>;
+        return <Badge variant="outline" className="bg-red-100 text-red-800 border-red-300 text-[0.65rem] px-1 py-0.5 whitespace-normal leading-tight"><XCircle className="h-3 w-3 mr-1" /> Cancelado</Badge>;
       case 'pago':
-        return <Badge variant="outline" className="bg-green-500 text-white border-green-600"><DollarSign className="h-3 w-3 mr-1" /> Pago</Badge>;
+        return <Badge variant="outline" className="bg-green-500 text-white border-green-600 text-[0.65rem] px-1 py-0.5 whitespace-normal leading-tight"><DollarSign className="h-3 w-3 mr-1" /> Pago</Badge>;
       case 'aguardando retirada':
-        return <Badge variant="outline" className="bg-orange-500 text-white border-orange-600"><Package className="h-3 w-3 mr-1" /> Aguardando Retirada</Badge>;
+        return <Badge variant="outline" className="bg-orange-500 text-white border-orange-600 text-[0.65rem] px-1 py-0.5 whitespace-normal leading-tight"><Package className="h-3 w-3 mr-1" /> Aguardando Retirada</Badge>;
       default:
-        return <Badge variant="secondary">{status}</Badge>;
+        return <Badge variant="secondary" className="text-[0.65rem] px-1 py-0.5 whitespace-normal leading-tight">{status}</Badge>;
     }
   };
 
@@ -419,7 +399,7 @@ const PedidosPage: React.FC = () => {
 
   const filteredPedidos = pedidos.filter(pedido => {
     const matchesSearch = searchTerm === '' ||
-      pedido.order_number.toString().includes(searchTerm) || // Busca por order_number
+      pedido.order_number.toString().includes(searchTerm) ||
       pedido.clientes?.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
       pedido.pedido_items?.some(item => item.produto_nome?.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (pedido.servicos?.some(servico => servico.nome?.toLowerCase().includes(searchTerm.toLowerCase())) || false);
@@ -525,28 +505,21 @@ const PedidosPage: React.FC = () => {
                     <CardDescription className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
                       <User className="h-3 w-3 flex-shrink-0" />
                       {isMobile ? (
-                        <span className="flex-1 truncate"> {/* Mobile: truncate */}
+                        <span className="flex-1 truncate">
                           {pedido.clientes?.nome || 'Cliente Desconhecido'}
                         </span>
                       ) : (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="flex-1 truncate cursor-help"> {/* Desktop: truncate with tooltip */}
-                              {pedido.clientes?.nome || 'Cliente Desconhecido'}
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>{pedido.clientes?.nome || 'Cliente Desconhecido'}</p>
-                          </TooltipContent>
-                        </Tooltip>
+                        <span className="flex-1 truncate"> {/* Desktop: truncate sem tooltip */}
+                          {pedido.clientes?.nome || 'Cliente Desconhecido'}
+                        </span>
                       )}
                     </CardDescription>
                   </div>
                   <div className="flex-shrink-0">
                     {isMobile ? (
-                      getStatusBadge(pedido.status) // Mobile: badge completo
+                      getStatusBadge(pedido.status) // Mobile: badge completo com quebra de linha
                     ) : (
-                      <OrderStatusIndicator status={pedido.status} /> // Desktop: indicador compacto
+                      <OrderStatusIndicator status={pedido.status} /> // Desktop: indicador compacto com tooltip
                     )}
                   </div>
                 </div>
@@ -561,7 +534,6 @@ const PedidosPage: React.FC = () => {
                   <span>Total: {formatCurrency(pedido.valor_total)}</span>
                 </div>
 
-                {/* NEW: Latest Status Observation Preview */}
                 {pedido.latest_status_observation && (
                   <div className="flex items-start text-sm text-muted-foreground italic bg-muted p-2 rounded-md">
                     <MessageSquare className="h-4 w-4 mr-2 flex-shrink-0 mt-0.5" />
