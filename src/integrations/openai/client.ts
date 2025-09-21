@@ -1,3 +1,5 @@
+"use client";
+
 // OpenAI Client Configuration
 const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
 
@@ -68,6 +70,29 @@ export class OpenAIClient {
     return {
       content: choice.message.content,
     };
+  }
+
+  async transcribeAudio(audioBlob: Blob): Promise<string | null> {
+    const formData = new FormData();
+    formData.append('file', audioBlob, 'audio.webm');
+    formData.append('model', 'whisper-1');
+    formData.append('language', 'pt'); // Specify Portuguese language
+
+    const response = await fetch(`${this.baseURL}/audio/transcriptions`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.apiKey}`,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(`OpenAI Whisper API Error: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
+    }
+
+    const data = await response.json();
+    return data.text || null;
   }
 }
 

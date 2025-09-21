@@ -7,6 +7,7 @@ import { getOpenAIClient, type ChatMessage } from '@/integrations/openai/client'
 import { openAIFunctions, callOpenAIFunction } from '@/integrations/openai/aiTools';
 import { useToast } from '@/hooks/use-toast';
 import { useAIAssistant } from '@/contexts/AIAssistantProvider';
+import { AudioRecorder } from './AudioRecorder'; // Importar o novo componente
 
 export const AIAssistant = () => {
   const { isOpen, close } = useAIAssistant();
@@ -35,12 +36,12 @@ export const AIAssistant = () => {
       .trim();
   };
 
-  const handleSendMessage = async () => {
-    if (input.trim() === '') return;
+  const handleSendMessage = async (messageContent: string) => {
+    if (messageContent.trim() === '') return;
 
-    const userMessage: ChatMessage = { role: 'user', content: input };
+    const userMessage: ChatMessage = { role: 'user', content: messageContent };
     setMessages((prev) => [...prev, userMessage]);
-    setInput('');
+    setInput(''); // Clear text input after sending
     setIsLoading(true);
 
     try {
@@ -159,6 +160,13 @@ Responda sempre de forma clara, direta e amigável.`
     }
   };
 
+  const handleAudioTranscription = (text: string) => {
+    setInput(text); // Preenche o input de texto com a transcrição
+    // O usuário pode revisar e enviar, ou podemos enviar automaticamente
+    // Para enviar automaticamente, chame handleSendMessage(text) aqui.
+    // Por enquanto, vamos deixar o usuário enviar manualmente.
+  };
+
   if (!isOpen) {
     return null;
   }
@@ -266,14 +274,15 @@ Responda sempre de forma clara, direta e amigável.`
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={(e) => {
               if (e.key === 'Enter' && !isLoading) {
-                handleSendMessage();
+                handleSendMessage(input);
               }
             }}
             disabled={isLoading}
             className="flex-1"
           />
+          <AudioRecorder onTranscription={handleAudioTranscription} disabled={isLoading} />
           <Button 
-            onClick={handleSendMessage} 
+            onClick={() => handleSendMessage(input)} 
             disabled={isLoading || input.trim() === ''} 
             size="icon"
             className="h-10 w-10"
