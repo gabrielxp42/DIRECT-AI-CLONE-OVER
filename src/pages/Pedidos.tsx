@@ -512,12 +512,12 @@ const PedidosPage: React.FC = () => {
               className="touch-manipulation cursor-pointer transition-all duration-200 hover:shadow-lg hover:border-primary/50"
             >
               <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
+                <div className="flex items-start justify-between w-full"> {/* Adicionado w-full aqui */}
                   <div className="flex-1 min-w-0">
                     <CardTitle className="text-lg font-semibold truncate">
                       Pedido #{pedido.order_number}
                     </CardTitle>
-                    <CardDescription className="text-sm text-muted-foreground flex items-center gap-1 mt-1 w-full">
+                    <CardDescription className="text-sm text-muted-foreground flex items-center gap-1 mt-1"> {/* Removido w-full daqui */}
                       <User className="h-3 w-3 flex-shrink-0" />
                       <span className="truncate flex-1">
                         {pedido.clientes?.nome || 'Cliente Desconhecido'}
