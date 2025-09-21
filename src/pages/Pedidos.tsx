@@ -5,7 +5,7 @@ import { Cliente } from '@/types/cliente';
 import { Produto } from '@/types/produto';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Plus, Search, Filter, Eye, Edit, Trash2, Loader2, CalendarIcon, DollarSign, FileText, Wrench, History, MessageSquare, MoreHorizontal, User } from 'lucide-react'; // Adicionado 'User' aqui
+import { Plus, Search, Filter, Eye, Edit, Trash2, Loader2, CalendarIcon, DollarSign, FileText, Wrench, History, MessageSquare, MoreHorizontal, User, Clock, CheckCircle, XCircle, Package } from 'lucide-react'; // Adicionado Clock, CheckCircle, XCircle, Package para o getStatusBadge
 import { PedidoForm } from '@/components/PedidoForm';
 import { PedidoDetails } from '@/components/PedidoDetails';
 import { showSuccess, showError } from '@/utils/toast';
@@ -38,6 +38,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { OrderStatusIndicator } from '@/components/OrderStatusIndicator';
+import { useIsMobile } from '@/hooks/use-mobile'; // Importar o hook useIsMobile
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"; // Importar Tooltip
 
 const PedidosPage: React.FC = () => {
   const { supabase, session } = useSession();
@@ -57,6 +59,8 @@ const PedidosPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('todos');
   const [filterDateRange, setFilterDateRange] = useState<{ from?: Date; to?: Date }>({});
+
+  const isMobile = useIsMobile(); // Usar o hook aqui
 
   const fetchPedidos = useCallback(async () => {
     if (!session || !supabase) return;
@@ -215,7 +219,7 @@ const PedidosPage: React.FC = () => {
       const { error } = await supabase
         .from('pedidos')
         .update({ status: newStatus })
-        .eq('id', statusChangePedido.id);
+        .eq('id', statusChangeChangePedido.id);
       
       if (error) throw error;
       
@@ -384,7 +388,27 @@ const PedidosPage: React.FC = () => {
     }
   };
 
-  // Removido getStatusBadge, pois será substituído por OrderStatusIndicator
+  // Reintroduzindo a função getStatusBadge para uso no mobile
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'pendente':
+        return <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-300"><Clock className="h-3 w-3 mr-1" /> Pendente</Badge>;
+      case 'processando':
+        return <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300"><Wrench className="h-3 w-3 mr-1" /> Processando</Badge>;
+      case 'enviado':
+        return <Badge variant="outline" className="bg-purple-100 text-purple-800 border-purple-300"><CheckCircle className="h-3 w-3 mr-1" /> Enviado</Badge>;
+      case 'entregue':
+        return <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300"><CheckCircle className="h-3 w-3 mr-1" /> Entregue</Badge>;
+      case 'cancelado':
+        return <Badge variant="outline" className="bg-red-100 text-red-800 border-red-300"><XCircle className="h-3 w-3 mr-1" /> Cancelado</Badge>;
+      case 'pago':
+        return <Badge variant="outline" className="bg-green-500 text-white border-green-600"><DollarSign className="h-3 w-3 mr-1" /> Pago</Badge>;
+      case 'aguardando retirada':
+        return <Badge variant="outline" className="bg-orange-500 text-white border-orange-600"><Package className="h-3 w-3 mr-1" /> Aguardando Retirada</Badge>;
+      default:
+        return <Badge variant="secondary">{status}</Badge>;
+    }
+  };
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -500,13 +524,30 @@ const PedidosPage: React.FC = () => {
                     </CardTitle>
                     <CardDescription className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
                       <User className="h-3 w-3 flex-shrink-0" />
-                      <span className="flex-1 whitespace-normal">
-                        {pedido.clientes?.nome || 'Cliente Desconhecido'}
-                      </span>
+                      {isMobile ? (
+                        <span className="flex-1 truncate"> {/* Mobile: truncate */}
+                          {pedido.clientes?.nome || 'Cliente Desconhecido'}
+                        </span>
+                      ) : (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="flex-1 truncate cursor-help"> {/* Desktop: truncate with tooltip */}
+                              {pedido.clientes?.nome || 'Cliente Desconhecido'}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{pedido.clientes?.nome || 'Cliente Desconhecido'}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
                     </CardDescription>
                   </div>
                   <div className="flex-shrink-0">
-                    <OrderStatusIndicator status={pedido.status} />
+                    {isMobile ? (
+                      getStatusBadge(pedido.status) // Mobile: badge completo
+                    ) : (
+                      <OrderStatusIndicator status={pedido.status} /> // Desktop: indicador compacto
+                    )}
                   </div>
                 </div>
               </CardHeader>
