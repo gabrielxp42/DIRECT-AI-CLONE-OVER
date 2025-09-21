@@ -250,10 +250,9 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
         clearTimeout(longPressTimeoutRef.current);
         longPressTimeoutRef.current = null;
       }
-      if (isLongPressDetected && isRecording) { // If recording via long press and pointer leaves
-        console.log('[AudioRecorder] PointerLeave: Long press detectado e gravando, parando gravação.');
-        stopRecordingProcess();
-      }
+      // Crucial: Não parar a gravação aqui se for um long press.
+      // A gravação por long press só para no PointerUp.
+      // Apenas reseta o estado de detecção de long press e isPressing.
       setIsLongPressDetected(false);
       setIsPressing(false);
     }
@@ -272,7 +271,10 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
         variant="ghost"
         size="icon"
         className={`h-10 w-10 rounded-full transition-all duration-200 
-                    ${isRecording ? 'bg-yellow-600 text-white animate-pulse' : 'bg-yellow-500 text-white hover:bg-yellow-600'}
+                    ${isProcessing ? 'bg-yellow-600 text-white animate-spin' : ''}
+                    ${isRecording ? 'bg-yellow-600 text-white animate-pulse' : ''}
+                    ${!isRecording && isPressing ? 'bg-yellow-500 text-white animate-pulse-subtle' : ''}
+                    ${!isRecording && !isPressing && !isProcessing ? 'bg-yellow-500 text-white hover:bg-yellow-600' : ''}
                     ${disabled || isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
