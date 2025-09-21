@@ -191,6 +191,8 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
         return <Badge className="bg-red-100 text-red-800 hover:bg-red-100">Cancelado</Badge>;
       case 'pago':
         return <Badge className="bg-green-500 text-white hover:bg-green-600">Pago</Badge>;
+      case 'aguardando retirada':
+        return <Badge className="bg-orange-500 text-white hover:bg-orange-600">Aguardando Retirada</Badge>;
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }

@@ -399,7 +399,7 @@ const PedidosPage: React.FC = () => {
       case 'pago':
         return <Badge variant="outline" className="bg-green-500 text-white border-green-600"><DollarSign className="h-3 w-3 mr-1" /> Pago</Badge>;
       case 'aguardando retirada':
-        return <Badge variant="outline" className="bg-orange-100 text-orange-800 border-orange-300"><Package className="h-3 w-3 mr-1" /> Aguardando Retirada</Badge>;
+        return <Badge variant="outline" className="bg-orange-500 text-white border-orange-600"><Package className="h-3 w-3 mr-1" /> Aguardando Retirada</Badge>;
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }

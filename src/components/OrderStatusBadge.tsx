@@ -41,7 +41,7 @@ export const OrderStatusBadge = ({ status }: OrderStatusBadgeProps) => {
       case 'pago':
         return 'bg-green-500 text-white hover:bg-green-600';
       case 'aguardando retirada': // Novo status
-        return 'bg-orange-100 text-orange-800 hover:bg-orange-100';
+        return 'bg-orange-500 text-white hover:bg-orange-600';
       default:
         return '';
     }
