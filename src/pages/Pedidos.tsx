@@ -5,7 +5,7 @@ import { Cliente } from '@/types/cliente';
 import { Produto } from '@/types/produto';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Plus, Search, Filter, Eye, Edit, Trash2, Loader2, CheckCircle, XCircle, Clock, Package, User, CalendarIcon, DollarSign, Tag, Percent, Info, Wrench, FileText, History, MessageSquare, MoreHorizontal } from 'lucide-react';
+import { Plus, Search, Filter, Eye, Edit, Trash2, Loader2, CheckCircle, XCircle, Clock, Package, User, CalendarIcon, DollarSign, Tag, Percent, Info, Wrench, FileText, History, MessageSquare } from 'lucide-react';
 import { PedidoForm } from '@/components/PedidoForm';
 import { PedidoDetails } from '@/components/PedidoDetails'; // Caminho de importação corrigido
 import { showSuccess, showError } from '@/utils/toast';
@@ -519,7 +519,9 @@ const PedidosPage: React.FC = () => {
                     </CardTitle>
                     <CardDescription className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
                       <User className="h-3 w-3" />
-                      {pedido.clientes?.nome || 'Cliente Desconhecido'}
+                      <span className="truncate max-w-[calc(100%-1.5rem)]">
+                        {pedido.clientes?.nome || 'Cliente Desconhecido'}
+                      </span>
                     </CardDescription>
                   </div>
                   <div className="ml-4 flex-shrink-0">
