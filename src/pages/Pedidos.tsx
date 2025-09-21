@@ -513,7 +513,7 @@ const PedidosPage: React.FC = () => {
             >
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between w-full">
-                  <div className="flex-grow min-w-0"> {/* Alterado de flex-1 min-w-[50%] para flex-grow min-w-0 */}
+                  <div className="flex-1 min-w-[60%] overflow-hidden"> {/* Alterado min-w-0 para min-w-[60%] e adicionado overflow-hidden */}
                     <CardTitle className="text-lg font-semibold truncate">
                       Pedido #{pedido.order_number}
                     </CardTitle>
