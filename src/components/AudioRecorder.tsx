@@ -26,8 +26,15 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
   
   const openAIClient = useRef(getOpenAIClient()).current;
 
+  // Inicializa os objetos Audio e tenta pré-carregar
   const startSound = useRef(new Audio('/sounds/record_start.mp3')).current;
   const stopSound = useRef(new Audio('/sounds/record_stop.mp3')).current;
+
+  useEffect(() => {
+    // Tenta carregar os sons assim que o componente é montado
+    startSound.load();
+    stopSound.load();
+  }, [startSound, stopSound]);
 
   const MIN_AUDIO_DURATION_MS = 500; // 0.5 segundos
   const LONG_PRESS_DELAY = 300; // Tempo em ms para considerar um 'long press'
