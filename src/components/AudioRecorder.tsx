@@ -25,19 +25,23 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
 
   // Detecta o melhor MIME type para gravação de áudio
   const getSupportedMimeType = () => {
+    // Priorize webm com codec opus para maior compatibilidade com APIs como OpenAI Whisper
     const preferredMimeTypes = [
+      'audio/webm;codecs=opus',
+      'audio/webm',
       'audio/mp4', // Melhor para iOS
       'audio/aac', // Outra boa opção para iOS
-      'audio/webm', // Amplamente suportado, mas não por iOS Safari para reprodução
       'audio/ogg',
     ];
 
     for (const type of preferredMimeTypes) {
       if (MediaRecorder.isTypeSupported(type)) {
+        console.log(`[AudioRecorder] Usando MIME type suportado: ${type}`);
         return type;
       }
     }
-    return 'audio/webm'; // Fallback padrão
+    console.warn('[AudioRecorder] Nenhum MIME type preferido suportado, usando fallback padrão: audio/webm');
+    return 'audio/webm'; // Fallback padrão se nada mais for suportado
   };
 
   const startRecording = async (e: React.MouseEvent | React.TouchEvent) => {
@@ -48,6 +52,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
       audioStreamRef.current = stream;
       
       const mimeType = getSupportedMimeType();
+      
       mediaRecorderRef.current = new MediaRecorder(stream, { mimeType });
       
       audioChunksRef.current = [];
@@ -78,7 +83,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
         }
 
         setIsProcessing(true);
-        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType }); // Usa o mimeType detectado
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType }); 
         
         try {
           const transcription = await openAIClient.transcribeAudio(audioBlob);
@@ -118,7 +123,6 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
       showSuccess("Gravação iniciada...");
     } catch (err: any) {
       console.error("Erro ao acessar o microfone:", err);
-      // Mensagem de erro atualizada para ser mais informativa e persuasiva
       showError("Para interagir com o assistente por voz, precisamos da sua permissão para acessar o microfone. Por favor, permita o acesso nas configurações do seu navegador para continuar a usar o recurso de voz. 🎙️");
     }
   };
