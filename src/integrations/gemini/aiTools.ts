@@ -75,7 +75,7 @@ export const tools = [
             },
             limit: {
               type: "number",
-              description: "Número máximo de pedidos a retornar. Padrão é 10."
+              description: "Número máximo de pedidos a retornar. Padrão é 100. Se o usuário indicar que há mais pedidos, o assistente deve aumentar este limite."
             },
             orderBy: {
               type: "string",
@@ -537,7 +537,7 @@ export const callTool = async (functionCall: any) => {
   }
 
   if (name === "list_orders") {
-    let { startDate, endDate, limit = 10, orderBy = 'created_at_desc' } = args;
+    let { startDate, endDate, limit = 100, orderBy = 'created_at_desc' } = args;
 
     // Se não houver datas, define para o mês atual no fuso horário do Rio
     if (!startDate && !endDate) {
