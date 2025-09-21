@@ -15,14 +15,11 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
-  const [isLongPressDetected, setIsLongPressDetected] = useState(false); // True if long press initiated recording
-  const [isPressing, setIsPressing] = useState(false); // New state to track if button is currently pressed
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const audioStreamRef = useRef<MediaStream | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const longPressTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   const openAIClient = useRef(getOpenAIClient()).current;
 
@@ -37,13 +34,11 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
   }, [startSound, stopSound]);
 
   const MIN_AUDIO_DURATION_MS = 500; // 0.5 segundos
-  const LONG_PRESS_DELAY = 300; // Tempo em ms para considerar um 'long press'
   const DURATION_UPDATE_INTERVAL_MS = 250; // Intervalo de atualização da duração para otimização
 
-  // Cleanup function for timeouts, intervals, and media recorder
+  // Cleanup function for intervals and media recorder
   useEffect(() => {
     return () => {
-      if (longPressTimeoutRef.current) clearTimeout(longPressTimeoutRef.current);
       if (intervalRef.current) clearInterval(intervalRef.current);
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
         mediaRecorderRef.current.stop();
@@ -115,7 +110,6 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
       mediaRecorderRef.current.onstop = async () => {
         console.log('[AudioRecorder] MediaRecorder.onstop disparado. Parando gravação.');
         setIsRecording(false);
-        setIsLongPressDetected(false); // Reset long press state
 
         if (intervalRef.current) {
           clearInterval(intervalRef.current);
@@ -188,9 +182,6 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
       showError("Para interagir com o assistente por voz, precisamos da sua permissão para acessar o microfone. Por favor, permita o acesso nas configurações do seu navegador para continuar a usar o recurso de voz. 🎙️");
       setIsProcessing(false); // Ensure processing state is reset on error
       setIsRecording(false);
-      setIsLongPressDetected(false);
-      if (longPressTimeoutRef.current) clearTimeout(longPressTimeoutRef.current);
-      longPressTimeoutRef.current = null;
       if (intervalRef.current) clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
@@ -205,63 +196,13 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
     }
   };
 
-  const handlePointerDown = (e: React.PointerEvent) => {
-    e.preventDefault(); // Previne o comportamento padrão do navegador, como o menu de contexto em toque longo
+  const handleButtonClick = () => {
     if (disabled || isProcessing) return;
 
-    setIsPressing(true);
-    console.log('[AudioRecorder] PointerDown: Iniciando timer de long press.');
-    longPressTimeoutRef.current = setTimeout(() => {
-      setIsLongPressDetected(true); // Marca que um toque longo foi detectado
-      console.log('[AudioRecorder] Long press detectado. Iniciando gravação.');
-      if (!isRecording) { // Só inicia se não estiver gravando (evita iniciar duas vezes se já estava gravando por tap)
-        startRecordingProcess();
-      }
-    }, LONG_PRESS_DELAY);
-  };
-
-  const handlePointerUp = (e: React.PointerEvent) => {
-    e.preventDefault();
-    if (disabled || isProcessing) return;
-
-    setIsPressing(false);
-    console.log('[AudioRecorder] PointerUp: Limpando timer de long press.');
-    if (longPressTimeoutRef.current) {
-      clearTimeout(longPressTimeoutRef.current);
-      longPressTimeoutRef.current = null;
-    }
-
-    if (isLongPressDetected) {
-      // Se a gravação foi iniciada por "pressionar e segurar", para ao soltar
-      console.log('[AudioRecorder] PointerUp: Long press detectado, parando gravação.');
+    if (isRecording) {
       stopRecordingProcess();
     } else {
-      // Se não foi um "pressionar e segurar" (foi um toque rápido)
-      if (isRecording) {
-        // Se já estava gravando (por um toque anterior), para a gravação
-        console.log('[AudioRecorder] PointerUp: Toque rápido, gravação ativa, parando.');
-        stopRecordingProcess();
-      } else {
-        // Se não estava gravando, inicia a gravação (toque para iniciar)
-        console.log('[AudioRecorder] PointerUp: Toque rápido, gravação inativa, iniciando.');
-        startRecordingProcess();
-      }
-    }
-    setIsLongPressDetected(false); // Reseta o estado de detecção de toque longo
-  };
-
-  const handlePointerLeave = (e: React.PointerEvent) => {
-    if (isPressing) { // Only if a press was active
-      console.log('[AudioRecorder] PointerLeave: Limpando timer de long press.');
-      if (longPressTimeoutRef.current) {
-        clearTimeout(longPressTimeoutRef.current);
-        longPressTimeoutRef.current = null;
-      }
-      // Crucial: Não parar a gravação aqui se for um long press.
-      // A gravação por long press só para no PointerUp.
-      // Apenas reseta o estado de detecção de long press e isPressing.
-      setIsLongPressDetected(false);
-      setIsPressing(false);
+      startRecordingProcess();
     }
   };
 
@@ -280,14 +221,11 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
         className={`h-10 w-10 rounded-full transition-all duration-200 
                     ${isProcessing ? 'bg-yellow-600 text-white animate-spin' : ''}
                     ${isRecording ? 'bg-yellow-600 text-white animate-pulse' : ''}
-                    ${!isRecording && isPressing ? 'bg-yellow-500 text-white animate-pulse-subtle' : ''}
-                    ${!isRecording && !isPressing && !isProcessing ? 'bg-yellow-500 text-white hover:bg-yellow-600' : ''}
+                    ${!isRecording && !isProcessing ? 'bg-yellow-500 text-white hover:bg-yellow-600' : ''}
                     ${disabled || isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
-        onPointerDown={handlePointerDown}
-        onPointerUp={handlePointerUp}
-        onPointerLeave={handlePointerLeave}
+        onClick={handleButtonClick}
         disabled={disabled || isProcessing}
-        title={isRecording ? "Toque para parar / Solte para parar" : "Toque para gravar / Pressione e segure para gravar"}
+        title={isRecording ? "Toque para parar" : "Toque para gravar"}
         // touch-action: manipulation é importante para evitar o zoom padrão do iOS em toques duplos
         style={{ userSelect: 'none', WebkitUserSelect: 'none', touchAction: 'manipulation' }}
       >
