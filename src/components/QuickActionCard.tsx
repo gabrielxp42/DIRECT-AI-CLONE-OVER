@@ -12,6 +12,7 @@ interface QuickActionCardProps {
   onClick?: () => void; // Função para ação direta (ex: abrir modal)
   filterState?: any; // Estado para passar para a rota (ex: filtro de status)
   className?: string;
+  count?: number; // Nova prop para a contagem
 }
 
 export const QuickActionCard: React.FC<QuickActionCardProps> = ({
@@ -21,6 +22,7 @@ export const QuickActionCard: React.FC<QuickActionCardProps> = ({
   onClick,
   filterState,
   className,
+  count, // Usar a nova prop
 }) => {
   const navigate = useNavigate();
 
@@ -35,14 +37,19 @@ export const QuickActionCard: React.FC<QuickActionCardProps> = ({
   return (
     <Card 
       className={cn(
-        "flex flex-col items-center justify-center p-3 aspect-square text-center cursor-pointer transition-all duration-200 hover:shadow-md hover:border-primary/50",
+        "flex flex-col items-center justify-center p-2 aspect-square text-center cursor-pointer transition-all duration-200 hover:shadow-md hover:border-primary/50", // Reduzido o padding
         className
       )}
       onClick={handleClick}
     >
       <CardContent className="flex flex-col items-center justify-center p-0 h-full w-full">
-        <Icon className="h-6 w-6 mb-1 text-primary" /> {/* Ícone menor */}
-        <span className="text-xs font-medium text-foreground leading-tight">{title}</span> {/* Texto menor */}
+        <Icon className="h-5 w-5 mb-1 text-primary" /> {/* Ícone um pouco menor */}
+        {count !== undefined && ( // Exibir contagem se fornecida
+          <span className="text-lg font-bold text-foreground leading-none mb-0.5">
+            {count}
+          </span>
+        )}
+        <span className="text-xs font-medium text-muted-foreground leading-tight">{title}</span> {/* Texto menor e mais discreto */}
       </CardContent>
     </Card>
   );

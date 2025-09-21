@@ -10,6 +10,11 @@ export interface DashboardStats {
   customersGrowth: number;
   ordersGrowth: number;
   ticketGrowth: number;
+  pendingOrdersCount: number; // Novo
+  processingOrdersCount: number; // Novo
+  pendingPaymentOrdersCount: number; // Novo
+  awaitingPickupOrdersCount: number; // Novo
+  deliveredOrdersCount: number; // Novo
 }
 
 export const useDashboardData = () => {
@@ -62,18 +67,17 @@ export const useDashboardData = () => {
 
       if (previousCustomersError) throw new Error(previousCustomersError.message);
 
-      // Fetch active orders (pending status)
-      const { data: activeOrders, error: activeOrdersError } = await supabase
+      // Fetch all orders for status counts (no date filter for these specific counts)
+      const { data: allOrders, error: allOrdersError } = await supabase
         .from("pedidos")
-        .select("id")
-        .eq("status", "pendente");
+        .select("id, status");
 
-      if (activeOrdersError) throw new Error(activeOrdersError.message);
+      if (allOrdersError) throw new Error(allOrdersError.message);
 
       // Calculate current month stats
       const totalSales = currentOrders?.reduce((sum, order) => sum + order.valor_total, 0) || 0;
       const newCustomers = currentCustomers?.length || 0;
-      const activeOrdersCount = activeOrders?.length || 0;
+      const activeOrdersCount = allOrders?.filter(order => order.status === 'pendente').length || 0; // Usar allOrders para 'pendente'
       const averageTicket = currentOrders?.length ? totalSales / currentOrders.length : 0;
 
       // Calculate previous month stats for growth comparison
@@ -86,6 +90,16 @@ export const useDashboardData = () => {
       const customersGrowth = previousNewCustomers > 0 ? ((newCustomers - previousNewCustomers) / previousNewCustomers) * 100 : 0;
       const ticketGrowth = previousAverageTicket > 0 ? ((averageTicket - previousAverageTicket) / previousAverageTicket) * 100 : 0;
 
+      // Calculate specific status counts
+      const pendingOrdersCount = allOrders?.filter(order => order.status === 'pendente').length || 0;
+      const processingOrdersCount = allOrders?.filter(order => order.status === 'processando').length || 0;
+      const pendingPaymentOrdersCount = allOrders?.filter(order => 
+        order.status !== 'pago' && order.status !== 'cancelado' && order.status !== 'entregue'
+      ).length || 0;
+      const awaitingPickupOrdersCount = allOrders?.filter(order => order.status === 'aguardando retirada').length || 0;
+      const deliveredOrdersCount = allOrders?.filter(order => order.status === 'entregue').length || 0;
+
+
       return {
         totalSales,
         newCustomers,
@@ -95,6 +109,11 @@ export const useDashboardData = () => {
         customersGrowth,
         ordersGrowth: 0, // We don't have historical active orders data
         ticketGrowth,
+        pendingOrdersCount,
+        processingOrdersCount,
+        pendingPaymentOrdersCount,
+        awaitingPickupOrdersCount,
+        deliveredOrdersCount,
       };
     },
     enabled: !!supabase,

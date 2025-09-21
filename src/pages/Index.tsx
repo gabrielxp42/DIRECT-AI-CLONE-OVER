@@ -4,7 +4,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { DollarSign, Users, CreditCard, Activity, Plus, MessageSquare, ShoppingCart, Package, User, Clock, Wrench, Handshake, Truck, CheckSquare } from "lucide-react"; // Adicionado Handshake, Truck, CheckSquare
+import { DollarSign, Users, CreditCard, Activity, Plus, MessageSquare, ShoppingCart, Package, User, Clock, Wrench, Handshake, Truck, CheckSquare } from "lucide-react";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { Skeleton } from "@/components/ui/skeleton";
 import { QuickActionCard } from "@/components/QuickActionCard";
@@ -45,42 +45,48 @@ const Index = () => {
       {/* Nova seção de Ações Rápidas */}
       <div className="mb-8">
         <h2 className="text-xl font-semibold mb-4">Ações Rápidas</h2>
-        <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3"> {/* Ajustado para 3 colunas em mobile, 4 em sm, 6 em lg */}
+        <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-3"> {/* Ajustado para 5 colunas em lg */}
           <QuickActionCard 
-            title="Pedidos Pendentes" 
+            title="Pendentes" 
             icon={Clock} 
             to="/pedidos" 
-            filterState={{ filterStatus: 'pendente' }} 
+            filterState={{ filterStatus: 'pendente' }}
+            count={isLoading ? undefined : stats?.pendingOrdersCount}
+            loading={isLoading}
           />
           <QuickActionCard 
-            title="Pedidos Processando" 
+            title="Processando" 
             icon={Wrench} 
             to="/pedidos" 
-            filterState={{ filterStatus: 'processando' }} 
+            filterState={{ filterStatus: 'processando' }}
+            count={isLoading ? undefined : stats?.processingOrdersCount}
+            loading={isLoading}
           />
           <QuickActionCard 
             title="Faltam Pagar" 
             icon={DollarSign} 
             to="/pedidos" 
-            filterState={{ filterStatus: 'pendente-pagamento' }} 
+            filterState={{ filterStatus: 'pendente-pagamento' }}
+            count={isLoading ? undefined : stats?.pendingPaymentOrdersCount}
+            loading={isLoading}
           />
           <QuickActionCard 
             title="Aguardando Retirada" 
             icon={Package} 
             to="/pedidos" 
-            filterState={{ filterStatus: 'aguardando retirada' }} 
+            filterState={{ filterStatus: 'aguardando retirada' }}
+            count={isLoading ? undefined : stats?.awaitingPickupOrdersCount}
+            loading={isLoading}
           />
           <QuickActionCard 
-            title="Pedidos Entregues" 
+            title="Entregues" 
             icon={CheckSquare} 
             to="/pedidos" 
-            filterState={{ filterStatus: 'entregue' }} 
+            filterState={{ filterStatus: 'entregue' }}
+            count={isLoading ? undefined : stats?.deliveredOrdersCount}
+            loading={isLoading}
           />
-          <QuickActionCard 
-            title="Abrir Chat AI" 
-            icon={MessageSquare} 
-            onClick={openAIAssistant} 
-          />
+          {/* O atalho para o chat AI foi removido conforme solicitado */}
         </div>
       </div>
 
