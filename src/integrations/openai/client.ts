@@ -15,6 +15,7 @@ export interface ChatMessage {
     name: string;
     arguments: string;
   };
+  audioUrl?: string; // Nova propriedade para mensagens de áudio
 }
 
 export interface FunctionCall {

@@ -160,11 +160,20 @@ Responda sempre de forma clara, direta e amigável.`
     }
   };
 
-  const handleAudioTranscription = (text: string) => {
-    setInput(text); // Preenche o input de texto com a transcrição
-    // O usuário pode revisar e enviar, ou podemos enviar automaticamente
-    // Para enviar automaticamente, chame handleSendMessage(text) aqui.
-    // Por enquanto, vamos deixar o usuário enviar manualmente.
+  const handleAudioRecorded = async (transcription: string, audioBlob: Blob) => {
+    // Cria uma URL para o blob de áudio para exibi-lo
+    const audioUrl = URL.createObjectURL(audioBlob);
+
+    // Adiciona a mensagem de áudio ao chat
+    const userAudioMessage: ChatMessage = { 
+      role: 'user', 
+      content: transcription || '[Áudio sem transcrição]', // Usa a transcrição como conteúdo
+      audioUrl: audioUrl 
+    };
+    setMessages((prev) => [...prev, userAudioMessage]);
+
+    // Agora envia a transcrição para a IA processar
+    await handleSendMessage(transcription); 
   };
 
   if (!isOpen) {
@@ -226,10 +235,16 @@ Responda sempre de forma clara, direta e amigável.`
             >
               {msg.role === 'user' ? (
                 <div className="flex items-start gap-2">
-                  <div 
-                    className="flex-1"
-                    dangerouslySetInnerHTML={{ __html: formatMessage(msg.content) }}
-                  />
+                  <div className="flex-1">
+                    {msg.audioUrl ? (
+                      <div className="space-y-2">
+                        <audio controls src={msg.audioUrl} className="w-full"></audio>
+                        {msg.content && <p className="text-xs italic opacity-80 mt-1">"{msg.content}"</p>}
+                      </div>
+                    ) : (
+                      <div dangerouslySetInnerHTML={{ __html: formatMessage(msg.content) }} />
+                    )}
+                  </div>
                   <User className="h-4 w-4 flex-shrink-0 mt-0.5 opacity-70" />
                 </div>
               ) : (
@@ -280,15 +295,19 @@ Responda sempre de forma clara, direta e amigável.`
             disabled={isLoading}
             className="flex-1"
           />
-          <AudioRecorder onTranscription={handleAudioTranscription} disabled={isLoading} />
-          <Button 
-            onClick={() => handleSendMessage(input)} 
-            disabled={isLoading || input.trim() === ''} 
-            size="icon"
-            className="h-10 w-10"
-          >
-            <Send className="h-4 w-4" />
-          </Button>
+          
+          {input.trim() === '' ? (
+            <AudioRecorder onAudioRecorded={handleAudioRecorded} disabled={isLoading} />
+          ) : (
+            <Button 
+              onClick={() => handleSendMessage(input)} 
+              disabled={isLoading || input.trim() === ''} 
+              size="icon"
+              className="h-10 w-10"
+            >
+              <Send className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       </CardFooter>
     </Card>

@@ -2,26 +2,28 @@
 
 import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { Mic, StopCircle, Loader2, XCircle } from 'lucide-react';
+import { Mic, StopCircle, Loader2 } from 'lucide-react';
 import { getOpenAIClient } from '@/integrations/openai/client';
 import { showSuccess, showError } from '@/utils/toast';
 
 interface AudioRecorderProps {
-  onTranscription: (text: string) => void;
+  onAudioRecorded: (transcription: string, audioBlob: Blob) => void;
   disabled?: boolean;
 }
 
-export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onTranscription, disabled }) => {
+export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, disabled }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const audioStreamRef = useRef<MediaStream | null>(null); // Para parar as tracks do microfone
   const openAIClient = useRef(getOpenAIClient()).current;
 
   const startRecording = async () => {
-    if (disabled) return;
+    if (disabled || isRecording || isProcessing) return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioStreamRef.current = stream; // Armazena o stream para parar as tracks depois
       mediaRecorderRef.current = new MediaRecorder(stream);
       audioChunksRef.current = [];
 
@@ -32,13 +34,17 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onTranscription, d
       mediaRecorderRef.current.onstop = async () => {
         setIsRecording(false);
         setIsProcessing(true);
+        // Para todas as tracks no stream
+        audioStreamRef.current?.getTracks().forEach(track => track.stop());
+        audioStreamRef.current = null;
+
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         
         try {
           const transcription = await openAIClient.transcribeAudio(audioBlob);
           if (transcription) {
-            onTranscription(transcription);
-            showSuccess("Áudio transcrito com sucesso!");
+            onAudioRecorded(transcription, audioBlob); // Passa tanto a transcrição quanto o blob
+            showSuccess("Áudio transcrito e enviado!");
           } else {
             showError("Não foi possível transcrever o áudio. Tente novamente.");
           }
@@ -66,20 +72,26 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onTranscription, d
   };
 
   return (
-    <div className="flex items-center">
+    <Button
+      variant="ghost"
+      size="icon"
+      className={`h-10 w-10 transition-all duration-200 ${isRecording ? 'bg-red-500 text-white animate-pulse' : 'text-muted-foreground hover:bg-accent'}`}
+      onMouseDown={startRecording}
+      onMouseUp={stopRecording}
+      onMouseLeave={stopRecording} // Para se o mouse sair enquanto segura
+      onTouchStart={startRecording}
+      onTouchEnd={stopRecording}
+      onTouchCancel={stopRecording}
+      disabled={disabled || isProcessing}
+      title={isRecording ? "Solte para parar" : "Pressione e segure para gravar"}
+    >
       {isProcessing ? (
-        <Button variant="ghost" size="icon" disabled className="h-10 w-10">
-          <Loader2 className="h-5 w-5 animate-spin text-primary" />
-        </Button>
+        <Loader2 className="h-5 w-5 animate-spin" />
       ) : isRecording ? (
-        <Button variant="destructive" size="icon" onClick={stopRecording} className="h-10 w-10 animate-pulse">
-          <StopCircle className="h-5 w-5" />
-        </Button>
+        <StopCircle className="h-5 w-5" />
       ) : (
-        <Button variant="ghost" size="icon" onClick={startRecording} disabled={disabled} className="h-10 w-10">
-          <Mic className="h-5 w-5" />
-        </Button>
+        <Mic className="h-5 w-5" />
       )}
-    </div>
+    </Button>
   );
 };
