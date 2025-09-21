@@ -1,101 +1,66 @@
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, ShoppingCart, Package, User, Plus, BarChart3, MessageSquare } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { Button } from './ui/button';
-import { useState } from 'react';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from './ui/sheet';
-import { useAIAssistant } from '@/contexts/AIAssistantProvider';
+"use client";
 
-const navItemsLeft = [
-  { href: '/', icon: Home, label: 'Início' },
-  { href: '/pedidos', icon: ShoppingCart, label: 'Pedidos' },
-  { href: '/clientes', icon: User, label: 'Clientes' },
-];
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Home, Package, Users, ShoppingCart, PlusCircle, Menu } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetFooter, SheetClose } from '@/components/ui/sheet';
+import { Separator } from '@/components/ui/separator';
 
-const navItemsRight = [
-  { href: '/produtos', icon: Package, label: 'Produtos' },
-  { href: '/reports', icon: BarChart3, label: 'Relatórios' },
-  { href: 'AI_ACTION', icon: MessageSquare, label: 'AI Chat' },
-];
-
-export const MobileBottomNav = () => {
-  const location = useLocation();
+export const MobileBottomNav: React.FC = () => {
   const navigate = useNavigate();
   const [isSheetOpen, setIsSheetOpen] = useState(false);
-  const { open: openAIChat } = useAIAssistant();
 
   const handleCreate = (path: string) => {
-    setIsSheetOpen(false);
-    navigate(path, { state: { openForm: true } });
-  };
-
-  const renderNavItem = (item: { href: string; icon: React.ElementType; label: string }) => {
-    const isActive = location.pathname === item.href;
-    if (item.href === 'AI_ACTION') {
-      return (
-        <button
-          key={item.label}
-          onClick={openAIChat}
-          className="flex flex-col items-center justify-center gap-1 text-xs font-medium h-full w-full text-muted-foreground"
-        >
-          <item.icon className="h-5 w-5" />
-          <span>{item.label}</span>
-        </button>
-      );
-    }
-    return (
-      <Link
-        key={item.label}
-        to={item.href}
-        className={cn(
-          'flex flex-col items-center justify-center gap-1 text-xs font-medium h-full w-full',
-          isActive ? 'text-primary' : 'text-muted-foreground'
-        )}
-      >
-        <item.icon className="h-5 w-5" />
-        <span>{item.label}</span>
-      </Link>
-    );
+    navigate(path);
+    setIsSheetOpen(false); // Fecha a sheet após a navegação
   };
 
   return (
-    <>
-      <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-card border-t z-40">
-        <div className="flex justify-around items-center h-full relative">
-          <div className="flex justify-around items-center w-full">
-            {navItemsLeft.map(renderNavItem)}
-            <div className="w-16" /> {/* Spacer for the central button */}
-            {navItemsRight.map(renderNavItem)}
-          </div>
-        </div>
-      </div>
-
-      {/* Central Add Button */}
-      <div className="md:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-50">
+    <div className="fixed bottom-0 left-0 right-0 bg-background border-t shadow-lg md:hidden z-50">
+      <nav className="flex justify-around items-center h-16">
+        <Link to="/" className="flex flex-col items-center text-xs text-muted-foreground hover:text-primary">
+          <Home className="h-5 w-5" />
+          Início
+        </Link>
+        <Link to="/pedidos" className="flex flex-col items-center text-xs text-muted-foreground hover:text-primary">
+          <ShoppingCart className="h-5 w-5" />
+          Pedidos
+        </Link>
         <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
           <SheetTrigger asChild>
-            <Button
-              size="icon"
-              className="h-16 w-16 rounded-full bg-primary text-primary-foreground shadow-lg border-4 border-background hover:bg-primary/90"
-            >
-              <Plus className="h-8 w-8" />
+            <Button variant="ghost" size="icon" className="flex flex-col items-center text-xs text-muted-foreground hover:text-primary h-auto w-auto p-0">
+              <PlusCircle className="h-6 w-6 text-primary" />
+              <span className="mt-1">Criar</span>
             </Button>
           </SheetTrigger>
-          <SheetContent side="bottom" className="rounded-t-lg">
+          <SheetContent side="bottom" className="h-auto max-h-[80vh] rounded-t-lg">
             <SheetHeader>
               <SheetTitle>O que você gostaria de criar?</SheetTitle>
             </SheetHeader>
             <div className="grid gap-4 py-4">
-              <Button variant="outline" size="lg" onClick={() => handleCreate('/pedidos')}>Novo Pedido</Button>
-              <Button variant="outline" size="lg" onClick={() => handleCreate('/clientes')}>Novo Cliente</Button>
-              <Button variant="outline" size="lg" onClick={() => handleCreate('/produtos')}>Novo Produto</Button>
+              <Button variant="outline" size="lg" onClick={() => handleCreate('/pedidos/novo')}>Novo Pedido</Button>
+              <Button variant="outline" size="lg" onClick={() => handleCreate('/clientes/novo')}>Novo Cliente</Button>
+              <Button variant="outline" size="lg" onClick={() => handleCreate('/produtos/novo')}>Novo Produto</Button>
             </div>
+            <SheetFooter className="mt-4">
+              <SheetClose asChild>
+                <Button type="button" variant="secondary" className="w-full">
+                  Cancelar
+                </Button>
+              </SheetClose>
+            </SheetFooter>
           </SheetContent>
         </Sheet>
-      </div>
-
-      {/* Add padding to the bottom of the main content to avoid overlap */}
-      <div className="md:hidden h-16" />
-    </>
+        <Link to="/clientes" className="flex flex-col items-center text-xs text-muted-foreground hover:text-primary">
+          <Users className="h-5 w-5" />
+          Clientes
+        </Link>
+        <Link to="/produtos" className="flex flex-col items-center text-xs text-muted-foreground hover:text-primary">
+          <Package className="h-5 w-5" />
+          Produtos
+        </Link>
+      </nav>
+    </div>
   );
 };
