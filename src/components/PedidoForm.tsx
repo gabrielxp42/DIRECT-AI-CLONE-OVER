@@ -155,8 +155,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
           setSelectedClienteName('');
         }
         localStorage.removeItem(DRAFT_STORAGE_KEY); // Limpa rascunho se estiver editando
-      } else if (!isEditing) {
-        // Modo de criação: tentar carregar rascunho do localStorage
+      } else { // Modo de criação: tentar carregar rascunho do localStorage
         const savedDraft = localStorage.getItem(DRAFT_STORAGE_KEY);
         if (savedDraft) {
           try {
@@ -181,14 +180,14 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
         }
       }
       setClienteSearch('');
-      // Removido: setExpandedItemIndex(null);
-      // Removido: setExpandedServiceIndex(null);
+      setExpandedItemIndex(null); // Resetar estado de expansão ao abrir o formulário
+      setExpandedServiceIndex(null); // Resetar estado de expansão ao abrir o formulário
     } else {
       // Quando o diálogo fecha, se for um novo pedido, salva o rascunho
       if (!isEditing) {
         const currentValues = form.getValues();
         // Salvar apenas se houver dados significativos
-        if (currentValues.cliente_id || currentValues.items.length > 0 || currentValues.servicos?.length > 0 || currentValues.observacoes || currentValues.desconto_valor > 0 || currentValues.desconto_percentual > 0) {
+        if (currentValues.cliente_id || currentValues.items.length > 0 || (currentValues.servicos && currentValues.servicos.length > 0) || currentValues.observacoes || (currentValues.desconto_valor && currentValues.desconto_valor > 0) || (currentValues.desconto_percentual && currentValues.desconto_percentual > 0)) {
           localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(currentValues));
         } else {
           localStorage.removeItem(DRAFT_STORAGE_KEY); // Limpa se o rascunho estiver vazio
@@ -203,7 +202,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
       const subscription = form.watch((value, { name, type }) => {
         // Evitar salvar rascunhos vazios ou em cada pequena mudança de campo
         const currentValues = form.getValues();
-        if (currentValues.cliente_id || currentValues.items.length > 0 || currentValues.servicos?.length > 0 || currentValues.observacoes || currentValues.desconto_valor > 0 || currentValues.desconto_percentual > 0) {
+        if (currentValues.cliente_id || currentValues.items.length > 0 || (currentValues.servicos && currentValues.servicos.length > 0) || currentValues.observacoes || (currentValues.desconto_valor && currentValues.desconto_valor > 0) || (currentValues.desconto_percentual && currentValues.desconto_percentual > 0)) {
           localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(currentValues));
         }
       });
@@ -243,7 +242,10 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
     };
 
     onSubmit(formattedData);
-    localStorage.removeItem(DRAFT_STORAGE_KEY); // Limpa o rascunho após a submissão
+    // Limpa o rascunho após a submissão bem-sucedida de um NOVO pedido
+    if (!isEditing) {
+      localStorage.removeItem(DRAFT_STORAGE_KEY); 
+    }
   };
 
   const handleInvalidSubmit = (errors: any) => {
