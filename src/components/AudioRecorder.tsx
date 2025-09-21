@@ -90,7 +90,24 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
           }
         } catch (error: any) {
           console.error("Erro ao transcrever áudio:", error);
-          showError(`Erro na transcrição: ${error.message || 'Erro desconhecido'}`);
+          let userFriendlyErrorMessage = "Ocorreu um erro desconhecido ao transcrever o áudio.";
+
+          if (error.message) {
+            const lowerCaseMessage = error.message.toLowerCase();
+            if (lowerCaseMessage.includes('invalid file format')) {
+              userFriendlyErrorMessage = "Formato de arquivo de áudio inválido. Por favor, tente novamente.";
+            } else if (lowerCaseMessage.includes('api key') || lowerCaseMessage.includes('authentication')) {
+              userFriendlyErrorMessage = "Erro de autenticação com a API. Verifique sua chave da OpenAI.";
+            } else if (lowerCaseMessage.includes('rate limit')) {
+              userFriendlyErrorMessage = "Limite de uso da API atingido. Tente novamente mais tarde.";
+            } else if (lowerCaseMessage.includes('unknown error')) {
+              userFriendlyErrorMessage = "Não foi possível transcrever o áudio. Tente novamente.";
+            } else {
+              // Fallback para outros erros, mostrando a mensagem original para depuração se necessário
+              userFriendlyErrorMessage = `Erro na transcrição: ${error.message}`;
+            }
+          }
+          showError(userFriendlyErrorMessage);
         } finally {
           setIsProcessing(false);
         }
