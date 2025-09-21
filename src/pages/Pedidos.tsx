@@ -62,6 +62,8 @@ const PedidosPage: React.FC = () => {
   const [filterDateRange, setFilterDateRange] = useState<{ from?: Date; to?: Date }>({});
 
   const isMobile = useIsMobile();
+  const location = useLocation();
+  const navigate = useNavigate(); // Declarado aqui
 
   const fetchPedidos = useCallback(async () => {
     if (!session || !supabase) return;
@@ -191,9 +193,14 @@ const PedidosPage: React.FC = () => {
     if (location.state?.openForm) {
       setEditingPedido(null); // Ensure it's a new order
       setIsFormOpen(true);    // Open the form dialog
-      navigate(location.pathname, { replace: true, state: {} }); // Clear the state after use
+      // Adiciona uma verificação para 'navigate' antes de chamá-lo
+      if (navigate) {
+        navigate(location.pathname, { replace: true, state: {} }); // Clear the state after use
+      } else {
+        console.error("Erro: navigate não está definido no useEffect de Pedidos.tsx");
+      }
     }
-  }, [location.state, navigate]); // Dependencies are correct
+  }, [location.state, location.pathname, navigate]); // Adicionado location.pathname à dependência
 
   const handleCreatePedido = () => {
     setEditingPedido(null); // Garante que é um novo pedido
