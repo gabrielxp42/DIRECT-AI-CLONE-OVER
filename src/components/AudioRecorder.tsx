@@ -14,28 +14,47 @@ interface AudioRecorderProps {
 export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, disabled }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [recordingDuration, setRecordingDuration] = useState(0); // Novo estado para a duração da gravação
+  const [recordingDuration, setRecordingDuration] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
-  const audioStreamRef = useRef<MediaStream | null>(null); // Para parar as tracks do microfone
-  const intervalRef = useRef<NodeJS.Timeout | null>(null); // Referência para o timer do intervalo
+  const audioStreamRef = useRef<MediaStream | null>(null);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const openAIClient = useRef(getOpenAIClient()).current;
 
-  const MIN_AUDIO_DURATION_MS = 500; // 0.5 segundos, um pouco acima do mínimo de 0.1s da OpenAI para segurança
+  const MIN_AUDIO_DURATION_MS = 500;
+
+  // Detecta o melhor MIME type para gravação de áudio
+  const getSupportedMimeType = () => {
+    const preferredMimeTypes = [
+      'audio/mp4', // Melhor para iOS
+      'audio/aac', // Outra boa opção para iOS
+      'audio/webm', // Amplamente suportado, mas não por iOS Safari para reprodução
+      'audio/ogg',
+    ];
+
+    for (const type of preferredMimeTypes) {
+      if (MediaRecorder.isTypeSupported(type)) {
+        return type;
+      }
+    }
+    return 'audio/webm'; // Fallback padrão
+  };
 
   const startRecording = async (e: React.MouseEvent | React.TouchEvent) => {
-    e.preventDefault(); // Previne o comportamento padrão do navegador (zoom, seleção de texto)
+    e.preventDefault();
     if (disabled || isRecording || isProcessing) return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      audioStreamRef.current = stream; // Armazena o stream para parar as tracks depois
-      mediaRecorderRef.current = new MediaRecorder(stream);
+      audioStreamRef.current = stream;
+      
+      const mimeType = getSupportedMimeType();
+      mediaRecorderRef.current = new MediaRecorder(stream, { mimeType });
+      
       audioChunksRef.current = [];
-      setRecordingDuration(0); // Reinicia a duração
+      setRecordingDuration(0);
 
-      // Inicia o timer para atualizar a duração da gravação
       intervalRef.current = setInterval(() => {
-        setRecordingDuration(prev => prev + 100); // Atualiza a cada 100ms
+        setRecordingDuration(prev => prev + 100);
       }, 100);
 
       mediaRecorderRef.current.ondataavailable = (event) => {
@@ -44,30 +63,27 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
 
       mediaRecorderRef.current.onstop = async () => {
         setIsRecording(false);
-        // Limpa o timer
         if (intervalRef.current) {
           clearInterval(intervalRef.current);
           intervalRef.current = null;
         }
         
-        // Para todas as tracks no stream para liberar o microfone
         audioStreamRef.current?.getTracks().forEach(track => track.stop());
         audioStreamRef.current = null;
 
-        // Verifica a duração mínima antes de processar
         if (recordingDuration < MIN_AUDIO_DURATION_MS) {
           showError(`Áudio muito curto. Mínimo de ${MIN_AUDIO_DURATION_MS / 1000} segundos.`);
-          setIsProcessing(false); // Garante que o estado de processamento seja resetado
+          setIsProcessing(false);
           return;
         }
 
         setIsProcessing(true);
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType }); // Usa o mimeType detectado
         
         try {
           const transcription = await openAIClient.transcribeAudio(audioBlob);
           if (transcription) {
-            onAudioRecorded(transcription, audioBlob); // Passa tanto a transcrição quanto o blob
+            onAudioRecorded(transcription, audioBlob);
             showSuccess("Áudio transcrito e enviado!");
           } else {
             showError("Não foi possível transcrever o áudio. Tente novamente.");
@@ -90,13 +106,12 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
   };
 
   const stopRecording = (e: React.MouseEvent | React.TouchEvent) => {
-    e.preventDefault(); // Previne o comportamento padrão do navegador
+    e.preventDefault();
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
     }
   };
 
-  // Formata a duração para MM:SS
   const formatTime = (ms: number) => {
     const seconds = Math.floor(ms / 1000);
     const minutes = Math.floor(seconds / 60);
@@ -109,16 +124,18 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
       <Button
         variant="ghost"
         size="icon"
-        className={`h-10 w-10 transition-all duration-200 ${isRecording ? 'bg-red-500 text-white animate-pulse' : 'text-muted-foreground hover:bg-accent'}`}
+        className={`h-10 w-10 rounded-full transition-all duration-200 
+                    ${isRecording ? 'bg-yellow-600 text-white animate-pulse' : 'bg-yellow-500 text-white hover:bg-yellow-600'}
+                    ${disabled || isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
         onMouseDown={startRecording}
         onMouseUp={stopRecording}
-        onMouseLeave={stopRecording} // Para se o mouse sair enquanto segura
+        onMouseLeave={stopRecording}
         onTouchStart={startRecording}
         onTouchEnd={stopRecording}
         onTouchCancel={stopRecording}
         disabled={disabled || isProcessing}
         title={isRecording ? "Solte para parar" : "Pressione e segure para gravar"}
-        style={{ userSelect: 'none', WebkitUserSelect: 'none', touchAction: 'manipulation' }} // Adicionado para prevenir zoom/seleção
+        style={{ userSelect: 'none', WebkitUserSelect: 'none', touchAction: 'manipulation' }}
       >
         {isProcessing ? (
           <Loader2 className="h-5 w-5 animate-spin" />
