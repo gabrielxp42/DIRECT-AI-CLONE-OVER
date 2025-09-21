@@ -4,9 +4,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { DollarSign, Users, CreditCard, Activity } from "lucide-react";
+import { DollarSign, Users, CreditCard, Activity, Wallet, Truck } from "lucide-react";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DashboardShortcutCard } from "@/components/DashboardShortcutCard";
 
 const Index = () => {
   const { data: stats, isLoading, error } = useDashboardData();
@@ -39,6 +40,25 @@ const Index = () => {
     <div>
       <h1 className="text-3xl font-bold mb-6 text-left">Dashboard</h1>
       <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
+        {/* New Shortcut Cards */}
+        <DashboardShortcutCard
+          title="Falta Pagar"
+          count={isLoading ? '...' : stats?.pendingPaymentOrders || 0}
+          icon={Wallet}
+          to="/pedidos"
+          filterState={{ filterStatus: 'pendente-pagamento' }}
+          loading={isLoading}
+        />
+        <DashboardShortcutCard
+          title="Pedidos Entregues"
+          count={isLoading ? '...' : stats?.deliveredOrders || 0}
+          icon={Truck}
+          to="/pedidos"
+          filterState={{ filterStatus: 'entregue' }}
+          loading={isLoading}
+        />
+
+        {/* Existing Cards */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">

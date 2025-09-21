@@ -10,6 +10,8 @@ export interface DashboardStats {
   customersGrowth: number;
   ordersGrowth: number;
   ticketGrowth: number;
+  pendingPaymentOrders: number;
+  deliveredOrders: number;
 }
 
 export const useDashboardData = () => {
@@ -31,7 +33,7 @@ export const useDashboardData = () => {
       // Fetch current month orders
       const { data: currentOrders, error: currentOrdersError } = await supabase
         .from("pedidos")
-        .select("valor_total, created_at")
+        .select("valor_total, created_at, status")
         .gte("created_at", firstDayCurrentMonth.toISOString());
 
       if (currentOrdersError) throw new Error(currentOrdersError.message);
@@ -44,6 +46,13 @@ export const useDashboardData = () => {
         .lte("created_at", lastDayPreviousMonth.toISOString());
 
       if (previousOrdersError) throw new Error(previousOrdersError.message);
+
+      // Fetch ALL orders for specific counts (pending payment, delivered)
+      const { data: allOrders, error: allOrdersError } = await supabase
+        .from("pedidos")
+        .select("id, status");
+
+      if (allOrdersError) throw new Error(allOrdersError.message);
 
       // Fetch current month customers
       const { data: currentCustomers, error: currentCustomersError } = await supabase
@@ -86,6 +95,12 @@ export const useDashboardData = () => {
       const customersGrowth = previousNewCustomers > 0 ? ((newCustomers - previousNewCustomers) / previousNewCustomers) * 100 : 0;
       const ticketGrowth = previousAverageTicket > 0 ? ((averageTicket - previousAverageTicket) / previousAverageTicket) * 100 : 0;
 
+      // Calculate new shortcut stats
+      const pendingPaymentOrders = allOrders?.filter(order => 
+        order.status !== 'pago' && order.status !== 'cancelado' && order.status !== 'entregue'
+      ).length || 0;
+      const deliveredOrders = allOrders?.filter(order => order.status === 'entregue').length || 0;
+
       return {
         totalSales,
         newCustomers,
@@ -95,6 +110,8 @@ export const useDashboardData = () => {
         customersGrowth,
         ordersGrowth: 0, // We don't have historical active orders data
         ticketGrowth,
+        pendingPaymentOrders,
+        deliveredOrders,
       };
     },
     enabled: !!supabase,

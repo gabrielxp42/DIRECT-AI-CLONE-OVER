@@ -63,7 +63,17 @@ const PedidosPage: React.FC = () => {
 
   const isMobile = useIsMobile();
   const location = useLocation();
-  const navigate = useNavigate(); // Declarado aqui
+  const navigate = useNavigate();
+
+  // Effect to handle incoming filter state from navigation
+  useEffect(() => {
+    if (location.state?.filterStatus) {
+      setFilterStatus(location.state.filterStatus);
+      // Clear the state after use to prevent re-applying on subsequent visits
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.state, location.pathname, navigate]);
+
 
   const fetchPedidos = useCallback(async () => {
     if (!session || !supabase) return;
@@ -436,7 +446,12 @@ const PedidosPage: React.FC = () => {
       pedido.pedido_items?.some(item => item.produto_nome?.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (pedido.servicos?.some(servico => servico.nome?.toLowerCase().includes(searchTerm.toLowerCase())) || false);
 
-    const matchesStatus = filterStatus === 'todos' || pedido.status === filterStatus;
+    let matchesStatus = true;
+    if (filterStatus === 'pendente-pagamento') {
+      matchesStatus = pedido.status !== 'pago' && pedido.status !== 'cancelado' && pedido.status !== 'entregue';
+    } else if (filterStatus !== 'todos') {
+      matchesStatus = pedido.status === filterStatus;
+    }
 
     const pedidoDate = new Date(pedido.created_at);
     const matchesDate = (!filterDateRange.from || pedidoDate >= filterDateRange.from) &&
@@ -468,6 +483,7 @@ const PedidosPage: React.FC = () => {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="todos">Todos os Status</SelectItem>
+            <SelectItem value="pendente-pagamento">Falta Pagar</SelectItem>
             <SelectItem value="pendente">Pendente</SelectItem>
             <SelectItem value="processando">Processando</SelectItem>
             <SelectItem value="enviado">Enviado</SelectItem>
