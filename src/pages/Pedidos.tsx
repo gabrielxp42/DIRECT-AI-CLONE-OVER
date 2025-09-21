@@ -518,8 +518,8 @@ const PedidosPage: React.FC = () => {
                       Pedido #{pedido.order_number}
                     </CardTitle>
                     <CardDescription className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
-                      <User className="h-3 w-3" />
-                      <span className="truncate max-w-[calc(100%-1.5rem)]">
+                      <User className="h-3 w-3 flex-shrink-0" />
+                      <span className="truncate flex-1">
                         {pedido.clientes?.nome || 'Cliente Desconhecido'}
                       </span>
                     </CardDescription>
