@@ -513,7 +513,7 @@ const PedidosPage: React.FC = () => {
             >
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between w-full gap-2">
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0"> {/* Adicionado min-w-0 aqui */}
                     <CardTitle className="text-lg font-semibold">
                       Pedido #{pedido.order_number}
                     </CardTitle>
@@ -530,7 +530,7 @@ const PedidosPage: React.FC = () => {
                       )}
                     </CardDescription>
                   </div>
-                  <div className="flex-shrink-0">
+                  <div className="flex-shrink-0 max-w-full"> {/* Adicionado max-w-full aqui */}
                     {isMobile ? (
                       getStatusBadge(pedido.status)
                     ) : (
