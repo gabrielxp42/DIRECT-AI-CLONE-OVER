@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/contexts/SessionProvider";
-import { toast } from "react-hot-toast"; // Para notificações
+import { showSuccess, showError } from "@/utils/toast"; // Importação corrigida
 
 interface UpdateOrderStatusVariables {
   orderId: string;
@@ -23,13 +23,13 @@ export const useUpdateOrderStatus = () => {
       if (error) throw new Error(error.message);
     },
     onSuccess: () => {
-      toast.success("Status do pedido atualizado com sucesso!");
+      showSuccess("Status do pedido atualizado com sucesso!"); // Usando showSuccess
       // Invalida as queries de pedidos para que os dados sejam recarregados
       queryClient.invalidateQueries({ queryKey: ["pedidos"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] }); // Também invalida o dashboard
     },
     onError: (error) => {
-      toast.error(`Erro ao atualizar status: ${error.message}`);
+      showError(`Erro ao atualizar status: ${error.message}`); // Usando showError
     },
   });
 };
