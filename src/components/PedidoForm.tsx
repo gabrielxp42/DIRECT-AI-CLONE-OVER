@@ -1,3 +1,5 @@
+"use client";
+
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -82,8 +84,6 @@ const servicosRapidos = [
   { nome: "Ajuste de Cor", valor: 5 },
 ];
 
-const DRAFT_STORAGE_KEY = 'pedido-form-draft';
-
 export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clientes, produtos, initialData }: PedidoFormProps) => {
   const { supabase, session } = useSession();
   const [filteredClientes, setFilteredClientes] = useState<Cliente[]>([]);
@@ -120,7 +120,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
     }
   }, [clienteSearch, clientes]);
 
-  // Efeito principal para gerenciar o estado do formulário e rascunhos
+  // Efeito principal para gerenciar o estado do formulário
   useEffect(() => {
     if (isOpen) {
       // --- Formulário está abrindo ---
@@ -152,72 +152,26 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
         const selectedClient = clientes.find(c => c.id === initialData.cliente_id);
         setSelectedClienteName(selectedClient ? selectedClient.nome : '');
         
-        // IMPORTANTE: Limpar qualquer rascunho existente ao abrir para edição
-        localStorage.removeItem(DRAFT_STORAGE_KEY);
-        console.log('[PedidoForm Effect] Rascunho limpo ao abrir em modo de edição.');
-
       } else {
-        // Modo de criação: tentar carregar rascunho do localStorage
-        console.log('[PedidoForm Effect] Abrindo em modo de criação. Tentando carregar rascunho.');
-        const savedDraft = localStorage.getItem(DRAFT_STORAGE_KEY);
-        if (savedDraft) {
-          try {
-            const draftData: PedidoFormValues = JSON.parse(savedDraft);
-            form.reset(draftData);
-            const selectedClient = clientes.find(c => c.id === draftData.cliente_id);
-            setSelectedClienteName(selectedClient ? selectedClient.nome : '');
-            showSuccess("Rascunho carregado automaticamente!");
-            console.log('[PedidoForm Effect] Rascunho encontrado e carregado.');
-          } catch (e) {
-            console.error("Erro ao carregar rascunho do localStorage:", e);
-            localStorage.removeItem(DRAFT_STORAGE_KEY); // Limpa rascunho inválido
-            form.reset(); // Resetar para valores padrão
-            setSelectedClienteName('');
-            console.log('[PedidoForm Effect] Rascunho inválido ou erro ao carregar. Resetando para padrão.');
-          }
-        } else {
-          form.reset(); // Resetar para valores padrão para um novo formulário vazio
-          setSelectedClienteName('');
-          console.log('[PedidoForm Effect] Nenhum rascunho encontrado. Resetando para valores padrão.');
-        }
+        // Modo de criação: sempre resetar para um formulário vazio
+        console.log('[PedidoForm Effect] Abrindo em modo de criação. Resetando para valores padrão.');
+        form.reset({
+          cliente_id: "",
+          observacoes: "",
+          desconto_valor: 0,
+          desconto_percentual: 0,
+          items: [],
+          servicos: [],
+        });
+        setSelectedClienteName('');
       }
       // Resetar outros estados de UI comuns a ambos os modos
       setClienteSearch('');
       setExpandedItemIndex(null);
       setExpandedServiceIndex(null);
-    } else {
-      // --- Formulário está fechando ---
-      console.log('[PedidoForm Effect] Fechando formulário.');
-      if (!isEditing) {
-        // Apenas salvar rascunho se era um novo pedido sendo criado
-        const currentValues = form.getValues();
-        // Verificar se há dados significativos para salvar como rascunho
-        const hasSignificantData = currentValues.cliente_id || 
-                                   currentValues.items.length > 0 || 
-                                   (currentValues.servicos && currentValues.servicos.length > 0) || 
-                                   (currentValues.observacoes && currentValues.observacoes.trim() !== '') || 
-                                   (currentValues.desconto_valor && currentValues.desconto_valor > 0) || 
-                                   (currentValues.desconto_percentual && currentValues.desconto_percentual > 0);
-
-        if (hasSignificantData) {
-          localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(currentValues));
-          console.log('[PedidoForm Effect] Rascunho salvo ao fechar formulário de criação.');
-        } else {
-          localStorage.removeItem(DRAFT_STORAGE_KEY); // Limpar se o rascunho estiver vazio
-          console.log('[PedidoForm Effect] Rascunho limpo ao fechar formulário de criação vazio.');
-        }
-      } else {
-        console.log('[PedidoForm Effect] Formulário de edição fechado. Não salvando rascunho.');
-        // Garantir que o rascunho seja limpo mesmo se, por algum motivo, 
-        // ele tenha sido salvo durante a edição (o que não deveria acontecer com a lógica acima)
-        localStorage.removeItem(DRAFT_STORAGE_KEY);
-        console.log('[PedidoForm Effect] Rascunho limpo (garantia) ao fechar formulário de edição.');
-      }
     }
+    // A lógica de salvamento e carregamento de rascunho foi removida para garantir que "Novo Pedido" sempre comece limpo.
   }, [isOpen, isEditing, initialData, form, clientes]); // Dependências para este efeito
-
-  // Não há mais um useEffect separado para form.watch para salvar rascunhos.
-  // A lógica de salvamento de rascunho agora é tratada exclusivamente no fechamento do formulário de criação.
 
   const handleValidSubmit = (data: PedidoFormValues) => {
     const items = data.items || [];
@@ -250,11 +204,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
       servicos: servicos,
     };
 
-    onSubmit(formattedData);
-    // Limpa o rascunho após a submissão bem-sucedida de um NOVO pedido
-    if (!isEditing) {
-      localStorage.removeItem(DRAFT_STORAGE_KEY); 
-    }
+    onSubmit(formattedData, initialData?.id); // Passar initialData.id para o onSubmit
   };
 
   const handleInvalidSubmit = (errors: any) => {
