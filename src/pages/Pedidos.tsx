@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { toast } from "react-hot-toast";
+import { showSuccess, showError, showLoading, dismissToast } from "@/utils/toast"; // Importando do utilitário
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { Search, PlusCircle, Filter, ChevronDown, Edit, Trash2 } from "lucide-react";
 import { format } from "date-fns";
@@ -74,7 +74,7 @@ const Pedidos = () => {
 
       if (error) {
         console.error("Erro ao buscar pedidos:", error);
-        toast.error("Erro ao carregar pedidos.");
+        showError("Erro ao carregar pedidos."); // Usando showError
       } else {
         setPedidos(data || []);
       }
@@ -133,17 +133,17 @@ const Pedidos = () => {
   const handleUpdateStatus = async () => {
     if (!supabase || !selectedPedido || !newStatus) return;
 
-    const toastId = toast.loading("Atualizando status...");
+    const toastId = showLoading("Atualizando status..."); // Usando showLoading
     const { error } = await supabase
       .from("pedidos")
       .update({ status: newStatus })
       .eq("id", selectedPedido.id);
 
     if (error) {
-      toast.error("Erro ao atualizar status.", { id: toastId });
+      showError("Erro ao atualizar status.", { id: toastId }); // Usando showError
       console.error("Erro ao atualizar status:", error);
     } else {
-      toast.success("Status atualizado com sucesso!", { id: toastId });
+      showSuccess("Status atualizado com sucesso!", { id: toastId }); // Usando showSuccess
       setPedidos((prev) =>
         prev.map((p) => (p.id === selectedPedido.id ? { ...p, status: newStatus } : p))
       );
@@ -161,17 +161,17 @@ const Pedidos = () => {
   const handleDeletePedido = async () => {
     if (!supabase || !pedidoToDelete) return;
 
-    const toastId = toast.loading("Excluindo pedido...");
+    const toastId = showLoading("Excluindo pedido..."); // Usando showLoading
     const { error } = await supabase
       .from("pedidos")
       .delete()
       .eq("id", pedidoToDelete.id);
 
     if (error) {
-      toast.error("Erro ao excluir pedido.", { id: toastId });
+      showError("Erro ao excluir pedido.", { id: toastId }); // Usando showError
       console.error("Erro ao excluir pedido:", error);
     } else {
-      toast.success("Pedido excluído com sucesso!", { id: toastId });
+      showSuccess("Pedido excluído com sucesso!", { id: toastId }); // Usando showSuccess
       setPedidos((prev) => prev.filter((p) => p.id !== pedidoToDelete.id));
       setIsDeleteModalOpen(false);
       setPedidoToDelete(null);
