@@ -34,6 +34,7 @@ import { Search, PlusCircle, Filter, ChevronDown, Edit, Trash2 } from "lucide-re
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Pagination } from "@/components/Pagination";
+import { Skeleton } from "@/components/ui/skeleton"; // Adicionado importação do Skeleton
 
 const Pedidos = () => {
   const { supabase } = useSession();
