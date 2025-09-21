@@ -343,22 +343,18 @@ const PedidosPage: React.FC = () => {
   const handleDeletePedido = async (id: string) => {
     if (!supabase) return;
     try {
-      // Delete associated status history first
       const { error: historyError } = await supabase
         .from('pedido_status_history')
         .delete()
         .eq('pedido_id', id);
       if (historyError) console.warn('Aviso: Erro ao excluir histórico de status:', historyError.message);
 
-      // Delete associated items
       const { error: itemsError } = await supabase
         .from('pedido_items')
         .delete()
         .eq('pedido_id', id);
       if (itemsError) throw itemsError;
 
-      // Delete associated services
-      // Verificar qual tabela de serviços existe
       let servicosTable = 'pedido_servicos';
       try {
         await supabase.from('pedido_servicos').select('*').limit(1);
@@ -374,7 +370,6 @@ const PedidosPage: React.FC = () => {
         console.warn('Aviso: Não foi possível excluir serviços:', servicosError.message);
       }
 
-      // Then delete the pedido
       const { error } = await supabase
         .from('pedidos')
         .delete()
@@ -392,21 +387,21 @@ const PedidosPage: React.FC = () => {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'pendente':
-        return <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-300 text-[0.65rem] px-1 py-0.5 whitespace-normal leading-tight text-center max-w-[90px]"><Clock className="h-3 w-3 mr-1" /> Pendente</Badge>;
+        return <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-300 text-[0.6rem] px-1 py-0 whitespace-nowrap"><Clock className="h-3 w-3 mr-1" /> Pendente</Badge>;
       case 'processando':
-        return <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300 text-[0.65rem] px-1 py-0.5 whitespace-normal leading-tight text-center max-w-[90px]"><Wrench className="h-3 w-3 mr-1" /> Processando</Badge>;
+        return <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300 text-[0.6rem] px-1 py-0 whitespace-nowrap"><Wrench className="h-3 w-3 mr-1" /> Processando</Badge>;
       case 'enviado':
-        return <Badge variant="outline" className="bg-purple-100 text-purple-800 border-purple-300 text-[0.65rem] px-1 py-0.5 whitespace-normal leading-tight text-center max-w-[90px]"><CheckCircle className="h-3 w-3 mr-1" /> Enviado</Badge>;
+        return <Badge variant="outline" className="bg-purple-100 text-purple-800 border-purple-300 text-[0.6rem] px-1 py-0 whitespace-nowrap"><CheckCircle className="h-3 w-3 mr-1" /> Enviado</Badge>;
       case 'entregue':
-        return <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300 text-[0.65rem] px-1 py-0.5 whitespace-normal leading-tight text-center max-w-[90px]"><CheckCircle className="h-3 w-3 mr-1" /> Entregue</Badge>;
+        return <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300 text-[0.6rem] px-1 py-0 whitespace-nowrap"><CheckCircle className="h-3 w-3 mr-1" /> Entregue</Badge>;
       case 'cancelado':
-        return <Badge variant="outline" className="bg-red-100 text-red-800 border-red-300 text-[0.65rem] px-1 py-0.5 whitespace-normal leading-tight text-center max-w-[90px]"><XCircle className="h-3 w-3 mr-1" /> Cancelado</Badge>;
+        return <Badge variant="outline" className="bg-red-100 text-red-800 border-red-300 text-[0.6rem] px-1 py-0 whitespace-nowrap"><XCircle className="h-3 w-3 mr-1" /> Cancelado</Badge>;
       case 'pago':
-        return <Badge variant="outline" className="bg-green-500 text-white border-green-600 text-[0.65rem] px-1 py-0.5 whitespace-normal leading-tight text-center max-w-[90px]"><DollarSign className="h-3 w-3 mr-1" /> Pago</Badge>;
+        return <Badge variant="outline" className="bg-green-500 text-white border-green-600 text-[0.6rem] px-1 py-0 whitespace-nowrap"><DollarSign className="h-3 w-3 mr-1" /> Pago</Badge>;
       case 'aguardando retirada':
-        return <Badge variant="outline" className="bg-orange-500 text-white border-orange-600 text-[0.65rem] px-1 py-0.5 whitespace-normal leading-tight text-center max-w-[90px]"><Package className="h-3 w-3 mr-1" /> Aguardando Retirada</Badge>;
+        return <Badge variant="outline" className="bg-orange-500 text-white border-orange-600 text-[0.6rem] px-1 py-0 whitespace-nowrap"><Package className="h-3 w-3 mr-1" /> Aguardando Retirada</Badge>;
       default:
-        return <Badge variant="secondary" className="text-[0.65rem] px-1 py-0.5 whitespace-normal leading-tight text-center max-w-[90px]">{status}</Badge>;
+        return <Badge variant="secondary" className="text-[0.6rem] px-1 py-0 whitespace-nowrap">{status}</Badge>;
     }
   };
 
