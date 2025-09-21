@@ -512,8 +512,8 @@ const PedidosPage: React.FC = () => {
               className="touch-manipulation cursor-pointer transition-all duration-200 hover:shadow-lg hover:border-primary/50"
             >
               <CardHeader className="pb-3">
-                <div className="flex items-start justify-between w-full gap-2"> {/* Adicionado gap-2 aqui */}
-                  <div className="flex-1 overflow-hidden"> {/* Removido min-w-[60%] */}
+                <div className="flex items-start justify-between w-full gap-2">
+                  <div className="flex-1 basis-[70%] overflow-hidden"> {/* Adicionado basis-[70%] */}
                     <CardTitle className="text-lg font-semibold truncate">
                       Pedido #{pedido.order_number}
                     </CardTitle>
@@ -524,7 +524,7 @@ const PedidosPage: React.FC = () => {
                       </span>
                     </CardDescription>
                   </div>
-                  <div className="flex-shrink-0"> {/* Removido ml-4 */}
+                  <div className="flex-shrink-0">
                     {getStatusBadge(pedido.status)}
                   </div>
                 </div>
