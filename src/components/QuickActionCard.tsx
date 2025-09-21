@@ -35,14 +35,14 @@ export const QuickActionCard: React.FC<QuickActionCardProps> = ({
   return (
     <Card 
       className={cn(
-        "flex flex-col items-center justify-center p-4 aspect-square text-center cursor-pointer transition-all duration-200 hover:shadow-md hover:border-primary/50",
+        "flex flex-col items-center justify-center p-3 aspect-square text-center cursor-pointer transition-all duration-200 hover:shadow-md hover:border-primary/50",
         className
       )}
       onClick={handleClick}
     >
       <CardContent className="flex flex-col items-center justify-center p-0 h-full w-full">
-        <Icon className="h-8 w-8 mb-2 text-primary" />
-        <span className="text-sm font-medium text-foreground">{title}</span>
+        <Icon className="h-6 w-6 mb-1 text-primary" /> {/* Ícone menor */}
+        <span className="text-xs font-medium text-foreground leading-tight">{title}</span> {/* Texto menor */}
       </CardContent>
     </Card>
   );

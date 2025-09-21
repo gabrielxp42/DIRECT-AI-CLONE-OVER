@@ -4,15 +4,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { DollarSign, Users, CreditCard, Activity, Plus, MessageSquare, ShoppingCart, Package, User, Clock, Wrench } from "lucide-react";
+import { DollarSign, Users, CreditCard, Activity, Plus, MessageSquare, ShoppingCart, Package, User, Clock, Wrench, Handshake, Truck, CheckSquare } from "lucide-react"; // Adicionado Handshake, Truck, CheckSquare
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { Skeleton } from "@/components/ui/skeleton";
-import { QuickActionCard } from "@/components/QuickActionCard"; // Importar o novo componente
-import { useAIAssistant } from '@/contexts/AIAssistantProvider'; // Importar o hook do assistente AI
+import { QuickActionCard } from "@/components/QuickActionCard";
+import { useAIAssistant } from '@/contexts/AIAssistantProvider';
 
 const Index = () => {
   const { data: stats, isLoading, error } = useDashboardData();
-  const { open: openAIAssistant } = useAIAssistant(); // Hook para abrir o assistente AI
+  const { open: openAIAssistant } = useAIAssistant();
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -45,25 +45,7 @@ const Index = () => {
       {/* Nova seção de Ações Rápidas */}
       <div className="mb-8">
         <h2 className="text-xl font-semibold mb-4">Ações Rápidas</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-          <QuickActionCard 
-            title="Novo Pedido" 
-            icon={Plus} 
-            to="/pedidos" 
-            filterState={{ openForm: true }} 
-          />
-          <QuickActionCard 
-            title="Novo Cliente" 
-            icon={User} 
-            to="/clientes" 
-            filterState={{ openForm: true }} 
-          />
-          <QuickActionCard 
-            title="Novo Produto" 
-            icon={Package} 
-            to="/produtos" 
-            filterState={{ openForm: true }} 
-          />
+        <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3"> {/* Ajustado para 3 colunas em mobile, 4 em sm, 6 em lg */}
           <QuickActionCard 
             title="Pedidos Pendentes" 
             icon={Clock} 
@@ -75,6 +57,24 @@ const Index = () => {
             icon={Wrench} 
             to="/pedidos" 
             filterState={{ filterStatus: 'processando' }} 
+          />
+          <QuickActionCard 
+            title="Faltam Pagar" 
+            icon={DollarSign} 
+            to="/pedidos" 
+            filterState={{ filterStatus: 'pendente-pagamento' }} 
+          />
+          <QuickActionCard 
+            title="Aguardando Retirada" 
+            icon={Package} 
+            to="/pedidos" 
+            filterState={{ filterStatus: 'aguardando retirada' }} 
+          />
+          <QuickActionCard 
+            title="Pedidos Entregues" 
+            icon={CheckSquare} 
+            to="/pedidos" 
+            filterState={{ filterStatus: 'entregue' }} 
           />
           <QuickActionCard 
             title="Abrir Chat AI" 
