@@ -101,7 +101,8 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
       showSuccess("Gravação iniciada...");
     } catch (err: any) {
       console.error("Erro ao acessar o microfone:", err);
-      showError(`Erro ao acessar o microfone: ${err.message || 'Permissão negada ou microfone não disponível.'}`);
+      // Mensagem de erro atualizada para ser mais informativa e persuasiva
+      showError("Para interagir com o assistente por voz, precisamos da sua permissão para acessar o microfone. Por favor, permita o acesso nas configurações do seu navegador para continuar a usar o recurso de voz. 🎙️");
     }
   };
 
