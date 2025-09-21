@@ -1,0 +1,18 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\android",
+    "\\android\\app",
+    "\\android\\app\\src",
+    "\\android\\app\\src\\test",
+    "\\android\\app\\src\\test\\java",
+    "\\android\\app\\src\\test\\java\\com",
+    "\\android\\app\\src\\test\\java\\com\\getcapacitor",
+    "\\android\\app\\src\\test\\java\\com\\getcapacitor\\myapp",
+    "\\ios",
+    "\\ios\\App",
+    "\\ios\\App\\App"
+  ],
+  "SelectedNode": "\\src\\globals.css",
+  "PreviewInSolutionExplorer": false
+}
