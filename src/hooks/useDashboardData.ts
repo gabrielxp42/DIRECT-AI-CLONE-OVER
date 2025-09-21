@@ -45,6 +45,23 @@ export const useDashboardData = () => {
 
       if (previousOrdersError) throw new Error(previousOrdersError.message);
 
+      // Fetch current month customers
+      const { data: currentCustomers, error: currentCustomersError } = await supabase
+        .from("clientes")
+        .select("id, created_at")
+        .gte("created_at", firstDayCurrentMonth.toISOString());
+
+      if (currentCustomersError) throw new Error(currentCustomersError.message);
+
+      // Fetch previous month customers
+      const { data: previousCustomers, error: previousCustomersError } = await supabase
+        .from("clientes")
+        .select("id, created_at")
+        .gte("created_at", firstDayPreviousMonth.toISOString())
+        .lte("created_at", lastDayPreviousMonth.toISOString());
+
+      if (previousCustomersError) throw new Error(previousCustomersError.message);
+
       // Fetch active orders (pending status)
       const { data: activeOrders, error: activeOrdersError } = await supabase
         .from("pedidos")
