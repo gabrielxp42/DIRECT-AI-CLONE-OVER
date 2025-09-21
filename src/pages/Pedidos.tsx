@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useSession } from '@/contexts/SessionProvider';
 import { Pedido, StatusHistoryItem } from '@/types/pedido';
 import { Cliente } from '@/types/cliente';
@@ -184,6 +185,15 @@ const PedidosPage: React.FC = () => {
     fetchPedidos();
     fetchClientesAndProdutos();
   }, [fetchPedidos, fetchClientesAndProdutos]);
+
+  // This useEffect handles opening the form when navigated from another component with state
+  useEffect(() => {
+    if (location.state?.openForm) {
+      setEditingPedido(null); // Ensure it's a new order
+      setIsFormOpen(true);    // Open the form dialog
+      navigate(location.pathname, { replace: true, state: {} }); // Clear the state after use
+    }
+  }, [location.state, navigate]); // Dependencies are correct
 
   const handleCreatePedido = () => {
     setEditingPedido(null); // Garante que é um novo pedido
