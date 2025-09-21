@@ -7,7 +7,8 @@ import { getOpenAIClient, type ChatMessage } from '@/integrations/openai/client'
 import { openAIFunctions, callOpenAIFunction } from '@/integrations/openai/aiTools';
 import { useToast } from '@/hooks/use-toast';
 import { useAIAssistant } from '@/contexts/AIAssistantProvider';
-import { AudioRecorder } from './AudioRecorder'; // Importar o novo componente
+import { AudioRecorder } from './AudioRecorder';
+import { AudioMessageDisplay } from './AudioMessageDisplay'; // Importa o novo componente
 
 export const AIAssistant = () => {
   const { isOpen, close } = useAIAssistant();
@@ -237,10 +238,7 @@ Responda sempre de forma clara, direta e amigável.`
                 <div className="flex items-start gap-2">
                   <div className="flex-1">
                     {msg.audioUrl ? (
-                      <div className="space-y-2">
-                        <audio controls src={msg.audioUrl} className="w-full"></audio>
-                        {msg.content && <p className="text-xs italic opacity-80 mt-1">"{msg.content}"</p>}
-                      </div>
+                      <AudioMessageDisplay audioUrl={msg.audioUrl} transcription={msg.content || ''} isUserMessage={true} />
                     ) : (
                       <div dangerouslySetInnerHTML={{ __html: formatMessage(msg.content) }} />
                     )}
