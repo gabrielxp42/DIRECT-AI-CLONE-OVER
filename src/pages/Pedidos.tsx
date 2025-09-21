@@ -513,13 +513,13 @@ const PedidosPage: React.FC = () => {
             >
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between w-full gap-2">
-                  <div className="flex-1 basis-[70%] overflow-hidden"> {/* Adicionado basis-[70%] */}
-                    <CardTitle className="text-lg font-semibold truncate">
+                  <div className="flex-1"> {/* Removed basis-[70%] and overflow-hidden */}
+                    <CardTitle className="text-lg font-semibold"> {/* Removed truncate */}
                       Pedido #{pedido.order_number}
                     </CardTitle>
                     <CardDescription className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
                       <User className="h-3 w-3 flex-shrink-0" />
-                      <span className="truncate flex-1">
+                      <span className="flex-1 whitespace-normal"> {/* Removed truncate, added whitespace-normal */}
                         {pedido.clientes?.nome || 'Cliente Desconhecido'}
                       </span>
                     </CardDescription>
