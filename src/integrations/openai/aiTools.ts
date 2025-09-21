@@ -65,7 +65,7 @@ export const openAIFunctions = [
           type: "array",
           items: {
             type: "string",
-            enum: ["pendente", "processando", "enviado", "entregue", "cancelado", "pago"]
+            enum: ["pendente", "processando", "enviado", "entregue", "cancelado", "pago", "aguardando retirada"]
           },
           description: "Uma lista de status para INCLUIR nos resultados."
         },
@@ -73,7 +73,7 @@ export const openAIFunctions = [
             type: "array",
             items: {
               type: "string",
-              enum: ["pendente", "processando", "enviado", "entregue", "cancelado", "pago"]
+              enum: ["pendente", "processando", "enviado", "entregue", "cancelado", "pago", "aguardando retirada"]
             },
             description: "Uma lista de status para EXCLUIR dos resultados. Use para perguntas como 'pedidos que não estão pagos'."
         },
@@ -125,7 +125,7 @@ export const openAIFunctions = [
         },
         newStatus: {
           type: "string",
-          enum: ["pendente", "processando", "enviado", "entregue", "cancelado", "pago"],
+          enum: ["pendente", "processando", "enviado", "entregue", "cancelado", "pago", "aguardando retirada"],
           description: "O novo status para o pedido."
         },
         observacao: { // Adicionado campo de observação
@@ -941,7 +941,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
         console.error(`❌ [generate_multiple_pdfs] Erro no pedido #${orderNumber}:`, error);
         errors.push(`❌ Pedido #${orderNumber}: erro ao gerar PDF`);
       }
-    }
+      }
 
     const successCount = results.length;
     const errorCount = errors.length;

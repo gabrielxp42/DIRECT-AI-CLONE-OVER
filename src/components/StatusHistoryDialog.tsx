@@ -42,6 +42,8 @@ export const StatusHistoryDialog = ({
         return 'bg-red-100 text-red-800';
       case 'pago':
         return 'bg-green-500 text-white';
+      case 'aguardando retirada': // Novo status
+        return 'bg-orange-100 text-orange-800';
       default:
         return 'bg-gray-100 text-gray-800';
     }

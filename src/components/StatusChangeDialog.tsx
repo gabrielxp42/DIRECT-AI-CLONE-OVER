@@ -35,6 +35,7 @@ const orderStatuses = [
   { value: 'entregue', label: 'Entregue' },
   { value: 'cancelado', label: 'Cancelado' },
   { value: 'pago', label: 'Pago' },
+  { value: 'aguardando retirada', label: 'Aguardando Retirada' }, // Novo status
 ];
 
 export const StatusChangeDialog = ({

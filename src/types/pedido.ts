@@ -39,7 +39,7 @@ export interface Pedido {
   subtotal_servicos: number;
   desconto_valor: number;
   desconto_percentual: number;
-  status: 'pendente' | 'processando' | 'enviado' | 'entregue' | 'cancelado' | 'pago'; // Tipos de status atualizados
+  status: 'pendente' | 'processando' | 'enviado' | 'entregue' | 'cancelado' | 'pago' | 'aguardando retirada'; // Tipos de status atualizados
   observacoes: string | null;
   created_at: string;
   order_number: number;
@@ -72,7 +72,7 @@ export interface NewPedido {
   subtotal_servicos: number;
   desconto_valor?: number;
   desconto_percentual?: number;
-  status: 'pendente' | 'processando' | 'enviado' | 'entregue' | 'cancelado' | 'pago'; // Tipos de status atualizados
+  status: 'pendente' | 'processando' | 'enviado' | 'entregue' | 'cancelado' | 'pago' | 'aguardando retirada'; // Tipos de status atualizados
   observacoes?: string;
   items: NewPedidoItem[];
   servicos?: NewServico[];

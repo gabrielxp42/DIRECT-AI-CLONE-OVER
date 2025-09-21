@@ -98,7 +98,7 @@ export const tools = [
             },
             newStatus: {
               type: "string",
-              enum: ["pendente", "processando", "enviado", "entregue", "cancelado", "pago"], // Adicionei 'pago' como um status válido
+              enum: ["pendente", "processando", "enviado", "entregue", "cancelado", "pago", "aguardando retirada"], // Adicionei 'aguardando retirada' como um status válido
               description: "O novo status para o pedido."
             },
             observacao: { // Adicionado campo de observação

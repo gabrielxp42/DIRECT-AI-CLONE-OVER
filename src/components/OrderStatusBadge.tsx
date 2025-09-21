@@ -17,8 +17,10 @@ export const OrderStatusBadge = ({ status }: OrderStatusBadgeProps) => {
         return 'default';
       case 'cancelado':
         return 'destructive';
-      case 'pago': // Adicionado o status 'pago'
-        return 'default'; // Pode ser 'default' ou 'secondary' dependendo da preferência
+      case 'pago':
+        return 'default';
+      case 'aguardando retirada': // Novo status
+        return 'default';
       default:
         return 'default';
     }
@@ -36,8 +38,10 @@ export const OrderStatusBadge = ({ status }: OrderStatusBadgeProps) => {
         return 'bg-green-100 text-green-800 hover:bg-green-100';
       case 'cancelado':
         return 'bg-red-100 text-red-800 hover:bg-red-100';
-      case 'pago': // Adicionado o status 'pago'
-        return 'bg-green-500 text-white hover:bg-green-600'; // Cor verde para pago
+      case 'pago':
+        return 'bg-green-500 text-white hover:bg-green-600';
+      case 'aguardando retirada': // Novo status
+        return 'bg-orange-100 text-orange-800 hover:bg-orange-100';
       default:
         return '';
     }
