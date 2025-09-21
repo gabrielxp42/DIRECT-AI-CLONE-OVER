@@ -47,6 +47,7 @@ import {
   Filter,
   BarChart3
 } from "lucide-react";
+import { useViewportZoom } from '@/hooks/useViewportZoom'; // Importar o novo hook
 
 interface SalesReport {
   totalRevenue: number;
@@ -111,6 +112,9 @@ const Reports = () => {
   const [selectedPeriod, setSelectedPeriod] = useState("month");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedService, setSelectedService] = useState("all");
+
+  // Ativa o zoom especificamente para a página de Relatórios
+  useViewportZoom(true);
 
   const { data: reportData, isLoading } = useQuery<SalesReport>({
     queryKey: ["comprehensive-report", selectedPeriod],
