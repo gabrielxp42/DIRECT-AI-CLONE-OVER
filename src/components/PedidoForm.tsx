@@ -120,11 +120,13 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
     }
   }, [clienteSearch, clientes]);
 
-  // Efeito para carregar rascunho ou dados iniciais ao abrir o formulário
+  // Efeito principal para gerenciar o estado do formulário e rascunhos
   useEffect(() => {
     if (isOpen) {
+      // --- Formulário está abrindo ---
       if (isEditing && initialData) {
         // Modo de edição: preencher com dados do pedido existente
+        console.log('[PedidoForm Effect] Abrindo em modo de edição. Carregando dados do pedido existente.');
         const itemsData = initialData.pedido_items?.map((item: any) => ({
           produto_id: item.produto_id,
           produto_nome: item.produto_nome || item.produtos?.nome || '',
@@ -147,68 +149,75 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
           items: itemsData,
           servicos: servicosData,
         });
-
         const selectedClient = clientes.find(c => c.id === initialData.cliente_id);
-        if (selectedClient) {
-          setSelectedClienteName(selectedClient.nome);
-        } else {
-          setSelectedClienteName('');
-        }
-        localStorage.removeItem(DRAFT_STORAGE_KEY); // Limpa rascunho se estiver editando
-      } else { // Modo de criação: tentar carregar rascunho do localStorage
+        setSelectedClienteName(selectedClient ? selectedClient.nome : '');
+        
+        // IMPORTANTE: Limpar qualquer rascunho existente ao abrir para edição
+        localStorage.removeItem(DRAFT_STORAGE_KEY);
+        console.log('[PedidoForm Effect] Rascunho limpo ao abrir em modo de edição.');
+
+      } else {
+        // Modo de criação: tentar carregar rascunho do localStorage
+        console.log('[PedidoForm Effect] Abrindo em modo de criação. Tentando carregar rascunho.');
         const savedDraft = localStorage.getItem(DRAFT_STORAGE_KEY);
         if (savedDraft) {
           try {
             const draftData: PedidoFormValues = JSON.parse(savedDraft);
             form.reset(draftData);
             const selectedClient = clientes.find(c => c.id === draftData.cliente_id);
-            if (selectedClient) {
-              setSelectedClienteName(selectedClient.nome);
-            } else {
-              setSelectedClienteName('');
-            }
+            setSelectedClienteName(selectedClient ? selectedClient.nome : '');
             showSuccess("Rascunho carregado automaticamente!");
+            console.log('[PedidoForm Effect] Rascunho encontrado e carregado.');
           } catch (e) {
             console.error("Erro ao carregar rascunho do localStorage:", e);
-            localStorage.removeItem(DRAFT_STORAGE_KEY);
-            form.reset(); // Resetar para valores padrão se o rascunho for inválido
+            localStorage.removeItem(DRAFT_STORAGE_KEY); // Limpa rascunho inválido
+            form.reset(); // Resetar para valores padrão
             setSelectedClienteName('');
+            console.log('[PedidoForm Effect] Rascunho inválido ou erro ao carregar. Resetando para padrão.');
           }
         } else {
-          form.reset(); // Resetar para valores padrão se não houver rascunho
+          form.reset(); // Resetar para valores padrão para um novo formulário vazio
           setSelectedClienteName('');
+          console.log('[PedidoForm Effect] Nenhum rascunho encontrado. Resetando para valores padrão.');
         }
       }
+      // Resetar outros estados de UI comuns a ambos os modos
       setClienteSearch('');
-      setExpandedItemIndex(null); // Resetar estado de expansão ao abrir o formulário
-      setExpandedServiceIndex(null); // Resetar estado de expansão ao abrir o formulário
+      setExpandedItemIndex(null);
+      setExpandedServiceIndex(null);
     } else {
-      // Quando o diálogo fecha, se for um novo pedido, salva o rascunho
+      // --- Formulário está fechando ---
+      console.log('[PedidoForm Effect] Fechando formulário.');
       if (!isEditing) {
+        // Apenas salvar rascunho se era um novo pedido sendo criado
         const currentValues = form.getValues();
-        // Salvar apenas se houver dados significativos
-        if (currentValues.cliente_id || currentValues.items.length > 0 || (currentValues.servicos && currentValues.servicos.length > 0) || currentValues.observacoes || (currentValues.desconto_valor && currentValues.desconto_valor > 0) || (currentValues.desconto_percentual && currentValues.desconto_percentual > 0)) {
+        // Verificar se há dados significativos para salvar como rascunho
+        const hasSignificantData = currentValues.cliente_id || 
+                                   currentValues.items.length > 0 || 
+                                   (currentValues.servicos && currentValues.servicos.length > 0) || 
+                                   (currentValues.observacoes && currentValues.observacoes.trim() !== '') || 
+                                   (currentValues.desconto_valor && currentValues.desconto_valor > 0) || 
+                                   (currentValues.desconto_percentual && currentValues.desconto_percentual > 0);
+
+        if (hasSignificantData) {
           localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(currentValues));
+          console.log('[PedidoForm Effect] Rascunho salvo ao fechar formulário de criação.');
         } else {
-          localStorage.removeItem(DRAFT_STORAGE_KEY); // Limpa se o rascunho estiver vazio
+          localStorage.removeItem(DRAFT_STORAGE_KEY); // Limpar se o rascunho estiver vazio
+          console.log('[PedidoForm Effect] Rascunho limpo ao fechar formulário de criação vazio.');
         }
+      } else {
+        console.log('[PedidoForm Effect] Formulário de edição fechado. Não salvando rascunho.');
+        // Garantir que o rascunho seja limpo mesmo se, por algum motivo, 
+        // ele tenha sido salvo durante a edição (o que não deveria acontecer com a lógica acima)
+        localStorage.removeItem(DRAFT_STORAGE_KEY);
+        console.log('[PedidoForm Effect] Rascunho limpo (garantia) ao fechar formulário de edição.');
       }
     }
-  }, [isOpen, isEditing, initialData, form, clientes]);
+  }, [isOpen, isEditing, initialData, form, clientes]); // Dependências para este efeito
 
-  // Efeito para salvar rascunho no localStorage sempre que o formulário mudar (apenas para novos pedidos)
-  useEffect(() => {
-    if (!isEditing && isOpen) {
-      const subscription = form.watch((value, { name, type }) => {
-        // Evitar salvar rascunhos vazios ou em cada pequena mudança de campo
-        const currentValues = form.getValues();
-        if (currentValues.cliente_id || currentValues.items.length > 0 || (currentValues.servicos && currentValues.servicos.length > 0) || currentValues.observacoes || (currentValues.desconto_valor && currentValues.desconto_valor > 0) || (currentValues.desconto_percentual && currentValues.desconto_percentual > 0)) {
-          localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(currentValues));
-        }
-      });
-      return () => subscription.unsubscribe();
-    }
-  }, [form, isEditing, isOpen]);
+  // Não há mais um useEffect separado para form.watch para salvar rascunhos.
+  // A lógica de salvamento de rascunho agora é tratada exclusivamente no fechamento do formulário de criação.
 
   const handleValidSubmit = (data: PedidoFormValues) => {
     const items = data.items || [];
