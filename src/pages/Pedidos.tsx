@@ -5,9 +5,9 @@ import { Cliente } from '@/types/cliente';
 import { Produto } from '@/types/produto';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Plus, Search, Filter, Eye, Edit, Trash2, Loader2, CheckCircle, XCircle, Clock, Package, User, CalendarIcon, DollarSign, Tag, Percent, Info, Wrench, FileText, History, MessageSquare, MoreHorizontal } from 'lucide-react';
+import { Plus, Search, Filter, Eye, Edit, Trash2, Loader2, CalendarIcon, DollarSign, FileText, Wrench, History, MessageSquare, MoreHorizontal } from 'lucide-react';
 import { PedidoForm } from '@/components/PedidoForm';
-import { PedidoDetails } from '@/components/PedidoDetails'; // Caminho de importação corrigido
+import { PedidoDetails } from '@/components/PedidoDetails';
 import { showSuccess, showError } from '@/utils/toast';
 import {
   AlertDialog,
@@ -37,7 +37,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-
+import { OrderStatusIndicator } from '@/components/OrderStatusIndicator'; // Importar o novo componente
 
 const PedidosPage: React.FC = () => {
   const { supabase, session } = useSession();
@@ -384,26 +384,7 @@ const PedidosPage: React.FC = () => {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'pendente':
-        return <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-300"><Clock className="h-3 w-3 mr-1" /> Pendente</Badge>;
-      case 'processando':
-        return <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300"><Wrench className="h-3 w-3 mr-1" /> Processando</Badge>;
-      case 'enviado':
-        return <Badge variant="outline" className="bg-purple-100 text-purple-800 border-purple-300"><CheckCircle className="h-3 w-3 mr-1" /> Enviado</Badge>;
-      case 'entregue':
-        return <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300"><CheckCircle className="h-3 w-3 mr-1" /> Entregue</Badge>;
-      case 'cancelado':
-        return <Badge variant="outline" className="bg-red-100 text-red-800 border-red-300"><XCircle className="h-3 w-3 mr-1" /> Cancelado</Badge>;
-      case 'pago':
-        return <Badge variant="outline" className="bg-green-500 text-white border-green-600"><DollarSign className="h-3 w-3 mr-1" /> Pago</Badge>;
-      case 'aguardando retirada':
-        return <Badge variant="outline" className="bg-orange-500 text-white border-orange-600"><Package className="h-3 w-3 mr-1" /> Aguardando Retirada</Badge>;
-      default:
-        return <Badge variant="secondary">{status}</Badge>;
-    }
-  };
+  // Removido getStatusBadge, pois será substituído por OrderStatusIndicator
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -513,19 +494,19 @@ const PedidosPage: React.FC = () => {
             >
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between w-full gap-2">
-                  <div className="flex-1"> {/* Removed basis-[70%] and overflow-hidden */}
-                    <CardTitle className="text-lg font-semibold"> {/* Removed truncate */}
+                  <div className="flex-1">
+                    <CardTitle className="text-lg font-semibold">
                       Pedido #{pedido.order_number}
                     </CardTitle>
                     <CardDescription className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
                       <User className="h-3 w-3 flex-shrink-0" />
-                      <span className="flex-1 whitespace-normal"> {/* Removed truncate, added whitespace-normal */}
+                      <span className="flex-1 whitespace-normal">
                         {pedido.clientes?.nome || 'Cliente Desconhecido'}
                       </span>
                     </CardDescription>
                   </div>
                   <div className="flex-shrink-0">
-                    {getStatusBadge(pedido.status)}
+                    <OrderStatusIndicator status={pedido.status} /> {/* Usando o novo componente */}
                   </div>
                 </div>
               </CardHeader>
