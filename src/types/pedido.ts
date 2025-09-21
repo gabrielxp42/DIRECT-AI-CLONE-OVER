@@ -1,6 +1,16 @@
 import { Cliente } from './cliente';
 import { Produto } from './produto';
 
+export enum PedidoStatus {
+  PENDENTE = 'pendente',
+  PROCESSANDO = 'processando',
+  ENVIADO = 'enviado',
+  ENTREGUE = 'entregue',
+  CANCELADO = 'cancelado',
+  PAGO = 'pago',
+  AGUARDANDO_RETIRADA = 'aguardando retirada',
+}
+
 export interface PedidoItem {
   id: string;
   pedido_id: string;
@@ -39,7 +49,7 @@ export interface Pedido {
   subtotal_servicos: number;
   desconto_valor: number;
   desconto_percentual: number;
-  status: 'pendente' | 'processando' | 'enviado' | 'entregue' | 'cancelado' | 'pago' | 'aguardando retirada'; // Tipos de status atualizados
+  status: PedidoStatus; // Usando o enum PedidoStatus
   observacoes: string | null;
   created_at: string;
   order_number: number;
@@ -72,7 +82,7 @@ export interface NewPedido {
   subtotal_servicos: number;
   desconto_valor?: number;
   desconto_percentual?: number;
-  status: 'pendente' | 'processando' | 'enviado' | 'entregue' | 'cancelado' | 'pago' | 'aguardando retirada'; // Tipos de status atualizados
+  status: PedidoStatus; // Usando o enum PedidoStatus
   observacoes?: string;
   items: NewPedidoItem[];
   servicos?: NewServico[];
