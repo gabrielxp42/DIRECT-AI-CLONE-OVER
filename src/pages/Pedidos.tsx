@@ -410,26 +410,51 @@ const PedidosPage: React.FC = () => {
     }
   };
 
-  // Reintroduzindo a função getStatusBadge para uso no mobile
-  const getStatusBadge = (status: string) => {
+  // Helper to get status icon
+  const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'pendente':
-        return <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-300 text-[0.6rem] px-1 py-0 whitespace-nowrap"><Clock className="h-3 w-3 mr-1" /> Pendente</Badge>;
-      case 'processando':
-        return <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300 text-[0.6rem] px-1 py-0 whitespace-nowrap"><Wrench className="h-3 w-3 mr-1" /> Processando</Badge>;
-      case 'enviado':
-        return <Badge variant="outline" className="bg-purple-100 text-purple-800 border-purple-300 text-[0.6rem] px-1 py-0 whitespace-nowrap"><CheckCircle className="h-3 w-3 mr-1" /> Enviado</Badge>;
-      case 'entregue':
-        return <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300 text-[0.6rem] px-1 py-0 whitespace-nowrap"><CheckCircle className="h-3 w-3 mr-1" /> Entregue</Badge>;
-      case 'cancelado':
-        return <Badge variant="outline" className="bg-red-100 text-red-800 border-red-300 text-[0.6rem] px-1 py-0 whitespace-nowrap"><XCircle className="h-3 w-3 mr-1" /> Cancelado</Badge>;
-      case 'pago':
-        return <Badge variant="outline" className="bg-green-500 text-white border-green-600 text-[0.6rem] px-1 py-0 whitespace-nowrap"><DollarSign className="h-3 w-3 mr-1" /> Pago</Badge>;
-      case 'aguardando retirada':
-        return <Badge variant="outline" className="bg-orange-500 text-white border-orange-600 text-[0.6rem] px-1 py-0 whitespace-nowrap"><Package className="h-3 w-3 mr-1" /> Aguardando Retirada</Badge>;
-      default:
-        return <Badge variant="secondary" className="text-[0.6rem] px-1 py-0 whitespace-nowrap">{status}</Badge>;
+      case 'pendente': return <Clock className="h-3 w-3 mr-1" />;
+      case 'processando': return <Wrench className="h-3 w-3 mr-1" />;
+      case 'enviado': return <CheckCircle className="h-3 w-3 mr-1" />;
+      case 'entregue': return <CheckCircle className="h-3 w-3 mr-1" />;
+      case 'cancelado': return <XCircle className="h-3 w-3 mr-1" />;
+      case 'pago': return <DollarSign className="h-3 w-3 mr-1" />;
+      case 'aguardando retirada': return <Package className="h-3 w-3 mr-1" />;
+      default: return null;
     }
+  };
+
+  // Helper to get status color classes
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'pendente': return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+      case 'processando': return 'bg-blue-100 text-blue-800 border-blue-300';
+      case 'enviado': return 'bg-purple-100 text-purple-800 border-purple-300';
+      case 'entregue': return 'bg-green-100 text-green-800 border-green-300';
+      case 'cancelado': return 'bg-red-100 text-red-800 border-red-300';
+      case 'pago': return 'bg-green-500 text-white border-green-600';
+      case 'aguardando retirada': return 'bg-orange-500 text-white border-orange-600';
+      default: return '';
+    }
+  };
+
+  // Reintroduzindo a função getStatusBadge para uso no mobile
+  const getStatusBadge = (status: string, onClick?: () => void, className?: string) => {
+    return (
+      <Badge
+        variant="outline"
+        className={cn(
+          "text-[0.6rem] px-1 py-0 whitespace-nowrap",
+          getStatusColor(status),
+          onClick && "cursor-pointer hover:opacity-80", // Add cursor and hover styles for clickability
+          className
+        )}
+        onClick={onClick} // Apply the onClick handler here
+      >
+        {getStatusIcon(status)}
+        {status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ')}
+      </Badge>
+    );
   };
 
   const formatCurrency = (value: number) => {
@@ -565,7 +590,7 @@ const PedidosPage: React.FC = () => {
                   </div>
                   <div className="flex-shrink-0 max-w-full"> {/* Adicionado max-w-full aqui */}
                     {isMobile ? (
-                      getStatusBadge(pedido.status)
+                      getStatusBadge(pedido.status, () => handleStatusChange(pedido)) // Pass onClick handler for mobile
                     ) : (
                       <OrderStatusIndicator status={pedido.status} />
                     )}
