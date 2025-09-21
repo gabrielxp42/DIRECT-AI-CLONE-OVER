@@ -51,40 +51,35 @@ const Index = () => {
             icon={Clock} 
             to="/pedidos" 
             filterState={{ filterStatus: 'pendente' }}
-            count={isLoading ? undefined : stats?.pendingOrdersCount}
-            loading={isLoading}
+            count={stats?.pendingOrdersCount} // Removido isLoading para evitar skeleton
           />
           <QuickActionCard 
             title="Processando" 
             icon={Wrench} 
             to="/pedidos" 
             filterState={{ filterStatus: 'processando' }}
-            count={isLoading ? undefined : stats?.processingOrdersCount}
-            loading={isLoading}
+            count={stats?.processingOrdersCount} // Removido isLoading para evitar skeleton
           />
           <QuickActionCard 
             title="Faltam Pagar" 
             icon={DollarSign} 
             to="/pedidos" 
             filterState={{ filterStatus: 'pendente-pagamento' }}
-            count={isLoading ? undefined : stats?.pendingPaymentOrdersCount}
-            loading={isLoading}
+            count={stats?.pendingPaymentOrdersCount} // Removido isLoading para evitar skeleton
           />
           <QuickActionCard 
             title="Aguardando Retirada" 
             icon={Package} 
             to="/pedidos" 
             filterState={{ filterStatus: 'aguardando retirada' }}
-            count={isLoading ? undefined : stats?.awaitingPickupOrdersCount}
-            loading={isLoading}
+            count={stats?.awaitingPickupOrdersCount} // Removido isLoading para evitar skeleton
           />
           <QuickActionCard 
             title="Entregues" 
             icon={CheckSquare} 
             to="/pedidos" 
             filterState={{ filterStatus: 'entregue' }}
-            count={isLoading ? undefined : stats?.deliveredOrdersCount}
-            loading={isLoading}
+            count={stats?.deliveredOrdersCount} // Removido isLoading para evitar skeleton
           />
         </div>
       </div>
