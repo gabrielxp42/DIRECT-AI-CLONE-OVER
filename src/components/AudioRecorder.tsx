@@ -16,6 +16,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
   const [isProcessing, setIsProcessing] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [isLongPressDetected, setIsLongPressDetected] = useState(false); // True if long press initiated recording
+  const [isPressing, setIsPressing] = useState(false); // New state to track if button is currently pressed
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -30,6 +31,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
 
   const MIN_AUDIO_DURATION_MS = 500; // 0.5 segundos
   const LONG_PRESS_DELAY = 300; // Tempo em ms para considerar um 'long press'
+  const DURATION_UPDATE_INTERVAL_MS = 250; // Intervalo de atualização da duração para otimização
 
   // Cleanup function for timeouts, intervals, and media recorder
   useEffect(() => {
@@ -46,7 +48,6 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
   }, []);
 
   const getSupportedMimeType = () => {
-    // Priorize formatos conhecidos por funcionar bem com iOS e OpenAI Whisper
     const preferredMimeTypes = [
       'audio/mp4', // Geralmente bom para iOS
       'audio/aac', // Outra boa opção para iOS
@@ -66,11 +67,16 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
   };
 
   const startRecordingProcess = async () => {
-    if (disabled || isProcessing || isRecording) return;
+    if (disabled || isProcessing || isRecording) {
+      console.log('[AudioRecorder] startRecordingProcess abortado: disabled, processing ou already recording.');
+      return;
+    }
 
+    console.log('[AudioRecorder] Solicitando acesso ao microfone...');
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       audioStreamRef.current = stream;
+      console.log('[AudioRecorder] Acesso ao microfone concedido. Stream obtido.');
       
       const mimeType = getSupportedMimeType();
       
@@ -80,21 +86,27 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
       setRecordingDuration(0);
 
       mediaRecorderRef.current.onstart = () => {
-        console.log('[AudioRecorder] Gravação iniciada com sucesso.');
+        console.log('[AudioRecorder] MediaRecorder.onstart disparado. Gravação iniciada.');
         setIsRecording(true);
         showSuccess("Gravação iniciada...");
         startSound.play().catch(e => console.warn("Erro ao reproduzir som de início:", e));
         
         intervalRef.current = setInterval(() => {
-          setRecordingDuration(prev => prev + 100);
-        }, 100);
+          setRecordingDuration(prev => prev + DURATION_UPDATE_INTERVAL_MS);
+        }, DURATION_UPDATE_INTERVAL_MS);
       };
 
       mediaRecorderRef.current.ondataavailable = (event) => {
-        audioChunksRef.current.push(event.data);
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+          console.log(`[AudioRecorder] ondataavailable: ${event.data.size} bytes recebidos.`);
+        } else {
+          console.warn('[AudioRecorder] ondataavailable: Evento com dados de tamanho zero.');
+        }
       };
 
       mediaRecorderRef.current.onstop = async () => {
+        console.log('[AudioRecorder] MediaRecorder.onstop disparado. Parando gravação.');
         setIsRecording(false);
         setIsLongPressDetected(false); // Reset long press state
 
@@ -108,12 +120,16 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
 
         stopSound.play().catch(e => console.warn("Erro ao reproduzir som de fim:", e));
 
+        console.log(`[AudioRecorder] Duração final: ${recordingDuration}ms. Total de chunks: ${audioChunksRef.current.length}`);
+
         if (audioChunksRef.current.length === 0 || recordingDuration < MIN_AUDIO_DURATION_MS) {
           let errorMessage = "Nenhum áudio foi gravado ou o áudio foi muito curto.";
           if (audioChunksRef.current.length === 0) {
             errorMessage = "Nenhum dado de áudio foi coletado. Tente novamente.";
+            console.error('[AudioRecorder] Erro: Nenhum chunk de áudio coletado.');
           } else if (recordingDuration < MIN_AUDIO_DURATION_MS) {
             errorMessage = `Áudio muito curto. Mínimo de ${MIN_AUDIO_DURATION_MS / 1000} segundos.`;
+            console.warn(`[AudioRecorder] Aviso: Áudio muito curto (${recordingDuration}ms).`);
           }
           showError(errorMessage);
           setIsProcessing(false);
@@ -122,14 +138,17 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
 
         setIsProcessing(true);
         const audioBlob = new Blob(audioChunksRef.current, { type: mimeType }); 
+        console.log(`[AudioRecorder] Blob de áudio criado: tipo=${audioBlob.type}, tamanho=${audioBlob.size} bytes.`);
         
         try {
           const transcription = await openAIClient.transcribeAudio(audioBlob);
           if (transcription) {
             onAudioRecorded(transcription, audioBlob);
             showSuccess("Áudio transcrito e enviado!");
+            console.log('[AudioRecorder] Transcrição bem-sucedida.');
           } else {
             showError("Não foi possível transcrever o áudio. Tente novamente.");
+            console.error('[AudioRecorder] Erro: Transcrição vazia.');
           }
         } catch (error: any) {
           console.error("Erro ao transcrever áudio:", error);
@@ -152,6 +171,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
           showError(userFriendlyErrorMessage);
         } finally {
           setIsProcessing(false);
+          console.log('[AudioRecorder] Processamento finalizado.');
         }
       };
 
@@ -159,33 +179,37 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
     } catch (err: any) {
       console.error("Erro ao acessar o microfone:", err);
       showError("Para interagir com o assistente por voz, precisamos da sua permissão para acessar o microfone. Por favor, permita o acesso nas configurações do seu navegador para continuar a usar o recurso de voz. 🎙️");
+      setIsProcessing(false); // Ensure processing state is reset on error
+      setIsRecording(false);
+      setIsLongPressDetected(false);
+      if (longPressTimeoutRef.current) clearTimeout(longPressTimeoutRef.current);
+      longPressTimeoutRef.current = null;
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      intervalRef.current = null;
     }
   };
 
   const stopRecordingProcess = () => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      console.log('[AudioRecorder] Chamando MediaRecorder.stop().');
       mediaRecorderRef.current.stop();
+    } else {
+      console.log('[AudioRecorder] stopRecordingProcess: MediaRecorder não está ativo.');
     }
   };
 
   const handlePointerDown = (e: React.PointerEvent) => {
-    // Previne o comportamento padrão do navegador, como o menu de contexto em toque longo
-    e.preventDefault(); 
+    e.preventDefault(); // Previne o comportamento padrão do navegador, como o menu de contexto em toque longo
     if (disabled || isProcessing) return;
 
-    // Se já estiver gravando (por um toque anterior), um novo down/tap deve parar.
-    // Mas para o "pressionar e segurar", queremos que ele comece a gravar.
-    // A lógica de "pressionar e segurar" tem prioridade.
-    if (isRecording && !isLongPressDetected) {
-      // Se já está gravando por TAP, este DOWN é o início de um novo TAP para parar.
-      // Não fazemos nada aqui, a parada será no UP.
-      return;
-    }
-
-    // Inicia o timer para detectar um "pressionar e segurar"
+    setIsPressing(true);
+    console.log('[AudioRecorder] PointerDown: Iniciando timer de long press.');
     longPressTimeoutRef.current = setTimeout(() => {
       setIsLongPressDetected(true); // Marca que um toque longo foi detectado
-      startRecordingProcess(); // Inicia a gravação
+      console.log('[AudioRecorder] Long press detectado. Iniciando gravação.');
+      if (!isRecording) { // Só inicia se não estiver gravando (evita iniciar duas vezes se já estava gravando por tap)
+        startRecordingProcess();
+      }
     }, LONG_PRESS_DELAY);
   };
 
@@ -193,7 +217,8 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
     e.preventDefault();
     if (disabled || isProcessing) return;
 
-    // Limpa o timer de "pressionar e segurar"
+    setIsPressing(false);
+    console.log('[AudioRecorder] PointerUp: Limpando timer de long press.');
     if (longPressTimeoutRef.current) {
       clearTimeout(longPressTimeoutRef.current);
       longPressTimeoutRef.current = null;
@@ -201,32 +226,37 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
 
     if (isLongPressDetected) {
       // Se a gravação foi iniciada por "pressionar e segurar", para ao soltar
+      console.log('[AudioRecorder] PointerUp: Long press detectado, parando gravação.');
       stopRecordingProcess();
     } else {
       // Se não foi um "pressionar e segurar" (foi um toque rápido)
       if (isRecording) {
         // Se já estava gravando (por um toque anterior), para a gravação
+        console.log('[AudioRecorder] PointerUp: Toque rápido, gravação ativa, parando.');
         stopRecordingProcess();
       } else {
         // Se não estava gravando, inicia a gravação (toque para iniciar)
+        console.log('[AudioRecorder] PointerUp: Toque rápido, gravação inativa, iniciando.');
         startRecordingProcess();
       }
     }
-    // Reseta o estado de detecção de toque longo
-    setIsLongPressDetected(false);
+    setIsLongPressDetected(false); // Reseta o estado de detecção de toque longo
   };
 
   const handlePointerLeave = (e: React.PointerEvent) => {
-    // Se o ponteiro sair enquanto um "pressionar e segurar" estava ativo e gravando, para a gravação
-    if (isLongPressDetected && isRecording) {
-      stopRecordingProcess();
+    if (isPressing) { // Only if a press was active
+      console.log('[AudioRecorder] PointerLeave: Limpando timer de long press.');
+      if (longPressTimeoutRef.current) {
+        clearTimeout(longPressTimeoutRef.current);
+        longPressTimeoutRef.current = null;
+      }
+      if (isLongPressDetected && isRecording) { // If recording via long press and pointer leaves
+        console.log('[AudioRecorder] PointerLeave: Long press detectado e gravando, parando gravação.');
+        stopRecordingProcess();
+      }
+      setIsLongPressDetected(false);
+      setIsPressing(false);
     }
-    // Limpa o timer de "pressionar e segurar" se ainda estiver ativo
-    if (longPressTimeoutRef.current) {
-      clearTimeout(longPressTimeoutRef.current);
-      longPressTimeoutRef.current = null;
-    }
-    setIsLongPressDetected(false);
   };
 
   const formatTime = (ms: number) => {
