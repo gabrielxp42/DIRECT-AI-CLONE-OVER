@@ -5,7 +5,7 @@ import { Cliente } from '@/types/cliente';
 import { Produto } from '@/types/produto';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Plus, Search, Filter, Eye, Edit, Trash2, Loader2, CheckCircle, XCircle, Clock, Package, User, CalendarIcon, DollarSign, Tag, Percent, Info, Wrench, FileText, History, MessageSquare } from 'lucide-react';
+import { Plus, Search, Filter, Eye, Edit, Trash2, Loader2, CheckCircle, XCircle, Clock, Package, User, CalendarIcon, DollarSign, Tag, Percent, Info, Wrench, FileText, History, MessageSquare, MoreHorizontal } from 'lucide-react';
 import { PedidoForm } from '@/components/PedidoForm';
 import { PedidoDetails } from '@/components/PedidoDetails'; // Caminho de importação corrigido
 import { showSuccess, showError } from '@/utils/toast';
