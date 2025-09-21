@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Mic, StopCircle, Loader2 } from 'lucide-react';
 import { getOpenAIClient } from '@/integrations/openai/client';
@@ -15,30 +15,43 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
-  const [isHoldRecording, setIsHoldRecording] = useState(false); // Novo estado para diferenciar gravação por 'hold'
+  const [isLongPressDetected, setIsLongPressDetected] = useState(false); // True if long press initiated recording
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const audioStreamRef = useRef<MediaStream | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const longPressTimeoutRef = useRef<NodeJS.Timeout | null>(null); // Timer para detectar 'long press'
+  const longPressTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   const openAIClient = useRef(getOpenAIClient()).current;
 
-  // Referências para os objetos de áudio para os sons
   const startSound = useRef(new Audio('/sounds/record_start.mp3')).current;
   const stopSound = useRef(new Audio('/sounds/record_stop.mp3')).current;
 
   const MIN_AUDIO_DURATION_MS = 500; // 0.5 segundos
   const LONG_PRESS_DELAY = 300; // Tempo em ms para considerar um 'long press'
 
-  // Detecta o melhor MIME type para gravação de áudio
+  // Cleanup function for timeouts, intervals, and media recorder
+  useEffect(() => {
+    return () => {
+      if (longPressTimeoutRef.current) clearTimeout(longPressTimeoutRef.current);
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop();
+      }
+      if (audioStreamRef.current) {
+        audioStreamRef.current.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, []);
+
   const getSupportedMimeType = () => {
+    // Priorize formatos conhecidos por funcionar bem com iOS e OpenAI Whisper
     const preferredMimeTypes = [
-      'audio/webm;codecs=opus',
-      'audio/webm',
-      'audio/mp4', // Melhor para iOS
+      'audio/mp4', // Geralmente bom para iOS
       'audio/aac', // Outra boa opção para iOS
+      'audio/webm;codecs=opus', // Alta qualidade, bom para Chrome/Firefox
+      'audio/webm',
       'audio/ogg',
     ];
 
@@ -49,12 +62,11 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
       }
     }
     console.warn('[AudioRecorder] Nenhum MIME type preferido suportado, usando fallback padrão: audio/webm');
-    return 'audio/webm'; // Fallback padrão se nada mais for suportado
+    return 'audio/webm'; // Fallback padrão
   };
 
-  // Função auxiliar para iniciar o processo de gravação
   const startRecordingProcess = async () => {
-    if (disabled || isProcessing) return; // Prevenção adicional
+    if (disabled || isProcessing || isRecording) return;
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -84,6 +96,8 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
 
       mediaRecorderRef.current.onstop = async () => {
         setIsRecording(false);
+        setIsLongPressDetected(false); // Reset long press state
+
         if (intervalRef.current) {
           clearInterval(intervalRef.current);
           intervalRef.current = null;
@@ -148,64 +162,71 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
     }
   };
 
-  // Função auxiliar para parar o processo de gravação
   const stopRecordingProcess = () => {
-    if (mediaRecorderRef.current && isRecording) {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     }
   };
 
-  // Manipulador para o início do pressionar (mouse ou toque)
-  const handlePressStart = (e: React.MouseEvent | React.TouchEvent) => {
-    e.preventDefault(); // Previne o evento de clique em dispositivos de toque
-    if (disabled || isProcessing || isRecording) return; // Se já estiver gravando (por toque), não faz nada
+  const handlePointerDown = (e: React.PointerEvent) => {
+    // Previne o comportamento padrão do navegador, como o menu de contexto em toque longo
+    e.preventDefault(); 
+    if (disabled || isProcessing) return;
 
-    longPressTimeoutRef.current = setTimeout(() => {
-      setIsHoldRecording(true); // Marca como gravação por 'hold'
-      startRecordingProcess();
-    }, LONG_PRESS_DELAY);
-  };
-
-  // Manipulador para o fim do pressionar (mouse ou toque)
-  const handlePressEnd = (e: React.MouseEvent | React.TouchEvent) => {
-    e.preventDefault(); // Previne o evento de clique em dispositivos de toque
-    if (longPressTimeoutRef.current) {
-      clearTimeout(longPressTimeoutRef.current);
-      longPressTimeoutRef.current = null;
-    }
-
-    if (isHoldRecording) {
-      stopRecordingProcess();
-      setIsHoldRecording(false); // Reseta o estado de 'hold'
-    }
-  };
-
-  // Manipulador para cancelar o pressionar (ex: mouse sai do botão, toque cancelado)
-  const handlePressCancel = (e: React.MouseEvent | React.TouchEvent) => {
-    e.preventDefault();
-    if (longPressTimeoutRef.current) {
-      clearTimeout(longPressTimeoutRef.current);
-      longPressTimeoutRef.current = null;
-    }
-    if (isHoldRecording) {
-      stopRecordingProcess();
-      setIsHoldRecording(false);
-    }
-  };
-
-  // Manipulador para o evento de clique (toque rápido)
-  const handleClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    // Só lida com o clique se não houver um 'long press' em andamento ou recém-concluído
-    if (disabled || isProcessing || isHoldRecording || longPressTimeoutRef.current) {
+    // Se já estiver gravando (por um toque anterior), um novo down/tap deve parar.
+    // Mas para o "pressionar e segurar", queremos que ele comece a gravar.
+    // A lógica de "pressionar e segurar" tem prioridade.
+    if (isRecording && !isLongPressDetected) {
+      // Se já está gravando por TAP, este DOWN é o início de um novo TAP para parar.
+      // Não fazemos nada aqui, a parada será no UP.
       return;
     }
 
-    if (isRecording) { // Se já estiver gravando (deve ser por toque)
-      stopRecordingProcess();
-    } else { // Não está gravando
-      startRecordingProcess();
+    // Inicia o timer para detectar um "pressionar e segurar"
+    longPressTimeoutRef.current = setTimeout(() => {
+      setIsLongPressDetected(true); // Marca que um toque longo foi detectado
+      startRecordingProcess(); // Inicia a gravação
+    }, LONG_PRESS_DELAY);
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    e.preventDefault();
+    if (disabled || isProcessing) return;
+
+    // Limpa o timer de "pressionar e segurar"
+    if (longPressTimeoutRef.current) {
+      clearTimeout(longPressTimeoutRef.current);
+      longPressTimeoutRef.current = null;
     }
+
+    if (isLongPressDetected) {
+      // Se a gravação foi iniciada por "pressionar e segurar", para ao soltar
+      stopRecordingProcess();
+    } else {
+      // Se não foi um "pressionar e segurar" (foi um toque rápido)
+      if (isRecording) {
+        // Se já estava gravando (por um toque anterior), para a gravação
+        stopRecordingProcess();
+      } else {
+        // Se não estava gravando, inicia a gravação (toque para iniciar)
+        startRecordingProcess();
+      }
+    }
+    // Reseta o estado de detecção de toque longo
+    setIsLongPressDetected(false);
+  };
+
+  const handlePointerLeave = (e: React.PointerEvent) => {
+    // Se o ponteiro sair enquanto um "pressionar e segurar" estava ativo e gravando, para a gravação
+    if (isLongPressDetected && isRecording) {
+      stopRecordingProcess();
+    }
+    // Limpa o timer de "pressionar e segurar" se ainda estiver ativo
+    if (longPressTimeoutRef.current) {
+      clearTimeout(longPressTimeoutRef.current);
+      longPressTimeoutRef.current = null;
+    }
+    setIsLongPressDetected(false);
   };
 
   const formatTime = (ms: number) => {
@@ -223,15 +244,12 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
         className={`h-10 w-10 rounded-full transition-all duration-200 
                     ${isRecording ? 'bg-yellow-600 text-white animate-pulse' : 'bg-yellow-500 text-white hover:bg-yellow-600'}
                     ${disabled || isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
-        onMouseDown={handlePressStart}
-        onMouseUp={handlePressEnd}
-        onMouseLeave={handlePressCancel}
-        onTouchStart={handlePressStart}
-        onTouchEnd={handlePressEnd}
-        onTouchCancel={handlePressCancel}
-        onClick={handleClick}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
+        onPointerLeave={handlePointerLeave}
         disabled={disabled || isProcessing}
         title={isRecording ? "Toque para parar / Solte para parar" : "Toque para gravar / Pressione e segure para gravar"}
+        // touch-action: manipulation é importante para evitar o zoom padrão do iOS em toques duplos
         style={{ userSelect: 'none', WebkitUserSelect: 'none', touchAction: 'manipulation' }}
       >
         {isProcessing ? (
