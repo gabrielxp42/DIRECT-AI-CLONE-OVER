@@ -36,7 +36,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { NewPedido, Pedido } from "@/types/pedido";
 import { Cliente } from "@/types/cliente";
 import { Produto } from "@/types/produto";
-import { useEffect, useState, useRef } from "react"; // Importar useRef
+import { useEffect, useState, useRef } from "react";
 import { Trash2, Plus, Search, Edit3, X, User, Package, Wrench, Save, Zap } from "lucide-react";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -74,7 +74,7 @@ interface PedidoFormProps {
   isSubmitting: boolean;
   clientes: Cliente[];
   produtos: Produto[];
-  initialData?: Pedido | null; // Agora apenas Pedido para edição
+  initialData?: Pedido | null;
 }
 
 const servicosRapidos = [
@@ -108,7 +108,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
   });
 
   const isEditing = !!initialData;
-  const isFirstOpenForNewRef = useRef(true); // Ref para controlar o reset inicial de novos pedidos
+  const hasInitializedRef = useRef(false); // Mudança: controlar se já foi inicializado
 
   useEffect(() => {
     if (clienteSearch.trim() === '') {
@@ -121,9 +121,10 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
     }
   }, [clienteSearch, clientes]);
 
-  // Efeito principal para gerenciar o estado do formulário
+  // Efeito principal para gerenciar o estado do formulário - CORRIGIDO
   useEffect(() => {
-    if (isOpen) {
+    // Só executa quando o diálogo abre E ainda não foi inicializado
+    if (isOpen && !hasInitializedRef.current) {
       if (isEditing && initialData) {
         // Modo de edição: preencher com dados do pedido existente
         const itemsData = initialData.pedido_items?.map((item: any) => ({
@@ -150,42 +151,34 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
         });
         const selectedClient = clientes.find(c => c.id === initialData.cliente_id);
         setSelectedClienteName(selectedClient ? selectedClient.nome : '');
-        isFirstOpenForNewRef.current = true; // Resetar para o próximo novo formulário
         
       } else {
-        // Modo de criação: só resetar na primeira vez que o diálogo abre para um novo pedido
-        if (isFirstOpenForNewRef.current) {
-          form.reset({
-            cliente_id: "",
-            observacoes: "",
-            desconto_valor: 0,
-            desconto_percentual: 0,
-            items: [],
-            servicos: [],
-          });
-          setSelectedClienteName('');
-          isFirstOpenForNewRef.current = false; // Marcar como inicializado para esta sessão de novo formulário
-        }
+        // Modo de criação: resetar apenas uma vez
+        form.reset({
+          cliente_id: "",
+          observacoes: "",
+          desconto_valor: 0,
+          desconto_percentual: 0,
+          items: [],
+          servicos: [],
+        });
+        setSelectedClienteName('');
       }
-      // Resetar outros estados de UI comuns a ambos os modos
+      
+      // Resetar outros estados de UI
       setClienteSearch('');
       setExpandedItemIndex(null);
       setExpandedServiceIndex(null);
-    } else {
-      // Quando o diálogo fecha, resetar a flag para a próxima abertura de um novo formulário
-      isFirstOpenForNewRef.current = true;
-      // Opcional: Limpar o formulário completamente ao fechar para garantir um novo começo na próxima vez
-      form.reset({
-        cliente_id: "",
-        observacoes: "",
-        desconto_valor: 0,
-        desconto_percentual: 0,
-        items: [],
-        servicos: [],
-      });
-      setSelectedClienteName('');
+      
+      // Marcar como inicializado
+      hasInitializedRef.current = true;
     }
-  }, [isOpen, isEditing, initialData, form, clientes]); // Dependências para este efeito
+    
+    // Quando o diálogo fecha, resetar a flag para permitir nova inicialização
+    if (!isOpen) {
+      hasInitializedRef.current = false;
+    }
+  }, [isOpen, isEditing, initialData, form, clientes]); // Mantém as dependências necessárias
 
   const handleValidSubmit = (data: PedidoFormValues) => {
     const items = data.items || [];
@@ -218,7 +211,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
       servicos: servicos,
     };
 
-    onSubmit(formattedData, initialData?.id); // Passar initialData.id para o onSubmit
+    onSubmit(formattedData, initialData?.id);
   };
 
   const handleInvalidSubmit = (errors: any) => {
@@ -310,7 +303,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
     const descontoPercentualValor = subtotal * (descontoPercentual / 100);
     const valorTotal = Math.max(0, subtotal - descontoValor - descontoPercentualValor);
 
-    return valorTotal; // Corrigido: Usar valorTotal
+    return valorTotal;
   };
 
   const handleClienteSelect = (clienteId: string, clienteNome: string) => {
@@ -412,7 +405,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
 
               <FormField
                 control={form.control}
-                name="items" // Este FormField é para a validação do array de items
+                name="items"
                 render={({ field }) => (
                   <FormItem>
                     <div className="flex items-center justify-between">
@@ -583,7 +576,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                         </p>
                       )}
                     </div>
-                    <FormMessage /> {/* Mensagem de erro para o array de items */}
+                    <FormMessage />
                   </FormItem>
                 )}
               />
