@@ -8,14 +8,14 @@ import { MobileBottomNav } from './MobileBottomNav';
 import { useAIAssistant } from '@/contexts/AIAssistantProvider';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from './ui/button';
-import { useViewportZoom } from '@/hooks/useViewportZoom'; // Importar o novo hook
+// import { useViewportZoom } from '@/hooks/useViewportZoom'; // Importar o novo hook
 
 const Layout = () => {
   const { isOpen, open: openAIAssistant } = useAIAssistant();
   const isMobile = useIsMobile();
 
-  // Desativa o zoom para todas as páginas dentro do Layout por padrão
-  useViewportZoom(false); 
+  // Removido: Desativar o zoom para todas as páginas dentro do Layout por padrão
+  // useViewportZoom(false); 
 
   return (
     <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
