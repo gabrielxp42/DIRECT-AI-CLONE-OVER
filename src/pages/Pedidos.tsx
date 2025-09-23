@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"; // Importar hooks do react-query
 import { useSession } from '@/contexts/SessionProvider';
 import { Pedido, StatusHistoryItem } from '@/types/pedido';
 import { Cliente } from '@/types/cliente';
@@ -44,10 +45,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 
 const PedidosPage: React.FC = () => {
   const { supabase, session } = useSession();
-  const [pedidos, setPedidos] = useState<Pedido[]>([]);
-  const [clientes, setClientes] = useState<Cliente[]>([]);
-  const [produtos, setProdutos] = useState<Produto[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient(); // Inicializar queryClient
+  
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [isStatusChangeOpen, setIsStatusChangeOpen] = useState(false);
@@ -65,152 +64,144 @@ const PedidosPage: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
+  // Funções de busca para react-query
+  const fetchPedidosQuery = useCallback(async () => {
+    if (!supabase || !session?.user.id) throw new Error("Supabase client or user session is not available");
+    
+    const { data: pedidosData, error: pedidosError } = await supabase
+      .from('pedidos')
+      .select(`
+        *,
+        clientes (id, nome, telefone, email, endereco)
+      `)
+      .eq('user_id', session.user.id)
+      .order('order_number', { ascending: false });
+
+    if (pedidosError) throw pedidosError;
+
+    const pedidoIds = pedidosData?.map(pedido => pedido.id) || [];
+    const { data: itemsData, error: itemsError } = await supabase
+      .from('pedido_items')
+      .select(`
+        *,
+        produtos (id, nome)
+      `)
+      .in('pedido_id', pedidoIds);
+
+    if (itemsError) throw itemsError;
+
+    let servicosData: any[] = [];
+    try {
+      const { data, error } = await supabase
+        .from('pedido_servicos')
+        .select('*')
+        .in('pedido_id', pedidoIds);
+      servicosData = data || [];
+    } catch (e) {
+      try {
+        const { data, error } = await supabase
+          .from('servicos')
+          .select('*')
+          .in('pedido_id', pedidoIds);
+        servicosData = data || [];
+      } catch (innerError) {
+        servicosData = [];
+      }
+    }
+
+    const { data: allHistoryData, error: historyError } = await supabase
+      .from('pedido_status_history')
+      .select('*')
+      .in('pedido_id', pedidoIds)
+      .order('created_at', { ascending: false });
+
+    if (historyError) {
+      console.warn('Aviso: Não foi possível carregar histórico de status:', historyError.message);
+    }
+
+    const pedidosCompletos = pedidosData?.map(pedido => {
+      const orderHistory = allHistoryData?.filter(historyItem => historyItem.pedido_id === pedido.id) || [];
+      const latestObservation = orderHistory.length > 0 ? orderHistory[0].observacao : null;
+      
+      return {
+        ...pedido,
+        pedido_items: itemsData?.filter(item => item.pedido_id === pedido.id) || [],
+        servicos: servicosData?.filter(servico => servico.pedido_id === pedido.id) || [],
+        status_history: orderHistory,
+        latest_status_observation: latestObservation,
+      };
+    }) || [];
+
+    return pedidosCompletos as Pedido[];
+  }, [supabase, session?.user.id]);
+
+  const fetchClientesQuery = useCallback(async () => {
+    if (!supabase || !session?.user.id) throw new Error("Supabase client or user session is not available");
+    const { data, error } = await supabase
+      .from('clientes')
+      .select('*')
+      .eq('user_id', session.user.id);
+    if (error) throw error;
+    return data as Cliente[];
+  }, [supabase, session?.user.id]);
+
+  const fetchProdutosQuery = useCallback(async () => {
+    if (!supabase || !session?.user.id) throw new Error("Supabase client or user session is not available");
+    const { data, error } = await supabase
+      .from('produtos')
+      .select('*')
+      .eq('user_id', session.user.id);
+    if (error) throw error;
+    return data as Produto[];
+  }, [supabase, session?.user.id]);
+
+  // Hooks do react-query
+  const { data: pedidos, isLoading: isLoadingPedidos, error: errorPedidos } = useQuery<Pedido[]>({
+    queryKey: ['pedidos'],
+    queryFn: fetchPedidosQuery,
+    enabled: !!supabase && !!session?.user.id,
+    staleTime: 5 * 60 * 1000, // Dados considerados 'frescos' por 5 minutos
+    refetchOnWindowFocus: true, // Refetch quando a janela ganha foco
+  });
+
+  const { data: clientes, isLoading: isLoadingClientes, error: errorClientes } = useQuery<Cliente[]>({
+    queryKey: ['clientes'],
+    queryFn: fetchClientesQuery,
+    enabled: !!supabase && !!session?.user.id,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: true,
+  });
+
+  const { data: produtos, isLoading: isLoadingProdutos, error: errorProdutos } = useQuery<Produto[]>({
+    queryKey: ['produtos'],
+    queryFn: fetchProdutosQuery,
+    enabled: !!supabase && !!session?.user.id,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: true,
+  });
+
+  const loading = isLoadingPedidos || isLoadingClientes || isLoadingProdutos;
+
   // Effect to handle incoming filter state from navigation
   useEffect(() => {
     if (location.state?.filterStatus) {
       setFilterStatus(location.state.filterStatus);
-      // Clear the state after use to prevent re-applying on subsequent visits
       navigate(location.pathname, { replace: true, state: {} });
     }
   }, [location.state, location.pathname, navigate]);
-
-
-  const fetchPedidos = useCallback(async () => {
-    if (!session || !supabase) return;
-    setLoading(true);
-    try {
-      // Buscar pedidos primeiro
-      const { data: pedidosData, error: pedidosError } = await supabase
-        .from('pedidos')
-        .select(`
-          *,
-          clientes (id, nome, telefone, email, endereco)
-        `)
-        .eq('user_id', session.user.id)
-        .order('order_number', { ascending: false }); // Ordenar por número do pedido
-
-      if (pedidosError) throw pedidosError;
-
-      // Buscar itens dos pedidos
-      const pedidoIds = pedidosData?.map(pedido => pedido.id) || [];
-      const { data: itemsData, error: itemsError } = await supabase
-        .from('pedido_items')
-        .select(`
-          *,
-          produtos (id, nome)
-        `)
-        .in('pedido_id', pedidoIds);
-
-      if (itemsError) throw itemsError;
-
-      // Buscar serviços dos pedidos (verificando se a tabela existe)
-      let servicosData: any[] = [];
-      let servicosError: any = null;
-      
-      try {
-        const { data, error } = await supabase
-          .from('pedido_servicos')
-          .select('*')
-          .in('pedido_id', pedidoIds);
-        
-        servicosData = data || [];
-        servicosError = error;
-      } catch (e) {
-        // Se a tabela pedido_servicos não existir, tentamos servicos
-        try {
-          const { data, error } = await supabase
-            .from('servicos')
-            .select('*')
-            .in('pedido_id', pedidoIds);
-          
-          servicosData = data || [];
-          servicosError = error;
-        } catch (innerError) {
-          // Se nenhuma tabela de serviços existir, continuamos sem serviços
-          servicosData = [];
-          servicosError = null;
-        }
-      }
-
-      if (servicosError) {
-        console.warn('Aviso: Não foi possível carregar serviços:', servicosError.message);
-        servicosData = [];
-      }
-
-      // Buscar histórico de status para todos os pedidos
-      const { data: allHistoryData, error: historyError } = await supabase
-        .from('pedido_status_history')
-        .select('*')
-        .in('pedido_id', pedidoIds)
-        .order('created_at', { ascending: false }); // Order by date to easily get the latest
-
-      if (historyError) {
-        console.warn('Aviso: Não foi possível carregar histórico de status:', historyError.message);
-      }
-
-      // Mapear histórico e última observação para cada pedido
-      const pedidosCompletos = pedidosData?.map(pedido => {
-        const orderHistory = allHistoryData?.filter(historyItem => historyItem.pedido_id === pedido.id) || [];
-        const latestObservation = orderHistory.length > 0 ? orderHistory[0].observacao : null; // Get the latest (first after sorting)
-        
-        return {
-          ...pedido,
-          pedido_items: itemsData?.filter(item => item.pedido_id === pedido.id) || [],
-          servicos: servicosData?.filter(servico => servico.pedido_id === pedido.id) || [],
-          status_history: orderHistory, // Assign all history
-          latest_status_observation: latestObservation, // Assign the latest observation
-        };
-      }) || [];
-
-      setPedidos(pedidosCompletos as Pedido[]);
-    } catch (error: any) {
-      console.error('Erro completo:', error);
-      showError(`Erro ao carregar pedidos: ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
-  }, [session, supabase]);
-
-  const fetchClientesAndProdutos = useCallback(async () => {
-    if (!session || !supabase) return;
-    try {
-      const { data: clientesData, error: clientesError } = await supabase
-        .from('clientes')
-        .select('*')
-        .eq('user_id', session.user.id);
-      if (clientesError) throw clientesError;
-      setClientes(clientesData as Cliente[]);
-
-      const { data: produtosData, error: produtosError } = await supabase
-        .from('produtos')
-        .select('*')
-        .eq('user_id', session.user.id);
-      if (produtosError) throw produtosError;
-      setProdutos(produtosData as Produto[]);
-
-    } catch (error: any) {
-      showError(`Erro ao carregar dados de suporte: ${error.message}`);
-    }
-  }, [session, supabase]);
-
-  useEffect(() => {
-    fetchPedidos();
-    fetchClientesAndProdutos();
-  }, [fetchPedidos, fetchClientesAndProdutos]);
 
   // This useEffect handles opening the form when navigated from another component with state
   useEffect(() => {
     if (location.state?.openForm) {
       setEditingPedido(null); // Ensure it's a new order
       setIsFormOpen(true);    // Open the form dialog
-      // Adiciona uma verificação para 'navigate' antes de chamá-lo
       if (navigate) {
         navigate(location.pathname, { replace: true, state: {} }); // Clear the state after use
       } else {
         console.error("Erro: navigate não está definido no useEffect de Pedidos.tsx");
       }
     }
-  }, [location.state, location.pathname, navigate]); // Adicionado location.pathname à dependência
+  }, [location.state, location.pathname, navigate]);
 
   const handleCreatePedido = () => {
     setEditingPedido(null); // Garante que é um novo pedido
@@ -250,7 +241,6 @@ const PedidosPage: React.FC = () => {
       
       if (error) throw error;
       
-      // Se houver observação, adicionar ao histórico
       if (observacao && observacao.trim()) {
         const { error: historyError } = await supabase
           .from('pedido_status_history')
@@ -268,7 +258,7 @@ const PedidosPage: React.FC = () => {
       }
       
       showSuccess("Status atualizado com sucesso!");
-      fetchPedidos();
+      queryClient.invalidateQueries({ queryKey: ['pedidos'] }); // Invalida a query para refetch
     } catch (error: any) {
       showError(`Erro ao atualizar status: ${error.message}`);
     }
@@ -289,10 +279,8 @@ const PedidosPage: React.FC = () => {
 
     try {
       if (pedidoId) {
-        // Update existing pedido
         const { items, servicos, ...pedidoData } = data;
 
-        // Update pedido main data
         const { error: pedidoError } = await supabase
           .from('pedidos')
           .update(pedidoData)
@@ -300,7 +288,6 @@ const PedidosPage: React.FC = () => {
           .eq('user_id', session.user.id);
         if (pedidoError) throw pedidoError;
 
-        // Handle items: delete old, insert new
         await supabase.from('pedido_items').delete().eq('pedido_id', pedidoId);
         if (items && items.length > 0) {
           const itemsToInsert = items.map(item => ({ ...item, pedido_id: pedidoId }));
@@ -308,8 +295,6 @@ const PedidosPage: React.FC = () => {
           if (itemsError) throw itemsError;
         }
 
-        // Handle servicos: delete old, insert new
-        // Verificar qual tabela de serviços existe
         let servicosTable = 'pedido_servicos';
         try {
           await supabase.from('pedido_servicos').select('*').limit(1);
@@ -326,7 +311,6 @@ const PedidosPage: React.FC = () => {
 
         showSuccess("Pedido atualizado com sucesso!");
       } else {
-        // Create new pedido
         const { items, servicos, ...pedidoData } = data;
         const { data: newPedido, error: pedidoError } = await supabase
           .from('pedidos')
@@ -342,7 +326,6 @@ const PedidosPage: React.FC = () => {
           if (itemsError) throw itemsError;
         }
 
-        // Verificar qual tabela de serviços existe
         let servicosTable = 'pedido_servicos';
         try {
           await supabase.from('pedido_servicos').select('*').limit(1);
@@ -359,7 +342,8 @@ const PedidosPage: React.FC = () => {
         showSuccess("Pedido criado com sucesso!");
       }
       setIsFormOpen(false);
-      fetchPedidos();
+      queryClient.invalidateQueries({ queryKey: ['pedidos'] }); // Invalida a query para refetch
+      queryClient.invalidateQueries({ queryKey: ['clientes'] }); // Invalida a query de clientes caso um novo tenha sido criado
     } catch (error: any) {
       showError(`Erro ao salvar pedido: ${error.message}`);
     } finally {
@@ -404,13 +388,12 @@ const PedidosPage: React.FC = () => {
         .eq('user_id', session?.user.id);
       if (error) throw error;
       showSuccess("Pedido excluído com sucesso!");
-      fetchPedidos();
+      queryClient.invalidateQueries({ queryKey: ['pedidos'] }); // Invalida a query para refetch
     } catch (error: any) {
       showError(`Erro ao excluir pedido: ${error.message}`);
     }
   };
 
-  // Reintroduzindo a função getStatusBadge para uso no mobile
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'pendente':
@@ -439,7 +422,7 @@ const PedidosPage: React.FC = () => {
     }).format(value);
   };
 
-  const filteredPedidos = pedidos.filter(pedido => {
+  const filteredPedidos = (pedidos || []).filter(pedido => {
     const matchesSearch = searchTerm === '' ||
       pedido.order_number.toString().includes(searchTerm) ||
       pedido.clientes?.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -459,6 +442,14 @@ const PedidosPage: React.FC = () => {
 
     return matchesSearch && matchesStatus && matchesDate;
   });
+
+  if (errorPedidos || errorClientes || errorProdutos) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-red-600">Erro ao carregar dados: {errorPedidos?.message || errorClientes?.message || errorProdutos?.message}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto p-4">
@@ -546,7 +537,7 @@ const PedidosPage: React.FC = () => {
             >
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between w-full gap-2">
-                  <div className="flex-1 min-w-0"> {/* Adicionado min-w-0 aqui */}
+                  <div className="flex-1 min-w-0">
                     <CardTitle className="text-lg font-semibold">
                       Pedido #{pedido.order_number}
                     </CardTitle>
@@ -563,7 +554,7 @@ const PedidosPage: React.FC = () => {
                       )}
                     </CardDescription>
                   </div>
-                  <div className="flex-shrink-0 max-w-full"> {/* Adicionado max-w-full aqui */}
+                  <div className="flex-shrink-0 max-w-full">
                     {isMobile ? (
                       getStatusBadge(pedido.status)
                     ) : (
@@ -674,8 +665,8 @@ const PedidosPage: React.FC = () => {
         onSubmit={handleSubmitPedido}
         isSubmitting={isSubmitting}
         initialData={editingPedido}
-        clientes={clientes}
-        produtos={produtos}
+        clientes={clientes || []} {/* Passar clientes do useQuery */}
+        produtos={produtos || []} {/* Passar produtos do useQuery */}
       />
 
       {viewingPedidoId && (
@@ -683,8 +674,8 @@ const PedidosPage: React.FC = () => {
           isOpen={isDetailsOpen}
           onOpenChange={setIsDetailsOpen}
           pedidoId={viewingPedidoId}
-          clientes={clientes}
-          produtos={produtos}
+          clientes={clientes || []} {/* Passar clientes do useQuery */}
+          produtos={produtos || []} {/* Passar produtos do useQuery */}
           onEdit={handleEditPedido}
           onDelete={handleDeletePedido}
         />
