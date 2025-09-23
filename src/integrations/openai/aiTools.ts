@@ -5,102 +5,96 @@ import { removeAccents } from '@/utils/string';
 // Função para obter data e hora atual no fuso horário do Rio de Janeiro
 export const getCurrentDateTime = () => {
   const now = new Date();
-  const options: Intl.DateTimeFormatOptions = {
-    timeZone: 'America/Sao_Paulo',
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false
-  };
-  
-  // Formatar para exibição no fuso horário do Rio
-  const displayDate = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'full', timeZone: 'America/Sao_Paulo' }).format(now);
-  const displayTime = new Intl.DateTimeFormat('pt-BR', { timeStyle: 'medium', timeZone: 'America/Sao_Paulo' }).format(now);
-  const displayMonthName = new Intl.DateTimeFormat('pt-BR', { month: 'long', timeZone: 'America/Sao_Paulo' }).format(now);
-  const displayWeekday = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', timeZone: 'America/Sao_Paulo' }).format(now);
+  const TIME_ZONE = 'America/Sao_Paulo';
 
-  // Obter componentes de data/hora no fuso horário do Rio para construir ISO string
-  const rioDateOptions: Intl.DateTimeFormatOptions = {
+  // Usar Intl.DateTimeFormat para obter os componentes da data no fuso horário desejado
+  const formatter = new Intl.DateTimeFormat('en-US', {
     year: 'numeric',
     month: 'numeric',
     day: 'numeric',
     hour: 'numeric',
     minute: 'numeric',
     second: 'numeric',
-    timeZone: 'America/Sao_Paulo',
+    weekday: 'long',
+    // month: 'long', // Já obtido no displayDate/monthName
+    timeZone: TIME_ZONE,
     hour12: false,
-  };
-  const rioDateTimeFormatter = new Intl.DateTimeFormat('en-US', rioDateOptions);
-  const rioParts = rioDateTimeFormatter.formatToParts(now);
+  });
 
-  let rioYear: number = now.getFullYear(), rioMonth: number = now.getMonth() + 1, rioDay: number = now.getDate();
-  let rioHour: number = now.getHours(), rioMinute: number = now.getMinutes(), rioSecond: number = now.getSeconds();
+  const parts = formatter.formatToParts(now);
+  let year: number = now.getFullYear(), month: number = now.getMonth() + 1, day: number = now.getDate();
+  let hour: number = now.getHours(), minute: number = now.getMinutes(), second: number = now.getSeconds();
+  let weekday: string = '', monthName: string = '';
 
-  for (const part of rioParts) {
-    if (part.type === 'year') rioYear = parseInt(part.value);
-    if (part.type === 'month') rioMonth = parseInt(part.value);
-    if (part.type === 'day') rioDay = parseInt(part.value);
-    if (part.type === 'hour') rioHour = parseInt(part.value);
-    if (part.type === 'minute') rioMinute = parseInt(part.value);
-    if (part.type === 'second') rioSecond = parseInt(part.value);
+  for (const part of parts) {
+    if (part.type === 'year') year = parseInt(part.value);
+    if (part.type === 'month') month = parseInt(part.value);
+    if (part.type === 'day') day = parseInt(part.value);
+    if (part.type === 'hour') hour = parseInt(part.value);
+    if (part.type === 'minute') minute = parseInt(part.value);
+    if (part.type === 'second') second = parseInt(part.value);
+    if (part.type === 'weekday') weekday = part.value;
+    if (part.type === 'month') monthName = part.value;
   }
 
-  // Criar um objeto Date que representa o momento atual no Rio, mas como UTC para ISO string
-  const rioNow = new Date(Date.UTC(rioYear, rioMonth - 1, rioDay, rioHour, rioMinute, rioSecond));
+  // Reconstruir um objeto Date que representa o momento atual no Rio de Janeiro (localmente)
+  // Isso é crucial para que as operações de setHours/setDate funcionem corretamente no contexto do Rio.
+  const rioLocalTime = new Date(year, month - 1, day, hour, minute, second);
 
-  // Calcular ranges baseados em rioNow (UTC ajustado para Rio)
-  const startOfRioDay = new Date(Date.UTC(rioYear, rioMonth - 1, rioDay, 0, 0, 0, 0));
-  const endOfRioDay = new Date(Date.UTC(rioYear, rioMonth - 1, rioDay, 23, 59, 59, 999));
+  // Formatos de exibição
+  const displayDate = rioLocalTime.toLocaleDateString('pt-BR', { dateStyle: 'full', timeZone: TIME_ZONE });
+  const displayTime = rioLocalTime.toLocaleTimeString('pt-BR', { timeStyle: 'medium', timeZone: TIME_ZONE });
 
-  const startOfRioMonth = new Date(Date.UTC(rioYear, rioMonth - 1, 1, 0, 0, 0, 0));
-  const endOfRioMonth = new Date(Date.UTC(rioYear, rioMonth, 0, 23, 59, 59, 999)); // Último dia do mês atual
+  // Calcular intervalos de data com base em rioLocalTime
+  const startOfRioDay = new Date(rioLocalTime);
+  startOfRioDay.setHours(0, 0, 0, 0);
 
-  // Para semana, precisamos do dia da semana no fuso horário do Rio
-  const dayOfWeekIndex = now.getDay(); // 0 para domingo, 6 para sábado
-  const daysToSubtract = dayOfWeekIndex; // Para começar no domingo
-  
-  const startOfRioWeek = new Date(startOfRioDay);
-  startOfRioWeek.setUTCDate(startOfRioDay.getUTCDate() - daysToSubtract); // Ajusta para o domingo da semana atual
+  const endOfRioDay = new Date(rioLocalTime);
+  endOfRioDay.setHours(23, 59, 59, 999);
+
+  const startOfRioMonth = new Date(rioLocalTime.getFullYear(), rioLocalTime.getMonth(), 1, 0, 0, 0, 0);
+  const endOfRioMonth = new Date(rioLocalTime.getFullYear(), rioLocalTime.getMonth() + 1, 0, 23, 59, 59, 999);
+
+  const dayOfWeekIndex = rioLocalTime.getDay(); // 0 para Domingo, 6 para Sábado
+  const startOfRioWeek = new Date(rioLocalTime);
+  startOfRioWeek.setDate(rioLocalTime.getDate() - dayOfWeekIndex);
+  startOfRioWeek.setHours(0, 0, 0, 0);
 
   const endOfRioWeek = new Date(startOfRioWeek);
-  endOfRioWeek.setUTCDate(startOfRioWeek.getUTCDate() + 6); // Ajusta para o sábado da semana atual
-  endOfRioWeek.setUTCHours(23, 59, 59, 999);
+  endOfRioWeek.setDate(startOfRioWeek.getDate() + 6);
+  endOfRioWeek.setHours(23, 59, 59, 999);
 
   return {
     fullDate: displayDate,
-    dayOfWeek: displayWeekday,
-    date: new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeZone: 'America/Sao_Paulo' }).format(now),
+    dayOfWeek: weekday,
+    date: rioLocalTime.toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }),
     time: displayTime,
-    timestamp: rioNow.toISOString(),
+    timestamp: rioLocalTime.toISOString(), // Isso será UTC, mas derivado corretamente do horário local do Rio
     current: {
-      day: rioDay,
-      month: rioMonth,
-      year: rioYear,
-      dayOfWeek: displayWeekday,
-      monthName: displayMonthName
+      day: day,
+      month: month, // Mês 1-indexado
+      year: year,
+      dayOfWeek: weekday,
+      monthName: monthName
     },
     ranges: {
       thisMonth: {
         start: startOfRioMonth.toISOString(),
         end: endOfRioMonth.toISOString(),
-        label: `${displayMonthName} de ${rioYear}`
+        label: `${monthName} de ${year}`
       },
       thisWeek: {
         start: startOfRioWeek.toISOString(),
         end: endOfRioWeek.toISOString(),
-        label: `Semana de ${new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'America/Sao_Paulo' }).format(startOfRioWeek)} a ${new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'America/Sao_Paulo' }).format(endOfRioWeek)}`
+        label: `Semana de ${startOfRioWeek.toLocaleDateString('pt-BR', { timeZone: TIME_ZONE })} a ${endOfRioWeek.toLocaleDateString('pt-BR', { timeZone: TIME_ZONE })}`
       },
       today: {
         start: startOfRioDay.toISOString(),
         end: endOfRioDay.toISOString(),
         label: `Hoje (${displayDate})`
       }
-    } // Fechamento correto do objeto 'ranges'
-  }; // Fechamento correto do objeto principal de retorno
+    }
+  };
 };
 
 // OpenAI Functions format
@@ -814,6 +808,14 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       const endDisplayDate = new Date(endDate!).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE });
       periodDescription = startDisplayDate === endDisplayDate ? `em ${startDisplayDate}` : `entre ${startDisplayDate} e ${endDisplayDate}`;
     }
+
+    console.log(`📊 [list_orders] Parâmetros da consulta:`, { 
+      startDate, 
+      endDate, 
+      limit, 
+      orderBy, 
+      includeTotalCount 
+    });
 
     let query = supabase
       .from('pedidos')
