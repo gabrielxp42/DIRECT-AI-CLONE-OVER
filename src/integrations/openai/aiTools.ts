@@ -185,19 +185,19 @@ export const openAIFunctions = [
   },
   {
     name: "list_orders",
-    description: "Lista pedidos APENAS por filtros de data, sem especificar cliente. Use esta função SOMENTE quando o usuário pedir pedidos por período sem mencionar cliente específico (ex: 'pedidos de hoje', 'pedidos desta semana', 'último pedido', 'quantos pedidos esta semana', 'pedido mais caro'). NÃO use esta função quando o usuário mencionar um cliente específico. Retorna o NÚMERO do pedido, status, valor total, data de criação e nome do cliente.",
+    description: "Lista pedidos por filtros de data, sem especificar cliente. Use esta função SOMENTE quando o usuário pedir pedidos por período sem mencionar cliente específico (ex: 'pedidos de hoje', 'pedidos desta semana', 'último pedido', 'quantos pedidos esta semana', 'pedido mais caro'). NÃO use esta função quando o usuário mencionar um cliente específico. Retorna o NÚMERO do pedido, status, valor total, data de criação e nome do cliente.",
     parameters: {
       type: "object",
       properties: {
         startDate: {
           type: "string",
           format: "date-time",
-          description: "Data de início do período para filtrar pedidos (formato ISO 8601, ex: '2023-10-27T00:00:00.000Z'). Se omitido, assume o início do mês atual no fuso horário de Rio de Janeiro."
+          description: "Data de início do período para filtrar pedidos (formato ISO 8601, ex: '2023-10-27T00:00:00.000Z')."
         },
         endDate: {
           type: "string",
           format: "date-time",
-          description: "Data de fim do período para filtrar pedidos (formato ISO 8601, ex: '2023-10-27T23:59:59.999Z'). Se omitido, assume o final do mês atual no fuso horário de Rio de Janeiro."
+          description: "Data de fim do período para filtrar pedidos (formato ISO 8601, ex: '2023-10-27T23:59:59.999Z')."
         },
         limit: {
           type: "number",
@@ -208,9 +208,50 @@ export const openAIFunctions = [
           enum: ["created_at_asc", "created_at_desc", "valor_total_desc"],
           description: "Campo e direção para ordenar os pedidos. 'created_at_asc' para os mais antigos primeiro, 'created_at_desc' para os mais recentes primeiro, 'valor_total_desc' para os mais caros primeiro. Padrão é 'created_at_desc'."
         },
-        includeTotalCount: { // Novo parâmetro
+        includeTotalCount: {
           type: "boolean",
           description: "Se verdadeiro, retorna a contagem total de pedidos que correspondem aos filtros, além dos pedidos listados. Use para perguntas como 'quantos pedidos temos no total?' ou 'quantos pedidos este mês?'"
+        },
+        allTime: { // NEW PARAMETER
+          type: "boolean",
+          description: "Se verdadeiro, ignora startDate e endDate e busca pedidos desde o início. Use para perguntas como 'quantos vendemos desde que começamos?'"
+        }
+      },
+      required: []
+    }
+  },
+  {
+    name: "list_services", // NEW TOOL
+    description: "Lista serviços por filtros de data. Use para perguntas como 'quantos serviços tivemos esta semana?', 'quais serviços foram feitos hoje?'. Retorna o nome do serviço, quantidade, valor unitário, valor total, número do pedido, status do pedido, data do pedido e nome do cliente.",
+    parameters: {
+      type: "object",
+      properties: {
+        startDate: {
+          type: "string",
+          format: "date-time",
+          description: "Data de início do período para filtrar serviços (formato ISO 8601, ex: '2023-10-27T00:00:00.000Z')."
+        },
+        endDate: {
+          type: "string",
+          format: "date-time",
+          description: "Data de fim do período para filtrar serviços (formato ISO 8601, ex: '2023-10-27T23:59:59.999Z')."
+        },
+        limit: {
+          type: "number",
+          description: "Número máximo de serviços a retornar. Padrão é 10."
+        },
+        orderBy: {
+          type: "string",
+          enum: ["created_at_asc", "created_at_desc", "valor_total_desc"],
+          description: "Campo e direção para ordenar os serviços. 'created_at_asc' para os mais antigos primeiro, 'created_at_desc' para os mais recentes primeiro, 'valor_total_desc' para os mais caros primeiro. Padrão é 'created_at_desc'."
+        },
+        includeTotalCount: {
+          type: "boolean",
+          description: "Se verdadeiro, retorna a contagem total de serviços que correspondem aos filtros, além dos serviços listados."
+        },
+        allTime: { // NEW PARAMETER
+          type: "boolean",
+          description: "Se verdadeiro, ignora startDate e endDate e busca serviços desde o início."
         }
       },
       required: []
@@ -499,7 +540,271 @@ const fetchCompleteOrderData = async (fullOrderId: string) => {
   }
 };
 
-// Function implementations
+// Modified list_orders function
+export const list_orders = async (args: {
+  startDate?: string;
+  endDate?: string;
+  limit?: number;
+  orderBy?: "created_at_asc" | "created_at_desc" | "valor_total_desc";
+  includeTotalCount?: boolean;
+  allTime?: boolean; // NEW
+}) => {
+  let { startDate, endDate, limit = 10, orderBy = 'created_at_desc', includeTotalCount, allTime } = args;
+  const TIME_ZONE = 'America/Sao_Paulo';
+  const dateInfo = getCurrentDateTime();
+  let periodDescription = "em todo o período";
+
+  if (allTime) {
+    startDate = undefined;
+    endDate = undefined;
+    periodDescription = `desde o início`;
+  } else if (!startDate && !endDate) {
+    // Default to current month if no dates are provided and not allTime
+    startDate = dateInfo.ranges.thisMonth.start;
+    endDate = dateInfo.ranges.thisMonth.end;
+    periodDescription = `neste mês de ${dateInfo.current.monthName} de ${dateInfo.current.year}`;
+  } else if (startDate && !endDate) {
+    const start = new Date(startDate);
+    const startDay = start.getUTCDate();
+    const startMonth = start.getUTCMonth();
+    const startYear = start.getUTCFullYear();
+    const end = new Date(Date.UTC(startYear, startMonth, startDay, 23, 59, 59, 999));
+    endDate = end.toISOString();
+    periodDescription = `em ${new Date(startDate).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE })}`;
+  } else if (!startDate && endDate) {
+    const end = new Date(endDate);
+    const endDay = end.getUTCDate();
+    const endMonth = end.getUTCMonth();
+    const endYear = end.getUTCFullYear();
+    const start = new Date(Date.UTC(endYear, endMonth, endDay, 0, 0, 0, 0));
+    startDate = start.toISOString();
+    periodDescription = `em ${new Date(endDate).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE })}`;
+  } else if (startDate && endDate) {
+    const startDisplayDate = new Date(startDate!).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE });
+    const endDisplayDate = new Date(endDate!).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE });
+    periodDescription = startDisplayDate === endDisplayDate ? `em ${startDisplayDate}` : `entre ${startDisplayDate} e ${endDisplayDate}`;
+  }
+
+  console.log(`📊 [list_orders] Parâmetros da consulta:`, { 
+    startDate, 
+    endDate, 
+    limit, 
+    orderBy, 
+    includeTotalCount,
+    allTime
+  });
+
+  let query = supabase
+    .from('pedidos')
+    .select(`
+      id,
+      order_number,
+      status,
+      valor_total,
+      created_at,
+      clientes (nome)
+    `, { count: includeTotalCount ? 'exact' : null });
+
+  if (startDate) {
+    query = query.gte('created_at', startDate);
+  }
+  if (endDate) {
+    query = query.lte('created_at', endDate);
+  }
+
+  const [orderFieldRaw, orderDirection] = orderBy.split('_');
+  let orderField = orderFieldRaw;
+  let ascending = orderDirection === 'asc';
+
+  if (orderFieldRaw === 'created') {
+    orderField = 'created_at';
+  } else if (orderFieldRaw === 'valor' && orderDirection === 'total') {
+    orderField = 'valor_total';
+    ascending = false;
+  }
+
+  query = query.order(orderField, { ascending: ascending });
+  
+  if (!includeTotalCount && limit && limit > 0) {
+    query = query.limit(limit);
+  }
+
+  const { data: orders, error, count } = await query;
+
+  if (error) {
+    console.error("Erro ao listar pedidos por data:", error);
+    return { error: error.message };
+  }
+
+  const totalCountMessage = includeTotalCount ? ` (Total de ${count} pedidos encontrados)` : '';
+
+  if (!orders || orders.length === 0) {
+    return { message: `❌ Nenhum pedido encontrado ${periodDescription}.${totalCountMessage}` };
+  }
+
+  const formattedOrders = orders.map((order, index) => ({
+    index: index + 1,
+    order_number: order.order_number,
+    status: order.status,
+    valor_total: order.valor_total,
+    created_at: new Date(order.created_at).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }),
+    cliente: order.clientes?.nome
+  }));
+
+  const totalValue = orders.reduce((sum, order) => sum + order.valor_total, 0);
+
+  return { 
+    orders: formattedOrders, 
+    summary: {
+      count: orders.length,
+      totalValue: totalValue,
+      period: {
+        start: startDate ? new Date(startDate).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }) : 'início',
+        end: endDate ? new Date(endDate).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }) : 'fim'
+      },
+      totalMatchingOrders: count
+    },
+    message: `📊 Encontrados **${orders.length} pedidos** ${periodDescription}.${totalCountMessage}` 
+  };
+};
+
+// New list_services function
+export const list_services = async (args: {
+  startDate?: string;
+  endDate?: string;
+  limit?: number;
+  orderBy?: "created_at_asc" | "created_at_desc" | "valor_total_desc";
+  includeTotalCount?: boolean;
+  allTime?: boolean; // NEW
+}) => {
+  let { startDate, endDate, limit = 10, orderBy = 'created_at_desc', includeTotalCount, allTime } = args;
+  const TIME_ZONE = 'America/Sao_Paulo';
+  const dateInfo = getCurrentDateTime();
+  let periodDescription = "em todo o período";
+
+  if (allTime) {
+    startDate = undefined;
+    endDate = undefined;
+    periodDescription = `desde o início`;
+  } else if (!startDate && !endDate) {
+    // Default to current month if no dates are provided and not allTime
+    startDate = dateInfo.ranges.thisMonth.start;
+    endDate = dateInfo.ranges.thisMonth.end;
+    periodDescription = `neste mês de ${dateInfo.current.monthName} de ${dateInfo.current.year}`;
+  } else if (startDate && !endDate) {
+    const start = new Date(startDate);
+    const startDay = start.getUTCDate();
+    const startMonth = start.getUTCMonth();
+    const startYear = start.getUTCFullYear();
+    const end = new Date(Date.UTC(startYear, startMonth, startDay, 23, 59, 59, 999));
+    endDate = end.toISOString();
+    periodDescription = `em ${new Date(startDate).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE })}`;
+  } else if (!startDate && endDate) {
+    const end = new Date(endDate);
+    const endDay = end.getUTCDate();
+    const endMonth = end.getUTCMonth();
+    const endYear = end.getUTCFullYear();
+    const start = new Date(Date.UTC(endYear, endMonth, endDay, 0, 0, 0, 0));
+    startDate = start.toISOString();
+    periodDescription = `em ${new Date(endDate).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE })}`;
+  } else if (startDate && endDate) {
+    const startDisplayDate = new Date(startDate!).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE });
+    const endDisplayDate = new Date(endDate!).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE });
+    periodDescription = startDisplayDate === endDisplayDate ? `em ${startDisplayDate}` : `entre ${startDisplayDate} e ${endDisplayDate}`;
+  }
+
+  console.log(`🛠️ [list_services] Parâmetros da consulta:`, { 
+    startDate, 
+    endDate, 
+    limit, 
+    orderBy, 
+    includeTotalCount,
+    allTime
+  });
+
+  let query = supabase
+    .from('pedido_servicos') // Query the services table
+    .select(`
+      id,
+      nome,
+      quantidade,
+      valor_unitario,
+      pedidos (
+        id,
+        order_number,
+        status,
+        created_at,
+        clientes (nome)
+      )
+    `, { count: includeTotalCount ? 'exact' : null });
+
+  if (startDate) {
+    query = query.gte('pedidos.created_at', startDate);
+  }
+  if (endDate) {
+    query = query.lte('pedidos.created_at', endDate);
+  }
+
+  const [orderFieldRaw, orderDirection] = orderBy.split('_');
+  let orderField = orderFieldRaw;
+  let ascending = orderDirection === 'asc';
+
+  if (orderFieldRaw === 'created') {
+    orderField = 'pedidos.created_at';
+  } else if (orderFieldRaw === 'valor' && orderDirection === 'total') {
+    orderField = 'valor_unitario'; // Or total value of service? Let's use unit value for now.
+    ascending = false;
+  }
+
+  query = query.order(orderField, { ascending: ascending });
+  
+  if (!includeTotalCount && limit && limit > 0) {
+    query = query.limit(limit);
+  }
+
+  const { data: services, error, count } = await query;
+
+  if (error) {
+    console.error("Erro ao listar serviços por data:", error);
+    return { error: error.message };
+  }
+
+  const totalCountMessage = includeTotalCount ? ` (Total de ${count} serviços encontrados)` : '';
+
+  if (!services || services.length === 0) {
+    return { message: `❌ Nenhum serviço encontrado ${periodDescription}.${totalCountMessage}` };
+  }
+
+  const formattedServices = services.map((service, index) => ({
+    index: index + 1,
+    service_name: service.nome,
+    quantity: service.quantidade,
+    unit_value: service.valor_unitario,
+    total_value: service.quantidade * service.valor_unitario,
+    order_number: service.pedidos?.order_number,
+    order_status: service.pedidos?.status,
+    order_date: new Date(service.pedidos?.created_at || '').toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }),
+    client_name: service.pedidos?.clientes?.nome
+  }));
+
+  const totalRevenue = services.reduce((sum, service) => sum + (service.quantidade * service.valor_unitario), 0);
+
+  return { 
+    services: formattedServices, 
+    summary: {
+      count: services.length,
+      totalRevenue: totalRevenue,
+      period: {
+        start: startDate ? new Date(startDate).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }) : 'início',
+        end: endDate ? new Date(endDate).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }) : 'fim'
+      },
+      totalMatchingServices: count
+    },
+    message: `🛠️ Encontrados **${services.length} serviços** ${periodDescription}.${totalCountMessage}` 
+  };
+};
+
+// Update callOpenAIFunction to dispatch to list_services
 export const callOpenAIFunction = async (functionCall: { name: string; arguments: any }) => {
   const { name, arguments: args } = functionCall;
   console.log(`🚀 [callOpenAIFunction] Executando: ${name}`, args);
@@ -775,122 +1080,11 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
   }
 
   if (name === "list_orders") {
-    let { startDate, endDate, limit = 10, orderBy = 'created_at_desc', includeTotalCount } = args;
+    return list_orders(args); // Delegate to the actual function
+  }
 
-    const dateInfo = getCurrentDateTime();
-    let periodDescription = "em todo o período";
-
-    // Se não houver datas, define para o mês atual no fuso horário do Rio
-    if (!startDate && !endDate) {
-      // Se ambos startDate e endDate estão ausentes, buscar todos os pedidos
-      startDate = undefined; // Remover filtro de data de início
-      endDate = undefined;   // Remover filtro de data de fim
-      periodDescription = `desde o início`;
-    } else if (startDate && !endDate) {
-      // Se apenas startDate, define endDate para o final do dia no fuso horário do Rio
-      const start = new Date(startDate);
-      const startDay = start.getUTCDate();
-      const startMonth = start.getUTCMonth();
-      const startYear = start.getUTCFullYear();
-      const end = new Date(Date.UTC(startYear, startMonth, startDay, 23, 59, 59, 999));
-      endDate = end.toISOString();
-      periodDescription = `em ${new Date(startDate).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE })}`;
-    } else if (!startDate && endDate) {
-      // Se apenas endDate, define startDate para o início do dia no fuso horário do Rio
-      const end = new Date(endDate);
-      const endDay = end.getUTCDate();
-      const endMonth = end.getUTCMonth();
-      const endYear = end.getUTCFullYear();
-      const start = new Date(Date.UTC(endYear, endMonth, endDay, 0, 0, 0, 0));
-      startDate = start.toISOString();
-      periodDescription = `em ${new Date(endDate).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE })}`;
-    } else if (startDate && endDate) {
-      const startDisplayDate = new Date(startDate!).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE });
-      const endDisplayDate = new Date(endDate!).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE });
-      periodDescription = startDisplayDate === endDisplayDate ? `em ${startDisplayDate}` : `entre ${startDisplayDate} e ${endDisplayDate}`;
-    }
-
-    console.log(`📊 [list_orders] Parâmetros da consulta:`, { 
-      startDate, 
-      endDate, 
-      limit, 
-      orderBy, 
-      includeTotalCount 
-    });
-
-    let query = supabase
-      .from('pedidos')
-      .select(`
-        id,
-        order_number,
-        status,
-        valor_total,
-        created_at,
-        clientes (nome)
-      `, { count: includeTotalCount ? 'exact' : null }); // Adiciona contagem exata se solicitado
-
-    if (startDate) {
-      query = query.gte('created_at', startDate);
-    }
-    if (endDate) {
-      query = query.lte('created_at', endDate);
-    }
-
-    const [orderFieldRaw, orderDirection] = orderBy.split('_');
-    let orderField = orderFieldRaw;
-    let ascending = orderDirection === 'asc';
-
-    if (orderFieldRaw === 'created') {
-      orderField = 'created_at';
-    } else if (orderFieldRaw === 'valor' && orderDirection === 'total') {
-      orderField = 'valor_total';
-      ascending = false;
-    }
-
-    query = query.order(orderField, { ascending: ascending });
-    
-    // Aplica limite apenas se NÃO for para contar o total E se houver um limite definido e maior que 0
-    if (!includeTotalCount && limit && limit > 0) {
-      query = query.limit(limit);
-    }
-
-    const { data: orders, error, count } = await query;
-
-    if (error) {
-      console.error("Erro ao listar pedidos por data:", error);
-      return { error: error.message };
-    }
-
-    const totalCountMessage = includeTotalCount ? ` (Total de ${count} pedidos encontrados)` : '';
-
-    if (!orders || orders.length === 0) {
-      return { message: `❌ Nenhum pedido encontrado ${periodDescription}.${totalCountMessage}` };
-    }
-
-    const formattedOrders = orders.map((order, index) => ({
-      index: index + 1,
-      order_number: order.order_number,
-      status: order.status,
-      valor_total: order.valor_total,
-      created_at: new Date(order.created_at).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }),
-      cliente: order.clientes?.nome
-    }));
-
-    const totalValue = orders.reduce((sum, order) => sum + order.valor_total, 0);
-
-    return { 
-      orders: formattedOrders, 
-      summary: {
-        count: orders.length,
-        totalValue: totalValue,
-        period: {
-          start: startDate ? new Date(startDate).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }) : 'início',
-          end: endDate ? new Date(endDate).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }) : 'fim'
-        },
-        totalMatchingOrders: count // Retorna a contagem total de correspondências
-      },
-      message: `📊 Encontrados **${orders.length} pedidos** ${periodDescription}.${totalCountMessage}` 
-    };
+  if (name === "list_services") { // Handle the new tool
+    return list_services(args); // Delegate to the actual function
   }
 
   if (name === "update_order_status") {

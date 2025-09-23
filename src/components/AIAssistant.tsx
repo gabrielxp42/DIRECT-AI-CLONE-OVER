@@ -61,12 +61,14 @@ SUAS PRINCIPAIS FUNÇÕES:
 4. 🔄 Atualizar status de pedidos (use update_order_status)
 5. 📄 Gerar PDFs de pedidos (use generate_order_pdf ou generate_multiple_pdfs)
 6. 📊 Listar pedidos por data ou status (use list_orders ou get_orders_by_status)
+7. 🛠️ Listar serviços por data (use list_services)
 
 REGRAS IMPORTANTES:
 - NUNCA invente informações ou datas
 - SEMPRE use as ferramentas disponíveis para obter dados reais
 - Para perguntas sobre datas, horas ou períodos, use get_current_date
-- Para perguntas sobre quantidades de pedidos, use list_orders ou get_orders_by_status com includeTotalCount=true
+- Para perguntas sobre quantidades de pedidos ou serviços, use list_orders ou list_services com includeTotalCount=true
+- Para perguntas sobre o histórico completo de pedidos ou serviços (ex: 'desde o início', 'total de todos os tempos'), use list_orders ou list_services com allTime=true.
 - Quando não souber algo, admita que não tem a informação
 - Seja específico e útil nas suas respostas
 - Use emojis para tornar as respostas mais amigáveis
@@ -215,6 +217,8 @@ Responda sempre de forma clara, direta e amigável.`
                 <p>• "detalhes do cliente Maria"</p>
                 <p>• "quantos pedidos temos este mês?"</p>
                 <p>• "quantos pedidos pendentes?"</p>
+                <p>• "quantos serviços tivemos esta semana?"</p>
+                <p>• "quantos vendemos desde que começamos?"</p>
               </div>
               <div className="mt-3 p-2 bg-blue-50 rounded text-blue-700">
                 <p className="font-medium text-xs">🎤 Dica de áudio:</p>
