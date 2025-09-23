@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Cliente, NewCliente } from "@/types/cliente";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react"; // Importar useRef
 import { CurrencyInput } from "./CurrencyInput"; // Importar CurrencyInput
 
 const formSchema = z.object({
@@ -62,9 +62,13 @@ export const ClienteForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, init
     },
   });
 
+  const isEditing = !!initialData;
+  const isFirstOpenForNewRef = useRef(true); // Ref para controlar o reset inicial de novos clientes
+
   useEffect(() => {
     if (isOpen) {
-      if (initialData) {
+      if (isEditing && initialData) {
+        // Modo de edição: preencher com dados do cliente existente
         form.reset({
           nome: initialData.nome || "",
           telefone: initialData.telefone || "",
@@ -73,18 +77,35 @@ export const ClienteForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, init
           valor_metro: initialData.valor_metro || 0, // Garantir valor numérico
           status: initialData.status || "ativo",
         });
+        isFirstOpenForNewRef.current = true; // Resetar para o próximo novo formulário
       } else {
-        form.reset({
-          nome: "",
-          telefone: "",
-          email: "",
-          endereco: "",
-          valor_metro: 0, // Resetar para 0 para o CurrencyInput
-          status: "ativo",
-        });
+        // Modo de criação: só resetar na primeira vez que o diálogo abre para um novo cliente
+        if (isFirstOpenForNewRef.current) {
+          form.reset({
+            nome: "",
+            telefone: "",
+            email: "",
+            endereco: "",
+            valor_metro: 0, // Resetar para 0 para o CurrencyInput
+            status: "ativo",
+          });
+          isFirstOpenForNewRef.current = false; // Marcar como inicializado para esta sessão de novo formulário
+        }
       }
+    } else {
+      // Quando o diálogo fecha, resetar a flag para a próxima abertura de um novo formulário
+      isFirstOpenForNewRef.current = true;
+      // Opcional: Limpar o formulário completamente ao fechar para garantir um novo começo na próxima vez
+      form.reset({
+        nome: "",
+        telefone: "",
+        email: "",
+        endereco: "",
+        valor_metro: 0,
+        status: "ativo",
+      });
     }
-  }, [isOpen, initialData, form]);
+  }, [isOpen, isEditing, initialData, form]);
 
   const handleSubmit = (data: ClienteFormValues) => {
     // Garantir que os campos vazios sejam enviados como null
@@ -100,8 +121,6 @@ export const ClienteForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, init
     console.log('Dados formatados para envio:', formattedData);
     onSubmit(formattedData, initialData?.id);
   };
-
-  const isEditing = !!initialData;
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>

@@ -36,7 +36,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { NewPedido, Pedido } from "@/types/pedido";
 import { Cliente } from "@/types/cliente";
 import { Produto } from "@/types/produto";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react"; // Importar useRef
 import { Trash2, Plus, Search, Edit3, X, User, Package, Wrench, Save, Zap } from "lucide-react";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -70,7 +70,7 @@ export type PedidoFormValues = z.infer<typeof formSchema>;
 interface PedidoFormProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onSubmit: (data: Omit<NewPedido, 'user_id' | 'status'>) => void;
+  onSubmit: (data: Omit<NewPedido, 'user_id' | 'status'>, pedidoId?: string) => void;
   isSubmitting: boolean;
   clientes: Cliente[];
   produtos: Produto[];
@@ -108,6 +108,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
   });
 
   const isEditing = !!initialData;
+  const isFirstOpenForNewRef = useRef(true); // Ref para controlar o reset inicial de novos pedidos
 
   useEffect(() => {
     if (clienteSearch.trim() === '') {
@@ -123,10 +124,8 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
   // Efeito principal para gerenciar o estado do formulário
   useEffect(() => {
     if (isOpen) {
-      // --- Formulário está abrindo ---
       if (isEditing && initialData) {
         // Modo de edição: preencher com dados do pedido existente
-        console.log('[PedidoForm Effect] Abrindo em modo de edição. Carregando dados do pedido existente.');
         const itemsData = initialData.pedido_items?.map((item: any) => ({
           produto_id: item.produto_id,
           produto_nome: item.produto_nome || item.produtos?.nome || '',
@@ -151,26 +150,41 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
         });
         const selectedClient = clientes.find(c => c.id === initialData.cliente_id);
         setSelectedClienteName(selectedClient ? selectedClient.nome : '');
+        isFirstOpenForNewRef.current = true; // Resetar para o próximo novo formulário
         
       } else {
-        // Modo de criação: sempre resetar para um formulário vazio
-        console.log('[PedidoForm Effect] Abrindo em modo de criação. Resetando para valores padrão.');
-        form.reset({
-          cliente_id: "",
-          observacoes: "",
-          desconto_valor: 0,
-          desconto_percentual: 0,
-          items: [],
-          servicos: [],
-        });
-        setSelectedClienteName('');
+        // Modo de criação: só resetar na primeira vez que o diálogo abre para um novo pedido
+        if (isFirstOpenForNewRef.current) {
+          form.reset({
+            cliente_id: "",
+            observacoes: "",
+            desconto_valor: 0,
+            desconto_percentual: 0,
+            items: [],
+            servicos: [],
+          });
+          setSelectedClienteName('');
+          isFirstOpenForNewRef.current = false; // Marcar como inicializado para esta sessão de novo formulário
+        }
       }
       // Resetar outros estados de UI comuns a ambos os modos
       setClienteSearch('');
       setExpandedItemIndex(null);
       setExpandedServiceIndex(null);
+    } else {
+      // Quando o diálogo fecha, resetar a flag para a próxima abertura de um novo formulário
+      isFirstOpenForNewRef.current = true;
+      // Opcional: Limpar o formulário completamente ao fechar para garantir um novo começo na próxima vez
+      form.reset({
+        cliente_id: "",
+        observacoes: "",
+        desconto_valor: 0,
+        desconto_percentual: 0,
+        items: [],
+        servicos: [],
+      });
+      setSelectedClienteName('');
     }
-    // A lógica de salvamento e carregamento de rascunho foi removida para garantir que "Novo Pedido" sempre comece limpo.
   }, [isOpen, isEditing, initialData, form, clientes]); // Dependências para este efeito
 
   const handleValidSubmit = (data: PedidoFormValues) => {

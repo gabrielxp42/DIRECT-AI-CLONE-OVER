@@ -21,7 +21,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { NewProduto, Produto } from "@/types/produto";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react"; // Importar useRef
 
 const formSchema = z.object({
   nome: z.string().min(2, { message: "O nome deve ter pelo menos 2 caracteres." }),
@@ -51,31 +51,48 @@ export const ProdutoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, init
     },
   });
 
+  const isEditing = !!initialData;
+  const isFirstOpenForNewRef = useRef(true); // Ref para controlar o reset inicial de novos produtos
+
   useEffect(() => {
     if (isOpen) {
-      if (initialData) {
+      if (isEditing && initialData) {
+        // Modo de edição: preencher com dados do produto existente
         form.reset({
           nome: initialData.nome,
           descricao: initialData.descricao || "",
           preco: initialData.preco,
           estoque: initialData.estoque || 0,
         });
+        isFirstOpenForNewRef.current = true; // Resetar para o próximo novo formulário
       } else {
-        form.reset({
-          nome: "",
-          descricao: "",
-          preco: 0,
-          estoque: 0,
-        });
+        // Modo de criação: só resetar na primeira vez que o diálogo abre para um novo produto
+        if (isFirstOpenForNewRef.current) {
+          form.reset({
+            nome: "",
+            descricao: "",
+            preco: 0,
+            estoque: 0,
+          });
+          isFirstOpenForNewRef.current = false; // Marcar como inicializado para esta sessão de novo formulário
+        }
       }
+    } else {
+      // Quando o diálogo fecha, resetar a flag para a próxima abertura de um novo formulário
+      isFirstOpenForNewRef.current = true;
+      // Opcional: Limpar o formulário completamente ao fechar para garantir um novo começo na próxima vez
+      form.reset({
+        nome: "",
+        descricao: "",
+        preco: 0,
+        estoque: 0,
+      });
     }
-  }, [isOpen, initialData, form]);
+  }, [isOpen, isEditing, initialData, form]);
 
   const handleSubmit = (data: ProdutoFormValues) => {
     onSubmit(data, initialData?.id);
   };
-
-  const isEditing = !!initialData;
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
