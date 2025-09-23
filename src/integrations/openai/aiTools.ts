@@ -99,8 +99,7 @@ export const getCurrentDateTime = () => {
         end: endOfRioDay.toISOString(),
         label: `Hoje (${displayDate})`
       }
-    }
-  };
+    };
 };
 
 // OpenAI Functions format
@@ -740,8 +739,8 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
 
     query = query.order('created_at', { ascending: false });
     
-    // Aplica limite apenas se não for para contar o total e se houver um limite definido
-    if (!includeTotalCount || (limit && limit > 0)) {
+    // Aplica limite apenas se NÃO for para contar o total E se houver um limite definido e maior que 0
+    if (!includeTotalCount && limit && limit > 0) {
       query = query.limit(limit);
     }
 
@@ -846,8 +845,8 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
 
     query = query.order(orderField, { ascending: ascending });
     
-    // Aplica limite apenas se não for para contar o total e se houver um limite definido
-    if (!includeTotalCount || (limit && limit > 0)) {
+    // Aplica limite apenas se NÃO for para contar o total E se houver um limite definido e maior que 0
+    if (!includeTotalCount && limit && limit > 0) {
       query = query.limit(limit);
     }
 
