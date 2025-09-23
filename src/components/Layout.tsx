@@ -14,7 +14,7 @@ const Layout = () => {
   const { isOpen, open: openAIAssistant } = useAIAssistant();
   const isMobile = useIsMobile();
 
-  // Desativar o zoom para todas as páginas dentro do Layout por padrão
+  // Desativa o zoom para todas as páginas dentro do Layout por padrão
   useViewportZoom(false); 
 
   return (
