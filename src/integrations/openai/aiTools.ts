@@ -102,7 +102,7 @@ export const openAIFunctions = [
         },
         limit: {
           type: "number",
-          description: "Número máximo de pedidos a retornar. Padrão é 100. Se o usuário indicar que há mais pedidos, o assistente deve aumentar este limite."
+          description: "Número máximo de pedidos a retornar. Padrão é 10."
         },
         orderBy: {
           type: "string",
@@ -594,7 +594,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       } catch (error) {
         console.error(`❌ [get_client_details] Erro ao buscar lista de clientes:`, error);
         return { 
-          message: `❌ Não encontrei nenhum cliente com o nome "${clientName}". Verifique se o nome está correto ou tente usar apenas parte do nome.` 
+          message: `❌ Não encontrei nenhum cliente com o nome "${clientName}". Verifique se o nome está correto.` 
         };
       }
     }
@@ -741,7 +741,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
   }
 
   if (name === "list_orders") {
-    let { startDate, endDate, limit = 100, orderBy = 'created_at_desc' } = args;
+    let { startDate, endDate, limit = 10, orderBy = 'created_at_desc' } = args;
 
     // Se não houver datas, define para o mês atual no fuso horário do Rio
     if (!startDate && !endDate) {
