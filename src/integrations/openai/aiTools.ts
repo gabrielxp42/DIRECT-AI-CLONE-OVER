@@ -668,14 +668,14 @@ export const list_orders = async (args: {
   };
 };
 
-// New list_services function
+// New list_services function with multiple strategies
 export const list_services = async (args: {
   startDate?: string;
   endDate?: string;
   limit?: number;
   orderBy?: "created_at_asc" | "created_at_desc" | "valor_total_desc";
   includeTotalCount?: boolean;
-  allTime?: boolean; // NEW
+  allTime?: boolean;
 }) => {
   let { startDate, endDate, limit = 10, orderBy = 'created_at_desc', includeTotalCount, allTime } = args;
   const TIME_ZONE = 'America/Sao_Paulo';
@@ -687,10 +687,10 @@ export const list_services = async (args: {
     endDate = undefined;
     periodDescription = `desde o início`;
   } else if (!startDate && !endDate) {
-    // Default to current month if no dates are provided and not allTime
-    startDate = dateInfo.ranges.thisMonth.start;
-    endDate = dateInfo.ranges.thisMonth.end;
-    periodDescription = `neste mês de ${dateInfo.current.monthName} de ${dateInfo.current.year}`;
+    // Default to current week for services
+    startDate = dateInfo.ranges.thisWeek.start;
+    endDate = dateInfo.ranges.thisWeek.end;
+    periodDescription = `nesta semana`;
   } else if (startDate && !endDate) {
     const start = new Date(startDate);
     const startDay = start.getUTCDate();
@@ -722,86 +722,171 @@ export const list_services = async (args: {
     allTime
   });
 
-  let query = supabase
-    .from('pedido_servicos') // Query the services table
-    .select(`
-      id,
-      nome,
-      quantidade,
-      valor_unitario,
-      pedidos (
+  // Strategy 1: Try pedido_servicos table with JOIN
+  try {
+    console.log('📍 [list_services] Tentativa 1: Tabela pedido_servicos com JOIN');
+    
+    let query = supabase
+      .from('pedido_servicos')
+      .select(`
+        id,
+        nome,
+        quantidade,
+        valor_unitario,
+        pedidos!inner (
+          id,
+          order_number,
+          status,
+          created_at,
+          clientes (nome)
+        )
+      `, { count: includeTotalCount ? 'exact' : null });
+
+    if (startDate) {
+      query = query.gte('pedidos.created_at', startDate);
+    }
+    if (endDate) {
+      query = query.lte('pedidos.created_at', endDate);
+    }
+
+    query = query.order('pedidos.created_at', { ascending: orderBy === 'created_at_asc' });
+    
+    if (!includeTotalCount && limit && limit > 0) {
+      query = query.limit(limit);
+    }
+
+    const { data: services, error, count } = await query;
+
+    if (!error && services) {
+      console.log(`✅ [list_services] Estratégia 1 funcionou: ${services.length} serviços encontrados`);
+      
+      const totalCountMessage = includeTotalCount ? ` (Total de ${count} serviços encontrados)` : '';
+
+      if (services.length === 0) {
+        return { message: `❌ Nenhum serviço encontrado ${periodDescription}.${totalCountMessage}` };
+      }
+
+      const formattedServices = services.map((service, index) => ({
+        index: index + 1,
+        service_name: service.nome,
+        quantity: service.quantidade,
+        unit_value: service.valor_unitario,
+        total_value: service.quantidade * service.valor_unitario,
+        order_number: service.pedidos?.order_number,
+        order_status: service.pedidos?.status,
+        order_date: new Date(service.pedidos?.created_at || '').toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }),
+        client_name: service.pedidos?.clientes?.nome
+      }));
+
+      const totalRevenue = formattedServices.reduce((sum, service) => sum + service.total_value, 0);
+
+      return { 
+        services: formattedServices, 
+        summary: {
+          count: services.length,
+          totalRevenue: totalRevenue,
+          period: {
+            start: startDate ? new Date(startDate).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }) : 'início',
+            end: endDate ? new Date(endDate).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }) : 'fim'
+          },
+          totalMatchingServices: count
+        },
+        message: `🛠️ Encontrados **${services.length} serviços** ${periodDescription}.${totalCountMessage}` 
+      };
+    }
+    
+    console.log('⚠️ [list_services] Estratégia 1 falhou:', error?.message);
+  } catch (error) {
+    console.log('❌ [list_services] Erro na estratégia 1:', error);
+  }
+
+  // Strategy 2: Try alternative approach - get all orders first, then filter services
+  try {
+    console.log('📍 [list_services] Tentativa 2: Buscar pedidos primeiro, depois serviços');
+    
+    let ordersQuery = supabase
+      .from('pedidos')
+      .select(`
         id,
         order_number,
         status,
         created_at,
         clientes (nome)
-      )
-    `, { count: includeTotalCount ? 'exact' : null });
+      `);
 
-  if (startDate) {
-    query = query.gte('pedidos.created_at', startDate);
-  }
-  if (endDate) {
-    query = query.lte('pedidos.created_at', endDate);
-  }
+    if (startDate) {
+      ordersQuery = ordersQuery.gte('created_at', startDate);
+    }
+    if (endDate) {
+      ordersQuery = ordersQuery.lte('created_at', endDate);
+    }
 
-  const [orderFieldRaw, orderDirection] = orderBy.split('_');
-  let orderField = orderFieldRaw;
-  let ascending = orderDirection === 'asc';
+    const { data: orders, error: ordersError } = await ordersQuery;
 
-  if (orderFieldRaw === 'created') {
-    orderField = 'pedidos.created_at';
-  } else if (orderFieldRaw === 'valor' && orderDirection === 'total') {
-    orderField = 'valor_unitario'; // Or total value of service? Let's use unit value for now.
-    ascending = false;
-  }
+    if (ordersError) {
+      console.log('❌ [list_services] Erro ao buscar pedidos:', ordersError.message);
+      throw new Error(`Erro ao buscar pedidos: ${ordersError.message}`);
+    }
 
-  query = query.order(orderField, { ascending: ascending });
-  
-  if (!includeTotalCount && limit && limit > 0) {
-    query = query.limit(limit);
-  }
+    if (!orders || orders.length === 0) {
+      return { message: `❌ Nenhum pedido encontrado ${periodDescription}, portanto nenhum serviço.` };
+    }
 
-  const { data: services, error, count } = await query;
+    const orderIds = orders.map(order => order.id);
+    
+    // Try to get services from pedido_servicos table
+    const { data: services, error: servicesError } = await supabase
+      .from('pedido_servicos')
+      .select('*')
+      .in('pedido_id', orderIds);
 
-  if (error) {
-    console.error("Erro ao listar serviços por data:", error);
-    throw new Error(`Erro ao listar serviços por data: ${error.message}`);
-  }
+    if (servicesError) {
+      console.log('⚠️ [list_services] Erro na tabela pedido_servicos:', servicesError.message);
+      throw new Error(`Erro ao buscar serviços: ${servicesError.message}`);
+    }
 
-  const totalCountMessage = includeTotalCount ? ` (Total de ${count} serviços encontrados)` : '';
+    if (!services || services.length === 0) {
+      return { message: `❌ Nenhum serviço encontrado ${periodDescription}.` };
+    }
 
-  if (!services || services.length === 0) {
-    return { message: `❌ Nenhum serviço encontrado ${periodDescription}.${totalCountMessage}` };
-  }
+    console.log(`✅ [list_services] Estratégia 2 funcionou: ${services.length} serviços encontrados`);
 
-  const formattedServices = services.map((service, index) => ({
-    index: index + 1,
-    service_name: service.nome,
-    quantity: service.quantidade,
-    unit_value: service.valor_unitario,
-    total_value: service.quantidade * service.valor_unitario,
-    order_number: service.pedidos?.order_number,
-    order_status: service.pedidos?.status,
-    order_date: new Date(service.pedidos?.created_at || '').toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }),
-    client_name: service.pedidos?.clientes?.nome
-  }));
+    // Map services with order information
+    const formattedServices = services.map((service, index) => {
+      const relatedOrder = orders.find(order => order.id === service.pedido_id);
+      return {
+        index: index + 1,
+        service_name: service.nome,
+        quantity: service.quantidade,
+        unit_value: service.valor_unitario,
+        total_value: service.quantidade * service.valor_unitario,
+        order_number: relatedOrder?.order_number,
+        order_status: relatedOrder?.status,
+        order_date: relatedOrder ? new Date(relatedOrder.created_at).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }) : 'N/A',
+        client_name: relatedOrder?.clientes?.nome
+      };
+    });
 
-  const totalRevenue = services.reduce((sum, service) => sum + (service.quantidade * service.valor_unitario), 0);
+    const totalRevenue = formattedServices.reduce((sum, service) => sum + service.total_value, 0);
 
-  return { 
-    services: formattedServices, 
-    summary: {
-      count: services.length,
-      totalRevenue: totalRevenue,
-      period: {
-        start: startDate ? new Date(startDate).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }) : 'início',
-        end: endDate ? new Date(endDate).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }) : 'fim'
+    return { 
+      services: formattedServices, 
+      summary: {
+        count: services.length,
+        totalRevenue: totalRevenue,
+        period: {
+          start: startDate ? new Date(startDate).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }) : 'início',
+          end: endDate ? new Date(endDate).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }) : 'fim'
+        },
+        totalMatchingServices: services.length
       },
-      totalMatchingServices: count
-    },
-    message: `🛠️ Encontrados **${services.length} serviços** ${periodDescription}.${totalCountMessage}` 
-  };
+      message: `🛠️ Encontrados **${services.length} serviços** ${periodDescription}.` 
+    };
+
+  } catch (error: any) {
+    console.error('❌ [list_services] Todas as estratégias falharam:', error);
+    throw new Error(`Erro ao buscar serviços: ${error.message}`);
+  }
 };
 
 // Update callOpenAIFunction to dispatch to list_services
@@ -1218,7 +1303,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
         console.error(`❌ [generate_multiple_pdfs] Erro no pedido #${orderNumber}:`, error);
         errors.push(`❌ Pedido #${orderNumber}: erro ao gerar PDF`);
       }
-      }
+    }
 
     const successCount = results.length;
     const errorCount = errors.length;
