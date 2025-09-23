@@ -2,6 +2,107 @@ import { supabase } from '@/integrations/supabase/client';
 import { generateOrderPDF } from '@/utils/pdfGenerator';
 import { removeAccents } from '@/utils/string';
 
+// Função para obter data e hora atual no fuso horário do Rio de Janeiro
+export const getCurrentDateTime = () => {
+  const now = new Date();
+  const options: Intl.DateTimeFormatOptions = {
+    timeZone: 'America/Sao_Paulo',
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  };
+  
+  // Formatar para exibição no fuso horário do Rio
+  const displayDate = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'full', timeZone: 'America/Sao_Paulo' }).format(now);
+  const displayTime = new Intl.DateTimeFormat('pt-BR', { timeStyle: 'medium', timeZone: 'America/Sao_Paulo' }).format(now);
+  const displayMonthName = new Intl.DateTimeFormat('pt-BR', { month: 'long', timeZone: 'America/Sao_Paulo' }).format(now);
+  const displayWeekday = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', timeZone: 'America/Sao_Paulo' }).format(now);
+
+  // Obter componentes de data/hora no fuso horário do Rio para construir ISO string
+  const rioDateOptions: Intl.DateTimeFormatOptions = {
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    second: 'numeric',
+    timeZone: 'America/Sao_Paulo',
+    hour12: false,
+  };
+  const rioDateTimeFormatter = new Intl.DateTimeFormat('en-US', rioDateOptions);
+  const rioParts = rioDateTimeFormatter.formatToParts(now);
+
+  let rioYear: number = now.getFullYear(), rioMonth: number = now.getMonth() + 1, rioDay: number = now.getDate();
+  let rioHour: number = now.getHours(), rioMinute: number = now.getMinutes(), rioSecond: number = now.getSeconds();
+
+  for (const part of rioParts) {
+    if (part.type === 'year') rioYear = parseInt(part.value);
+    if (part.type === 'month') rioMonth = parseInt(part.value);
+    if (part.type === 'day') rioDay = parseInt(part.value);
+    if (part.type === 'hour') rioHour = parseInt(part.value);
+    if (part.type === 'minute') rioMinute = parseInt(part.value);
+    if (part.type === 'second') rioSecond = parseInt(part.value);
+  }
+
+  // Criar um objeto Date que representa o momento atual no Rio, mas como UTC para ISO string
+  const rioNow = new Date(Date.UTC(rioYear, rioMonth - 1, rioDay, rioHour, rioMinute, rioSecond));
+
+  // Calcular ranges baseados em rioNow (UTC ajustado para Rio)
+  const startOfRioDay = new Date(Date.UTC(rioYear, rioMonth - 1, rioDay, 0, 0, 0, 0));
+  const endOfRioDay = new Date(Date.UTC(rioYear, rioMonth - 1, rioDay, 23, 59, 59, 999));
+
+  const startOfRioMonth = new Date(Date.UTC(rioYear, rioMonth - 1, 1, 0, 0, 0, 0));
+  const endOfRioMonth = new Date(Date.UTC(rioYear, rioMonth, 0, 23, 59, 59, 999)); // Último dia do mês atual
+
+  // Para semana, precisamos do dia da semana no fuso horário do Rio
+  const dayOfWeekIndex = now.getDay(); // 0 para domingo, 6 para sábado
+  const daysToSubtract = dayOfWeekIndex; // Para começar no domingo
+  
+  const startOfRioWeek = new Date(startOfRioDay);
+  startOfRioWeek.setUTCDate(startOfRioDay.getUTCDate() - daysToSubtract); // Ajusta para o domingo da semana atual
+
+  const endOfRioWeek = new Date(startOfRioWeek);
+  endOfRioWeek.setUTCDate(startOfRioWeek.getUTCDate() + 6); // Ajusta para o sábado da semana atual
+  endOfRioWeek.setUTCHours(23, 59, 59, 999);
+
+  return {
+    fullDate: displayDate,
+    dayOfWeek: displayWeekday,
+    date: new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeZone: 'America/Sao_Paulo' }).format(now),
+    time: displayTime,
+    timestamp: rioNow.toISOString(),
+    current: {
+      day: rioDay,
+      month: rioMonth,
+      year: rioYear,
+      dayOfWeek: displayWeekday,
+      monthName: displayMonthName
+    },
+    ranges: {
+      thisMonth: {
+        start: startOfRioMonth.toISOString(),
+        end: endOfRioMonth.toISOString(),
+        label: `${displayMonthName} de ${rioYear}`
+      },
+      thisWeek: {
+        start: startOfRioWeek.toISOString(),
+        end: endOfRioWeek.toISOString(),
+        label: `Semana de ${new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'America/Sao_Paulo' }).format(startOfRioWeek)} a ${new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'America/Sao_Paulo' }).format(endOfRioWeek)}`
+      },
+      today: {
+        start: startOfRioDay.toISOString(),
+        end: endOfRioDay.toISOString(),
+        label: `Hoje (${displayDate})`
+      }
+    }
+  };
+};
+
 // OpenAI Functions format
 export const openAIFunctions = [
   {
@@ -80,6 +181,10 @@ export const openAIFunctions = [
         limit: {
             type: "number",
             description: "Número máximo de pedidos a retornar. Padrão é 20."
+        },
+        includeTotalCount: { // Novo parâmetro
+          type: "boolean",
+          description: "Se verdadeiro, retorna a contagem total de pedidos que correspondem aos filtros, além dos pedidos listados. Use para perguntas como 'quantos pedidos temos no total?' ou 'quantos pedidos pendentes existem?'"
         }
       }
     }
@@ -108,6 +213,10 @@ export const openAIFunctions = [
           type: "string",
           enum: ["created_at_asc", "created_at_desc", "valor_total_desc"],
           description: "Campo e direção para ordenar os pedidos. 'created_at_asc' para os mais antigos primeiro, 'created_at_desc' para os mais recentes primeiro, 'valor_total_desc' para os mais caros primeiro. Padrão é 'created_at_desc'."
+        },
+        includeTotalCount: { // Novo parâmetro
+          type: "boolean",
+          description: "Se verdadeiro, retorna a contagem total de pedidos que correspondem aos filtros, além dos pedidos listados. Use para perguntas como 'quantos pedidos temos no total?' ou 'quantos pedidos este mês?'"
         }
       },
       required: []
@@ -404,88 +513,11 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
   const TIME_ZONE = 'America/Sao_Paulo'; // Fuso horário de Rio de Janeiro
 
   if (name === "get_current_date") {
-    const now = new Date();
-
-    // Obter componentes de data/hora no fuso horário do Rio
-    const rioDateOptions: Intl.DateTimeFormatOptions = {
-      year: 'numeric',
-      month: 'numeric',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: 'numeric',
-      second: 'numeric',
-      timeZone: TIME_ZONE,
-      hour12: false,
-    };
-    const rioDateTimeFormatter = new Intl.DateTimeFormat('en-US', rioDateOptions);
-    const rioParts = rioDateTimeFormatter.formatToParts(now);
-
-    let rioYear: number, rioMonth: number, rioDay: number, rioHour: number, rioMinute: number, rioSecond: number;
-    for (const part of rioParts) {
-      if (part.type === 'year') rioYear = parseInt(part.value);
-      if (part.type === 'month') rioMonth = parseInt(part.value);
-      if (part.type === 'day') rioDay = parseInt(part.value);
-      if (part.type === 'hour') rioHour = parseInt(part.value);
-      if (part.type === 'minute') rioMinute = parseInt(part.value);
-      if (part.type === 'second') rioSecond = parseInt(part.value);
-    }
-
-    // Criar um objeto Date que representa o momento atual no Rio, mas como UTC
-    const rioNow = new Date(Date.UTC(rioYear!, rioMonth! - 1, rioDay!, rioHour!, rioMinute!, rioSecond!));
-
-    // Calcular ranges baseados em rioNow (UTC ajustado para Rio)
-    const startOfRioDay = new Date(Date.UTC(rioYear!, rioMonth! - 1, rioDay!, 0, 0, 0, 0));
-    const endOfRioDay = new Date(Date.UTC(rioYear!, rioMonth! - 1, rioDay!, 23, 59, 59, 999));
-
-    const startOfRioMonth = new Date(Date.UTC(rioYear!, rioMonth! - 1, 1, 0, 0, 0, 0));
-    const endOfRioMonth = new Date(Date.UTC(rioYear!, rioMonth!, 0, 23, 59, 59, 999)); // Último dia do mês atual
-
-    // Para semana, precisamos do dia da semana no fuso horário do Rio
-    const rioWeekdayIndex = new Intl.DateTimeFormat('en-US', { weekday: 'numeric', timeZone: TIME_ZONE }).format(now); // 1 para domingo, 7 para sábado
-    const daysToSubtract = parseInt(rioWeekdayIndex) % 7; // Ajusta para 0=domingo, 1=segunda...
-    
-    const startOfRioWeek = new Date(startOfRioDay);
-    startOfRioWeek.setUTCDate(startOfRioDay.getUTCDate() - daysToSubtract); // Ajusta para o domingo da semana atual
-
-    const endOfRioWeek = new Date(startOfRioWeek);
-    endOfRioWeek.setUTCDate(startOfRioWeek.getUTCDate() + 6); // Ajusta para o sábado da semana atual
-    endOfRioWeek.setUTCHours(23, 59, 59, 999);
-
-    // Formatar para exibição no fuso horário do Rio
-    const displayDate = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'full', timeZone: TIME_ZONE }).format(now);
-    const displayTime = new Intl.DateTimeFormat('pt-BR', { timeStyle: 'medium', timeZone: TIME_ZONE }).format(now);
-    const displayMonthName = new Intl.DateTimeFormat('pt-BR', { month: 'long', timeZone: TIME_ZONE }).format(now);
-    const displayWeekday = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', timeZone: TIME_ZONE }).format(now);
-
+    const dateInfo = getCurrentDateTime();
     return {
-      message: `Data e hora atual em Rio de Janeiro: ${displayDate} (${displayWeekday}), ${displayTime}`,
-      current: {
-        date: displayDate,
-        time: displayTime,
-        iso: rioNow.toISOString(), // ISO string do momento atual no Rio
-        day: rioDay,
-        month: rioMonth,
-        year: rioYear,
-        dayOfWeek: displayWeekday,
-        monthName: displayMonthName
-      },
-      ranges: {
-        thisMonth: {
-          start: startOfRioMonth.toISOString(),
-          end: endOfRioMonth.toISOString(),
-          label: `${displayMonthName} de ${rioYear}`
-        },
-        thisWeek: {
-          start: startOfRioWeek.toISOString(),
-          end: endOfRioWeek.toISOString(),
-          label: `Semana de ${new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: TIME_ZONE }).format(startOfRioWeek)} a ${new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: TIME_ZONE }).format(endOfRioWeek)}`
-        },
-        today: {
-          start: startOfRioDay.toISOString(),
-          end: endOfRioDay.toISOString(),
-          label: `Hoje (${displayDate})`
-        }
-      }
+      message: `Data e hora atual em Rio de Janeiro: ${dateInfo.fullDate} (${dateInfo.dayOfWeek}), ${dateInfo.time}`,
+      current: dateInfo.current,
+      ranges: dateInfo.ranges
     };
   }
 
@@ -561,7 +593,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
     const clientNames = foundClients.map(c => c.nome).join(', ');
     
     return { 
-      orders: formattedOrders,
+      orders: formattedOrders, 
       summary: {
         clientName: clientNames,
         totalOrders: orders.length,
@@ -681,10 +713,10 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
   }
 
   if (name === "get_orders_by_status") {
-    const { statuses, exclude_statuses, limit = 20 } = args;
+    const { statuses, exclude_statuses, limit = 20, includeTotalCount } = args;
 
-    if ((!statuses || statuses.length === 0) && (!exclude_statuses || exclude_statuses.length === 0)) {
-        return { message: "❌ É necessário especificar quais status incluir ou excluir." };
+    if ((!statuses || statuses.length === 0) && (!exclude_statuses || exclude_statuses.length === 0) && !includeTotalCount) {
+        return { message: "❌ É necessário especificar quais status incluir ou excluir, ou pedir a contagem total." };
     }
 
     let query = supabase
@@ -696,7 +728,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
         valor_total,
         created_at,
         clientes (nome)
-      `);
+      `, { count: includeTotalCount ? 'exact' : null }); // Adiciona contagem exata se solicitado
 
     if (statuses && statuses.length > 0) {
         query = query.in('status', statuses);
@@ -706,17 +738,24 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
         query = query.not('status', 'in', `(${exclude_statuses.map(s => `"${s}"`).join(',')})`);
     }
 
-    query = query.order('created_at', { ascending: false }).limit(limit);
+    query = query.order('created_at', { ascending: false });
+    
+    // Aplica limite apenas se não for para contar o total e se houver um limite definido
+    if (!includeTotalCount || (limit && limit > 0)) {
+      query = query.limit(limit);
+    }
 
-    const { data: orders, error } = await query;
+    const { data: orders, error, count } = await query;
 
     if (error) {
         console.error("Erro ao buscar pedidos por status:", error);
         return { error: error.message };
     }
 
+    const totalCountMessage = includeTotalCount ? ` (Total de ${count} pedidos encontrados)` : '';
+
     if (!orders || orders.length === 0) {
-        return { message: `✅ Nenhum pedido encontrado com os filtros especificados.` };
+        return { message: `✅ Nenhum pedido encontrado com os filtros especificados.${totalCountMessage}` };
     }
 
     const formattedOrders = orders.map((order, index) => ({
@@ -735,57 +774,45 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
         summary: {
             count: orders.length,
             totalValue: totalValue,
+            totalMatchingOrders: count // Retorna a contagem total de correspondências
         },
-        message: `📊 Encontrados **${orders.length} pedidos** com os filtros especificados.`
+        message: `📊 Encontrados **${orders.length} pedidos** com os filtros especificados.${totalCountMessage}`
     };
   }
 
   if (name === "list_orders") {
-    let { startDate, endDate, limit = 10, orderBy = 'created_at_desc' } = args;
+    let { startDate, endDate, limit = 10, orderBy = 'created_at_desc', includeTotalCount } = args;
+
+    const dateInfo = getCurrentDateTime();
+    let periodDescription = "em todo o período";
 
     // Se não houver datas, define para o mês atual no fuso horário do Rio
     if (!startDate && !endDate) {
-      const now = new Date();
-      const rioDateOptions: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'numeric', day: 'numeric', timeZone: TIME_ZONE, hour12: false };
-      const rioDateTimeFormatter = new Intl.DateTimeFormat('en-US', rioDateOptions);
-      const rioParts = rioDateTimeFormatter.formatToParts(now);
-      let rioYear: number, rioMonth: number;
-      for (const part of rioParts) {
-        if (part.type === 'year') rioYear = parseInt(part.value);
-        if (part.type === 'month') rioMonth = parseInt(part.value);
-      }
-      const startOfMonth = new Date(Date.UTC(rioYear!, rioMonth! - 1, 1, 0, 0, 0, 0));
-      const endOfMonth = new Date(Date.UTC(rioYear!, rioMonth!, 0, 23, 59, 59, 999));
-      startDate = startOfMonth.toISOString();
-      endDate = endOfMonth.toISOString();
+      startDate = dateInfo.ranges.thisMonth.start;
+      endDate = dateInfo.ranges.thisMonth.end;
+      periodDescription = `neste mês de ${dateInfo.current.monthName} de ${dateInfo.current.year}`;
     } else if (startDate && !endDate) {
       // Se apenas startDate, define endDate para o final do dia no fuso horário do Rio
       const start = new Date(startDate);
-      const rioDateOptions: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'numeric', day: 'numeric', timeZone: TIME_ZONE, hour12: false };
-      const rioDateTimeFormatter = new Intl.DateTimeFormat('en-US', rioDateOptions);
-      const startParts = rioDateTimeFormatter.formatToParts(start);
-      let startYear: number, startMonth: number, startDay: number;
-      for (const part of startParts) {
-        if (part.type === 'year') startYear = parseInt(part.value);
-        if (part.type === 'month') startMonth = parseInt(part.value);
-        if (part.type === 'day') startDay = parseInt(part.value);
-      }
-      const end = new Date(Date.UTC(startYear!, startMonth! - 1, startDay!, 23, 59, 59, 999));
+      const startDay = start.getUTCDate();
+      const startMonth = start.getUTCMonth();
+      const startYear = start.getUTCFullYear();
+      const end = new Date(Date.UTC(startYear, startMonth, startDay, 23, 59, 59, 999));
       endDate = end.toISOString();
+      periodDescription = `em ${new Date(startDate).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE })}`;
     } else if (!startDate && endDate) {
       // Se apenas endDate, define startDate para o início do dia no fuso horário do Rio
       const end = new Date(endDate);
-      const rioDateOptions: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'numeric', day: 'numeric', timeZone: TIME_ZONE, hour12: false };
-      const rioDateTimeFormatter = new Intl.DateTimeFormat('en-US', rioDateOptions);
-      const endParts = rioDateTimeFormatter.formatToParts(end);
-      let endYear: number, endMonth: number, endDay: number;
-      for (const part of endParts) {
-        if (part.type === 'year') endYear = parseInt(part.value);
-        if (part.type === 'month') endMonth = parseInt(part.value);
-        if (part.type === 'day') endDay = parseInt(part.value);
-      }
-      const start = new Date(Date.UTC(endYear!, endMonth! - 1, endDay!, 0, 0, 0, 0));
+      const endDay = end.getUTCDate();
+      const endMonth = end.getUTCMonth();
+      const endYear = end.getUTCFullYear();
+      const start = new Date(Date.UTC(endYear, endMonth, endDay, 0, 0, 0, 0));
       startDate = start.toISOString();
+      periodDescription = `em ${new Date(endDate).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE })}`;
+    } else if (startDate && endDate) {
+      const startDisplayDate = new Date(startDate!).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE });
+      const endDisplayDate = new Date(endDate!).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE });
+      periodDescription = startDisplayDate === endDisplayDate ? `em ${startDisplayDate}` : `entre ${startDisplayDate} e ${endDisplayDate}`;
     }
 
     let query = supabase
@@ -797,7 +824,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
         valor_total,
         created_at,
         clientes (nome)
-      `);
+      `, { count: includeTotalCount ? 'exact' : null }); // Adiciona contagem exata se solicitado
 
     if (startDate) {
       query = query.gte('created_at', startDate);
@@ -818,21 +845,23 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
     }
 
     query = query.order(orderField, { ascending: ascending });
-    query = query.limit(limit);
+    
+    // Aplica limite apenas se não for para contar o total e se houver um limite definido
+    if (!includeTotalCount || (limit && limit > 0)) {
+      query = query.limit(limit);
+    }
 
-    const { data: orders, error } = await query;
+    const { data: orders, error, count } = await query;
 
     if (error) {
       console.error("Erro ao listar pedidos por data:", error);
       return { error: error.message };
     }
 
-    const startDisplayDate = new Date(startDate!).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE });
-    const endDisplayDate = new Date(endDate!).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE });
-    const periodDescription = startDisplayDate === endDisplayDate ? `em ${startDisplayDate}` : `entre ${startDisplayDate} e ${endDisplayDate}`;
+    const totalCountMessage = includeTotalCount ? ` (Total de ${count} pedidos encontrados)` : '';
 
     if (!orders || orders.length === 0) {
-      return { message: `❌ Nenhum pedido encontrado ${periodDescription}.` };
+      return { message: `❌ Nenhum pedido encontrado ${periodDescription}.${totalCountMessage}` };
     }
 
     const formattedOrders = orders.map((order, index) => ({
@@ -852,11 +881,12 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
         count: orders.length,
         totalValue: totalValue,
         period: {
-          start: startDisplayDate,
-          end: endDisplayDate
-        }
+          start: startDate ? new Date(startDate).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }) : 'início',
+          end: endDate ? new Date(endDate).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }) : 'fim'
+        },
+        totalMatchingOrders: count // Retorna a contagem total de correspondências
       },
-      message: `📊 Encontrados **${orders.length} pedidos** ${periodDescription}.` 
+      message: `📊 Encontrados **${orders.length} pedidos** ${periodDescription}.${totalCountMessage}` 
     };
   }
 

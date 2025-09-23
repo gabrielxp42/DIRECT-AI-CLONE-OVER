@@ -4,34 +4,11 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Send, X, Bot, User } from 'lucide-react';
 import { getOpenAIClient, type ChatMessage } from '@/integrations/openai/client';
-import { openAIFunctions, callOpenAIFunction } from '@/integrations/openai/aiTools';
+import { openAIFunctions, callOpenAIFunction, getCurrentDateTime } from '@/integrations/openai/aiTools'; // Importa getCurrentDateTime
 import { useToast } from '@/hooks/use-toast';
 import { useAIAssistant } from '@/contexts/AIAssistantProvider';
 import { AudioRecorder } from './AudioRecorder';
 import { AudioMessageDisplay } from './AudioMessageDisplay';
-
-// Função para obter data e hora atual no fuso horário do Rio de Janeiro
-const getCurrentDateTime = () => {
-  const now = new Date();
-  const options: Intl.DateTimeFormatOptions = {
-    timeZone: 'America/Sao_Paulo',
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false
-  };
-  
-  return {
-    fullDate: now.toLocaleDateString('pt-BR', options),
-    dayOfWeek: now.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', weekday: 'long' }),
-    date: now.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }),
-    time: now.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' }),
-    timestamp: now.toISOString()
-  };
-};
 
 export const AIAssistant = () => {
   const { isOpen, close } = useAIAssistant();
@@ -63,13 +40,13 @@ export const AIAssistant = () => {
   // Função para processar comandos especiais
   const processSpecialCommands = (message: string) => {
     const lowerMessage = message.toLowerCase().trim();
+    const dateInfo = getCurrentDateTime(); // Usa a função centralizada
     
     // Comandos de data e hora
     if (lowerMessage.includes('que dia') || 
         lowerMessage.includes('data') || 
         lowerMessage.includes('dia de hoje') ||
         lowerMessage.includes('que dia é hoje')) {
-      const dateInfo = getCurrentDateTime();
       return `📅 Hoje é ${dateInfo.dayOfWeek}, ${dateInfo.date}.`;
     }
     
@@ -77,14 +54,12 @@ export const AIAssistant = () => {
         lowerMessage.includes('hora') || 
         lowerMessage.includes('horário') ||
         lowerMessage.includes('que horas são')) {
-      const dateInfo = getCurrentDateTime();
       return `🕐 Agora são ${dateInfo.time} (horário de Brasília).`;
     }
     
     if (lowerMessage.includes('data e hora') || 
         lowerMessage.includes('data completa') ||
         lowerMessage.includes('data atual')) {
-      const dateInfo = getCurrentDateTime();
       return `📅🕐 Hoje é ${dateInfo.fullDate} (horário de Brasília).`;
     }
     
@@ -115,6 +90,7 @@ export const AIAssistant = () => {
       console.log('🚀 [AIAssistant] Enviando mensagem para OpenAI:', userMessage.content);
       
       // Prepare conversation history with improved system prompt
+      const dateInfo = getCurrentDateTime(); // Obtém a data atual para o prompt
       const conversationMessages: ChatMessage[] = [
         {
           role: 'system',
@@ -129,8 +105,8 @@ SUAS PRINCIPAIS FUNÇÕES:
 6. 📊 Listar pedidos por data ou status (use list_orders ou get_orders_by_status)
 
 INFORMAÇÕES ATUAIS:
-- Data atual: ${getCurrentDateTime().fullDate}
-- Horário atual: ${getCurrentDateTime().time} (horário de Brasília)
+- Data atual: ${dateInfo.fullDate}
+- Horário atual: ${dateInfo.time} (horário de Brasília)
 - Localização: Rio de Janeiro, Brasil
 
 IMPORTANTE: 
