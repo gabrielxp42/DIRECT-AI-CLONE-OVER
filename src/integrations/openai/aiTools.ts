@@ -46,6 +46,15 @@ export const getCurrentDateTime = () => {
   const displayTime = rioLocalTime.toLocaleTimeString('pt-BR', { timeStyle: 'medium', timeZone: TIME_ZONE });
 
   // Calcular intervalos de data com base em rioLocalTime
+  const dayOfWeekIndex = rioLocalTime.getDay(); // 0 para Domingo, 6 para Sábado
+  const startOfRioWeek = new Date(rioLocalTime);
+  startOfRioWeek.setDate(rioLocalTime.getDate() - dayOfWeekIndex);
+  startOfRioWeek.setHours(0, 0, 0, 0);
+
+  const endOfRioWeek = new Date(startOfRioWeek);
+  endOfRioWeek.setDate(startOfRioWeek.getDate() + 6);
+  endOfRioWeek.setHours(23, 59, 59, 999);
+
   const startOfRioDay = new Date(rioLocalTime);
   startOfRioDay.setHours(0, 0, 0, 0);
 
@@ -55,14 +64,6 @@ export const getCurrentDateTime = () => {
   const startOfRioMonth = new Date(rioLocalTime.getFullYear(), rioLocalTime.getMonth(), 1, 0, 0, 0, 0);
   const endOfRioMonth = new Date(rioLocalTime.getFullYear(), rioLocalTime.getMonth() + 1, 0, 23, 59, 59, 999);
 
-  const dayOfWeekIndex = rioLocalTime.getDay(); // 0 para Domingo, 6 para Sábado
-  const startOfRioWeek = new Date(rioLocalTime);
-  startOfRioWeek.setDate(rioLocalTime.getDate() - dayOfWeekIndex);
-  startOfRioWeek.setHours(0, 0, 0, 0);
-
-  const endOfRioWeek = new Date(startOfRioWeek);
-  endOfRioWeek.setDate(startOfRioWeek.getDate() + 6);
-  endOfRioWeek.setHours(23, 59, 59, 999);
 
   return {
     fullDate: displayDate,
@@ -554,6 +555,9 @@ export const list_orders = async (args: {
   const dateInfo = getCurrentDateTime();
   let periodDescription = "em todo o período";
 
+  console.log(`📊 [list_orders] Args recebidos:`, args); // Log received args
+  console.log(`📊 [list_orders] Current date info (thisMonth):`, dateInfo.ranges.thisMonth); // Log current month info
+
   if (allTime) {
     startDate = undefined;
     endDate = undefined;
@@ -585,14 +589,7 @@ export const list_orders = async (args: {
     periodDescription = startDisplayDate === endDisplayDate ? `em ${startDisplayDate}` : `entre ${startDisplayDate} e ${endDisplayDate}`;
   }
 
-  console.log(`📊 [list_orders] Parâmetros da consulta:`, { 
-    startDate, 
-    endDate, 
-    limit, 
-    orderBy, 
-    includeTotalCount,
-    allTime
-  });
+  console.log(`📊 [list_orders] Datas finais para consulta:`, { startDate, endDate }); // Log final dates
 
   let query = supabase
     .from('pedidos')
@@ -652,6 +649,10 @@ export const list_orders = async (args: {
   }));
 
   const totalValue = orders.reduce((sum, order) => sum + order.valor_total, 0);
+  const totalValueFormatted = new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL'
+  }).format(totalValue);
 
   return { 
     orders: formattedOrders, 
@@ -664,7 +665,7 @@ export const list_orders = async (args: {
       },
       totalMatchingOrders: count
     },
-    message: `📊 Encontrados **${orders.length} pedidos** ${periodDescription}.${totalCountMessage}` 
+    message: `📊 Encontrados **${orders.length} pedidos** ${periodDescription}.${totalCountMessage}\n💰 Receita total: **${totalValueFormatted}**` 
   };
 };
 
@@ -681,6 +682,9 @@ export const list_services = async (args: {
   const TIME_ZONE = 'America/Sao_Paulo';
   const dateInfo = getCurrentDateTime();
   let periodDescription = "em todo o período";
+
+  console.log(`🛠️ [list_services] Args recebidos:`, args); // Log received args
+  console.log(`🛠️ [list_services] Current date info (thisWeek):`, dateInfo.ranges.thisWeek); // Log current week info
 
   if (allTime) {
     startDate = undefined;
@@ -713,14 +717,7 @@ export const list_services = async (args: {
     periodDescription = startDisplayDate === endDisplayDate ? `em ${startDisplayDate}` : `entre ${startDisplayDate} e ${endDisplayDate}`;
   }
 
-  console.log(`🛠️ [list_services] Parâmetros da consulta:`, { 
-    startDate, 
-    endDate, 
-    limit, 
-    orderBy, 
-    includeTotalCount,
-    allTime
-  });
+  console.log(`🛠️ [list_services] Datas finais para consulta:`, { startDate, endDate }); // Log final dates
 
   // Strategy 1: Try pedido_servicos table with JOIN
   try {
@@ -778,7 +775,11 @@ export const list_services = async (args: {
         client_name: service.pedidos?.clientes?.nome
       }));
 
-      const totalRevenue = formattedServices.reduce((sum, service) => sum + service.total_value, 0);
+      const totalRevenue = services.reduce((sum, service) => sum + (service.quantidade * service.valor_unitario), 0);
+      const totalRevenueFormatted = new Intl.NumberFormat('pt-BR', {
+        style: 'currency',
+        currency: 'BRL'
+      }).format(totalRevenue);
 
       return { 
         services: formattedServices, 
@@ -791,7 +792,7 @@ export const list_services = async (args: {
           },
           totalMatchingServices: count
         },
-        message: `🛠️ Encontrados **${services.length} serviços** ${periodDescription}.${totalCountMessage}` 
+        message: `🛠️ Encontrados **${services.length} serviços** ${periodDescription}.${totalCountMessage}\n💰 Receita total: **${totalRevenueFormatted}**` 
       };
     }
     
@@ -868,6 +869,10 @@ export const list_services = async (args: {
     });
 
     const totalRevenue = formattedServices.reduce((sum, service) => sum + service.total_value, 0);
+    const totalRevenueFormatted = new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(totalRevenue);
 
     return { 
       services: formattedServices, 
@@ -880,7 +885,7 @@ export const list_services = async (args: {
         },
         totalMatchingServices: services.length
       },
-      message: `🛠️ Encontrados **${services.length} serviços** ${periodDescription}.` 
+      message: `🛠️ Encontrados **${services.length} serviços** ${periodDescription}.${totalCountMessage}\n💰 Receita total: **${totalRevenueFormatted}**` 
     };
 
   } catch (error: any) {
