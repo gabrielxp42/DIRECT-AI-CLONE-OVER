@@ -37,7 +37,7 @@ import { NewPedido, Pedido } from "@/types/pedido";
 import { Cliente } from "@/types/cliente";
 import { Produto } from "@/types/produto";
 import { useEffect, useState, useCallback } from "react";
-import { Trash2, Plus, Search, Edit3, X, User, Package, Wrench, Save, Zap } from "lucide-react";
+import { Trash2, Plus, Search, Edit3, X, User, Package, Wrench, Save, Zap, Eraser } from "lucide-react";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { QuickClientForm } from './QuickClientForm';
@@ -84,6 +84,8 @@ const servicosRapidos = [
   { nome: "Ajuste de Cor", valor: 5 },
 ];
 
+const DRAFT_STORAGE_KEY = 'pedido_form_draft';
+
 export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clientes, produtos, initialData }: PedidoFormProps) => {
   const { supabase, session } = useSession();
   const [filteredClientes, setFilteredClientes] = useState<Cliente[]>([]);
@@ -121,10 +123,11 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
     }
   }, [clienteSearch, clientes]);
 
-  // Effect to load initial data when form opens
+  // Effect to load draft or initial data when form opens
   useEffect(() => {
     if (isOpen) {
       if (isEditing && initialData) {
+        // Editing existing order: populate with initialData
         console.log('[PedidoForm Effect] Abrindo em modo de edição. Carregando dados do pedido existente.');
         const itemsData = initialData.pedido_items?.map((item: any) => ({
           produto_id: item.produto_id,
@@ -150,17 +153,55 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
         });
         const selectedClient = clientes.find(c => c.id === initialData.cliente_id);
         setSelectedClienteName(selectedClient ? selectedClient.nome : '');
+        localStorage.removeItem(DRAFT_STORAGE_KEY); // Clear draft if editing an existing order
       } else {
-        console.log('[PedidoForm Effect] Abrindo em modo de criação. Resetando para valores padrão.');
-        form.reset();
-        setSelectedClienteName('');
+        // Creating new order: try to load draft
+        console.log('[PedidoForm Effect] Abrindo em modo de criação. Tentando carregar rascunho...');
+        const savedDraft = localStorage.getItem(DRAFT_STORAGE_KEY);
+        if (savedDraft) {
+          try {
+            const draftData: PedidoFormValues = JSON.parse(savedDraft);
+            form.reset(draftData);
+            const selectedClient = clientes.find(c => c.id === draftData.cliente_id);
+            setSelectedClienteName(selectedClient ? selectedClient.nome : '');
+            showSuccess("Rascunho do pedido carregado automaticamente!");
+          } catch (e) {
+            console.error("Erro ao carregar rascunho do localStorage:", e);
+            form.reset(); // Reset to default if draft is corrupted
+            setSelectedClienteName('');
+          }
+        } else {
+          // No draft, reset to empty form
+          console.log('[PedidoForm Effect] Nenhum rascunho encontrado. Resetando para valores padrão.');
+          form.reset();
+          setSelectedClienteName('');
+        }
       }
       // Reset other UI states
       setClienteSearch('');
       setExpandedItemIndex(null);
       setExpandedServiceIndex(null);
+    } else {
+      // When form closes, clear draft if it was a new order (not editing)
+      if (!isEditing) {
+        localStorage.removeItem(DRAFT_STORAGE_KEY);
+      }
     }
   }, [isOpen, isEditing, initialData, form, clientes]);
+
+  // Effect to save draft automatically on form changes
+  useEffect(() => {
+    if (isOpen && !isEditing) { // Only save draft for new orders
+      const subscription = form.watch((value, { name, type }) => {
+        // Only save if there's actual user input (not initial load)
+        if (type === 'change' || type === 'blur') {
+          localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(value));
+          console.log('[PedidoForm Draft] Rascunho salvo automaticamente.');
+        }
+      });
+      return () => subscription.unsubscribe();
+    }
+  }, [form, isOpen, isEditing]);
 
   const handleValidSubmit = (data: PedidoFormValues) => {
     const items = data.items || [];
@@ -194,6 +235,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
     };
 
     onSubmit(formattedData, initialData?.id);
+    localStorage.removeItem(DRAFT_STORAGE_KEY); // Clear draft after successful submission
   };
 
   const handleInvalidSubmit = (errors: any) => {
@@ -302,10 +344,18 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
     }).format(value);
   };
 
+  const handleClearDraft = () => {
+    localStorage.removeItem(DRAFT_STORAGE_KEY);
+    form.reset();
+    setSelectedClienteName('');
+    showSuccess("Rascunho do pedido limpo com sucesso!");
+    onOpenChange(false); // Close the dialog after clearing
+  };
+
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" forceMount> {/* Adicionado forceMount aqui */}
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" forceMount>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Package className="h-5 w-5 text-primary" />
@@ -731,6 +781,12 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
               </div>
 
               <DialogFooter className="gap-2">
+                {!isEditing && ( // Only show "Limpar Rascunho" for new orders
+                  <Button type="button" variant="outline" onClick={handleClearDraft}>
+                    <Eraser className="mr-2 h-4 w-4" />
+                    Limpar Rascunho
+                  </Button>
+                )}
                 <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
                 <Button type="submit" disabled={isSubmitting}>
                   {isSubmitting ? "Salvando..." : isEditing ? "Salvar Alterações" : "Criar Pedido"}
