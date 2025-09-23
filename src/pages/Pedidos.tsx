@@ -411,24 +411,92 @@ const PedidosPage: React.FC = () => {
   };
 
   // Reintroduzindo a função getStatusBadge para uso no mobile
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (pedido: Pedido) => {
+    const status = pedido.status;
+    const baseClasses = "text-[0.6rem] px-1 py-0 whitespace-nowrap cursor-pointer";
+    const iconClasses = "h-3 w-3 mr-1";
+
     switch (status) {
       case 'pendente':
-        return <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-300 text-[0.6rem] px-1 py-0 whitespace-nowrap"><Clock className="h-3 w-3 mr-1" /> Pendente</Badge>;
+        return (
+          <Badge 
+            variant="outline" 
+            className={cn(baseClasses, "bg-yellow-100 text-yellow-800 border-yellow-300")}
+            onClick={(e) => { e.stopPropagation(); handleStatusChange(pedido); }}
+          >
+            <Clock className={iconClasses} /> Pendente
+          </Badge>
+        );
       case 'processando':
-        return <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300 text-[0.6rem] px-1 py-0 whitespace-nowrap"><Wrench className="h-3 w-3 mr-1" /> Processando</Badge>;
+        return (
+          <Badge 
+            variant="outline" 
+            className={cn(baseClasses, "bg-blue-100 text-blue-800 border-blue-300")}
+            onClick={(e) => { e.stopPropagation(); handleStatusChange(pedido); }}
+          >
+            <Wrench className={iconClasses} /> Processando
+          </Badge>
+        );
       case 'enviado':
-        return <Badge variant="outline" className="bg-purple-100 text-purple-800 border-purple-300 text-[0.6rem] px-1 py-0 whitespace-nowrap"><CheckCircle className="h-3 w-3 mr-1" /> Enviado</Badge>;
+        return (
+          <Badge 
+            variant="outline" 
+            className={cn(baseClasses, "bg-purple-100 text-purple-800 border-purple-300")}
+            onClick={(e) => { e.stopPropagation(); handleStatusChange(pedido); }}
+          >
+            <CheckCircle className={iconClasses} /> Enviado
+          </Badge>
+        );
       case 'entregue':
-        return <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300 text-[0.6rem] px-1 py-0 whitespace-nowrap"><CheckCircle className="h-3 w-3 mr-1" /> Entregue</Badge>;
+        return (
+          <Badge 
+            variant="outline" 
+            className={cn(baseClasses, "bg-green-100 text-green-800 border-green-300")}
+            onClick={(e) => { e.stopPropagation(); handleStatusChange(pedido); }}
+          >
+            <CheckCircle className={iconClasses} /> Entregue
+          </Badge>
+        );
       case 'cancelado':
-        return <Badge variant="outline" className="bg-red-100 text-red-800 border-red-300 text-[0.6rem] px-1 py-0 whitespace-nowrap"><XCircle className="h-3 w-3 mr-1" /> Cancelado</Badge>;
+        return (
+          <Badge 
+            variant="outline" 
+            className={cn(baseClasses, "bg-red-100 text-red-800 border-red-300")}
+            onClick={(e) => { e.stopPropagation(); handleStatusChange(pedido); }}
+          >
+            <XCircle className={iconClasses} /> Cancelado
+          </Badge>
+        );
       case 'pago':
-        return <Badge variant="outline" className="bg-green-500 text-white border-green-600 text-[0.6rem] px-1 py-0 whitespace-nowrap"><DollarSign className="h-3 w-3 mr-1" /> Pago</Badge>;
+        return (
+          <Badge 
+            variant="outline" 
+            className={cn(baseClasses, "bg-green-500 text-white border-green-600")}
+            onClick={(e) => { e.stopPropagation(); handleStatusChange(pedido); }}
+          >
+            <DollarSign className={iconClasses} /> Pago
+          </Badge>
+        );
       case 'aguardando retirada':
-        return <Badge variant="outline" className="bg-orange-500 text-white border-orange-600 text-[0.6rem] px-1 py-0 whitespace-nowrap"><Package className="h-3 w-3 mr-1" /> Aguardando Retirada</Badge>;
+        return (
+          <Badge 
+            variant="outline" 
+            className={cn(baseClasses, "bg-orange-500 text-white border-orange-600")}
+            onClick={(e) => { e.stopPropagation(); handleStatusChange(pedido); }}
+          >
+            <Package className={iconClasses} /> Aguardando Retirada
+          </Badge>
+        );
       default:
-        return <Badge variant="secondary" className="text-[0.6rem] px-1 py-0 whitespace-nowrap">{status}</Badge>;
+        return (
+          <Badge 
+            variant="secondary" 
+            className={cn(baseClasses)}
+            onClick={(e) => { e.stopPropagation(); handleStatusChange(pedido); }}
+          >
+            {status}
+          </Badge>
+        );
     }
   };
 
@@ -565,9 +633,21 @@ const PedidosPage: React.FC = () => {
                   </div>
                   <div className="flex-shrink-0 max-w-full"> {/* Adicionado max-w-full aqui */}
                     {isMobile ? (
-                      getStatusBadge(pedido.status)
+                      getStatusBadge(pedido)
                     ) : (
-                      <OrderStatusIndicator status={pedido.status} />
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div 
+                            className="cursor-pointer" 
+                            onClick={(e) => { e.stopPropagation(); handleStatusChange(pedido); }}
+                          >
+                            <OrderStatusIndicator status={pedido.status} />
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Alterar Status</p>
+                        </TooltipContent>
+                      </Tooltip>
                     )}
                   </div>
                 </div>
