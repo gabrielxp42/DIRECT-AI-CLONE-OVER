@@ -8,7 +8,30 @@ import { openAIFunctions, callOpenAIFunction } from '@/integrations/openai/aiToo
 import { useToast } from '@/hooks/use-toast';
 import { useAIAssistant } from '@/contexts/AIAssistantProvider';
 import { AudioRecorder } from './AudioRecorder';
-import { AudioMessageDisplay } from './AudioMessageDisplay'; // Importa o novo componente
+import { AudioMessageDisplay } from './AudioMessageDisplay';
+
+// Função para obter data e hora atual no fuso horário do Rio de Janeiro
+const getCurrentDateTime = () => {
+  const now = new Date();
+  const options: Intl.DateTimeFormatOptions = {
+    timeZone: 'America/Sao_Paulo',
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  };
+  
+  return {
+    fullDate: now.toLocaleDateString('pt-BR', options),
+    dayOfWeek: now.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', weekday: 'long' }),
+    date: now.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }),
+    time: now.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' }),
+    timestamp: now.toISOString()
+  };
+};
 
 export const AIAssistant = () => {
   const { isOpen, close } = useAIAssistant();
@@ -37,6 +60,38 @@ export const AIAssistant = () => {
       .trim();
   };
 
+  // Função para processar comandos especiais
+  const processSpecialCommands = (message: string) => {
+    const lowerMessage = message.toLowerCase().trim();
+    
+    // Comandos de data e hora
+    if (lowerMessage.includes('que dia') || 
+        lowerMessage.includes('data') || 
+        lowerMessage.includes('dia de hoje') ||
+        lowerMessage.includes('que dia é hoje')) {
+      const dateInfo = getCurrentDateTime();
+      return `Hoje é ${dateInfo.dayOfWeek}, ${dateInfo.date}.`;
+    }
+    
+    if (lowerMessage.includes('que horas') || 
+        lowerMessage.includes('hora') || 
+        lowerMessage.includes('horário') ||
+        lowerMessage.includes('que horas são')) {
+      const dateInfo = getCurrentDateTime();
+      return `Agora são ${dateInfo.time} (horário de Brasília).`;
+    }
+    
+    if (lowerMessage.includes('data e hora') || 
+        lowerMessage.includes('data completa') ||
+        lowerMessage.includes('data atual')) {
+      const dateInfo = getCurrentDateTime();
+      return `Hoje é ${dateInfo.fullDate} (horário de Brasília).`;
+    }
+    
+    // Se não for um comando especial, retorna null
+    return null;
+  };
+
   const handleSendMessage = async (messageContent: string) => {
     if (messageContent.trim() === '') return;
 
@@ -46,6 +101,17 @@ export const AIAssistant = () => {
     setIsLoading(true);
 
     try {
+      // Verificar se é um comando especial
+      const specialResponse = processSpecialCommands(messageContent);
+      
+      if (specialResponse) {
+        // Se for um comando especial, responde diretamente
+        const aiMessage: ChatMessage = { role: 'assistant', content: specialResponse };
+        setMessages((prev) => [...prev, aiMessage]);
+        setIsLoading(false);
+        return;
+      }
+      
       console.log('🚀 [AIAssistant] Enviando mensagem para OpenAI:', userMessage.content);
       
       // Prepare conversation history with improved system prompt
@@ -61,6 +127,11 @@ SUAS PRINCIPAIS FUNÇÕES:
 4. 🔄 Atualizar status de pedidos (use update_order_status)
 5. 📄 Gerar PDFs de pedidos (use generate_order_pdf ou generate_multiple_pdfs)
 6. 📊 Listar pedidos por data ou status (use list_orders ou get_orders_by_status)
+
+INFORMAÇÕES ATUAIS:
+- Data atual: ${getCurrentDateTime().fullDate}
+- Horário atual: ${getCurrentDateTime().time} (horário de Brasília)
+- Localização: Rio de Janeiro, Brasil
 
 IMPORTANTE: 
 - As ferramentas de busca são inteligentes e encontram clientes mesmo com nomes parciais ou pequenas variações
@@ -209,6 +280,8 @@ Responda sempre de forma clara, direta e amigável.`
                 <p>• "gerar PDF do pedido 43"</p>
                 <p>• "pedidos pendentes"</p>
                 <p>• "detalhes do cliente Maria"</p>
+                <p>• "que dia é hoje?"</p>
+                <p>• "que horas são?"</p>
               </div>
             </div>
           </div>
