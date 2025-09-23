@@ -16,28 +16,22 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
   const [recordingStatus, setRecordingStatus] = useState<'idle' | 'recording' | 'processing'>('idle');
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [audioPermission, setAudioPermission] = useState<boolean | null>(null);
-  const [isMobile, setIsMobile] = useState(false);
+  const [pressStartTime, setPressStartTime] = useState<number | null>(null);
+  const [isLongPress, setIsLongPress] = useState(false);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const audioStreamRef = useRef<MediaStream | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const longPressTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const openAIClient = useRef(getOpenAIClient()).current;
 
   const MIN_AUDIO_DURATION_MS = 500;
-  const MAX_AUDIO_DURATION_MS = 30000; // 30 segundos
+  const MAX_AUDIO_DURATION_MS = 60000; // 60 segundos como WhatsApp
+  const LONG_PRESS_DURATION = 200; // 200ms para detectar long press
 
-  // Detectar se é dispositivo móvel
+  // Verificar permissão de microfone
   useEffect(() => {
-    const checkMobile = () => {
-      const userAgent = navigator.userAgent || navigator.vendor;
-      const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
-      setIsMobile(isMobileDevice);
-    };
-    
-    checkMobile();
-    
-    // Verificar permissão de microfone
     const checkAudioPermission = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -60,7 +54,8 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
-          autoGainControl: true
+          autoGainControl: true,
+          sampleRate: 44100
         } 
       });
       
@@ -77,7 +72,6 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
       
       const supportedType = mimeTypes.find(type => MediaRecorder.isTypeSupported(type)) || 'audio/webm';
       
-      // Configurar o MediaRecorder com alta qualidade
       const options = { 
         mimeType: supportedType,
         audioBitsPerSecond: 128000 
@@ -89,11 +83,11 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
       setRecordingDuration(0);
       setRecordingStatus('recording');
 
-      // Iniciar timer para mostrar duração da gravação
+      // Timer para duração da gravação
       intervalRef.current = setInterval(() => {
         setRecordingDuration(prev => {
-          const newDuration = prev + 1;
-          if (newDuration * 100 >= MAX_AUDIO_DURATION_MS) {
+          const newDuration = prev + 100;
+          if (newDuration >= MAX_AUDIO_DURATION_MS) {
             stopRecording(true);
             return prev;
           }
@@ -108,7 +102,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
         }
       };
 
-      // Configurar o que acontece quando a gravação para
+      // Quando a gravação para
       mediaRecorderRef.current.onstop = async () => {
         setRecordingStatus('processing');
         
@@ -121,47 +115,41 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
         audioStreamRef.current?.getTracks().forEach(track => track.stop());
         audioStreamRef.current = null;
 
-        // Verificar se o áudio é longo o suficiente
-        if (recordingDuration * 100 < MIN_AUDIO_DURATION_MS) {
-          showError(`Áudio muito curto. Fale por pelo menos ${MIN_AUDIO_DURATION_MS / 1000} segundos.`);
+        // Verificar duração mínima
+        if (recordingDuration < MIN_AUDIO_DURATION_MS) {
+          showError("Áudio muito curto. Mantenha pressionado por mais tempo.");
           setRecordingStatus('idle');
           return;
         }
 
-        // Criar blob de áudio com os chunks coletados
+        // Criar blob de áudio
         const audioBlob = new Blob(audioChunksRef.current, { 
           type: mediaRecorderRef.current?.mimeType || 'audio/webm' 
         });
         
         try {
-          // Mostrar feedback visual
-          showSuccess("Transcrevendo áudio...");
-          
           // Transcrever o áudio
           const transcription = await openAIClient.transcribeAudio(audioBlob);
           
-          if (transcription) {
-            // Enviar áudio e transcrição para o componente pai
+          if (transcription && transcription.trim()) {
             onAudioRecorded(transcription, audioBlob);
-            showSuccess("Áudio enviado com sucesso!");
           } else {
             showError("Não foi possível transcrever o áudio. Tente falar mais claramente.");
           }
         } catch (error: any) {
           console.error("Erro ao transcrever áudio:", error);
-          showError("Erro ao processar áudio. Verifique sua conexão e tente novamente.");
+          showError("Erro ao processar áudio. Tente novamente.");
         } finally {
           setRecordingStatus('idle');
         }
       };
 
-      // Iniciar gravação com dados a cada 1 segundo
-      mediaRecorderRef.current.start(1000);
-      showSuccess("Gravando... Fale agora!");
+      // Iniciar gravação
+      mediaRecorderRef.current.start(100);
       
     } catch (err: any) {
       console.error("Erro ao acessar o microfone:", err);
-      showError("Não foi possível acessar o microfone. Verifique as permissões do navegador.");
+      showError("Não foi possível acessar o microfone. Verifique as permissões.");
       setRecordingStatus('idle');
     }
   };
@@ -170,137 +158,148 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
     if (mediaRecorderRef.current && recordingStatus === 'recording') {
       mediaRecorderRef.current.stop();
       
-      if (!autoStop) {
-        if (recordingDuration * 100 < MIN_AUDIO_DURATION_MS) {
-          showError(`Áudio muito curto. Fale por pelo menos ${MIN_AUDIO_DURATION_MS / 1000} segundos.`);
-        } else {
-          showSuccess("Processando áudio...");
-        }
-      } else {
+      if (autoStop) {
         showSuccess("Tempo máximo atingido. Processando áudio...");
       }
     }
   };
 
-  const formatTime = (ms: number) => {
-    const seconds = Math.floor(ms / 10);
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+  // Handlers para touch/mouse events - estilo WhatsApp
+  const handlePressStart = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    if (disabled || recordingStatus !== 'idle') return;
+
+    const currentTime = Date.now();
+    setPressStartTime(currentTime);
+    setIsLongPress(false);
+
+    // Timeout para detectar long press
+    longPressTimeoutRef.current = setTimeout(() => {
+      setIsLongPress(true);
+      startRecording();
+    }, LONG_PRESS_DURATION);
   };
 
-  // Calcular progresso da gravação (0-100%)
-  const recordingProgress = (recordingDuration * 100) / MAX_AUDIO_DURATION_MS * 100;
+  const handlePressEnd = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    
+    // Limpar timeout de long press
+    if (longPressTimeoutRef.current) {
+      clearTimeout(longPressTimeoutRef.current);
+      longPressTimeoutRef.current = null;
+    }
 
-  // Renderizar botão de acordo com o estado e tipo de dispositivo
+    if (recordingStatus === 'recording') {
+      // Se estava gravando, parar a gravação
+      stopRecording();
+    } else if (pressStartTime && !isLongPress) {
+      // Se foi um tap rápido, não fazer nada (ou mostrar instrução)
+      const pressDuration = Date.now() - pressStartTime;
+      if (pressDuration < LONG_PRESS_DURATION) {
+        showError("Mantenha pressionado para gravar áudio");
+      }
+    }
+
+    setPressStartTime(null);
+    setIsLongPress(false);
+  };
+
+  const handlePressCancel = () => {
+    // Limpar timeout de long press
+    if (longPressTimeoutRef.current) {
+      clearTimeout(longPressTimeoutRef.current);
+      longPressTimeoutRef.current = null;
+    }
+
+    // Se estava gravando, cancelar
+    if (recordingStatus === 'recording') {
+      if (mediaRecorderRef.current) {
+        mediaRecorderRef.current.stop();
+      }
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      if (audioStreamRef.current) {
+        audioStreamRef.current.getTracks().forEach(track => track.stop());
+        audioStreamRef.current = null;
+      }
+      setRecordingStatus('idle');
+      setRecordingDuration(0);
+      showError("Gravação cancelada");
+    }
+
+    setPressStartTime(null);
+    setIsLongPress(false);
+  };
+
+  const formatTime = (ms: number) => {
+    const totalSeconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  // Se não tem permissão de microfone
   if (audioPermission === false) {
     return (
       <Button 
         variant="destructive" 
-        className="w-full"
-        onClick={() => showError("Permissão de microfone negada. Verifique as configurações do seu navegador.")}
+        size="icon"
+        className="h-10 w-10 rounded-full"
+        onClick={() => showError("Permissão de microfone negada. Verifique as configurações do navegador.")}
       >
-        <Mic className="mr-2 h-4 w-4" />
-        Microfone Bloqueado
+        <Mic className="h-4 w-4" />
       </Button>
     );
   }
 
-  if (isMobile) {
-    // Interface otimizada para dispositivos móveis
-    return (
-      <div className="w-full">
-        {recordingStatus === 'recording' && (
-          <div className="mb-2 w-full bg-muted rounded-full h-2.5 overflow-hidden">
-            <div 
-              className="bg-primary h-full transition-all duration-100 ease-in-out"
-              style={{ width: `${recordingProgress}%` }}
-            />
-          </div>
-        )}
-        
-        <Button
-          variant={recordingStatus === 'recording' ? 'destructive' : 'default'}
-          className={cn(
-            "w-full h-12 text-base font-medium transition-all duration-300",
-            recordingStatus === 'recording' && "animate-pulse"
-          )}
-          onClick={recordingStatus === 'recording' ? () => stopRecording() : startRecording}
-          disabled={recordingStatus === 'processing' || disabled}
-        >
-          {recordingStatus === 'processing' ? (
-            <>
-              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-              Processando...
-            </>
-          ) : recordingStatus === 'recording' ? (
-            <>
-              <StopCircle className="mr-2 h-5 w-5" />
-              Parar ({formatTime(recordingDuration)})
-            </>
-          ) : (
-            <>
-              <Mic className="mr-2 h-5 w-5" />
-              Gravar Mensagem
-            </>
-          )}
-        </Button>
-      </div>
-    );
-  }
-
-  // Interface para desktop
   return (
-    <div className="w-full">
-      <div className="relative">
-        {recordingStatus === 'recording' && (
-          <div className="absolute -top-6 left-0 right-0 flex justify-center">
-            <div className="bg-background border rounded-full px-3 py-1 text-xs shadow-md">
-              {formatTime(recordingDuration)} / 00:30
-            </div>
-          </div>
+    <div className="relative">
+      {/* Indicador de gravação */}
+      {recordingStatus === 'recording' && (
+        <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-2 py-1 rounded-full text-xs font-medium animate-pulse">
+          {formatTime(recordingDuration)}
+        </div>
+      )}
+
+      <Button
+        variant={recordingStatus === 'recording' ? 'destructive' : 'default'}
+        size="icon"
+        className={cn(
+          "h-10 w-10 rounded-full transition-all duration-200 select-none",
+          recordingStatus === 'recording' && "scale-110 animate-pulse",
+          recordingStatus === 'processing' && "cursor-not-allowed"
         )}
-        
-        <Button
-          variant={recordingStatus === 'recording' ? 'destructive' : 'default'}
-          className={cn(
-            "w-full transition-all duration-300",
-            recordingStatus === 'recording' && "animate-pulse"
-          )}
-          onMouseDown={recordingStatus === 'idle' ? startRecording : undefined}
-          onMouseUp={recordingStatus === 'recording' ? () => stopRecording() : undefined}
-          onTouchStart={recordingStatus === 'idle' ? startRecording : undefined}
-          onTouchEnd={recordingStatus === 'recording' ? () => stopRecording() : undefined}
-          onClick={isMobile ? (recordingStatus === 'recording' ? () => stopRecording() : startRecording) : undefined}
-          disabled={recordingStatus === 'processing' || disabled}
-        >
-          {recordingStatus === 'processing' ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Processando...
-            </>
-          ) : recordingStatus === 'recording' ? (
-            <>
-              <StopCircle className="mr-2 h-4 w-4" />
-              {formatTime(recordingDuration)}
-            </>
-          ) : (
-            <>
-              <Mic className="mr-2 h-4 w-4" />
-              Gravar Áudio
-            </>
-          )}
-        </Button>
-        
-        {recordingStatus === 'recording' && (
-          <div className="mt-2 w-full bg-muted rounded-full h-1.5 overflow-hidden">
-            <div 
-              className="bg-primary h-full transition-all duration-100 ease-in-out"
-              style={{ width: `${recordingProgress}%` }}
-            />
-          </div>
+        onMouseDown={handlePressStart}
+        onMouseUp={handlePressEnd}
+        onMouseLeave={handlePressCancel}
+        onTouchStart={handlePressStart}
+        onTouchEnd={handlePressEnd}
+        onTouchCancel={handlePressCancel}
+        onContextMenu={(e) => e.preventDefault()} // Prevenir menu de contexto
+        disabled={recordingStatus === 'processing' || disabled}
+        style={{ 
+          WebkitTouchCallout: 'none',
+          WebkitUserSelect: 'none',
+          userSelect: 'none'
+        }}
+      >
+        {recordingStatus === 'processing' ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : recordingStatus === 'recording' ? (
+          <StopCircle className="h-4 w-4" />
+        ) : (
+          <Mic className="h-4 w-4" />
         )}
-      </div>
+      </Button>
+
+      {/* Feedback visual para long press */}
+      {pressStartTime && !isLongPress && recordingStatus === 'idle' && (
+        <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 bg-muted text-muted-foreground px-3 py-1 rounded-lg text-xs whitespace-nowrap">
+          Mantenha pressionado para gravar
+        </div>
+      )}
     </div>
   );
 };

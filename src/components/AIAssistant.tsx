@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Send, X, AlertCircle, Bot, User } from 'lucide-react';
+import { Send, X, Bot, User } from 'lucide-react';
 import { getOpenAIClient, type ChatMessage } from '@/integrations/openai/client';
 import { openAIFunctions, callOpenAIFunction } from '@/integrations/openai/aiTools';
 import { useToast } from '@/hooks/use-toast';
@@ -70,7 +70,7 @@ export const AIAssistant = () => {
         lowerMessage.includes('dia de hoje') ||
         lowerMessage.includes('que dia é hoje')) {
       const dateInfo = getCurrentDateTime();
-      return `Hoje é ${dateInfo.dayOfWeek}, ${dateInfo.date}.`;
+      return `📅 Hoje é ${dateInfo.dayOfWeek}, ${dateInfo.date}.`;
     }
     
     if (lowerMessage.includes('que horas') || 
@@ -78,14 +78,14 @@ export const AIAssistant = () => {
         lowerMessage.includes('horário') ||
         lowerMessage.includes('que horas são')) {
       const dateInfo = getCurrentDateTime();
-      return `Agora são ${dateInfo.time} (horário de Brasília).`;
+      return `🕐 Agora são ${dateInfo.time} (horário de Brasília).`;
     }
     
     if (lowerMessage.includes('data e hora') || 
         lowerMessage.includes('data completa') ||
         lowerMessage.includes('data atual')) {
       const dateInfo = getCurrentDateTime();
-      return `Hoje é ${dateInfo.fullDate} (horário de Brasília).`;
+      return `📅🕐 Hoje é ${dateInfo.fullDate} (horário de Brasília).`;
     }
     
     // Se não for um comando especial, retorna null
@@ -239,12 +239,12 @@ Responda sempre de forma clara, direta e amigável.`
     // Adiciona a mensagem de áudio ao chat
     const userAudioMessage: ChatMessage = { 
       role: 'user', 
-      content: transcription || '[Áudio sem transcrição]', // Usa a transcrição como conteúdo
+      content: transcription || '[Áudio sem transcrição]',
       audioUrl: audioUrl 
     };
     setMessages((prev) => [...prev, userAudioMessage]);
 
-    // Agora envia a transcrição para a IA processar
+    // Envia a transcrição para a IA processar
     await handleSendMessage(transcription); 
   };
 
@@ -282,6 +282,10 @@ Responda sempre de forma clara, direta e amigável.`
                 <p>• "detalhes do cliente Maria"</p>
                 <p>• "que dia é hoje?"</p>
                 <p>• "que horas são?"</p>
+              </div>
+              <div className="mt-3 p-2 bg-blue-50 rounded text-blue-700">
+                <p className="font-medium text-xs">🎤 Dica de áudio:</p>
+                <p className="text-xs">Mantenha o botão do microfone pressionado para gravar</p>
               </div>
             </div>
           </div>
@@ -374,7 +378,7 @@ Responda sempre de forma clara, direta e amigável.`
               onClick={() => handleSendMessage(input)} 
               disabled={isLoading || input.trim() === ''} 
               size="icon"
-              className="h-10 w-10"
+              className="h-10 w-10 rounded-full"
             >
               <Send className="h-4 w-4" />
             </Button>
