@@ -36,8 +36,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { NewPedido, Pedido } from "@/types/pedido";
 import { Cliente } from "@/types/cliente";
 import { Produto } from "@/types/produto";
-import { useEffect, useState } from "react";
-import { Trash2, Plus, Search, Edit3, X, User, Package, Wrench, Save, Zap } from "lucide-react";
+import { useEffect, useState, useCallback } from "react";
+import { Trash2, Plus, Search, Edit3, X, User, Package, Wrench, Save, Zap, Eraser } from "lucide-react";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { QuickClientForm } from './QuickClientForm';
@@ -70,7 +70,7 @@ export type PedidoFormValues = z.infer<typeof formSchema>;
 interface PedidoFormProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onSubmit: (data: Omit<NewPedido, 'user_id' | 'status'>) => void;
+  onSubmit: (data: Omit<NewPedido, 'user_id' | 'status'>, id?: string) => void;
   isSubmitting: boolean;
   clientes: Cliente[];
   produtos: Produto[];
@@ -83,6 +83,8 @@ const servicosRapidos = [
   { nome: "Montagem +3 Arquivos", valor: 15 },
   { nome: "Ajuste de Cor", valor: 5 },
 ];
+
+const DRAFT_STORAGE_KEY = 'pedido_form_draft';
 
 export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clientes, produtos, initialData }: PedidoFormProps) => {
   const { supabase, session } = useSession();
@@ -109,6 +111,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
 
   const isEditing = !!initialData;
 
+  // Filter clients based on search term
   useEffect(() => {
     if (clienteSearch.trim() === '') {
       setFilteredClientes(clientes.slice(0, 50));
@@ -120,12 +123,11 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
     }
   }, [clienteSearch, clientes]);
 
-  // Efeito principal para gerenciar o estado do formulário
+  // Effect to load draft or initial data when form opens
   useEffect(() => {
     if (isOpen) {
-      // --- Formulário está abrindo ---
       if (isEditing && initialData) {
-        // Modo de edição: preencher com dados do pedido existente
+        // Editing existing order: populate with initialData
         console.log('[PedidoForm Effect] Abrindo em modo de edição. Carregando dados do pedido existente.');
         const itemsData = initialData.pedido_items?.map((item: any) => ({
           produto_id: item.produto_id,
@@ -151,27 +153,55 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
         });
         const selectedClient = clientes.find(c => c.id === initialData.cliente_id);
         setSelectedClienteName(selectedClient ? selectedClient.nome : '');
-        
+        localStorage.removeItem(DRAFT_STORAGE_KEY); // Clear draft if editing an existing order
       } else {
-        // Modo de criação: sempre resetar para um formulário vazio
-        console.log('[PedidoForm Effect] Abrindo em modo de criação. Resetando para valores padrão.');
-        form.reset({
-          cliente_id: "",
-          observacoes: "",
-          desconto_valor: 0,
-          desconto_percentual: 0,
-          items: [],
-          servicos: [],
-        });
-        setSelectedClienteName('');
+        // Creating new order: try to load draft
+        console.log('[PedidoForm Effect] Abrindo em modo de criação. Tentando carregar rascunho...');
+        const savedDraft = localStorage.getItem(DRAFT_STORAGE_KEY);
+        if (savedDraft) {
+          try {
+            const draftData: PedidoFormValues = JSON.parse(savedDraft);
+            form.reset(draftData);
+            const selectedClient = clientes.find(c => c.id === draftData.cliente_id);
+            setSelectedClienteName(selectedClient ? selectedClient.nome : '');
+            showSuccess("Rascunho do pedido carregado automaticamente!");
+          } catch (e) {
+            console.error("Erro ao carregar rascunho do localStorage:", e);
+            form.reset(); // Reset to default if draft is corrupted
+            setSelectedClienteName('');
+          }
+        } else {
+          // No draft, reset to empty form
+          console.log('[PedidoForm Effect] Nenhum rascunho encontrado. Resetando para valores padrão.');
+          form.reset();
+          setSelectedClienteName('');
+        }
       }
-      // Resetar outros estados de UI comuns a ambos os modos
+      // Reset other UI states
       setClienteSearch('');
       setExpandedItemIndex(null);
       setExpandedServiceIndex(null);
+    } else {
+      // When form closes, clear draft if it was a new order (not editing)
+      if (!isEditing) {
+        localStorage.removeItem(DRAFT_STORAGE_KEY);
+      }
     }
-    // A lógica de salvamento e carregamento de rascunho foi removida para garantir que "Novo Pedido" sempre comece limpo.
-  }, [isOpen, isEditing, initialData, form, clientes]); // Dependências para este efeito
+  }, [isOpen, isEditing, initialData, form, clientes]);
+
+  // Effect to save draft automatically on form changes
+  useEffect(() => {
+    if (isOpen && !isEditing) { // Only save draft for new orders
+      const subscription = form.watch((value, { name, type }) => {
+        // Only save if there's actual user input (not initial load)
+        if (type === 'change' || type === 'blur') {
+          localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(value));
+          console.log('[PedidoForm Draft] Rascunho salvo automaticamente.');
+        }
+      });
+      return () => subscription.unsubscribe();
+    }
+  }, [form, isOpen, isEditing]);
 
   const handleValidSubmit = (data: PedidoFormValues) => {
     const items = data.items || [];
@@ -204,7 +234,8 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
       servicos: servicos,
     };
 
-    onSubmit(formattedData, initialData?.id); // Passar initialData.id para o onSubmit
+    onSubmit(formattedData, initialData?.id);
+    localStorage.removeItem(DRAFT_STORAGE_KEY); // Clear draft after successful submission
   };
 
   const handleInvalidSubmit = (errors: any) => {
@@ -231,7 +262,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
 
       if (error) throw error;
 
-      clientes.push(result as Cliente);
+      clientes.push(result as Cliente); // Update local clients list
       
       form.setValue('cliente_id', result.id);
       setSelectedClienteName(result.nome);
@@ -296,7 +327,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
     const descontoPercentualValor = subtotal * (descontoPercentual / 100);
     const valorTotal = Math.max(0, subtotal - descontoValor - descontoPercentualValor);
 
-    return valorTotal; // Corrigido: Usar valorTotal
+    return valorTotal;
   };
 
   const handleClienteSelect = (clienteId: string, clienteNome: string) => {
@@ -311,6 +342,14 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
       style: 'currency',
       currency: 'BRL'
     }).format(value);
+  };
+
+  const handleClearDraft = () => {
+    localStorage.removeItem(DRAFT_STORAGE_KEY);
+    form.reset();
+    setSelectedClienteName('');
+    showSuccess("Rascunho do pedido limpo com sucesso!");
+    onOpenChange(false); // Close the dialog after clearing
   };
 
   return (
@@ -398,7 +437,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
 
               <FormField
                 control={form.control}
-                name="items" // Este FormField é para a validação do array de items
+                name="items"
                 render={({ field }) => (
                   <FormItem>
                     <div className="flex items-center justify-between">
@@ -466,7 +505,10 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                       <FormItem>
                                         <FormLabel>Preço Unitário</FormLabel>
                                         <FormControl>
-                                          <CurrencyInput {...field} />
+                                          <CurrencyInput 
+                                            value={field.value || 0}
+                                            onChange={field.onChange}
+                                          />
                                         </FormControl>
                                         <FormMessage />
                                       </FormItem>
@@ -569,7 +611,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                         </p>
                       )}
                     </div>
-                    <FormMessage /> {/* Mensagem de erro para o array de items */}
+                    <FormMessage />
                   </FormItem>
                 )}
               />
@@ -645,7 +687,10 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                   <FormItem>
                                     <FormLabel>Valor Unitário</FormLabel>
                                     <FormControl>
-                                      <CurrencyInput {...field} />
+                                      <CurrencyInput 
+                                        value={field.value || 0}
+                                        onChange={field.onChange}
+                                      />
                                     </FormControl>
                                   </FormItem>
                                 )}
@@ -693,7 +738,10 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                     <FormItem>
                       <FormLabel>Desconto (R$)</FormLabel>
                       <FormControl>
-                        <CurrencyInput {...field} />
+                        <CurrencyInput 
+                          value={field.value || 0}
+                          onChange={field.onChange}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -733,6 +781,12 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
               </div>
 
               <DialogFooter className="gap-2">
+                {!isEditing && ( // Only show "Limpar Rascunho" for new orders
+                  <Button type="button" variant="outline" onClick={handleClearDraft}>
+                    <Eraser className="mr-2 h-4 w-4" />
+                    Limpar Rascunho
+                  </Button>
+                )}
                 <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
                 <Button type="submit" disabled={isSubmitting}>
                   {isSubmitting ? "Salvando..." : isEditing ? "Salvar Alterações" : "Criar Pedido"}
