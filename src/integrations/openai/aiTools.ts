@@ -633,7 +633,7 @@ export const list_orders = async (args: {
 
   if (error) {
     console.error("Erro ao listar pedidos por data:", error);
-    return { error: error.message };
+    throw new Error(`Erro ao listar pedidos por data: ${error.message}`);
   }
 
   const totalCountMessage = includeTotalCount ? ` (Total de ${count} pedidos encontrados)` : '';
@@ -766,7 +766,7 @@ export const list_services = async (args: {
 
   if (error) {
     console.error("Erro ao listar serviços por data:", error);
-    return { error: error.message };
+    throw new Error(`Erro ao listar serviços por data: ${error.message}`);
   }
 
   const totalCountMessage = includeTotalCount ? ` (Total de ${count} serviços encontrados)` : '';
@@ -837,14 +837,10 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
           .limit(10);
         
         const clientList = allClients ? allClients.map(c => c.nome).join(', ') : 'Nenhum cliente encontrado';
-        return { 
-          message: `❌ Não encontrei nenhum cliente com o nome "${clientName}".\n\n📋 Alguns clientes disponíveis no sistema:\n${clientList}\n\n💡 Dica: Tente usar o nome completo ou verifique a grafia.` 
-        };
-      } catch (error) {
+        throw new Error(`❌ Não encontrei nenhum cliente com o nome "${clientName}".\n\n📋 Alguns clientes disponíveis no sistema:\n${clientList}\n\n💡 Dica: Tente usar o nome completo ou verifique a grafia.`);
+      } catch (error: any) {
         console.error(`❌ [get_client_orders] Erro ao buscar lista de clientes:`, error);
-        return { 
-          message: `❌ Não encontrei nenhum cliente com o nome "${clientName}". Verifique se o nome está correto ou tente usar apenas parte do nome.` 
-        };
+        throw new Error(`❌ Não encontrei nenhum cliente com o nome "${clientName}". Verifique se o nome está correto ou tente usar apenas parte do nome.`);
       }
     }
 
@@ -866,7 +862,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
 
     if (orderError) {
       console.error("❌ [get_client_orders] Erro ao buscar pedidos do cliente:", orderError);
-      return { error: orderError.message };
+      throw new Error(orderError.message);
     }
 
     if (!orders || orders.length === 0) {
@@ -919,14 +915,10 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
           .limit(10);
         
         const clientList = allClients ? allClients.map(c => c.nome).join(', ') : 'Nenhum cliente encontrado';
-        return { 
-          message: `❌ Não encontrei nenhum cliente com o nome "${clientName}".\n\n📋 Alguns clientes disponíveis:\n${clientList}` 
-        };
-      } catch (error) {
+        throw new Error(`❌ Não encontrei nenhum cliente com o nome "${clientName}".\n\n📋 Alguns clientes disponíveis:\n${clientList}`);
+      } catch (error: any) {
         console.error(`❌ [get_client_details] Erro ao buscar lista de clientes:`, error);
-        return { 
-          message: `❌ Não encontrei nenhum cliente com o nome "${clientName}". Verifique se o nome está correto.` 
-        };
+        throw new Error(`❌ Não encontrei nenhum cliente com o nome "${clientName}". Verifique se o nome está correto.`);
       }
     }
 
@@ -941,7 +933,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
 
     if (error) {
       console.error("❌ [get_client_details] Erro ao buscar detalhes completos do cliente:", error);
-      return { error: error.message };
+      throw new Error(error.message);
     }
 
     const client = data;
@@ -971,7 +963,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
     const fullOrderId = await findOrderByNumber(orderNumber);
     
     if (!fullOrderId) {
-      return { message: `❌ Pedido #${orderNumber} não encontrado. Por favor, verifique o número do pedido.` };
+      throw new Error(`❌ Pedido #${orderNumber} não encontrado. Por favor, verifique o número do pedido.`);
     }
 
     try {
@@ -1007,7 +999,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       };
     } catch (error: any) {
       console.error("❌ Erro ao buscar detalhes do pedido:", error);
-      return { message: `❌ Erro ao buscar detalhes do pedido #${orderNumber}: ${error.message}` };
+      throw new Error(`❌ Erro ao buscar detalhes do pedido #${orderNumber}: ${error.message}`);
     }
   }
 
@@ -1015,7 +1007,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
     const { statuses, exclude_statuses, limit = 20, includeTotalCount } = args;
 
     if ((!statuses || statuses.length === 0) && (!exclude_statuses || exclude_statuses.length === 0) && !includeTotalCount) {
-        return { message: "❌ É necessário especificar quais status incluir ou excluir, ou pedir a contagem total." };
+        throw new Error("❌ É necessário especificar quais status incluir ou excluir, ou pedir a contagem total.");
     }
 
     let query = supabase
@@ -1048,7 +1040,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
 
     if (error) {
         console.error("Erro ao buscar pedidos por status:", error);
-        return { error: error.message };
+        throw new Error(`Erro ao buscar pedidos por status: ${error.message}`);
     }
 
     const totalCountMessage = includeTotalCount ? ` (Total de ${count} pedidos encontrados)` : '';
@@ -1096,7 +1088,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       const fullOrderId = await findOrderByNumber(orderNumber);
       
       if (!fullOrderId) {
-        return { message: `❌ Pedido #${orderNumber} não encontrado. Por favor, verifique o número do pedido.` };
+        throw new Error(`❌ Pedido #${orderNumber} não encontrado. Por favor, verifique o número do pedido.`);
       }
 
       console.log(`✅ [update_order_status] UUID encontrado: ${fullOrderId}`);
@@ -1110,7 +1102,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
 
       if (fetchError) {
         console.error("❌ [update_order_status] Erro ao buscar status atual do pedido:", fetchError);
-        return { message: `❌ Erro ao buscar status atual do pedido #${orderNumber}: ${fetchError.message}.` };
+        throw new Error(`❌ Erro ao buscar status atual do pedido #${orderNumber}: ${fetchError.message}.`);
       }
 
       const statusAnterior = currentOrder?.status || 'desconhecido';
@@ -1122,9 +1114,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
 
       if (updateError) {
         console.error("❌ [update_order_status] Erro ao atualizar:", updateError);
-        return { 
-          message: `❌ Erro ao atualizar status do pedido #${orderNumber} para "${newStatus}": ${updateError.message}.`
-        };
+        throw new Error(`❌ Erro ao atualizar status do pedido #${orderNumber} para "${newStatus}": ${updateError.message}.`);
       }
 
       // Insert into status history if status changed or observation provided
@@ -1157,9 +1147,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
 
     } catch (error: any) {
       console.error("❌ [update_order_status] Erro inesperado:", error);
-      return { 
-        message: `❌ Ocorreu um erro inesperado ao tentar atualizar o status do pedido #${orderNumber}: ${error.message || 'Erro desconhecido'}.`
-      };
+      throw new Error(`❌ Ocorreu um erro inesperado ao tentar atualizar o status do pedido #${orderNumber}: ${error.message || 'Erro desconhecido'}.`);
     }
   }
 
@@ -1172,7 +1160,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       const fullOrderId = await findOrderByNumber(orderNumber);
       
       if (!fullOrderId) {
-        return { message: `❌ Pedido #${orderNumber} não encontrado.` };
+        throw new Error(`❌ Pedido #${orderNumber} não encontrado.`);
       }
 
       console.log(`✅ [generate_order_pdf] Pedido encontrado, buscando dados completos...`);
@@ -1195,9 +1183,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       };
     } catch (error: any) {
       console.error(`❌ [generate_order_pdf] Erro ao gerar PDF para pedido #${orderNumber}:`, error);
-      return { 
-        message: `❌ Erro ao gerar PDF do pedido #${orderNumber}: ${error.message || 'Erro desconhecido'}` 
-      };
+      throw new Error(`❌ Erro ao gerar PDF do pedido #${orderNumber}: ${error.message || 'Erro desconhecido'}`);
     }
   }
 
@@ -1252,5 +1238,5 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
   }
 
   console.error(`❌ [callOpenAIFunction] Função desconhecida: ${name}`);
-  return { message: `❌ Função desconhecida: ${name}` };
+  throw new Error(`❌ Função desconhecida: ${name}`);
 };
