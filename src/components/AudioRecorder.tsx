@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Mic, StopCircle, Loader2 } from 'lucide-react';
+import { Mic, StopCircle, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { getOpenAIClient } from '@/integrations/openai/client';
 import { showSuccess, showError } from '@/utils/toast';
+import { cn } from '@/lib/utils';
 
 interface AudioRecorderProps {
   onAudioRecorded: (transcription: string, audioBlob: Blob) => void;
@@ -15,6 +16,8 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
+  const [recordingStatus, setRecordingStatus] = useState<'idle' | 'recording' | 'processing'>('idle');
+  const [audioPermission, setAudioPermission] = useState<boolean | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const audioStreamRef = useRef<MediaStream | null>(null);
@@ -22,39 +25,43 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
   const openAIClient = useRef(getOpenAIClient()).current;
 
   const MIN_AUDIO_DURATION_MS = 500;
+  const MAX_AUDIO_DURATION_MS = 30000; // 30 segundos
 
-  // Detecta o melhor MIME type para gravação de áudio
-  const getSupportedMimeType = () => {
-    const preferredMimeTypes = [
-      'audio/mp4', // Melhor para iOS
-      'audio/aac', // Outra boa opção para iOS
-      'audio/webm', // Amplamente suportado, mas não por iOS Safari para reprodução
-      'audio/ogg',
-    ];
-
-    for (const type of preferredMimeTypes) {
-      if (MediaRecorder.isTypeSupported(type)) {
-        return type;
+  useEffect(() => {
+    const checkAudioPermission = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(track => track.stop());
+        setAudioPermission(true);
+      } catch {
+        setAudioPermission(false);
       }
-    }
-    return 'audio/webm'; // Fallback padrão
-  };
+    };
+    checkAudioPermission();
+  }, []);
 
-  const startRecording = async (e: React.MouseEvent | React.TouchEvent) => {
-    e.preventDefault();
-    if (disabled || isRecording || isProcessing) return;
+  const startRecording = async () => {
+    if (disabled || isRecording || isProcessing || audioPermission === false) return;
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       audioStreamRef.current = stream;
       
-      const mimeType = getSupportedMimeType();
+      const mimeType = ['audio/webm', 'audio/mp4', 'audio/aac'].find(MediaRecorder.isTypeSupported) || 'audio/webm';
       mediaRecorderRef.current = new MediaRecorder(stream, { mimeType });
       
       audioChunksRef.current = [];
       setRecordingDuration(0);
+      setRecordingStatus('recording');
 
       intervalRef.current = setInterval(() => {
-        setRecordingDuration(prev => prev + 100);
+        setRecordingDuration(prev => {
+          if (prev >= MAX_AUDIO_DURATION_MS / 100) {
+            stopRecording(true);
+            return prev;
+          }
+          return prev + 1;
+        });
       }, 100);
 
       mediaRecorderRef.current.ondataavailable = (event) => {
@@ -62,7 +69,8 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
       };
 
       mediaRecorderRef.current.onstop = async () => {
-        setIsRecording(false);
+        setRecordingStatus('processing');
+        
         if (intervalRef.current) {
           clearInterval(intervalRef.current);
           intervalRef.current = null;
@@ -71,14 +79,13 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
         audioStreamRef.current?.getTracks().forEach(track => track.stop());
         audioStreamRef.current = null;
 
-        if (recordingDuration < MIN_AUDIO_DURATION_MS) {
+        if (recordingDuration * 100 < MIN_AUDIO_DURATION_MS) {
           showError(`Áudio muito curto. Mínimo de ${MIN_AUDIO_DURATION_MS / 1000} segundos.`);
-          setIsProcessing(false);
+          setRecordingStatus('idle');
           return;
         }
 
-        setIsProcessing(true);
-        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType }); // Usa o mimeType detectado
+        const audioBlob = new Blob(audioChunksRef.current, { type: mediaRecorderRef.current?.mimeType });
         
         try {
           const transcription = await openAIClient.transcribeAudio(audioBlob);
@@ -90,26 +97,9 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
           }
         } catch (error: any) {
           console.error("Erro ao transcrever áudio:", error);
-          let userFriendlyErrorMessage = "Ocorreu um erro desconhecido ao transcrever o áudio.";
-
-          if (error.message) {
-            const lowerCaseMessage = error.message.toLowerCase();
-            if (lowerCaseMessage.includes('invalid file format')) {
-              userFriendlyErrorMessage = "Formato de arquivo de áudio inválido. Por favor, tente novamente.";
-            } else if (lowerCaseMessage.includes('api key') || lowerCaseMessage.includes('authentication')) {
-              userFriendlyErrorMessage = "Erro de autenticação com a API. Verifique sua chave da OpenAI.";
-            } else if (lowerCaseMessage.includes('rate limit')) {
-              userFriendlyErrorMessage = "Limite de uso da API atingido. Tente novamente mais tarde.";
-            } else if (lowerCaseMessage.includes('unknown error')) {
-              userFriendlyErrorMessage = "Não foi possível transcrever o áudio. Tente novamente.";
-            } else {
-              // Fallback para outros erros, mostrando a mensagem original para depuração se necessário
-              userFriendlyErrorMessage = `Erro na transcrição: ${error.message}`;
-            }
-          }
-          showError(userFriendlyErrorMessage);
+          showError("Erro ao processar áudio. Tente novamente.");
         } finally {
-          setIsProcessing(false);
+          setRecordingStatus('idle');
         }
       };
 
@@ -118,56 +108,87 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
       showSuccess("Gravação iniciada...");
     } catch (err: any) {
       console.error("Erro ao acessar o microfone:", err);
-      // Mensagem de erro atualizada para ser mais informativa e persuasiva
-      showError("Para interagir com o assistente por voz, precisamos da sua permissão para acessar o microfone. Por favor, permita o acesso nas configurações do seu navegador para continuar a usar o recurso de voz. 🎙️");
+      showError("Não foi possível acessar o microfone. Verifique as permissões.");
+      setRecordingStatus('idle');
     }
   };
 
-  const stopRecording = (e: React.MouseEvent | React.TouchEvent) => {
-    e.preventDefault();
+  const stopRecording = (autoStop = false) => {
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      
+      if (!autoStop) {
+        showSuccess(recordingDuration * 100 < MIN_AUDIO_DURATION_MS 
+          ? "Áudio muito curto" 
+          : "Gravação finalizada"
+        );
+      }
     }
   };
 
   const formatTime = (ms: number) => {
-    const seconds = Math.floor(ms / 1000);
+    const seconds = Math.floor(ms / 10);
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
     return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
-  return (
-    <div className="relative">
-      <Button
-        variant="ghost"
-        size="icon"
-        className={`h-10 w-10 rounded-full transition-all duration-200 
-                    ${isRecording ? 'bg-yellow-600 text-white animate-pulse' : 'bg-yellow-500 text-white hover:bg-yellow-600'}
-                    ${disabled || isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
-        onMouseDown={startRecording}
-        onMouseUp={stopRecording}
-        onMouseLeave={stopRecording}
-        onTouchStart={startRecording}
-        onTouchEnd={stopRecording}
-        onTouchCancel={stopRecording}
-        disabled={disabled || isProcessing}
-        title={isRecording ? "Solte para parar" : "Pressione e segure para gravar"}
-        style={{ userSelect: 'none', WebkitUserSelect: 'none', touchAction: 'manipulation' }}
-      >
-        {isProcessing ? (
-          <Loader2 className="h-5 w-5 animate-spin" />
-        ) : isRecording ? (
-          <StopCircle className="h-5 w-5" />
-        ) : (
-          <Mic className="h-5 w-5" />
+  const renderButton = () => {
+    if (audioPermission === false) {
+      return (
+        <Button 
+          variant="destructive" 
+          className="w-full"
+          onClick={() => showError("Permissão de microfone negada. Verifique suas configurações.")}
+        >
+          Microfone Bloqueado
+        </Button>
+      );
+    }
+
+    return (
+      <div className="relative w-full">
+        <Button
+          variant={recordingStatus === 'recording' ? 'destructive' : 'default'}
+          className={cn(
+            "w-full transition-all duration-300 group",
+            recordingStatus === 'recording' && "animate-pulse"
+          )}
+          onTouchStart={startRecording}
+          onTouchEnd={stopRecording}
+          onMouseDown={startRecording}
+          onMouseUp={stopRecording}
+          disabled={recordingStatus === 'processing'}
+        >
+          {recordingStatus === 'processing' ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : recordingStatus === 'recording' ? (
+            <>
+              <StopCircle className="mr-2 h-4 w-4" />
+              {formatTime(recordingDuration)}
+            </>
+          ) : (
+            <>
+              <Mic className="mr-2 h-4 w-4" />
+              Gravar Áudio
+            </>
+          )}
+        </Button>
+        {recordingStatus === 'recording' && (
+          <div className="absolute inset-x-0 bottom-full mb-2 flex justify-center">
+            <div className="bg-background border rounded-full px-3 py-1 text-xs shadow-md">
+              {formatTime(recordingDuration)} / 00:30
+            </div>
+          </div>
         )}
-      </Button>
-      {isRecording && (
-        <span className="absolute -top-8 left-1/2 -translate-x-1/2 text-xs text-muted-foreground bg-background px-2 py-1 rounded-md shadow-sm">
-          {formatTime(recordingDuration)}
-        </span>
-      )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="w-full">
+      {renderButton()}
     </div>
   );
 };

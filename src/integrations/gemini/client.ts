@@ -4,12 +4,32 @@ const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
 if (!apiKey) {
   console.error("VITE_GEMINI_API_KEY is not set in environment variables.");
-  // You might want to throw an error or handle this more gracefully in a production app
 }
 
 const genAI = new GoogleGenerativeAI(apiKey);
 
 export const getGenerativeModel = () => {
-  // Alterado de 'gemini-1.5-pro' para 'gemini-1.5-flash' para melhor performance e velocidade
   return genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+};
+
+export const getCurrentDateTime = () => {
+  const now = new Date();
+  const options: Intl.DateTimeFormatOptions = {
+    timeZone: 'America/Sao_Paulo',
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  };
+  
+  return {
+    fullDate: now.toLocaleDateString('pt-BR', options),
+    dayOfWeek: now.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', weekday: 'long' }),
+    date: now.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }),
+    time: now.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' }),
+    timestamp: now.toISOString()
+  };
 };
