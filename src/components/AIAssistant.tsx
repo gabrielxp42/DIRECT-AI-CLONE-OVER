@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Send, X, Bot, User } from 'lucide-react';
 import { getOpenAIClient, type ChatMessage } from '@/integrations/openai/client';
-import { openAIFunctions, callOpenAIFunction, getCurrentDateTime } from '@/integrations/openai/aiTools'; // Importa getCurrentDateTime
+import { openAIFunctions, callOpenAIFunction } from '@/integrations/openai/aiTools';
 import { useToast } from '@/hooks/use-toast';
 import { useAIAssistant } from '@/contexts/AIAssistantProvider';
 import { AudioRecorder } from './AudioRecorder';
@@ -37,36 +37,6 @@ export const AIAssistant = () => {
       .trim();
   };
 
-  // Função para processar comandos especiais
-  const processSpecialCommands = (message: string) => {
-    const lowerMessage = message.toLowerCase().trim();
-    const dateInfo = getCurrentDateTime(); // Usa a função centralizada
-    
-    // Comandos de data e hora
-    if (lowerMessage.includes('que dia') || 
-        lowerMessage.includes('data') || 
-        lowerMessage.includes('dia de hoje') ||
-        lowerMessage.includes('que dia é hoje')) {
-      return `📅 Hoje é ${dateInfo.dayOfWeek}, ${dateInfo.date}.`;
-    }
-    
-    if (lowerMessage.includes('que horas') || 
-        lowerMessage.includes('hora') || 
-        lowerMessage.includes('horário') ||
-        lowerMessage.includes('que horas são')) {
-      return `🕐 Agora são ${dateInfo.time} (horário de Brasília).`;
-    }
-    
-    if (lowerMessage.includes('data e hora') || 
-        lowerMessage.includes('data completa') ||
-        lowerMessage.includes('data atual')) {
-      return `📅🕐 Hoje é ${dateInfo.fullDate} (horário de Brasília).`;
-    }
-    
-    // Se não for um comando especial, retorna null
-    return null;
-  };
-
   const handleSendMessage = async (messageContent: string) => {
     if (messageContent.trim() === '') return;
 
@@ -76,21 +46,9 @@ export const AIAssistant = () => {
     setIsLoading(true);
 
     try {
-      // Verificar se é um comando especial
-      const specialResponse = processSpecialCommands(messageContent);
-      
-      if (specialResponse) {
-        // Se for um comando especial, responde diretamente
-        const aiMessage: ChatMessage = { role: 'assistant', content: specialResponse };
-        setMessages((prev) => [...prev, aiMessage]);
-        setIsLoading(false);
-        return;
-      }
-      
       console.log('🚀 [AIAssistant] Enviando mensagem para OpenAI:', userMessage.content);
       
       // Prepare conversation history with improved system prompt
-      const dateInfo = getCurrentDateTime(); // Obtém a data atual para o prompt
       const conversationMessages: ChatMessage[] = [
         {
           role: 'system',
@@ -104,21 +62,20 @@ SUAS PRINCIPAIS FUNÇÕES:
 5. 📄 Gerar PDFs de pedidos (use generate_order_pdf ou generate_multiple_pdfs)
 6. 📊 Listar pedidos por data ou status (use list_orders ou get_orders_by_status)
 
-INFORMAÇÕES ATUAIS:
-- Data atual: ${dateInfo.fullDate}
-- Horário atual: ${dateInfo.time} (horário de Brasília)
-- Localização: Rio de Janeiro, Brasil
-
-IMPORTANTE: 
-- As ferramentas de busca são inteligentes e encontram clientes mesmo com nomes parciais ou pequenas variações
-- Sempre seja específico e útil nas suas respostas
+REGRAS IMPORTANTES:
+- NUNCA invente informações ou datas
+- SEMPRE use as ferramentas disponíveis para obter dados reais
+- Para perguntas sobre datas, horas ou períodos, use get_current_date
+- Para perguntas sobre quantidades de pedidos, use list_orders ou get_orders_by_status com includeTotalCount=true
+- Quando não souber algo, admita que não tem a informação
+- Seja específico e útil nas suas respostas
 - Use emojis para tornar as respostas mais amigáveis
-- Quando não encontrar algo, sempre sugira alternativas ou próximos passos
 
 EXEMPLOS DE COMO RESPONDER:
 - "Encontrei 3 pedidos para o João Silva..."
 - "O pedido #123 está com status 'pendente'..."
 - "PDF gerado com sucesso! 📄"
+- "Não tenho essa informação. Vou precisar consultar o sistema..."
 
 Responda sempre de forma clara, direta e amigável.`
         },
@@ -256,8 +213,8 @@ Responda sempre de forma clara, direta e amigável.`
                 <p>• "gerar PDF do pedido 43"</p>
                 <p>• "pedidos pendentes"</p>
                 <p>• "detalhes do cliente Maria"</p>
-                <p>• "que dia é hoje?"</p>
-                <p>• "que horas são?"</p>
+                <p>• "quantos pedidos temos este mês?"</p>
+                <p>• "quantos pedidos pendentes?"</p>
               </div>
               <div className="mt-3 p-2 bg-blue-50 rounded text-blue-700">
                 <p className="font-medium text-xs">🎤 Dica de áudio:</p>
