@@ -782,9 +782,10 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
 
     // Se não houver datas, define para o mês atual no fuso horário do Rio
     if (!startDate && !endDate) {
-      startDate = dateInfo.ranges.thisMonth.start;
-      endDate = dateInfo.ranges.thisMonth.end;
-      periodDescription = `neste mês de ${dateInfo.current.monthName} de ${dateInfo.current.year}`;
+      // Se ambos startDate e endDate estão ausentes, buscar todos os pedidos
+      startDate = undefined; // Remover filtro de data de início
+      endDate = undefined;   // Remover filtro de data de fim
+      periodDescription = `desde o início`;
     } else if (startDate && !endDate) {
       // Se apenas startDate, define endDate para o final do dia no fuso horário do Rio
       const start = new Date(startDate);
