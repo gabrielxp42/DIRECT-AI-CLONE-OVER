@@ -609,15 +609,26 @@ export const list_orders = async (args: {
     query = query.lte('created_at', endDate);
   }
 
-  const [orderFieldRaw, orderDirection] = orderBy.split('_');
-  let orderField = orderFieldRaw;
-  let ascending = orderDirection === 'asc';
+  let orderField: string;
+  let ascending: boolean;
 
-  if (orderFieldRaw === 'created') {
-    orderField = 'created_at';
-  } else if (orderFieldRaw === 'valor' && orderDirection === 'total') {
-    orderField = 'valor_total';
-    ascending = false;
+  switch (orderBy) {
+    case 'created_at_asc':
+      orderField = 'created_at';
+      ascending = true;
+      break;
+    case 'created_at_desc':
+      orderField = 'created_at';
+      ascending = false;
+      break;
+    case 'valor_total_desc':
+      orderField = 'valor_total';
+      ascending = false;
+      break;
+    default: // Default to created_at_desc
+      orderField = 'created_at';
+      ascending = false;
+      break;
   }
 
   query = query.order(orderField, { ascending: ascending });
@@ -719,6 +730,28 @@ export const list_services = async (args: {
 
   console.log(`🛠️ [list_services] Datas finais para consulta:`, { startDate, endDate }); // Log final dates
 
+  let orderField: string;
+  let ascending: boolean;
+
+  switch (orderBy) {
+    case 'created_at_asc':
+      orderField = 'created_at';
+      ascending = true;
+      break;
+    case 'created_at_desc':
+      orderField = 'created_at';
+      ascending = false;
+      break;
+    case 'valor_total_desc':
+      orderField = 'valor_total';
+      ascending = false;
+      break;
+    default: // Default to created_at_desc
+      orderField = 'created_at';
+      ascending = false;
+      break;
+  }
+
   // Strategy 1: Try pedido_servicos table with JOIN
   try {
     console.log('📍 [list_services] Tentativa 1: Tabela pedido_servicos com JOIN');
@@ -746,7 +779,8 @@ export const list_services = async (args: {
       query = query.lte('pedidos.created_at', endDate);
     }
 
-    query = query.order('pedidos.created_at', { ascending: orderBy === 'created_at_asc' });
+    // Removed direct ordering on joined table to avoid 400 error.
+    // Ordering will be handled client-side or by Strategy 2.
     
     if (!includeTotalCount && limit && limit > 0) {
       query = query.limit(limit);
@@ -763,7 +797,7 @@ export const list_services = async (args: {
         return { message: `❌ Nenhum serviço encontrado ${periodDescription}.${totalCountMessage}` };
       }
 
-      const formattedServices = services.map((service, index) => ({
+      let formattedServices = services.map((service, index) => ({
         index: index + 1,
         service_name: service.nome,
         quantity: service.quantidade,
@@ -775,7 +809,18 @@ export const list_services = async (args: {
         client_name: service.pedidos?.clientes?.nome
       }));
 
-      const totalRevenue = services.reduce((sum, service) => sum + (service.quantidade * service.valor_unitario), 0);
+      // Apply client-side sorting for Strategy 1
+      if (orderField === 'created_at') {
+        formattedServices.sort((a, b) => {
+          const dateA = new Date(a.order_date.split('/').reverse().join('-')).getTime(); // Convert dd/MM/yyyy to yyyy-MM-dd for Date object
+          const dateB = new Date(b.order_date.split('/').reverse().join('-')).getTime();
+          return ascending ? dateA - dateB : dateB - dateA;
+        });
+      } else if (orderField === 'valor_total') {
+        formattedServices.sort((a, b) => ascending ? a.total_value - b.total_value : b.total_value - a.total_value);
+      }
+
+      const totalRevenue = formattedServices.reduce((sum, service) => sum + (service.quantity * service.unit_value), 0);
       const totalRevenueFormatted = new Intl.NumberFormat('pt-BR', {
         style: 'currency',
         currency: 'BRL'
@@ -822,7 +867,14 @@ export const list_services = async (args: {
       ordersQuery = ordersQuery.lte('created_at', endDate);
     }
 
-    const { data: orders, error: ordersError } = await ordersQuery;
+    // Apply order to ordersQuery if orderBy is related to order creation date
+    if (orderField === 'created_at') {
+      ordersQuery = ordersQuery.order('created_at', { ascending: ascending });
+    }
+    // No limit on ordersQuery if includeTotalCount is true for services, as we need all orders to find all services.
+    // If includeTotalCount is false, we might still need all orders to find services, then apply limit later.
+
+    const { data: orders, error: ordersError, count: ordersCount } = await ordersQuery; // Get count for orders
 
     if (ordersError) {
       console.log('❌ [list_services] Erro ao buscar pedidos:', ordersError.message);
@@ -830,16 +882,24 @@ export const list_services = async (args: {
     }
 
     if (!orders || orders.length === 0) {
-      return { message: `❌ Nenhum pedido encontrado ${periodDescription}, portanto nenhum serviço.` };
+      const totalCountMessage = includeTotalCount ? ` (Total de 0 serviços encontrados)` : ''; // Define here
+      return { message: `❌ Nenhum pedido encontrado ${periodDescription}, portanto nenhum serviço.${totalCountMessage}` };
     }
 
     const orderIds = orders.map(order => order.id);
     
     // Try to get services from pedido_servicos table
-    const { data: services, error: servicesError } = await supabase
+    let servicesQuery = supabase
       .from('pedido_servicos')
-      .select('*')
+      .select('*', { count: includeTotalCount ? 'exact' : null }) // Get count for services
       .in('pedido_id', orderIds);
+
+    // Apply limit to servicesQuery if not including total count
+    if (!includeTotalCount && limit && limit > 0) {
+      servicesQuery = servicesQuery.limit(limit);
+    }
+
+    const { data: services, error: servicesError, count: servicesCount } = await servicesQuery;
 
     if (servicesError) {
       console.log('⚠️ [list_services] Erro na tabela pedido_servicos:', servicesError.message);
@@ -847,13 +907,14 @@ export const list_services = async (args: {
     }
 
     if (!services || services.length === 0) {
-      return { message: `❌ Nenhum serviço encontrado ${periodDescription}.` };
+      const totalCountMessage = includeTotalCount ? ` (Total de ${servicesCount} serviços encontrados)` : ''; // Define here
+      return { message: `❌ Nenhum serviço encontrado ${periodDescription}.${totalCountMessage}` };
     }
 
     console.log(`✅ [list_services] Estratégia 2 funcionou: ${services.length} serviços encontrados`);
 
     // Map services with order information
-    const formattedServices = services.map((service, index) => {
+    let formattedServices = services.map((service, index) => {
       const relatedOrder = orders.find(order => order.id === service.pedido_id);
       return {
         index: index + 1,
@@ -868,11 +929,24 @@ export const list_services = async (args: {
       };
     });
 
+    // Apply client-side sorting for services if orderBy is provided
+    if (orderField === 'created_at') {
+      formattedServices.sort((a, b) => {
+        const dateA = new Date(a.order_date.split('/').reverse().join('-')).getTime();
+        const dateB = new Date(b.order_date.split('/').reverse().join('-')).getTime();
+        return ascending ? dateA - dateB : dateB - dateA;
+      });
+    } else if (orderField === 'valor_total') {
+      formattedServices.sort((a, b) => ascending ? a.total_value - b.total_value : b.total_value - a.total_value);
+    }
+
     const totalRevenue = formattedServices.reduce((sum, service) => sum + service.total_value, 0);
     const totalRevenueFormatted = new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL'
     }).format(totalRevenue);
+
+    const totalCountMessage = includeTotalCount ? ` (Total de ${servicesCount} serviços encontrados)` : ''; // Define here
 
     return { 
       services: formattedServices, 
@@ -883,7 +957,7 @@ export const list_services = async (args: {
           start: startDate ? new Date(startDate).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }) : 'início',
           end: endDate ? new Date(endDate).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }) : 'fim'
         },
-        totalMatchingServices: services.length
+        totalMatchingServices: servicesCount // Use servicesCount for total matching services
       },
       message: `🛠️ Encontrados **${services.length} serviços** ${periodDescription}.${totalCountMessage}\n💰 Receita total: **${totalRevenueFormatted}**` 
     };
