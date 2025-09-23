@@ -99,7 +99,8 @@ export const getCurrentDateTime = () => {
         end: endOfRioDay.toISOString(),
         label: `Hoje (${displayDate})`
       }
-    };
+    } // Fechamento correto do objeto 'ranges'
+  }; // Fechamento correto do objeto principal de retorno
 };
 
 // OpenAI Functions format
