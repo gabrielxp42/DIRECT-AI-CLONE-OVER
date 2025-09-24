@@ -37,8 +37,9 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         stream.getTracks().forEach(track => track.stop());
         setAudioPermission(true);
+        console.log("[AudioRecorder] Permissão de microfone concedida.");
       } catch (error) {
-        console.error("Erro ao verificar permissão de microfone:", error);
+        console.error("[AudioRecorder] Erro ao verificar permissão de microfone:", error);
         setAudioPermission(false);
       }
     };
@@ -61,7 +62,6 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
       
       audioStreamRef.current = stream;
       
-      // Escolher o melhor formato de áudio suportado
       const mimeTypes = [
         'audio/webm;codecs=opus',
         'audio/webm',
@@ -82,8 +82,8 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
       audioChunksRef.current = [];
       setRecordingDuration(0);
       setRecordingStatus('recording');
+      console.log("[AudioRecorder] Gravação iniciada.");
 
-      // Timer para duração da gravação
       intervalRef.current = setInterval(() => {
         setRecordingDuration(prev => {
           const newDuration = prev + 100;
@@ -95,60 +95,70 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
         });
       }, 100);
 
-      // Coletar dados de áudio
       mediaRecorderRef.current.ondataavailable = (event) => {
         if (event.data.size > 0) {
           audioChunksRef.current.push(event.data);
+          console.log(`[AudioRecorder] Dados de áudio disponíveis: ${event.data.size} bytes. Total de chunks: ${audioChunksRef.current.length}`);
+        } else {
+          console.log("[AudioRecorder] Evento ondataavailable com 0 bytes.");
         }
       };
 
-      // Quando a gravação para
       mediaRecorderRef.current.onstop = async () => {
         setRecordingStatus('processing');
+        console.log("[AudioRecorder] Gravação parada. Processando...");
         
         if (intervalRef.current) {
           clearInterval(intervalRef.current);
           intervalRef.current = null;
         }
         
-        // Liberar recursos de áudio
         audioStreamRef.current?.getTracks().forEach(track => track.stop());
         audioStreamRef.current = null;
 
-        // Verificar duração mínima
+        // --- MODIFICAÇÃO: Verificar se há dados de áudio antes de processar ---
+        if (audioChunksRef.current.length === 0) {
+          showError("Nenhum áudio capturado. Tente novamente.");
+          setRecordingStatus('idle');
+          console.log("[AudioRecorder] Nenhuma chunk de áudio capturada. Resetando.");
+          return;
+        }
+        // --- FIM DA MODIFICAÇÃO ---
+
         if (recordingDuration < MIN_AUDIO_DURATION_MS) {
           showError("Áudio muito curto. Mantenha pressionado por mais tempo.");
           setRecordingStatus('idle');
+          console.log("[AudioRecorder] Duração mínima não atingida. Resetando.");
           return;
         }
 
-        // Criar blob de áudio
         const audioBlob = new Blob(audioChunksRef.current, { 
           type: mediaRecorderRef.current?.mimeType || 'audio/webm' 
         });
         
         try {
-          // Transcrever o áudio
           const transcription = await openAIClient.transcribeAudio(audioBlob);
           
           if (transcription && transcription.trim()) {
             onAudioRecorded(transcription, audioBlob);
+            console.log("[AudioRecorder] Áudio transcrito e enviado.");
           } else {
             showError("Não foi possível transcrever o áudio. Tente falar mais claramente.");
+            console.log("[AudioRecorder] Transcrição vazia ou falhou.");
           }
         } catch (error: any) {
-          console.error("Erro ao transcrever áudio:", error);
+          console.error("[AudioRecorder] Erro ao transcrever áudio:", error);
           showError("Erro ao processar áudio. Tente novamente.");
         } finally {
           setRecordingStatus('idle');
+          console.log("[AudioRecorder] Processamento finalizado. Status 'idle'.");
         }
       };
 
-      // Iniciar gravação
       mediaRecorderRef.current.start(100);
       
     } catch (err: any) {
-      console.error("Erro ao acessar o microfone:", err);
+      console.error("[AudioRecorder] Erro ao acessar o microfone:", err);
       showError("Não foi possível acessar o microfone. Verifique as permissões.");
       setRecordingStatus('idle');
     }
@@ -157,6 +167,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
   const stopRecording = (autoStop = false) => {
     if (mediaRecorderRef.current && recordingStatus === 'recording') {
       mediaRecorderRef.current.stop();
+      console.log(`[AudioRecorder] Chamando stop() no MediaRecorder. AutoStop: ${autoStop}`);
       
       if (autoStop) {
         showSuccess("Tempo máximo atingido. Processando áudio...");
@@ -164,7 +175,6 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
     }
   };
 
-  // Handlers para touch/mouse events - estilo WhatsApp
   const handlePressStart = (e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
     if (disabled || recordingStatus !== 'idle') return;
@@ -173,7 +183,6 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
     setPressStartTime(currentTime);
     setIsLongPress(false);
 
-    // Timeout para detectar long press
     longPressTimeoutRef.current = setTimeout(() => {
       setIsLongPress(true);
       startRecording();
@@ -183,17 +192,14 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
   const handlePressEnd = (e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
     
-    // Limpar timeout de long press
     if (longPressTimeoutRef.current) {
       clearTimeout(longPressTimeoutRef.current);
       longPressTimeoutRef.current = null;
     }
 
     if (recordingStatus === 'recording') {
-      // Se estava gravando, parar a gravação
       stopRecording();
     } else if (pressStartTime && !isLongPress) {
-      // Se foi um tap rápido, não fazer nada (ou mostrar instrução)
       const pressDuration = Date.now() - pressStartTime;
       if (pressDuration < LONG_PRESS_DURATION) {
         showError("Mantenha pressionado para gravar áudio");
@@ -205,13 +211,11 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
   };
 
   const handlePressCancel = () => {
-    // Limpar timeout de long press
     if (longPressTimeoutRef.current) {
       clearTimeout(longPressTimeoutRef.current);
       longPressTimeoutRef.current = null;
     }
 
-    // Se estava gravando, cancelar
     if (recordingStatus === 'recording') {
       if (mediaRecorderRef.current) {
         mediaRecorderRef.current.stop();
@@ -227,6 +231,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
       setRecordingStatus('idle');
       setRecordingDuration(0);
       showError("Gravação cancelada");
+      console.log("[AudioRecorder] Gravação cancelada pelo usuário.");
     }
 
     setPressStartTime(null);
@@ -240,7 +245,6 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  // Se não tem permissão de microfone
   if (audioPermission === false) {
     return (
       <Button 
@@ -256,7 +260,6 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
 
   return (
     <div className="relative">
-      {/* Indicador de gravação */}
       {recordingStatus === 'recording' && (
         <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-2 py-1 rounded-full text-xs font-medium animate-pulse">
           {formatTime(recordingDuration)}
@@ -277,7 +280,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
         onTouchStart={handlePressStart}
         onTouchEnd={handlePressEnd}
         onTouchCancel={handlePressCancel}
-        onContextMenu={(e) => e.preventDefault()} // Prevenir menu de contexto
+        onContextMenu={(e) => e.preventDefault()}
         disabled={recordingStatus === 'processing' || disabled}
         style={{ 
           WebkitTouchCallout: 'none',
@@ -294,7 +297,6 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
         )}
       </Button>
 
-      {/* Feedback visual para long press */}
       {pressStartTime && !isLongPress && recordingStatus === 'idle' && (
         <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 bg-muted text-muted-foreground px-3 py-1 rounded-lg text-xs whitespace-nowrap">
           Mantenha pressionado para gravar
