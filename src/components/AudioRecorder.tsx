@@ -24,6 +24,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
   const audioStreamRef = useRef<MediaStream | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const longPressTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const recordingStartTimeRef = useRef<number | null>(null); // Novo: para registrar o tempo de início real
   const openAIClient = useRef(getOpenAIClient()).current;
 
   const MIN_AUDIO_DURATION_MS = 500;
@@ -116,16 +117,19 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
         audioStreamRef.current?.getTracks().forEach(track => track.stop());
         audioStreamRef.current = null;
 
-        // --- MODIFICAÇÃO: Verificar se há dados de áudio antes de processar ---
+        // Calcular a duração real da gravação
+        const actualDuration = recordingStartTimeRef.current ? Date.now() - recordingStartTimeRef.current : 0;
+        console.log(`[AudioRecorder] Duração real da gravação: ${actualDuration} ms`);
+
         if (audioChunksRef.current.length === 0) {
           showError("Nenhum áudio capturado. Tente novamente.");
           setRecordingStatus('idle');
           console.log("[AudioRecorder] Nenhuma chunk de áudio capturada. Resetando.");
           return;
         }
-        // --- FIM DA MODIFICAÇÃO ---
-
-        if (recordingDuration < MIN_AUDIO_DURATION_MS) {
+        
+        // Usar a duração real para a verificação
+        if (actualDuration < MIN_AUDIO_DURATION_MS) { 
           showError("Áudio muito curto. Mantenha pressionado por mais tempo.");
           setRecordingStatus('idle');
           console.log("[AudioRecorder] Duração mínima não atingida. Resetando.");
@@ -156,6 +160,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
       };
 
       mediaRecorderRef.current.start(100);
+      recordingStartTimeRef.current = Date.now(); // Registrar o tempo de início real
       
     } catch (err: any) {
       console.error("[AudioRecorder] Erro ao acessar o microfone:", err);
