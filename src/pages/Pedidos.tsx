@@ -6,7 +6,7 @@ import { Cliente } from '@/types/cliente';
 import { Produto } from '@/types/produto';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Plus, Search, Filter, Eye, Edit, Trash2, Loader2, CalendarIcon, DollarSign, FileText, Wrench, History, MessageSquare, MoreHorizontal, User, Clock, CheckCircle, XCircle, Package } from 'lucide-react';
+import { Plus, Search, Filter, Eye, Edit, Trash2, Loader2, CalendarIcon, DollarSign, FileText, Wrench, History, MessageSquare, MoreHorizontal, User, Clock, CheckCircle, XCircle, Package, X } from 'lucide-react';
 import { PedidoForm } from '@/components/PedidoForm';
 import { PedidoDetails } from '@/components/PedidoDetails';
 import { showSuccess, showError } from '@/utils/toast';
@@ -60,6 +60,10 @@ const PedidosPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('todos');
   const [filterDateRange, setFilterDateRange] = useState<{ from?: Date; to?: Date }>({});
+  
+  // Novos estados para filtro de cliente
+  const [filterClientId, setFilterClientId] = useState<string | null>(null);
+  const [filterClientName, setFilterClientName] = useState<string | null>(null);
 
   const isMobile = useIsMobile();
   const location = useLocation();
@@ -69,7 +73,19 @@ const PedidosPage: React.FC = () => {
   useEffect(() => {
     if (location.state?.filterStatus) {
       setFilterStatus(location.state.filterStatus);
-      // Clear the state after use to prevent re-applying on subsequent visits
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+    
+    // Captura o filtro de cliente
+    if (location.state?.filterClientId) {
+      setFilterClientId(location.state.filterClientId);
+      setFilterClientName(location.state.filterClientName || 'Cliente Filtrado');
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+    
+    if (location.state?.openForm) {
+      setEditingPedido(null); 
+      setIsFormOpen(true);    
       navigate(location.pathname, { replace: true, state: {} });
     }
   }, [location.state, location.pathname, navigate]);
@@ -80,7 +96,7 @@ const PedidosPage: React.FC = () => {
     setLoading(true);
     try {
       // Consulta ÚNICA e completa para todos os pedidos
-      const { data: pedidosData, error: pedidosError } = await supabase
+      let query = supabase
         .from('pedidos')
         .select(`
           *,
@@ -90,6 +106,12 @@ const PedidosPage: React.FC = () => {
           pedido_status_history (*)
         `)
         .order('order_number', { ascending: false }); // Ordenar por número do pedido
+
+      if (filterClientId) {
+        query = query.eq('cliente_id', filterClientId);
+      }
+
+      const { data: pedidosData, error: pedidosError } = await query;
 
       if (pedidosError) throw pedidosError;
 
@@ -118,7 +140,7 @@ const PedidosPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [session, supabase]);
+  }, [session, supabase, filterClientId]); // Adicionado filterClientId como dependência
 
   const fetchClientesAndProdutos = useCallback(async () => {
     if (!session || !supabase) return;
@@ -147,19 +169,11 @@ const PedidosPage: React.FC = () => {
     fetchClientesAndProdutos();
   }, [fetchPedidos, fetchClientesAndProdutos]);
 
-  // This useEffect handles opening the form when navigated from another component with state
-  useEffect(() => {
-    if (location.state?.openForm) {
-      setEditingPedido(null); // Ensure it's a new order
-      setIsFormOpen(true);    // Open the form dialog
-      // Adiciona uma verificação para 'navigate' antes de chamá-lo
-      if (navigate) {
-        navigate(location.pathname, { replace: true, state: {} }); // Clear the state after use
-      } else {
-        console.error("Erro: navigate não está definido no useEffect de Pedidos.tsx");
-      }
-    }
-  }, [location.state, location.pathname, navigate]); // Adicionado location.pathname à dependência
+  const handleClearClientFilter = () => {
+    setFilterClientId(null);
+    setFilterClientName(null);
+    // Re-fetch will be triggered by useEffect dependency
+  };
 
   const handleCreatePedido = () => {
     setEditingPedido(null); // Garante que é um novo pedido
@@ -225,6 +239,11 @@ const PedidosPage: React.FC = () => {
 
   const handleGeneratePDF = async (pedido: Pedido) => {
     try {
+      if ((!pedido.pedido_items || pedido.pedido_items.length === 0) && (!pedido.servicos || pedido.servicos.length === 0)) {
+        showError("O pedido não possui itens ou serviços para gerar o PDF.");
+        return;
+      }
+      
       await generateOrderPDF(pedido);
       showSuccess("PDF gerado com sucesso!");
     } catch (error: any) {
@@ -486,6 +505,24 @@ const PedidosPage: React.FC = () => {
           Novo Pedido
         </Button>
       </div>
+      
+      {/* Filtro de Cliente Ativo */}
+      {filterClientId && filterClientName && (
+        <div className="mb-4 flex items-center gap-2 p-3 bg-primary/10 border border-primary/30 rounded-lg">
+          <User className="h-4 w-4 text-primary" />
+          <span className="text-sm font-medium text-primary">
+            Filtrando pedidos para: <strong>{filterClientName}</strong>
+          </span>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={handleClearClientFilter}
+            className="h-6 w-6 text-primary hover:bg-primary/20 ml-auto"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
         <Input

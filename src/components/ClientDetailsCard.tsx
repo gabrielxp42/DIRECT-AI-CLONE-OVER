@@ -1,7 +1,7 @@
 import React from 'react';
 import { Cliente } from '@/types/cliente';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { DollarSign, ShoppingCart, Calendar, Clock, Loader2, User } from 'lucide-react';
+import { DollarSign, ShoppingCart, Calendar, Clock, Loader2, User, ArrowRight } from 'lucide-react';
 import { useClientMetrics } from '@/hooks/useClientMetrics';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -9,6 +9,8 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { useNavigate } from 'react-router-dom';
 
 interface ClientDetailsCardProps {
   cliente: Cliente;
@@ -36,9 +38,16 @@ const getStatusColor = (status: string) => {
 
 export const ClientDetailsCard: React.FC<ClientDetailsCardProps> = ({ cliente, onClose }) => {
   const { data: metrics, isLoading, error } = useClientMetrics(cliente.id);
+  const navigate = useNavigate();
+
+  const handleViewAllOrders = () => {
+    // Redireciona para a página de pedidos com o ID do cliente no estado
+    navigate('/pedidos', { state: { filterClientId: cliente.id, filterClientName: cliente.nome } });
+    onClose(); // Fecha o modal
+  };
 
   return (
-    <Card className="w-full h-full flex flex-col">
+    <Card className="w-full h-full flex flex-col border-none shadow-none">
       <CardHeader className="pb-4 border-b relative">
         <CardTitle className="text-xl flex items-center gap-2">
           <User className="h-5 w-5 text-primary" />
@@ -47,12 +56,7 @@ export const ClientDetailsCard: React.FC<ClientDetailsCardProps> = ({ cliente, o
         <CardDescription>
           Métricas e histórico de pedidos.
         </CardDescription>
-        <button 
-          onClick={onClose} 
-          className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors"
-        >
-          &times;
-        </button>
+        {/* REMOVIDO O BOTÃO DE FECHAR DUPLICADO */}
       </CardHeader>
       
       <CardContent className="flex-1 overflow-y-auto p-6 space-y-6">
@@ -131,6 +135,20 @@ export const ClientDetailsCard: React.FC<ClientDetailsCardProps> = ({ cliente, o
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+            
+            {/* Botão Ver Todos os Pedidos */}
+            {metrics && metrics.totalOrdersCount > 0 && (
+              <div className="pt-4">
+                <Button 
+                  variant="outline" 
+                  className="w-full"
+                  onClick={handleViewAllOrders}
+                >
+                  Ver Todos os {metrics.totalOrdersCount} Pedidos
+                  <ArrowRight className="h-4 w-4 ml-2" />
+                </Button>
               </div>
             )}
           </>
