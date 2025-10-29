@@ -93,7 +93,6 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
           clientes (id, nome, telefone, email, endereco)
         `)
         .eq('id', pedidoId)
-        .eq('user_id', session.user.id)
         .single();
 
       if (pedidoError) throw pedidoError;

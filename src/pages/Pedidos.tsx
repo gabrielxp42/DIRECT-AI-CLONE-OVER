@@ -86,7 +86,6 @@ const PedidosPage: React.FC = () => {
           *,
           clientes (id, nome, telefone, email, endereco)
         `)
-        .eq('user_id', session.user.id)
         .order('order_number', { ascending: false }); // Ordenar por número do pedido
 
       if (pedidosError) throw pedidosError;
