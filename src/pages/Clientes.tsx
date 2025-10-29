@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Search, Plus, Edit, Trash2, Phone, Mail, MapPin, DollarSign } from "lucide-react";
+import { Search, Plus, Edit, Trash2, Phone, Mail, MapPin, DollarSign, Eye } from "lucide-react";
 import { useSession } from "@/contexts/SessionProvider";
 import { useToast } from "@/hooks/use-toast";
 import { ClienteForm } from "@/components/ClienteForm";
@@ -19,6 +19,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { ClientDetailsCard } from "@/components/ClientDetailsCard";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface Cliente {
   id: string;
@@ -36,12 +39,14 @@ const Clientes = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingCliente, setEditingCliente] = useState<Cliente | null>(null);
+  const [selectedClient, setSelectedClient] = useState<Cliente | null>(null); // Novo estado para detalhes
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { supabase, session } = useSession();
   const { toast } = useToast();
   const location = useLocation();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     if (location.state?.openForm) {
@@ -86,6 +91,10 @@ const Clientes = () => {
       if (error) throw error;
 
       setClientes(clientes.filter(cliente => cliente.id !== id));
+      // Se o cliente excluído era o selecionado, feche os detalhes
+      if (selectedClient?.id === id) {
+        setSelectedClient(null);
+      }
       toast({
         title: "Sucesso",
         description: "Cliente excluído com sucesso.",
@@ -103,6 +112,10 @@ const Clientes = () => {
   const handleEdit = (cliente: Cliente) => {
     setEditingCliente(cliente);
     setIsFormOpen(true);
+  };
+
+  const handleViewDetails = (cliente: Cliente) => {
+    setSelectedClient(cliente);
   };
 
   const handleSubmitCliente = async (data: any, id?: string) => {
@@ -156,7 +169,8 @@ const Clientes = () => {
         const { data: result, error } = await supabase
           .from('clientes')
           .insert([{ ...clienteData, user_id: session.user.id }])
-          .select();
+          .select()
+          .single();
         
         console.log('Resultado da inserção:', { result, error });
         
@@ -193,7 +207,7 @@ const Clientes = () => {
   );
 
   const formatCurrency = (value: number | null) => {
-    if (value === null) return '';
+    if (value === null || value === undefined) return 'N/A';
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL'
@@ -214,7 +228,7 @@ const Clientes = () => {
           </p>
         </div>
         <Button 
-          onClick={() => setIsFormOpen(true)}
+          onClick={() => { setEditingCliente(null); setIsFormOpen(true); }}
           size="icon"
           className="h-10 w-10"
         >
@@ -234,76 +248,102 @@ const Clientes = () => {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {filteredClientes.map((cliente) => (
-          <Card key={cliente.id} className="hover:shadow-md transition-shadow">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg">{cliente.nome}</CardTitle>
-                <Badge variant={cliente.status === 'ativo' ? 'default' : 'secondary'}>
-                  {cliente.status}
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {cliente.email && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Mail className="h-4 w-4" />
-                  <span className="truncate">{cliente.email}</span>
-                </div>
-              )}
-              {cliente.telefone && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Phone className="h-4 w-4" />
-                  <span>{cliente.telefone}</span>
-                </div>
-              )}
-              {cliente.endereco && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <MapPin className="h-4 w-4" />
-                  <span className="truncate">{cliente.endereco}</span>
-                </div>
-              )}
-              {cliente.valor_metro !== null && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <DollarSign className="h-4 w-4" />
-                  <span>Valor do Metro: {formatCurrency(cliente.valor_metro)}</span>
-                </div>
-              )}
-              <div className="flex justify-end gap-2 pt-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleEdit(cliente)}
-                >
-                  <Edit className="h-4 w-4" />
-                </Button>
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="outline" size="sm">
-                      <Trash2 className="h-4 w-4" />
+      <div className="grid gap-4 lg:grid-cols-3 xl:grid-cols-4">
+        <div className={selectedClient && !isMobile ? "lg:col-span-2 xl:col-span-3" : "lg:col-span-3 xl:col-span-4"}>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
+            {filteredClientes.map((cliente) => (
+              <Card 
+                key={cliente.id} 
+                className="hover:shadow-md transition-shadow cursor-pointer"
+                onClick={() => handleViewDetails(cliente)}
+              >
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg">{cliente.nome}</CardTitle>
+                    <Badge variant={cliente.status === 'ativo' ? 'default' : 'secondary'}>
+                      {cliente.status}
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {cliente.email && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Mail className="h-4 w-4" />
+                      <span className="truncate">{cliente.email}</span>
+                    </div>
+                  )}
+                  {cliente.telefone && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Phone className="h-4 w-4" />
+                      <span>{cliente.telefone}</span>
+                    </div>
+                  )}
+                  {cliente.endereco && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <MapPin className="h-4 w-4" />
+                      <span className="truncate">{cliente.endereco}</span>
+                    </div>
+                  )}
+                  {cliente.valor_metro !== null && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <DollarSign className="h-4 w-4" />
+                      <span>Valor do Metro: {formatCurrency(cliente.valor_metro)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-end gap-2 pt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => { e.stopPropagation(); handleViewDetails(cliente); }}
+                    >
+                      <Eye className="h-4 w-4 mr-1" />
+                      Detalhes
                     </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Tem certeza que deseja excluir o cliente "{cliente.nome}"? 
-                        Esta ação não pode ser desfeita.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                      <AlertDialogAction onClick={() => handleDelete(cliente.id)}>
-                        Excluir
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => { e.stopPropagation(); handleEdit(cliente); }}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="outline" size="sm" onClick={(e) => e.stopPropagation()}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Tem certeza que deseja excluir o cliente "{cliente.nome}"? 
+                            Esta ação não pode ser desfeita.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => handleDelete(cliente.id)}>
+                            Excluir
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+
+        {/* Coluna de Detalhes (Desktop) */}
+        {selectedClient && !isMobile && (
+          <div className="lg:col-span-1">
+            <ClientDetailsCard 
+              cliente={selectedClient} 
+              onClose={() => setSelectedClient(null)} 
+            />
+          </div>
+        )}
       </div>
 
       {filteredClientes.length === 0 && (
@@ -316,11 +356,26 @@ const Clientes = () => {
 
       <ClienteForm
         isOpen={isFormOpen}
-        onOpenChange={setIsFormOpen}
+        onOpenChange={(isOpen) => {
+          setIsFormOpen(isOpen);
+          if (!isOpen) setEditingCliente(null);
+        }}
         onSubmit={handleSubmitCliente}
         isSubmitting={isSubmitting}
         initialData={editingCliente}
       />
+
+      {/* Modal de Detalhes (Mobile) */}
+      {selectedClient && isMobile && (
+        <Dialog open={!!selectedClient} onOpenChange={(open) => !open && setSelectedClient(null)}>
+          <DialogContent className="max-w-[95vw] h-[90vh] p-0">
+            <ClientDetailsCard 
+              cliente={selectedClient} 
+              onClose={() => setSelectedClient(null)} 
+            />
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 };
