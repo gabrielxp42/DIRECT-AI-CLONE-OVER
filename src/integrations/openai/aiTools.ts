@@ -128,6 +128,53 @@ const perform_calculation = (args: { expression: string }) => {
   }
 };
 
+// Nova função para obter o ranking dos clientes
+export const get_top_clients = async (args: { top_n?: number }) => {
+  const { top_n = 5 } = args;
+  const TIME_ZONE = 'America/Sao_Paulo';
+
+  try {
+    // Chamada RPC para a função do banco de dados
+    const { data: topClients, error } = await supabase.rpc('get_top_clients', {
+      top_n: top_n
+      // organization_id_filter é tratado pela RLS ou pela função RPC se necessário
+    });
+
+    if (error) throw error;
+
+    if (!topClients || topClients.length === 0) {
+      return { message: "❌ Não foi possível encontrar dados de ranking de clientes. Verifique se há pedidos registrados." };
+    }
+
+    const formattedClients = topClients.map((client, index) => ({
+      rank: index + 1,
+      client_name: client.client_name,
+      total_orders: client.total_orders,
+      total_spent: client.total_spent,
+      total_spent_formatted: new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(client.total_spent)
+    }));
+
+    const message = `🏆 **Top ${formattedClients.length} Clientes por Pedidos:**\n\n` +
+      formattedClients.map(c => 
+        `#${c.rank}: **${c.client_name}** - ${c.total_orders} pedidos, total de ${c.total_spent_formatted}`
+      ).join('\n');
+
+    return {
+      clients: formattedClients,
+      summary: {
+        top_client_name: formattedClients[0].client_name,
+        top_client_orders: formattedClients[0].total_orders,
+        top_client_spent: formattedClients[0].total_spent
+      },
+      message: message
+    };
+
+  } catch (error: any) {
+    console.error("Erro ao buscar top clientes:", error);
+    throw new Error(`❌ Erro ao buscar ranking de clientes: ${error.message}`);
+  }
+};
+
 
 // OpenAI Functions format
 export const openAIFunctions = [
@@ -152,6 +199,20 @@ export const openAIFunctions = [
         }
       },
       required: ["expression"]
+    }
+  },
+  {
+    name: "get_top_clients",
+    description: "Obtém o ranking dos clientes que mais fizeram pedidos ou gastaram. Use esta ferramenta para responder perguntas como 'qual cliente mais pede?', 'quem é o top cliente?', 'liste os 5 melhores clientes'.",
+    parameters: {
+      type: "object",
+      properties: {
+        top_n: {
+          type: "number",
+          description: "O número de clientes a retornar no ranking. Padrão é 5."
+        }
+      },
+      required: []
     }
   },
   {
@@ -1031,6 +1092,10 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
   
   if (name === "perform_calculation") {
     return perform_calculation(args);
+  }
+
+  if (name === "get_top_clients") {
+    return get_top_clients(args);
   }
 
   if (name === "get_client_orders") {
