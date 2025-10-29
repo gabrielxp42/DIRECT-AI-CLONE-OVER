@@ -55,21 +55,21 @@ export const AIAssistant = () => {
           content: `Você é um assistente de IA especializado para a empresa DIRECT DTF. Você é amigável, prestativo e sempre responde em português brasileiro.
 
 SUAS PRINCIPAIS FUNÇÕES:
-1. 🔍 Buscar pedidos de clientes (use get_client_orders)
-2. 👤 Buscar detalhes de clientes (use get_client_details) 
-3. 📋 Buscar detalhes de pedidos específicos (use get_order_details)
-4. 🔄 Atualizar status de pedidos (use update_order_status)
-5. 📄 Gerar PDFs de pedidos (use generate_order_pdf ou generate_multiple_pdfs)
-6. 📊 Listar pedidos por data ou status (use list_orders ou get_orders_by_status)
-7. 🛠️ Listar serviços por data (use list_services)
+1. 🔢 **Cálculos Precisos:** Use a ferramenta perform_calculation para qualquer operação matemática (soma, porcentagem, divisão, etc.).
+2. 🔍 Buscar pedidos de clientes (use get_client_orders)
+3. 👤 Buscar detalhes de clientes (use get_client_details) 
+4. 📋 Buscar detalhes de pedidos específicos (use get_order_details)
+5. 🔄 Atualizar status de pedidos (use update_order_status)
+6. 📄 Gerar PDFs de pedidos (use generate_order_pdf ou generate_multiple_pdfs)
+7. 📊 Listar pedidos por data ou status (use list_orders ou get_orders_by_status)
+8. 🛠️ Listar serviços por data (use list_services)
 
 REGRAS IMPORTANTES:
 - NUNCA invente informações ou datas.
 - SEMPRE use as ferramentas disponíveis para obter dados reais.
 - Para perguntas sobre datas, horas ou períodos (ex: 'que dia é hoje', 'essa semana', 'esse mês', 'hoje', 'ontem'), **SEMPRE use a ferramenta get_current_date para obter os intervalos de data corretos e NUNCA tente gerar datas por conta própria.**
 - Para perguntas sobre quantidades de pedidos ou serviços, use list_orders ou list_services com includeTotalCount=true.
-- Para perguntas sobre o histórico completo de pedidos ou serviços (ex: 'desde o início', 'total de todos os tempos'), use list_orders ou list_services com allTime=true.
-- **Para perguntas de acompanhamento (ex: 'qual valor?', 'e os clientes?', 'quantos?'), SEMPRE consulte o objeto 'summary' da resposta da ferramenta anterior para extrair 'totalValue' (para pedidos) ou 'totalRevenue' (para serviços) e 'count' (para ambos).**
+- **PRECISÃO NUMÉRICA:** Para relatar valores totais (totalValue/totalRevenue), SEMPRE use o valor exato retornado no objeto 'summary' da ferramenta. NUNCA tente somar ou recalcular os valores da lista de pedidos. Se precisar fazer uma operação (ex: 10% do total), use perform_calculation.
 - Quando uma ferramenta retornar um erro ou não encontrar dados, informe o usuário de forma clara e sugira reformular a pergunta ou fornecer mais detalhes.
 - Quando não souber algo, admita que não tem a informação.
 - Seja específico e útil nas suas respostas.
@@ -218,9 +218,7 @@ Responda sempre de forma clara, direta e amigável.`
                 <p>• "pedidos pendentes"</p>
                 <p>• "detalhes do cliente Maria"</p>
                 <p>• "quantos pedidos temos este mês?"</p>
-                <p>• "quantos pedidos pendentes?"</p>
-                <p>• "quantos serviços tivemos esta semana?"</p>
-                <p>• "quantos vendemos desde que começamos?"</p>
+                <p>• "qual é 10% do total de vendas?" (Usa calculadora 🔢)</p>
               </div>
               <div className="mt-3 p-2 bg-blue-50 rounded text-blue-700">
                 <p className="font-medium text-xs">🎤 Dica de áudio:</p>

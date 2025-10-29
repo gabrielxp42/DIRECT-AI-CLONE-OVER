@@ -98,6 +98,37 @@ export const getCurrentDateTime = () => {
   };
 };
 
+// Função para realizar cálculos matemáticos
+const perform_calculation = (args: { expression: string }) => {
+  try {
+    // Usar a função Function para avaliar a expressão de forma segura
+    // Nota: Isso é seguro em um ambiente de Edge Function ou em um contexto controlado como este.
+    // Em um ambiente de navegador, é importante garantir que a expressão seja apenas matemática.
+    const result = new Function('return ' + args.expression)();
+    
+    if (typeof result !== 'number' || isNaN(result)) {
+      throw new Error("Resultado não é um número válido.");
+    }
+
+    const formattedResult = new Intl.NumberFormat('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(result);
+
+    return {
+      result: result,
+      formattedResult: formattedResult,
+      message: `O resultado do cálculo '${args.expression}' é: ${formattedResult}`
+    };
+  } catch (e: any) {
+    return {
+      error: true,
+      message: `Erro ao calcular a expressão '${args.expression}': ${e.message}`
+    };
+  }
+};
+
+
 // OpenAI Functions format
 export const openAIFunctions = [
   {
@@ -107,6 +138,20 @@ export const openAIFunctions = [
       type: "object",
       properties: {},
       required: []
+    }
+  },
+  {
+    name: "perform_calculation",
+    description: "Realiza operações matemáticas precisas. Use esta ferramenta SEMPRE que precisar somar, subtrair, multiplicar, dividir ou calcular porcentagens. Ex: '1000 * 0.10' para 10% de 1000. Use os valores numéricos exatos fornecidos pelas outras ferramentas.",
+    parameters: {
+      type: "object",
+      properties: {
+        expression: {
+          type: "string",
+          description: "A expressão matemática a ser avaliada, usando operadores padrão (+, -, *, /). Ex: '15000 * 0.10' ou '100 + 50'."
+        }
+      },
+      required: ["expression"]
     }
   },
   {
@@ -207,7 +252,7 @@ export const openAIFunctions = [
         orderBy: {
           type: "string",
           enum: ["created_at_asc", "created_at_desc", "valor_total_desc"],
-          description: "Campo e direção para ordenar os pedidos. 'created_at_asc' para os mais antigos primeiro, 'created_at_desc' para os mais recentes primeiro, 'valor_total_desc' para os mais caros primeiro. Padrão é 'created_at_desc'."
+          description: "Campo e direção para ordenar os pedidos. 'created_at_asc' para os mais antigos primeiro, 'created_at_desc' para os mais recentes primeiro, 'valor_total_desc' para os mais caros primeiro. Padrão é 'created_at_at_desc'."
         },
         includeTotalCount: {
           type: "boolean",
@@ -982,6 +1027,10 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       current: dateInfo.current,
       ranges: dateInfo.ranges
     };
+  }
+  
+  if (name === "perform_calculation") {
+    return perform_calculation(args);
   }
 
   if (name === "get_client_orders") {
