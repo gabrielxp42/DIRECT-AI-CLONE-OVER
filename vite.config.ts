@@ -3,11 +3,26 @@ import dyadComponentTagger from "@dyad-sh/react-vite-component-tagger";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { VitePWA } from "vite-plugin-pwa";
+import fs from 'fs';
+
+// Função para ler a versão do package.json
+const getAppVersion = () => {
+  try {
+    const packageJson = fs.readFileSync(path.resolve(__dirname, 'package.json'), 'utf-8');
+    return JSON.parse(packageJson).version;
+  } catch (e) {
+    console.error("Could not read package.json version:", e);
+    return '0.0.0';
+  }
+};
 
 export default defineConfig(() => ({
   server: {
     host: "::",
     port: 8080,
+  },
+  define: {
+    'import.meta.env.VITE_APP_VERSION': JSON.stringify(getAppVersion()),
   },
   plugins: [
     dyadComponentTagger(),

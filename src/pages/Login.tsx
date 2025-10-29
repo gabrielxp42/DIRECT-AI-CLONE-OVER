@@ -7,6 +7,7 @@ import { useSession } from '@/contexts/SessionProvider'
 import { useTheme } from '@/components/ThemeProvider'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
+import { APP_VERSION } from '@/utils/version'
 
 const Login = () => {
   const { session, supabase } = useSession();
@@ -88,6 +89,7 @@ const Login = () => {
         </div>
         <div className="text-center text-xs text-muted-foreground pt-4 border-t">
           Desenvolvido por Gabriel Lima
+          <span className="block mt-1 text-[0.65rem] opacity-70">Versão: {APP_VERSION}</span>
         </div>
       </div>
     </div>

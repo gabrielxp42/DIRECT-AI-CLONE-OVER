@@ -9,6 +9,7 @@ import { useAIAssistant } from '@/contexts/AIAssistantProvider';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from './ui/button';
 import { useViewportZoom } from '@/hooks/useViewportZoom'; // Importar o novo hook
+import { APP_VERSION } from '@/utils/version'; // Importar a versão
 
 const Layout = () => {
   const { isOpen, open: openAIAssistant } = useAIAssistant();
@@ -30,7 +31,7 @@ const Layout = () => {
               </div>
             </Link>
           </div>
-          <div className="flex-1">
+          <div className="flex-1 overflow-y-auto">
             <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
               <Link
                 to="/"
@@ -68,6 +69,11 @@ const Layout = () => {
                 Relatórios
               </Link>
             </nav>
+          </div>
+          <div className="p-4 border-t">
+            <p className="text-xs text-muted-foreground text-center">
+              Versão: {APP_VERSION}
+            </p>
           </div>
         </div>
       </div>
