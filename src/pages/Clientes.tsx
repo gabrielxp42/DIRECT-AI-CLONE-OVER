@@ -249,7 +249,7 @@ const Clientes = () => {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3 xl:grid-cols-4">
-        <div className={selectedClient && !isMobile ? "lg:col-span-2 xl:col-span-3" : "lg:col-span-3 xl:col-span-4"}>
+        <div className="lg:col-span-3 xl:col-span-4"> {/* Removido a lógica de span condicional */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
             {filteredClientes.map((cliente) => (
               <Card 
@@ -335,15 +335,7 @@ const Clientes = () => {
           </div>
         </div>
 
-        {/* Coluna de Detalhes (Desktop) */}
-        {selectedClient && !isMobile && (
-          <div className="lg:col-span-1">
-            <ClientDetailsCard 
-              cliente={selectedClient} 
-              onClose={() => setSelectedClient(null)} 
-            />
-          </div>
-        )}
+        {/* Removido a coluna lateral de detalhes */}
       </div>
 
       {filteredClientes.length === 0 && (
@@ -365,10 +357,13 @@ const Clientes = () => {
         initialData={editingCliente}
       />
 
-      {/* Modal de Detalhes (Mobile) */}
-      {selectedClient && isMobile && (
-        <Dialog open={!!selectedClient} onOpenChange={(open) => !open && setSelectedClient(null)}>
-          <DialogContent className="max-w-[95vw] h-[90vh] p-0">
+      {/* Modal de Detalhes (Agora usado para todas as telas) */}
+      {selectedClient && (
+        <Dialog 
+          open={!!selectedClient} 
+          onOpenChange={(open) => !open && setSelectedClient(null)}
+        >
+          <DialogContent className="sm:max-w-[450px] max-h-[90vh] p-0">
             <ClientDetailsCard 
               cliente={selectedClient} 
               onClose={() => setSelectedClient(null)} 
