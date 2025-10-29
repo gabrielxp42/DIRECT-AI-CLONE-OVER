@@ -85,86 +85,43 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
     
     setLoading(true);
     try {
-      // Buscar o pedido principal
+      // Consulta ÚNICA e completa para garantir que todas as relações sejam carregadas
       const { data: pedidoData, error: pedidoError } = await supabase
         .from('pedidos')
         .select(`
           *,
-          clientes (id, nome, telefone, email, endereco)
+          clientes (id, nome, telefone, email, endereco),
+          pedido_items (*),
+          pedido_servicos (*),
+          pedido_status_history (*)
         `)
         .eq('id', pedidoId)
         .single();
 
       if (pedidoError) throw pedidoError;
+      if (!pedidoData) throw new Error("Pedido não encontrado.");
 
-      // Buscar itens do pedido
-      const { data: itemsData, error: itemsError } = await supabase
-        .from('pedido_items')
-        .select(`
-          *,
-          produtos (id, nome)
-        `)
-        .eq('pedido_id', pedidoId);
+      // O Supabase retorna as relações aninhadas.
+      // Precisamos apenas garantir que o histórico esteja ordenado.
+      const orderedHistory = (pedidoData.pedido_status_history || []).sort((a, b) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
 
-      if (itemsError) throw itemsError;
-
-      // Buscar serviços do pedido
-      let servicosData: any[] = [];
-      let servicosError: any = null;
-      
-      try {
-        const { data, error } = await supabase
-          .from('pedido_servicos')
-          .select('*')
-          .eq('pedido_id', pedidoId);
-        
-        servicosData = data || [];
-        servicosError = error;
-      } catch (e) {
-        // Se a tabela pedido_servicos não existir, tentamos servicos
-        try {
-          const { data, error } = await supabase
-            .from('servicos')
-            .select('*')
-            .eq('pedido_id', pedidoId);
-          
-          servicosData = data || [];
-          servicosError = error;
-        } catch (innerError) {
-          // Se nenhuma tabela de serviços existir, continuamos sem serviços
-          servicosData = [];
-          servicosError = null;
-        }
-      }
-
-      if (servicosError) {
-        console.warn('Aviso: Não foi possível carregar serviços:', servicosError.message);
-        servicosData = [];
-      }
-
-      // Buscar histórico de status
-      const { data: historyData, error: historyError } = await supabase
-        .from('pedido_status_history')
-        .select('*')
-        .eq('pedido_id', pedidoId)
-        .order('created_at', { ascending: false });
-
-      if (historyError) {
-        console.warn('Aviso: Não foi possível carregar histórico de status:', historyError.message);
-      }
-
-      // Combinar os dados
-      const pedidoCompleto = {
+      // Mapear dados para o tipo Pedido (garantindo que servicos e items existam)
+      const pedidoCompleto: Pedido = {
         ...pedidoData,
-        pedido_items: itemsData || [],
-        servicos: servicosData || []
-      };
+        pedido_items: pedidoData.pedido_items || [],
+        servicos: pedidoData.pedido_servicos || [],
+        status_history: orderedHistory,
+      } as Pedido;
 
-      setPedido(pedidoCompleto as Pedido);
-      setStatusHistory(historyData || []);
+      setPedido(pedidoCompleto);
+      setStatusHistory(orderedHistory);
+      
     } catch (error: any) {
       console.error('Erro ao carregar detalhes do pedido:', error);
       showError(`Erro ao carregar detalhes do pedido: ${error.message}`);
+      setPedido(null); // Garantir que o estado seja limpo em caso de erro
     } finally {
       setLoading(false);
     }

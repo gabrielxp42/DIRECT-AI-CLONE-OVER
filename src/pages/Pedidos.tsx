@@ -79,85 +79,35 @@ const PedidosPage: React.FC = () => {
     if (!session || !supabase) return;
     setLoading(true);
     try {
-      // Buscar pedidos primeiro
+      // Consulta ÚNICA e completa para todos os pedidos
       const { data: pedidosData, error: pedidosError } = await supabase
         .from('pedidos')
         .select(`
           *,
-          clientes (id, nome, telefone, email, endereco)
+          clientes (id, nome, telefone, email, endereco),
+          pedido_items (*),
+          pedido_servicos (*),
+          pedido_status_history (*)
         `)
         .order('order_number', { ascending: false }); // Ordenar por número do pedido
 
       if (pedidosError) throw pedidosError;
 
-      // Buscar itens dos pedidos
-      const pedidoIds = pedidosData?.map(pedido => pedido.id) || [];
-      const { data: itemsData, error: itemsError } = await supabase
-        .from('pedido_items')
-        .select(`
-          *,
-          produtos (id, nome)
-        `)
-        .in('pedido_id', pedidoIds);
-
-      if (itemsError) throw itemsError;
-
-      // Buscar serviços dos pedidos (verificando se a tabela existe)
-      let servicosData: any[] = [];
-      let servicosError: any = null;
-      
-      try {
-        const { data, error } = await supabase
-          .from('pedido_servicos')
-          .select('*')
-          .in('pedido_id', pedidoIds);
-        
-        servicosData = data || [];
-        servicosError = error;
-      } catch (e) {
-        // Se a tabela pedido_servicos não existir, tentamos servicos
-        try {
-          const { data, error } = await supabase
-            .from('servicos')
-            .select('*')
-            .in('pedido_id', pedidoIds);
-          
-          servicosData = data || [];
-          servicosError = error;
-        } catch (innerError) {
-          // Se nenhuma tabela de serviços existir, continuamos sem serviços
-          servicosData = [];
-          servicosError = null;
-        }
-      }
-
-      if (servicosError) {
-        console.warn('Aviso: Não foi possível carregar serviços:', servicosError.message);
-        servicosData = [];
-      }
-
-      // Buscar histórico de status para todos os pedidos
-      const { data: allHistoryData, error: historyError } = await supabase
-        .from('pedido_status_history')
-        .select('*')
-        .in('pedido_id', pedidoIds)
-        .order('created_at', { ascending: false }); // Order by date to easily get the latest
-
-      if (historyError) {
-        console.warn('Aviso: Não foi possível carregar histórico de status:', historyError.message);
-      }
-
-      // Mapear histórico e última observação para cada pedido
+      // Mapear e processar os dados
       const pedidosCompletos = pedidosData?.map(pedido => {
-        const orderHistory = allHistoryData?.filter(historyItem => historyItem.pedido_id === pedido.id) || [];
-        const latestObservation = orderHistory.length > 0 ? orderHistory[0].observacao : null; // Get the latest (first after sorting)
+        // Ordenar o histórico para pegar a última observação
+        const orderedHistory = (pedido.pedido_status_history || []).sort((a, b) => 
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+        
+        const latestObservation = orderedHistory.length > 0 ? orderedHistory[0].observacao : null;
         
         return {
           ...pedido,
-          pedido_items: itemsData?.filter(item => item.pedido_id === pedido.id) || [],
-          servicos: servicosData?.filter(servico => servico.pedido_id === pedido.id) || [],
-          status_history: orderHistory, // Assign all history
-          latest_status_observation: latestObservation, // Assign the latest observation
+          pedido_items: pedido.pedido_items || [],
+          servicos: pedido.pedido_servicos || [],
+          status_history: orderedHistory,
+          latest_status_observation: latestObservation,
         };
       }) || [];
 
