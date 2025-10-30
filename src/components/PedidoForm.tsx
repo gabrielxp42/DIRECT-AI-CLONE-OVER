@@ -511,11 +511,11 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                       </Button>
                     </div>
                     
-                    {/* Novo: Total de Metros (M²) */}
+                    {/* Novo: Total de Metros Lineares (ML) */}
                     {totalMetros > 0 && (
                       <div className="mt-2 p-2 bg-primary/10 rounded-md text-sm font-semibold text-primary flex justify-between items-center">
-                        <span>Total de Metros (M²):</span>
-                        <span>{Number(totalMetros).toFixed(2)} M²</span>
+                        <span>Total de Metros Lineares (ML):</span>
+                        <span>{Number(totalMetros).toFixed(2)} ML</span>
                       </div>
                     )}
                     
@@ -552,7 +552,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                     name={`items.${index}.quantidade`}
                                     render={({ field }) => (
                                       <FormItem>
-                                        <FormLabel>Quantidade (M²)</FormLabel>
+                                        <FormLabel>Quantidade (ML)</FormLabel>
                                         <FormControl>
                                           <Input 
                                             type="number" 
@@ -626,7 +626,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                     {item.produto_nome || "Produto sem nome"}
                                   </div>
                                   <div className="text-sm text-muted-foreground">
-                                    Qtd: {item.quantidade} | Total: {formatCurrency(item.quantidade * item.preco_unitario)}
+                                    Qtd: {item.quantidade} | Total: {formatCurrency(Number(item.quantidade) * Number(item.preco_unitario))}
                                   </div>
                                   {item.observacao && <p className="text-xs text-muted-foreground italic truncate mt-1">Obs: {item.observacao}</p>}
                                 </div>
