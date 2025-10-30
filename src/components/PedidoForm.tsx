@@ -49,6 +49,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { removeAccents } from "@/utils/string";
 
 const formSchema = z.object({
   cliente_id: z.string().min(1, { message: "Cliente é obrigatório." }),
@@ -117,6 +118,20 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
 
   const isEditing = !!initialData;
   const hasInitializedRef = useRef(false); // Mudança: controlar se já foi inicializado
+
+  // Efeito para filtrar clientes
+  useEffect(() => {
+    if (clienteSearch.trim() === '') {
+      setFilteredClientes(clientes);
+    } else {
+      const normalizedSearch = removeAccents(clienteSearch.toLowerCase());
+      const results = clientes.filter(cliente =>
+        removeAccents(cliente.nome.toLowerCase()).includes(normalizedSearch) ||
+        (cliente.telefone && cliente.telefone.includes(clienteSearch.trim()))
+      );
+      setFilteredClientes(results);
+    }
+  }, [clientes, clienteSearch]);
 
   useEffect(() => {
     // Só executa quando o diálogo abre E ainda não foi inicializado
@@ -237,7 +252,9 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
 
       if (error) throw error;
 
-      clientes.push(result as Cliente);
+      // Nota: A lista de clientes na página Pedidos.tsx precisa ser atualizada
+      // para que o novo cliente apareça na próxima vez que o formulário for aberto.
+      // Por enquanto, apenas atualizamos o estado local do formulário.
       
       form.setValue('cliente_id', result.id);
       setSelectedClienteName(result.nome);
