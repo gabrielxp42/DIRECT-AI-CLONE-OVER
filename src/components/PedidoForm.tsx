@@ -323,14 +323,15 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
     const descontoValor = form.watch('desconto_valor') || 0;
     const descontoPercentual = form.watch('desconto_percentual') || 0;
 
-    const subtotalProdutos = items.reduce((sum, item) => sum + (item.quantidade * item.preco_unitario), 0);
-    const subtotalServicos = servicos.reduce((sum, servico) => sum + (servico.quantidade * servico.valor_unitario), 0);
+    const subtotalProdutos = items.reduce((sum, item) => sum + (Number(item.quantidade) * Number(item.preco_unitario)), 0);
+    const subtotalServicos = servicos.reduce((sum, servico) => sum + (Number(servico.quantidade) * Number(servico.valor_unitario)), 0);
     const subtotal = subtotalProdutos + subtotalServicos;
     
     const descontoPercentualValor = subtotal * (descontoPercentual / 100);
     const valorTotal = Math.max(0, subtotal - descontoValor - descontoPercentualValor);
 
-    const totalMetros = items.reduce((sum, item) => sum + (item.quantidade || 0), 0); // Garantir que item.quantidade seja tratado como número ou 0
+    // Garantir que a quantidade seja tratada como número para o cálculo de metros
+    const totalMetros = items.reduce((sum, item) => sum + Number(item.quantidade || 0), 0); 
     
     return {
       subtotalProdutos,
@@ -510,7 +511,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                     {totalMetros > 0 && (
                       <div className="mt-2 p-2 bg-primary/10 rounded-md text-sm font-semibold text-primary flex justify-between items-center">
                         <span>Total de Metros (M²):</span>
-                        <span>{totalMetros.toFixed(2)} M²</span>
+                        <span>{Number(totalMetros).toFixed(2)} M²</span>
                       </div>
                     )}
                     
