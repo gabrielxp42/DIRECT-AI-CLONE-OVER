@@ -330,12 +330,14 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
     const descontoPercentualValor = subtotal * (descontoPercentual / 100);
     const valorTotal = Math.max(0, subtotal - descontoValor - descontoPercentualValor);
 
+    const totalMetros = items.reduce((sum, item) => sum + (item.quantidade || 0), 0); // Garantir que item.quantidade seja tratado como número ou 0
+    
     return {
       subtotalProdutos,
       subtotalServicos,
       subtotal,
       valorTotal,
-      totalMetros: items.reduce((sum, item) => sum + item.quantidade, 0)
+      totalMetros: totalMetros
     };
   };
 
