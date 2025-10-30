@@ -50,6 +50,7 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { removeAccents } from "@/utils/string";
+import { Separator } from "@/components/ui/separator"; // Importar Separator
 
 const formSchema = z.object({
   cliente_id: z.string().min(1, { message: "Cliente é obrigatório." }),
@@ -62,7 +63,7 @@ const formSchema = z.object({
   items: z.array(z.object({
     produto_id: z.string().optional().nullable(),
     produto_nome: z.string().min(1, { message: "Nome do produto é obrigatório." }),
-    quantidade: z.coerce.number().min(1, { message: "Quantidade deve ser maior que 0." }),
+    quantidade: z.coerce.number().min(0.01, { message: "Quantidade deve ser maior que 0." }), // Alterado para 0.01 para permitir metros fracionados
     preco_unitario: z.coerce.number().min(0, { message: "Preço deve ser maior ou igual a 0." }),
     observacao: z.string().optional(),
   })).min(1, { message: "Pelo menos um item é obrigatório para o pedido." }),
@@ -280,8 +281,9 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
 
   const addItem = () => {
     const currentItems = form.getValues('items') || [];
-    form.setValue('items', [...currentItems, { produto_id: null, produto_nome: "", quantidade: 1, preco_unitario: 0, observacao: "" }]);
-    setExpandedItemIndex(currentItems.length);
+    // Adiciona o novo item no INÍCIO da lista (índice 0)
+    form.setValue('items', [{ produto_id: null, produto_nome: "", quantidade: 1, preco_unitario: 0, observacao: "" }, ...currentItems]);
+    setExpandedItemIndex(0); // Expande o item recém-adicionado no topo
   };
 
   const removeItem = (index: number) => {
@@ -328,8 +330,16 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
     const descontoPercentualValor = subtotal * (descontoPercentual / 100);
     const valorTotal = Math.max(0, subtotal - descontoValor - descontoPercentualValor);
 
-    return valorTotal;
+    return {
+      subtotalProdutos,
+      subtotalServicos,
+      subtotal,
+      valorTotal,
+      totalMetros: items.reduce((sum, item) => sum + item.quantidade, 0)
+    };
   };
+
+  const { valorTotal, totalMetros } = calculateTotal();
 
   const handleClienteSelect = (clienteId: string, clienteNome: string) => {
     form.setValue('cliente_id', clienteId);
@@ -494,7 +504,15 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                       </Button>
                     </div>
                     
-                    <div className="space-y-3">
+                    {/* Novo: Total de Metros (M²) */}
+                    {totalMetros > 0 && (
+                      <div className="mt-2 p-2 bg-primary/10 rounded-md text-sm font-semibold text-primary flex justify-between items-center">
+                        <span>Total de Metros (M²):</span>
+                        <span>{totalMetros.toFixed(2)} M²</span>
+                      </div>
+                    )}
+                    
+                    <div className="space-y-3 mt-4">
                       {form.watch('items')?.map((item, index) => (
                         <Card key={index} className="transition-all duration-300 hover:shadow-md">
                           <CardContent className="p-4">
@@ -527,9 +545,14 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                     name={`items.${index}.quantidade`}
                                     render={({ field }) => (
                                       <FormItem>
-                                        <FormLabel>Quantidade</FormLabel>
+                                        <FormLabel>Quantidade (M²)</FormLabel>
                                         <FormControl>
-                                          <Input type="number" {...field} />
+                                          <Input 
+                                            type="number" 
+                                            step="0.01" 
+                                            placeholder="1.00"
+                                            {...field} 
+                                          />
                                         </FormControl>
                                         <FormMessage />
                                       </FormItem>
@@ -654,6 +677,9 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                   </FormItem>
                 )}
               />
+
+              {/* Divisória entre Produtos e Serviços */}
+              <Separator className="my-6" />
 
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -818,7 +844,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
               />
 
               <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
-                <span className="text-lg font-medium">Total: {formatCurrency(calculateTotal())}</span>
+                <span className="text-lg font-medium">Total: {formatCurrency(valorTotal)}</span>
               </div>
 
               <DialogFooter className="gap-2">
