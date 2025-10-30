@@ -125,10 +125,19 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
       setFilteredClientes(clientes);
     } else {
       const normalizedSearch = removeAccents(clienteSearch.toLowerCase());
-      const results = clientes.filter(cliente =>
-        removeAccents(cliente.nome.toLowerCase()).includes(normalizedSearch) ||
-        (cliente.telefone && cliente.telefone.includes(clienteSearch.trim()))
-      );
+      
+      const results = clientes.filter(cliente => {
+        const normalizedClientName = removeAccents(cliente.nome.toLowerCase());
+        
+        // Verifica se o nome normalizado do cliente inclui o termo de busca normalizado
+        const nameMatch = normalizedClientName.includes(normalizedSearch);
+        
+        // Verifica se o telefone inclui o termo de busca (sem normalização de acentos, apenas dígitos)
+        const phoneMatch = cliente.telefone && cliente.telefone.includes(clienteSearch.trim());
+        
+        return nameMatch || phoneMatch;
+      });
+      
       setFilteredClientes(results);
     }
   }, [clientes, clienteSearch]);
