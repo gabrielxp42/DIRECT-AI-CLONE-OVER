@@ -511,11 +511,11 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                       </Button>
                     </div>
                     
-                    {/* Novo: Total de Metros Lineares (ML) */}
+                    {/* Novo: Total de Metros Lineares (ML) - Aumentando o contraste */}
                     {totalMetros > 0 && (
-                      <div className="mt-2 p-2 bg-primary/10 rounded-md text-sm font-semibold text-primary flex justify-between items-center">
-                        <span>Total de Metros Lineares (ML):</span>
-                        <span>{Number(totalMetros).toFixed(2)} ML</span>
+                      <div className="mt-2 p-2 bg-primary/20 rounded-md text-sm font-semibold flex justify-between items-center">
+                        <span className="text-primary-foreground">Total de Metros Lineares (ML):</span>
+                        <span className="text-primary-foreground">{Number(totalMetros).toFixed(2)} ML</span>
                       </div>
                     )}
                     
@@ -779,7 +779,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                             <div className="cursor-pointer" onClick={() => setExpandedServiceIndex(index)}>
                               <div className="font-medium text-sm">{servico.nome || "Serviço sem nome"}</div>
                               <div className="text-sm text-muted-foreground">
-                                Qtd: {servico.quantidade} | Total: {formatCurrency(servico.quantidade * servico.valor_unitario)}
+                                Qtd: {servico.quantidade} | Total: {formatCurrency(Number(servico.quantidade) * Number(servico.valor_unitario))}
                               </div>
                             </div>
                             <div className="flex items-center gap-4">
