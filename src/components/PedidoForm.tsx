@@ -362,12 +362,12 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
             <form onSubmit={form.handleSubmit(handleValidSubmit, handleInvalidSubmit)} className="space-y-6">
               
               {/* Seção de Cliente e Data */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <FormField
                   control={form.control}
                   name="cliente_id"
                   render={({ field }) => (
-                    <FormItem>
+                    <FormItem className="md:col-span-2">
                       <FormLabel className="flex items-center gap-2">
                         <User className="h-4 w-4" />
                         Cliente *
@@ -436,22 +436,22 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                   name="created_at"
                   render={({ field }) => (
                     <FormItem className="flex flex-col">
-                      <FormLabel>Data do Pedido *</FormLabel>
+                      <FormLabel>Data *</FormLabel>
                       <Popover>
                         <PopoverTrigger asChild>
                           <FormControl>
                             <Button
                               variant={"outline"}
                               className={cn(
-                                "w-full justify-start text-left font-normal",
+                                "w-full justify-start text-left font-normal h-10", // Altura padrão
                                 !field.value && "text-muted-foreground"
                               )}
                             >
                               <CalendarIcon className="mr-2 h-4 w-4" />
                               {field.value ? (
-                                format(field.value, "PPP", { locale: ptBR })
+                                format(field.value, "dd/MM/yyyy", { locale: ptBR }) // Formato mais curto
                               ) : (
-                                <span>Selecione uma data</span>
+                                <span>Hoje</span>
                               )}
                             </Button>
                           </FormControl>
