@@ -251,21 +251,23 @@ const PedidosPage: React.FC = () => {
     }
   };
 
-  const handleSubmitPedido = async (data: Omit<Pedido, 'id' | 'created_at' | 'user_id' | 'status'>, pedidoId?: string) => {
+  const handleSubmitPedido = async (data: Omit<Pedido, 'id' | 'created_at' | 'user_id' | 'status'> & { created_at: string }, pedidoId?: string) => {
     if (!session || !supabase) return;
     setIsSubmitting(true);
 
     try {
+      // Separar dados do pedido principal dos itens/serviços
+      const { items, servicos, created_at, ...pedidoData } = data;
+
       if (pedidoId) {
         // Update existing pedido
-        const { items, servicos, ...pedidoData } = data;
+        // Incluir created_at na atualização
+        const updateData = { ...pedidoData, created_at };
 
-        // Update pedido main data
         const { error: pedidoError } = await supabase
           .from('pedidos')
-          .update(pedidoData)
-          .eq('id', pedidoId)
-          .eq('user_id', session.user.id);
+          .update(updateData)
+          .eq('id', pedidoId);
         if (pedidoError) throw pedidoError;
 
         // Handle items: delete old, insert new
@@ -277,7 +279,6 @@ const PedidosPage: React.FC = () => {
         }
 
         // Handle servicos: delete old, insert new
-        // Verificar qual tabela de serviços existe
         let servicosTable = 'pedido_servicos';
         try {
           await supabase.from('pedido_servicos').select('*').limit(1);
@@ -295,10 +296,16 @@ const PedidosPage: React.FC = () => {
         showSuccess("Pedido atualizado com sucesso!");
       } else {
         // Create new pedido
-        const { items, servicos, ...pedidoData } = data;
+        const newPedidoData = { 
+          ...pedidoData, 
+          user_id: session.user.id, 
+          status: 'pendente',
+          created_at: created_at // Enviar a data de criação
+        };
+
         const { data: newPedido, error: pedidoError } = await supabase
           .from('pedidos')
-          .insert([{ ...pedidoData, user_id: session.user.id, status: 'pendente' }])
+          .insert([newPedidoData])
           .select()
           .single();
 
@@ -310,7 +317,6 @@ const PedidosPage: React.FC = () => {
           if (itemsError) throw itemsError;
         }
 
-        // Verificar qual tabela de serviços existe
         let servicosTable = 'pedido_servicos';
         try {
           await supabase.from('pedido_servicos').select('*').limit(1);

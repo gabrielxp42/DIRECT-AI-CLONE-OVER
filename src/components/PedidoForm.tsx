@@ -37,7 +37,7 @@ import { NewPedido, Pedido } from "@/types/pedido";
 import { Cliente } from "@/types/cliente";
 import { Produto } from "@/types/produto";
 import { useEffect, useState, useRef } from "react";
-import { Trash2, Plus, Search, Edit3, X, User, Package, Wrench, Save, Zap } from "lucide-react";
+import { Trash2, Plus, Search, Edit3, X, User, Package, Wrench, Save, Zap, CalendarIcon } from "lucide-react";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { QuickClientForm } from './QuickClientForm';
@@ -45,12 +45,19 @@ import { useSession } from '@/contexts/SessionProvider';
 import { showSuccess, showError } from '@/utils/toast';
 import { Card, CardContent } from '@/components/ui/card';
 import { CurrencyInput } from './CurrencyInput';
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 const formSchema = z.object({
   cliente_id: z.string().min(1, { message: "Cliente é obrigatório." }),
   observacoes: z.string().optional(),
   desconto_valor: z.coerce.number().min(0).optional(),
   desconto_percentual: z.coerce.number().min(0).max(100).optional(),
+  created_at: z.date({
+    required_error: "A data do pedido é obrigatória.",
+  }), // Novo campo de data
   items: z.array(z.object({
     produto_id: z.string().optional().nullable(),
     produto_nome: z.string().min(1, { message: "Nome do produto é obrigatório." }),
@@ -102,6 +109,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
       observacoes: "",
       desconto_valor: 0,
       desconto_percentual: 0,
+      created_at: new Date(), // Padrão para a data atual
       items: [],
       servicos: [],
     },
@@ -110,18 +118,6 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
   const isEditing = !!initialData;
   const hasInitializedRef = useRef(false); // Mudança: controlar se já foi inicializado
 
-  useEffect(() => {
-    if (clienteSearch.trim() === '') {
-      setFilteredClientes(clientes.slice(0, 50));
-    } else {
-      const filtered = clientes.filter(cliente =>
-        cliente.nome.toLowerCase().includes(clienteSearch.toLowerCase())
-      ).slice(0, 20);
-      setFilteredClientes(filtered);
-    }
-  }, [clienteSearch, clientes]);
-
-  // Efeito principal para gerenciar o estado do formulário - CORRIGIDO
   useEffect(() => {
     // Só executa quando o diálogo abre E ainda não foi inicializado
     if (isOpen && !hasInitializedRef.current) {
@@ -146,6 +142,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
           observacoes: initialData.observacoes || "",
           desconto_valor: initialData.desconto_valor || 0,
           desconto_percentual: initialData.desconto_percentual || 0,
+          created_at: new Date(initialData.created_at), // Usar a data existente
           items: itemsData,
           servicos: servicosData,
         });
@@ -159,6 +156,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
           observacoes: "",
           desconto_valor: 0,
           desconto_percentual: 0,
+          created_at: new Date(), // Resetar para a data atual
           items: [],
           servicos: [],
         });
@@ -201,6 +199,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
       desconto_valor: descontoValor,
       desconto_percentual: descontoPercentual,
       observacoes: data.observacoes,
+      created_at: data.created_at.toISOString(), // Enviar a data como ISO string
       items: items.map(item => ({
         produto_id: item.produto_id || null,
         produto_nome: item.produto_nome,
@@ -296,9 +295,9 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
     const descontoValor = form.watch('desconto_valor') || 0;
     const descontoPercentual = form.watch('desconto_percentual') || 0;
 
-    const subtotalItems = items.reduce((sum, item) => sum + (item.quantidade * item.preco_unitario), 0);
+    const subtotalProdutos = items.reduce((sum, item) => sum + (item.quantidade * item.preco_unitario), 0);
     const subtotalServicos = servicos.reduce((sum, servico) => sum + (servico.quantidade * servico.valor_unitario), 0);
-    const subtotal = subtotalItems + subtotalServicos;
+    const subtotal = subtotalProdutos + subtotalServicos;
     
     const descontoPercentualValor = subtotal * (descontoPercentual / 100);
     const valorTotal = Math.max(0, subtotal - descontoValor - descontoPercentualValor);
@@ -335,73 +334,118 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
           </DialogHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleValidSubmit, handleInvalidSubmit)} className="space-y-6">
-              <FormField
-                control={form.control}
-                name="cliente_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="flex items-center gap-2">
-                      <User className="h-4 w-4" />
-                      Cliente *
-                    </FormLabel>
-                    <Popover open={clienteOpen} onOpenChange={setClienteOpen}>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant="outline"
-                            role="combobox"
-                            aria-expanded={clienteOpen}
-                            className="w-full justify-between transition-all duration-200 hover:bg-accent/50"
-                          >
-                            {selectedClienteName || "Selecione um cliente..."}
-                            <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-full p-0" align="start">
-                        <Command>
-                          <CommandInput 
-                            placeholder="Buscar cliente..." 
-                            value={clienteSearch}
-                            onValueChange={setClienteSearch}
-                          />
-                          <CommandList>
-                            <CommandEmpty>Nenhum cliente encontrado.</CommandEmpty>
-                            <CommandGroup>
-                              {filteredClientes.map((cliente) => (
-                                <CommandItem
-                                  key={cliente.id}
-                                  value={cliente.nome}
-                                  onSelect={() => handleClienteSelect(cliente.id, cliente.nome)}
-                                  className="cursor-pointer"
+              
+              {/* Seção de Cliente e Data */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="cliente_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-2">
+                        <User className="h-4 w-4" />
+                        Cliente *
+                      </FormLabel>
+                      <Popover open={clienteOpen} onOpenChange={setClienteOpen}>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              aria-expanded={clienteOpen}
+                              className="w-full justify-between transition-all duration-200 hover:bg-accent/50"
+                            >
+                              {selectedClienteName || "Selecione um cliente..."}
+                              <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-full p-0" align="start">
+                          <Command>
+                            <CommandInput 
+                              placeholder="Buscar cliente..." 
+                              value={clienteSearch}
+                              onValueChange={setClienteSearch}
+                            />
+                            <CommandList>
+                              <CommandEmpty>Nenhum cliente encontrado.</CommandEmpty>
+                              <CommandGroup>
+                                {filteredClientes.map((cliente) => (
+                                  <CommandItem
+                                    key={cliente.id}
+                                    value={cliente.nome}
+                                    onSelect={() => handleClienteSelect(cliente.id, cliente.nome)}
+                                    className="cursor-pointer"
+                                  >
+                                    <User className="mr-2 h-4 w-4" />
+                                    {cliente.nome}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                              <div className="border-t p-2">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  className="w-full justify-start text-primary hover:text-primary hover:bg-primary/10 transition-all duration-200"
+                                  onClick={() => {
+                                    setClienteOpen(false);
+                                    setIsQuickClientFormOpen(true);
+                                  }}
                                 >
-                                  <User className="mr-2 h-4 w-4" />
-                                  {cliente.nome}
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
-                            <div className="border-t p-2">
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                className="w-full justify-start text-primary hover:text-primary hover:bg-primary/10 transition-all duration-200"
-                                onClick={() => {
-                                  setClienteOpen(false);
-                                  setIsQuickClientFormOpen(true);
-                                }}
-                              >
-                                <Plus className="mr-2 h-4 w-4" />
-                                Adicionar Novo Cliente
-                              </Button>
-                            </div>
-                          </CommandList>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                                  <Plus className="mr-2 h-4 w-4" />
+                                  Adicionar Novo Cliente
+                                </Button>
+                              </div>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="created_at"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                      <FormLabel>Data do Pedido *</FormLabel>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant={"outline"}
+                              className={cn(
+                                "w-full justify-start text-left font-normal",
+                                !field.value && "text-muted-foreground"
+                              )}
+                            >
+                              <CalendarIcon className="mr-2 h-4 w-4" />
+                              {field.value ? (
+                                format(field.value, "PPP", { locale: ptBR })
+                              ) : (
+                                <span>Selecione uma data</span>
+                              )}
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={field.value}
+                            onSelect={field.onChange}
+                            locale={ptBR}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              {/* Fim Seção de Cliente e Data */}
 
               <FormField
                 control={form.control}
@@ -473,7 +517,11 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                       <FormItem>
                                         <FormLabel>Preço Unitário</FormLabel>
                                         <FormControl>
-                                          <CurrencyInput {...field} />
+                                          <CurrencyInput 
+                                            value={field.value} 
+                                            onChange={(value) => field.onChange(value)}
+                                            placeholder="0,00"
+                                          />
                                         </FormControl>
                                         <FormMessage />
                                       </FormItem>
@@ -652,7 +700,11 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                   <FormItem>
                                     <FormLabel>Valor Unitário</FormLabel>
                                     <FormControl>
-                                      <CurrencyInput {...field} />
+                                      <CurrencyInput 
+                                        value={field.value} 
+                                        onChange={(value) => field.onChange(value)}
+                                        placeholder="0,00"
+                                      />
                                     </FormControl>
                                   </FormItem>
                                 )}
@@ -700,7 +752,11 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                     <FormItem>
                       <FormLabel>Desconto (R$)</FormLabel>
                       <FormControl>
-                        <CurrencyInput {...field} />
+                        <CurrencyInput 
+                          value={field.value} 
+                          onChange={(value) => field.onChange(value)}
+                          placeholder="0,00"
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
