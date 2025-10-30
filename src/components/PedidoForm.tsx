@@ -63,7 +63,7 @@ const formSchema = z.object({
   items: z.array(z.object({
     produto_id: z.string().optional().nullable(),
     produto_nome: z.string().min(1, { message: "Nome do produto é obrigatório." }),
-    quantidade: z.coerce.number().min(0.01, { message: "Quantidade deve ser maior que 0." }), // Alterado para 0.01 para permitir metros fracionados
+    quantidade: z.coerce.number().min(0.01, { message: "Quantidade deve ser maior que 0." }), // Permite frações
     preco_unitario: z.coerce.number().min(0, { message: "Preço deve ser maior ou igual a 0." }),
     observacao: z.string().optional(),
   })).min(1, { message: "Pelo menos um item é obrigatório para o pedido." }),
@@ -209,8 +209,8 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
     const descontoValor = data.desconto_valor || 0;
     const descontoPercentual = data.desconto_percentual || 0;
 
-    const subtotalProdutos = items.reduce((sum, item) => sum + (item.quantidade * item.preco_unitario), 0);
-    const subtotalServicos = servicos.reduce((sum, servico) => sum + (servico.quantidade * servico.valor_unitario), 0);
+    const subtotalProdutos = items.reduce((sum, item) => sum + (Number(item.quantidade) * Number(item.preco_unitario)), 0);
+    const subtotalServicos = servicos.reduce((sum, servico) => sum + (Number(servico.quantidade) * Number(servico.valor_unitario)), 0);
     const subtotal = subtotalProdutos + subtotalServicos;
     
     const descontoPercentualValor = subtotal * (descontoPercentual / 100);
@@ -228,11 +228,15 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
       items: items.map(item => ({
         produto_id: item.produto_id || null,
         produto_nome: item.produto_nome,
-        quantidade: item.quantidade,
-        preco_unitario: item.preco_unitario,
+        quantidade: Number(item.quantidade), // Garantir que seja number antes de enviar
+        preco_unitario: Number(item.preco_unitario), // Garantir que seja number antes de enviar
         observacao: item.observacao,
       })),
-      servicos: servicos,
+      servicos: servicos.map(servico => ({
+        ...servico,
+        quantidade: Number(servico.quantidade), // Garantir que seja number antes de enviar
+        valor_unitario: Number(servico.valor_unitario), // Garantir que seja number antes de enviar
+      })),
     };
 
     onSubmit(formattedData, initialData?.id);
