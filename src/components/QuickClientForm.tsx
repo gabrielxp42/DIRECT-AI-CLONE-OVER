@@ -19,7 +19,9 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { User, Phone, Mail } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { User, Phone, Mail, MapPin, DollarSign } from "lucide-react";
+import { CurrencyInput } from "@/components/CurrencyInput";
 
 const formSchema = z.object({
   nome: z.string().min(2, { message: "O nome deve ter pelo menos 2 caracteres." }),
@@ -28,6 +30,12 @@ const formSchema = z.object({
     if (!val || val === '') return true;
     return z.string().email().safeParse(val).success;
   }, { message: "Por favor, insira um email válido." }),
+  endereco: z.string().optional(),
+  valor_metro: z.union([
+    z.number().min(0, { message: "O valor deve ser maior ou igual a zero." }),
+    z.null(),
+    z.undefined()
+  ]).optional(),
 });
 
 type QuickClientFormValues = z.infer<typeof formSchema>;
@@ -46,6 +54,8 @@ export const QuickClientForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting }
       nome: "",
       telefone: "",
       email: "",
+      endereco: "",
+      valor_metro: 0,
     },
   });
 
@@ -130,6 +140,47 @@ export const QuickClientForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting }
                       {...field} 
                       value={field.value || ''}
                       className="transition-all duration-200 focus:ring-2 focus:ring-primary/20"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="endereco"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="flex items-center gap-2">
+                    <MapPin className="h-4 w-4" />
+                    Endereço
+                  </FormLabel>
+                  <FormControl>
+                    <Textarea 
+                      placeholder="Endereço completo do cliente" 
+                      {...field} 
+                      value={field.value || ''}
+                      className="transition-all duration-200 focus:ring-2 focus:ring-primary/20"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="valor_metro"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="flex items-center gap-2">
+                    <DollarSign className="h-4 w-4" />
+                    Valor do Metro (R$)
+                  </FormLabel>
+                  <FormControl>
+                    <CurrencyInput 
+                      value={field.value || 0}
+                      onChange={field.onChange}
+                      placeholder="0,00" 
                     />
                   </FormControl>
                   <FormMessage />
