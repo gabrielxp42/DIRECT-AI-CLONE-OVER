@@ -50,7 +50,7 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { removeAccents } from "@/utils/string";
-import { Separator } from "@/components/ui/separator"; // Importar Separator
+import { Separator } from "@/components/ui/separator";
 
 const formSchema = z.object({
   cliente_id: z.string().min(1, { message: "Cliente é obrigatório." }),
@@ -59,11 +59,11 @@ const formSchema = z.object({
   desconto_percentual: z.coerce.number().min(0).max(100).optional(),
   created_at: z.date({
     required_error: "A data do pedido é obrigatória.",
-  }), // Novo campo de data
+  }),
   items: z.array(z.object({
     produto_id: z.string().optional().nullable(),
     produto_nome: z.string().min(1, { message: "Nome do produto é obrigatório." }),
-    quantidade: z.coerce.number().min(0.01, { message: "Quantidade deve ser maior que 0." }), // Permite frações
+    quantidade: z.coerce.number().min(0.01, { message: "Quantidade deve ser maior que 0." }),
     preco_unitario: z.coerce.number().min(0, { message: "Preço deve ser maior ou igual a 0." }),
     observacao: z.string().optional(),
   })).min(1, { message: "Pelo menos um item é obrigatório para o pedido." }),
@@ -111,14 +111,14 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
       observacoes: "",
       desconto_valor: 0,
       desconto_percentual: 0,
-      created_at: new Date(), // Padrão para a data atual
+      created_at: new Date(),
       items: [],
       servicos: [],
     },
   });
 
   const isEditing = !!initialData;
-  const hasInitializedRef = useRef(false); // Mudança: controlar se já foi inicializado
+  const hasInitializedRef = useRef(false);
 
   // Efeito para filtrar clientes
   useEffect(() => {
@@ -130,10 +130,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
       const results = clientes.filter(cliente => {
         const normalizedClientName = removeAccents(cliente.nome.toLowerCase());
         
-        // Verifica se o nome normalizado do cliente inclui o termo de busca normalizado
         const nameMatch = normalizedClientName.includes(normalizedSearch);
-        
-        // Verifica se o telefone inclui o termo de busca (sem normalização de acentos, apenas dígitos)
         const phoneMatch = cliente.telefone && cliente.telefone.includes(clienteSearch.trim());
         
         return nameMatch || phoneMatch;
@@ -144,10 +141,8 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
   }, [clientes, clienteSearch]);
 
   useEffect(() => {
-    // Só executa quando o diálogo abre E ainda não foi inicializado
     if (isOpen && !hasInitializedRef.current) {
       if (isEditing && initialData) {
-        // Modo de edição: preencher com dados do pedido existente
         const itemsData = initialData.pedido_items?.map((item: any) => ({
           produto_id: item.produto_id,
           produto_nome: item.produto_nome || item.produtos?.nome || '',
@@ -167,7 +162,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
           observacoes: initialData.observacoes || "",
           desconto_valor: initialData.desconto_valor || 0,
           desconto_percentual: initialData.desconto_percentual || 0,
-          created_at: new Date(initialData.created_at), // Usar a data existente
+          created_at: new Date(initialData.created_at),
           items: itemsData,
           servicos: servicosData,
         });
@@ -175,33 +170,29 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
         setSelectedClienteName(selectedClient ? selectedClient.nome : '');
         
       } else {
-        // Modo de criação: resetar apenas uma vez
         form.reset({
           cliente_id: "",
           observacoes: "",
           desconto_valor: 0,
           desconto_percentual: 0,
-          created_at: new Date(), // Resetar para a data atual
+          created_at: new Date(),
           items: [],
           servicos: [],
         });
         setSelectedClienteName('');
       }
       
-      // Resetar outros estados de UI
       setClienteSearch('');
       setExpandedItemIndex(null);
       setExpandedServiceIndex(null);
       
-      // Marcar como inicializado
       hasInitializedRef.current = true;
     }
     
-    // Quando o diálogo fecha, resetar a flag para permitir nova inicialização
     if (!isOpen) {
       hasInitializedRef.current = false;
     }
-  }, [isOpen, isEditing, initialData, form, clientes]); // Mantém as dependências necessárias
+  }, [isOpen, isEditing, initialData, form, clientes]);
 
   const handleValidSubmit = (data: PedidoFormValues) => {
     const items = data.items || [];
@@ -224,18 +215,18 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
       desconto_valor: descontoValor,
       desconto_percentual: descontoPercentual,
       observacoes: data.observacoes,
-      created_at: data.created_at.toISOString(), // Enviar a data como ISO string
+      created_at: data.created_at.toISOString(),
       items: items.map(item => ({
         produto_id: item.produto_id || null,
         produto_nome: item.produto_nome,
-        quantidade: Number(item.quantidade), // Garantir que seja number antes de enviar
-        preco_unitario: Number(item.preco_unitario), // Garantir que seja number antes de enviar
+        quantidade: Number(item.quantidade),
+        preco_unitario: Number(item.preco_unitario),
         observacao: item.observacao,
       })),
       servicos: servicos.map(servico => ({
         ...servico,
-        quantidade: Number(servico.quantidade), // Garantir que seja number antes de enviar
-        valor_unitario: Number(servico.valor_unitario), // Garantir que seja number antes de enviar
+        quantidade: Number(servico.quantidade),
+        valor_unitario: Number(servico.valor_unitario),
       })),
     };
 
@@ -247,7 +238,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
     showError("Por favor, corrija os erros no formulário antes de enviar.");
   };
 
-  const handleQuickClientSubmit = async (clientData: { nome: string; telefone?: string; email?: string }) => {
+  const handleQuickClientSubmit = async (clientData: { nome: string; telefone?: string; email?: string; endereco?: string; valor_metro?: number }) => {
     if (!session || !supabase) return;
     
     setIsCreatingClient(true);
@@ -258,6 +249,8 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
           ...clientData, 
           telefone: clientData.telefone || null,
           email: clientData.email || null,
+          endereco: clientData.endereco || null,
+          valor_metro: clientData.valor_metro || null,
           user_id: session.user.id,
           status: 'ativo'
         }])
@@ -266,10 +259,6 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
 
       if (error) throw error;
 
-      // Nota: A lista de clientes na página Pedidos.tsx precisa ser atualizada
-      // para que o novo cliente apareça na próxima vez que o formulário for aberto.
-      // Por enquanto, apenas atualizamos o estado local do formulário.
-      
       form.setValue('cliente_id', result.id);
       setSelectedClienteName(result.nome);
       setClienteOpen(false);
@@ -285,9 +274,8 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
 
   const addItem = () => {
     const currentItems = form.getValues('items') || [];
-    // Adiciona o novo item no INÍCIO da lista (índice 0)
     form.setValue('items', [{ produto_id: null, produto_nome: "", quantidade: 1, preco_unitario: 0, observacao: "" }, ...currentItems]);
-    setExpandedItemIndex(0); // Expande o item recém-adicionado no topo
+    setExpandedItemIndex(0);
   };
 
   const removeItem = (index: number) => {
@@ -334,7 +322,6 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
     const descontoPercentualValor = subtotal * (descontoPercentual / 100);
     const valorTotal = Math.max(0, subtotal - descontoValor - descontoPercentualValor);
 
-    // Garantir que a quantidade seja tratada como número para o cálculo de metros
     const totalMetros = items.reduce((sum, item) => sum + Number(item.quantidade || 0), 0); 
     
     return {
@@ -378,7 +365,6 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleValidSubmit, handleInvalidSubmit)} className="space-y-6">
               
-              {/* Seção de Cliente e Data */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <FormField
                   control={form.control}
@@ -410,7 +396,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                               value={clienteSearch}
                               onValueChange={setClienteSearch}
                             />
-                            <CommandList>
+                            <CommandList className="max-h-[300px] overflow-y-auto">
                               <CommandEmpty>Nenhum cliente encontrado.</CommandEmpty>
                               <CommandGroup>
                                 {filteredClientes.map((cliente) => (
@@ -421,7 +407,12 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                     className="cursor-pointer"
                                   >
                                     <User className="mr-2 h-4 w-4" />
-                                    {cliente.nome}
+                                    <div className="flex flex-col">
+                                      <span>{cliente.nome}</span>
+                                      {cliente.telefone && (
+                                        <span className="text-xs text-muted-foreground">{cliente.telefone}</span>
+                                      )}
+                                    </div>
                                   </CommandItem>
                                 ))}
                               </CommandGroup>
@@ -460,13 +451,13 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                             <Button
                               variant={"outline"}
                               className={cn(
-                                "w-full justify-start text-left font-normal h-10", // Altura padrão
+                                "w-full justify-start text-left font-normal h-10",
                                 !field.value && "text-muted-foreground"
                               )}
                             >
                               <CalendarIcon className="mr-2 h-4 w-4" />
                               {field.value ? (
-                                format(field.value, "dd/MM/yyyy", { locale: ptBR }) // Formato mais curto
+                                format(field.value, "dd/MM/yyyy", { locale: ptBR })
                               ) : (
                                 <span>Hoje</span>
                               )}
@@ -488,7 +479,6 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                   )}
                 />
               </div>
-              {/* Fim Seção de Cliente e Data */}
 
               <FormField
                 control={form.control}
@@ -511,7 +501,6 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                       </Button>
                     </div>
                     
-                    {/* Novo: Total de Metros Lineares (ML) - Aumentando o contraste */}
                     {totalMetros > 0 && (
                       <div className="mt-2 p-2 bg-primary/20 rounded-md text-sm font-semibold flex justify-between items-center">
                         <span className="text-primary-foreground">Total de Metros Lineares (ML):</span>
@@ -685,7 +674,6 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                 )}
               />
 
-              {/* Divisória entre Produtos e Serviços */}
               <Separator className="my-6" />
 
               <div className="space-y-4">
