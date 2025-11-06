@@ -6,7 +6,7 @@ import { Cliente } from '@/types/cliente';
 import { Produto } from '@/types/produto';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Plus, Search, Filter, Eye, Edit, Trash2, Loader2, CalendarIcon, DollarSign, FileText, Wrench, History, MessageSquare, MoreHorizontal, User, Clock, CheckCircle, XCircle, Package, X } from 'lucide-react';
+import { Plus, Search, Filter, Eye, Edit, Trash2, Loader2, CalendarIcon, DollarSign, FileText, Wrench, History, MessageSquare, MoreHorizontal, User, Clock, CheckCircle, XCircle, Package, X, Printer } from 'lucide-react';
 import { PedidoForm } from '@/components/PedidoForm';
 import { PedidoDetails } from '@/components/PedidoDetails';
 import { showSuccess, showError } from '@/utils/toast';
@@ -198,6 +198,10 @@ const PedidosPage: React.FC = () => {
   const handleViewStatusHistory = (pedido: Pedido) => {
     setViewingStatusHistory(pedido);
     setIsStatusHistoryOpen(true);
+  };
+
+  const handlePrintPedido = () => {
+    window.print();
   };
 
   const handleSubmitStatusChange = async (newStatus: string, observacao?: string) => {
@@ -672,6 +676,17 @@ const PedidosPage: React.FC = () => {
                     title="Gerar PDF"
                   >
                     <FileText className="h-4 w-4" />
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={(e) => { 
+                      e.stopPropagation(); 
+                      handlePrintPedido(); 
+                    }}
+                    title="Imprimir"
+                  >
+                    <Printer className="h-4 w-4" />
                   </Button>
                   <Button 
                     variant="outline" 
