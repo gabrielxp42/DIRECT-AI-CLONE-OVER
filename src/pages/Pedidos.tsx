@@ -200,10 +200,6 @@ const PedidosPage: React.FC = () => {
     setIsStatusHistoryOpen(true);
   };
 
-  const handlePrintPedido = () => {
-    window.print();
-  };
-
   const handleSubmitStatusChange = async (newStatus: string, observacao?: string) => {
     if (!statusChangePedido || !supabase) return;
     
@@ -682,9 +678,9 @@ const PedidosPage: React.FC = () => {
                     size="sm" 
                     onClick={(e) => { 
                       e.stopPropagation(); 
-                      handlePrintPedido(); 
+                      handleGeneratePDF(pedido); 
                     }}
-                    title="Imprimir"
+                    title="Imprimir Nota"
                   >
                     <Printer className="h-4 w-4" />
                   </Button>
