@@ -121,6 +121,34 @@ const PedidosPage: React.FC = () => {
     setViewingStatusHistory(pedido);
     setIsStatusHistoryOpen(true);
   };
+  
+  // --- Funções de PDF ---
+  const handleDownloadPDF = async (pedido: Pedido) => {
+    try {
+      if ((!pedido.pedido_items || pedido.pedido_items.length === 0) && (!pedido.servicos || pedido.servicos.length === 0)) {
+        showError("O pedido não possui itens ou serviços para gerar o PDF.");
+        return;
+      }
+      await generateOrderPDF(pedido, 'save');
+      showSuccess("PDF gerado e baixado com sucesso!");
+    } catch (error: any) {
+      showError(`Erro ao gerar PDF: ${error.message}`);
+    }
+  };
+
+  const handlePrintPDF = async (pedido: Pedido) => {
+    try {
+      if ((!pedido.pedido_items || pedido.pedido_items.length === 0) && (!pedido.servicos || pedido.servicos.length === 0)) {
+        showError("O pedido não possui itens ou serviços para imprimir.");
+        return;
+      }
+      await generateOrderPDF(pedido, 'print');
+    } catch (error: any) {
+      showError(`Erro ao gerar PDF para impressão: ${error.message}`);
+    }
+  };
+  // --- Fim Funções de PDF ---
+
 
   // --- Mutações ---
 
@@ -578,47 +606,64 @@ const PedidosPage: React.FC = () => {
                 )}
 
                 <div className="flex justify-end gap-2 pt-3 border-t mt-3">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={(e) => { 
-                      e.stopPropagation(); 
-                      handleDownloadPDF(pedido); 
-                    }}
-                    title="Gerar PDF"
-                  >
-                    <FileText className="h-4 w-4" />
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={(e) => { 
-                      e.stopPropagation(); 
-                      handlePrintPDF(pedido); 
-                    }}
-                    title="Imprimir Nota"
-                  >
-                    <Printer className="h-4 w-4" />
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={(e) => { 
-                      e.stopPropagation(); 
-                      handleStatusChange(pedido); 
-                    }}
-                    title="Alterar Status"
-                  >
-                    <Wrench className="h-4 w-4" />
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button 
+                        variant="outline" 
+                        size="icon" 
+                        onClick={(e) => { 
+                          e.stopPropagation(); 
+                          handleDownloadPDF(pedido); 
+                        }}
+                        className="h-9 w-9"
+                      >
+                        <FileText className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Baixar PDF</TooltipContent>
+                  </Tooltip>
+                  
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button 
+                        variant="outline" 
+                        size="icon" 
+                        onClick={(e) => { 
+                          e.stopPropagation(); 
+                          handlePrintPDF(pedido); 
+                        }}
+                        className="h-9 w-9"
+                      >
+                        <Printer className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Imprimir Nota</TooltipContent>
+                  </Tooltip>
+                  
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button 
+                        variant="outline" 
+                        size="icon" 
+                        onClick={(e) => { 
+                          e.stopPropagation(); 
+                          handleStatusChange(pedido); 
+                        }}
+                        className="h-9 w-9"
+                      >
+                        <Wrench className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Alterar Status</TooltipContent>
+                  </Tooltip>
 
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button 
                         variant="outline" 
-                        size="sm" 
+                        size="icon" 
                         onClick={(e) => e.stopPropagation()}
-                        title="Mais Ações"
+                        className="h-9 w-9"
                       >
                         <MoreHorizontal className="h-4 w-4" />
                       </Button>
