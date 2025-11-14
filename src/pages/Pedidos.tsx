@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useSession } from '@/contexts/SessionProvider';
-import { Pedido, StatusHistoryItem } from '@/types/pedido';
+import { Pedido, StatusHistoryItem, PedidoStatus } from '@/types/pedido';
 import { Cliente } from '@/types/cliente';
 import { Produto } from '@/types/produto';
 import { Button } from '@/components/ui/button';
@@ -206,9 +206,10 @@ const PedidosPage: React.FC = () => {
     try {
       const statusAnterior = statusChangePedido.status;
 
+      // Atualizar o campo status no banco de dados
       const { error } = await supabase
-        .from('pedidos') // CORRIGIDO: Usando 'pedidos' para UPDATE
-        .update({ status: newStatus })
+        .from('pedidos') 
+        .update({ status: newStatus }) // Usando a coluna 'status'
         .eq('id', statusChangePedido.id);
       
       if (error) throw error;
@@ -274,11 +275,15 @@ const PedidosPage: React.FC = () => {
 
       if (pedidoId) {
         // Update existing pedido
-        // Incluir created_at e total_metros na atualização
-        const updateData = { ...pedidoData, created_at };
+        // Incluir created_at na atualização
+        const updateData = { 
+          ...pedidoData, 
+          created_at,
+          status: editingPedido?.status || 'pendente' // Manter o status atual ou 'pendente'
+        };
 
         const { error: pedidoError } = await supabase
-          .from('pedidos') // CORRIGIDO: Usando 'pedidos' para UPDATE
+          .from('pedidos') 
           .update(updateData)
           .eq('id', pedidoId);
         if (pedidoError) throw pedidoError;
@@ -312,12 +317,12 @@ const PedidosPage: React.FC = () => {
         const newPedidoData = { 
           ...pedidoData, 
           user_id: session.user.id, 
-          status: 'pendente',
+          // Não enviar 'status' para usar o valor padrão do banco ('pendente')
           created_at: created_at // Enviar a data de criação
         };
 
         const { data: newPedido, error: pedidoError } = await supabase
-          .from('pedidos') // CORRIGIDO: Usando 'pedidos' para INSERT
+          .from('pedidos') 
           .insert([newPedidoData])
           .select()
           .single();

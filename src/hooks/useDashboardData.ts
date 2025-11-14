@@ -36,7 +36,7 @@ export const useDashboardData = () => {
       const firstDayPreviousMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1);
       const lastDayPreviousMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 0);
 
-      // Fetch current month orders (REMOVENDO total_metros da seleção direta)
+      // Fetch current month orders
       const { data: currentOrders, error: currentOrdersError } = await supabase
         .from("pedidos")
         .select("valor_total, created_at, status")
@@ -45,7 +45,7 @@ export const useDashboardData = () => {
 
       if (currentOrdersError) throw new Error(currentOrdersError.message);
 
-      // Fetch previous month orders (REMOVENDO total_metros da seleção direta)
+      // Fetch previous month orders
       const { data: previousOrders, error: previousOrdersError } = await supabase
         .from("pedidos")
         .select("valor_total, created_at")

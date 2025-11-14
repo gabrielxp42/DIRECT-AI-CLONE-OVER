@@ -30,6 +30,8 @@ export interface StatusHistoryItem {
   user_id: string | null;
 }
 
+export type PedidoStatus = 'pendente' | 'processando' | 'enviado' | 'entregue' | 'cancelado' | 'pago' | 'aguardando retirada';
+
 export interface Pedido {
   id: string;
   cliente_id: string;
@@ -39,8 +41,8 @@ export interface Pedido {
   subtotal_servicos: number;
   desconto_valor: number;
   desconto_percentual: number;
-  total_metros: number; // NOVO: Total de metros lineares
-  status: 'pendente' | 'processando' | 'enviado' | 'entregue' | 'cancelado' | 'pago' | 'aguardando retirada'; // Tipos de status atualizados
+  total_metros: number; // Total de metros lineares
+  status: PedidoStatus; // Tipos de status atualizados
   observacoes: string | null;
   created_at: string;
   order_number: number;
@@ -73,8 +75,8 @@ export interface NewPedido {
   subtotal_servicos: number;
   desconto_valor?: number;
   desconto_percentual?: number;
-  total_metros: number; // NOVO: Total de metros lineares
-  status: 'pendente' | 'processando' | 'enviado' | 'entregue' | 'cancelado' | 'pago' | 'aguardando retirada'; // Tipos de status atualizados
+  total_metros: number; // Total de metros lineares
+  status: PedidoStatus; // Status de pagamento/geral
   observacoes?: string;
   items: NewPedidoItem[];
   servicos?: NewServico[];

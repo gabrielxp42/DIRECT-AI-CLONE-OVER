@@ -206,8 +206,8 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
       const statusAnterior = pedido.status;
       
       const { error } = await supabase
-        .from('pedidos') // CORRIGIDO: Usando 'pedidos' para UPDATE
-        .update({ status: newStatus })
+        .from('pedidos') 
+        .update({ status: newStatus }) // Usando a coluna 'status'
         .eq('id', pedido.id);
       
       if (error) throw error;

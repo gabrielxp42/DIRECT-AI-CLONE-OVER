@@ -416,7 +416,7 @@ export const openAIFunctions = [
         },
         allTime: { // NEW PARAMETER
           type: "boolean",
-          description: "Se verdadeiro, ignora startDate e endDate e busca pedidos desde o início. Use para perguntas como 'quantos vendemos desde que começamos?'"
+          description: "Se verdadeiro, ignora startDate e endDate e busca pedidos desde o início."
         }
       },
       required: []
@@ -1480,7 +1480,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
 
       const { error: updateError } = await supabase
         .from('pedidos') // USANDO 'pedidos' para UPDATE
-        .update({ status: newStatus })
+        .update({ status: newStatus }) // USANDO A COLUNA CORRETA 'status'
         .eq('id', fullOrderId);
 
       if (updateError) {
