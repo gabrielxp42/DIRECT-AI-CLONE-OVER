@@ -5,6 +5,7 @@ import { Pedido } from "@/types/pedido";
 interface ClientMetrics {
   totalSpent: number;
   totalOrdersCount: number;
+  totalMeters: number; // NOVO: Total de metros lineares
   lastOrderDate: string | null;
   lastOrders: Pedido[];
 }
@@ -21,6 +22,7 @@ const fetchClientMetrics = async (supabase: any, clientId: string): Promise<Clie
 
   const totalSpent = allOrders?.reduce((sum, order) => sum + order.valor_total, 0) || 0;
   const totalOrdersCount = allOrders?.length || 0;
+  const totalMeters = allOrders?.reduce((sum, order) => sum + (order.total_metros || 0), 0) || 0; // Cálculo do total de metros
   const lastOrderDate = allOrders?.[0]?.created_at || null;
 
   // 2. Limitar aos 5 últimos pedidos para exibição
@@ -42,6 +44,7 @@ const fetchClientMetrics = async (supabase: any, clientId: string): Promise<Clie
   return {
     totalSpent,
     totalOrdersCount,
+    totalMeters, // Retornando o novo campo
     lastOrderDate,
     lastOrders,
   };

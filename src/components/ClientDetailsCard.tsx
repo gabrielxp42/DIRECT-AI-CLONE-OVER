@@ -1,7 +1,7 @@
 import React from 'react';
 import { Cliente } from '@/types/cliente';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { DollarSign, ShoppingCart, Calendar, Clock, Loader2, User, ArrowRight } from 'lucide-react';
+import { DollarSign, ShoppingCart, Calendar, Clock, Loader2, User, ArrowRight, Ruler } from 'lucide-react';
 import { useClientMetrics } from '@/hooks/useClientMetrics';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -22,6 +22,10 @@ const formatCurrency = (value: number) => {
     style: 'currency',
     currency: 'BRL'
   }).format(value);
+};
+
+const formatMeters = (value: number) => {
+  return `${value.toFixed(2)} ML`;
 };
 
 const getStatusColor = (status: string) => {
@@ -92,7 +96,16 @@ export const ClientDetailsCard: React.FC<ClientDetailsCardProps> = ({ cliente, o
                   {metrics?.totalOrdersCount || 0}
                 </div>
               </Card>
-              <Card className="p-3 col-span-2">
+              <Card className="p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-muted-foreground">Total de Metros (ML)</span>
+                  <Ruler className="h-4 w-4 text-blue-600" />
+                </div>
+                <div className="text-2xl font-bold mt-1">
+                  {formatMeters(metrics?.totalMeters || 0)}
+                </div>
+              </Card>
+              <Card className="p-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-muted-foreground">Último Pedido</span>
                   <Calendar className="h-4 w-4 text-blue-600" />
