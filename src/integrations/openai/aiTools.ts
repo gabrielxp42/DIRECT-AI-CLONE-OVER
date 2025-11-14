@@ -219,6 +219,7 @@ export const get_total_meters_by_period = async (args: {
   }
 
   try {
+    // Usando a função RPC corrigida que usa a tabela 'orders'
     const { data, error } = await supabase.rpc('get_total_meters_by_period', {
       p_start_date: startDate,
       p_end_date: endDate
@@ -518,9 +519,10 @@ export const openAIFunctions = [
 const findOrderByNumber = async (orderNumber: number) => {
   console.log(`🔍 [findOrderByNumber] Buscando pedido #${orderNumber}...`);
   
-  // Strategy 1: Try RPC function first
+  // Strategy 1: Try RPC function first (assuming it uses 'orders' internally)
   try {
     console.log('📍 [findOrderByNumber] Tentativa 1: Usando função RPC get_order_uuid_by_number');
+    // NOTE: Assuming get_order_uuid_by_number uses the correct table name ('orders') internally.
     const { data: fullOrderId, error: rpcError } = await supabase.rpc('get_order_uuid_by_number', { p_order_number: orderNumber });
     
     if (!rpcError && fullOrderId) {
@@ -537,11 +539,11 @@ const findOrderByNumber = async (orderNumber: number) => {
     console.log('❌ [findOrderByNumber] Erro ao chamar RPC:', error);
   }
 
-  // Strategy 2: Direct query fallback
+  // Strategy 2: Direct query fallback using 'orders' table
   try {
-    console.log('📍 [findOrderByNumber] Tentativa 2: Busca direta na tabela pedidos');
+    console.log('📍 [findOrderByNumber] Tentativa 2: Busca direta na tabela orders');
     const { data: orders, error: directError } = await supabase
-      .from('pedidos')
+      .from('orders') // CORRIGIDO: Usando 'orders'
       .select('id')
       .eq('order_number', orderNumber)
       .limit(1);
@@ -685,7 +687,7 @@ const fetchCompleteOrderData = async (fullOrderId: string) => {
   
   try {
     const { data: orderData, error: fetchError } = await supabase
-      .from('pedidos')
+      .from('orders') // CORRIGIDO: Usando 'orders'
       .select(`
         *,
         clientes (
@@ -792,7 +794,7 @@ export const list_orders = async (args: {
   console.log(`📊 [list_orders] Datas finais para consulta:`, { startDate, endDate }); // Log final dates
 
   let query = supabase
-    .from('pedidos')
+    .from('orders') // CORRIGIDO: Usando 'orders'
     .select(`
       id,
       order_number,
@@ -968,7 +970,7 @@ export const list_services = async (args: {
         nome,
         quantidade,
         valor_unitario,
-        pedidos!inner (
+        orders!inner (
           id,
           order_number,
           status,
@@ -978,10 +980,10 @@ export const list_services = async (args: {
       `, { count: includeTotalCount ? 'exact' : null });
 
     if (startDate) {
-      query = query.gte('pedidos.created_at', startDate);
+      query = query.gte('orders.created_at', startDate);
     }
     if (endDate) {
-      query = query.lte('pedidos.created_at', endDate);
+      query = query.lte('orders.created_at', endDate);
     }
 
     // Removed direct ordering on joined table to avoid 400 error.
@@ -1008,10 +1010,10 @@ export const list_services = async (args: {
         quantity: service.quantidade,
         unit_value: service.valor_unitario,
         total_value: service.quantidade * service.valor_unitario,
-        order_number: service.pedidos?.order_number,
-        order_status: service.pedidos?.status,
-        order_date: new Date(service.pedidos?.created_at || '').toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }),
-        client_name: service.pedidos?.clientes?.nome
+        order_number: service.orders?.order_number,
+        order_status: service.orders?.status,
+        order_date: new Date(service.orders?.created_at || '').toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }),
+        client_name: service.orders?.clientes?.nome
       }));
 
       // Apply client-side sorting for Strategy 1
@@ -1056,7 +1058,7 @@ export const list_services = async (args: {
     console.log('📍 [list_services] Tentativa 2: Buscar pedidos primeiro, depois serviços');
     
     let ordersQuery = supabase
-      .from('pedidos')
+      .from('orders') // CORRIGIDO: Usando 'orders'
       .select(`
         id,
         order_number,
@@ -1229,7 +1231,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
 
     const clientIds = foundClients.map(c => c.id);
     const { data: orders, error: orderError } = await supabase
-      .from('pedidos')
+      .from('orders') // CORRIGIDO: Usando 'orders'
       .select(`
         id,
         order_number,
@@ -1397,7 +1399,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
     }
 
     let query = supabase
-      .from('pedidos')
+      .from('orders') // CORRIGIDO: Usando 'orders'
       .select(`
         id,
         order_number,
@@ -1485,7 +1487,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
 
       // Fetch current status to record in history
       const { data: currentOrder, error: fetchError } = await supabase
-        .from('pedidos')
+        .from('orders') // CORRIGIDO: Usando 'orders'
         .select('status')
         .eq('id', fullOrderId)
         .single();
@@ -1498,7 +1500,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       const statusAnterior = currentOrder?.status || 'desconhecido';
 
       const { error: updateError } = await supabase
-        .from('pedidos')
+        .from('orders') // CORRIGIDO: Usando 'orders'
         .update({ status: newStatus })
         .eq('id', fullOrderId);
 
