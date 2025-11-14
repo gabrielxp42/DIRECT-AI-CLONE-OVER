@@ -88,7 +88,7 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
     try {
       // Consulta ÚNICA e completa para garantir que todas as relações sejam carregadas
       const { data: pedidoData, error: pedidoError } = await supabase
-        .from('pedidos') // REVERTIDO para 'pedidos'
+        .from('pedidos') // Usando 'pedidos' para leitura
         .select(`
           *,
           clientes (id, nome, telefone, email, endereco),
@@ -206,7 +206,7 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
       const statusAnterior = pedido.status;
       
       const { error } = await supabase
-        .from('orders')
+        .from('pedidos') // CORRIGIDO: Usando 'pedidos' para UPDATE
         .update({ status: newStatus })
         .eq('id', pedido.id);
       

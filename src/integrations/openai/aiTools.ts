@@ -332,7 +332,7 @@ export const openAIFunctions = [
       properties: {
         clientName: {
           type: "string",
-          description: "O nome completo ou parcial do cliente. A busca é inteligente e encontra clientes mesmo com pequenos erros de digitação ou nomes incompletos."
+          description: "O nome completo ou parcial do cliente. A busca é inteligente e encontra clientes mesmo com nomes parciais ou pequenos erros de digitação."
         }
       },
       required: ["clientName"]
@@ -476,7 +476,7 @@ export const openAIFunctions = [
         },
         observacao: { // Adicionado campo de observação
           type: "string",
-          description: "Uma observação opcional sobre a mudança de status (ex: 'Pago 50% do valor', 'Cliente retirou parcialmente')."
+          description: "Uma observação opcional sobre a mudança de status (ex: 'Pago 50% do valor', 'Cliente retirou parcialmente', etc.)."
         }
       },
       required: ["orderNumber", "newStatus"]
@@ -519,11 +519,11 @@ export const openAIFunctions = [
 const findOrderByNumber = async (orderNumber: number) => {
   console.log(`🔍 [findOrderByNumber] Buscando pedido #${orderNumber}...`);
   
-  // Strategy: Direct query using 'orders' table
+  // Strategy: Direct query using 'pedidos' table
   try {
-    console.log('📍 [findOrderByNumber] Busca direta na tabela orders');
+    console.log('📍 [findOrderByNumber] Busca direta na tabela pedidos');
     const { data: orders, error: directError } = await supabase
-      .from('orders')
+      .from('pedidos') // CORRIGIDO: Usando 'pedidos'
       .select('id')
       .eq('order_number', orderNumber)
       .limit(1)
@@ -652,7 +652,7 @@ const findClientWithMultipleStrategies = async (clientName: string) => {
           return clients;
         }
       } catch (error) {
-        console.log(`❌ [findClient] Erro na busca por parte "${part}":`, error);
+        console.log('❌ [findClient] Erro na busca por parte "${part}":', error);
       }
     }
   }
@@ -667,7 +667,7 @@ const fetchCompleteOrderData = async (fullOrderId: string) => {
   
   try {
     const { data: orderData, error: fetchError } = await supabase
-      .from('orders')
+      .from('pedidos') // CORRIGIDO: Usando 'pedidos'
       .select(`
         *,
         clientes (
@@ -774,7 +774,7 @@ export const list_orders = async (args: {
   console.log(`📊 [list_orders] Datas finais para consulta:`, { startDate, endDate }); // Log final dates
 
   let query = supabase
-    .from('orders')
+    .from('pedidos') // CORRIGIDO: Usando 'pedidos'
     .select(`
       id,
       order_number,
@@ -844,13 +844,12 @@ export const list_orders = async (args: {
   }));
 
   const totalValue = orders.reduce((sum, order) => sum + order.valor_total, 0);
+  const totalMetros = orders.reduce((sum, order) => sum + (order.total_metros || 0), 0);
   const totalValueFormatted = new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL'
   }).format(totalValue);
   
-  const totalMetros = orders.reduce((sum, order) => sum + (order.total_metros || 0), 0);
-
   return { 
     orders: formattedOrders, 
     summary: {
@@ -950,7 +949,7 @@ export const list_services = async (args: {
         nome,
         quantidade,
         valor_unitario,
-        orders!inner (
+        pedidos!inner (
           id,
           order_number,
           status,
@@ -960,10 +959,10 @@ export const list_services = async (args: {
       `, { count: includeTotalCount ? 'exact' : null });
 
     if (startDate) {
-      query = query.gte('orders.created_at', startDate);
+      query = query.gte('pedidos.created_at', startDate);
     }
     if (endDate) {
-      query = query.lte('orders.created_at', endDate);
+      query = query.lte('pedidos.created_at', endDate);
     }
 
     // Removed direct ordering on joined table to avoid 400 error.
@@ -990,10 +989,10 @@ export const list_services = async (args: {
         quantity: service.quantidade,
         unit_value: service.valor_unitario,
         total_value: service.quantidade * service.valor_unitario,
-        order_number: service.orders?.order_number,
-        order_status: service.orders?.status,
-        order_date: new Date(service.orders?.created_at || '').toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }),
-        client_name: service.orders?.clientes?.nome
+        order_number: service.pedidos?.order_number,
+        order_status: service.pedidos?.status,
+        order_date: new Date(service.pedidos?.created_at || '').toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }),
+        client_name: service.pedidos?.clientes?.nome
       }));
 
       // Apply client-side sorting for Strategy 1
@@ -1038,7 +1037,7 @@ export const list_services = async (args: {
     console.log('📍 [list_services] Tentativa 2: Buscar pedidos primeiro, depois serviços');
     
     let ordersQuery = supabase
-      .from('orders')
+      .from('pedidos') // CORRIGIDO: Usando 'pedidos'
       .select(`
         id,
         order_number,
@@ -1211,7 +1210,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
 
     const clientIds = foundClients.map(c => c.id);
     const { data: orders, error: orderError } = await supabase
-      .from('orders')
+      .from('pedidos') // CORRIGIDO: Usando 'pedidos'
       .select(`
         id,
         order_number,
@@ -1379,7 +1378,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
     }
 
     let query = supabase
-      .from('orders')
+      .from('pedidos') // CORRIGIDO: Usando 'pedidos'
       .select(`
         id,
         order_number,
@@ -1467,7 +1466,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
 
       // Fetch current status to record in history
       const { data: currentOrder, error: fetchError } = await supabase
-        .from('orders')
+        .from('pedidos') // CORRIGIDO: Usando 'pedidos'
         .select('status')
         .eq('id', fullOrderId)
         .single();
@@ -1480,7 +1479,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       const statusAnterior = currentOrder?.status || 'desconhecido';
 
       const { error: updateError } = await supabase
-        .from('orders')
+        .from('pedidos') // CORRIGIDO: Usando 'pedidos' para UPDATE
         .update({ status: newStatus })
         .eq('id', fullOrderId);
 
