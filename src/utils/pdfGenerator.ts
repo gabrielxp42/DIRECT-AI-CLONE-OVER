@@ -309,8 +309,25 @@ export const generateOrderPDF = async (pedido: Pedido, action: 'save' | 'print' 
   const fileName = `PEDIDO_${orderNumber}_${clientName}.pdf`;
 
   if (action === 'print') {
-    // Use output('dataurlnewwindow') to open in a new tab and trigger print dialog
-    doc.output('dataurlnewwindow', { filename: fileName });
+    // Nova abordagem: gerar blob, criar URL e abrir para impressão
+    const pdfBlob = doc.output('blob');
+    const pdfUrl = URL.createObjectURL(pdfBlob);
+    
+    const printWindow = window.open(pdfUrl, '_blank');
+    
+    if (printWindow) {
+      // Tenta acionar a impressão após o carregamento
+      printWindow.onload = () => {
+        printWindow.focus();
+        printWindow.print();
+        // Opcional: Revogar o URL do objeto após um pequeno atraso
+        setTimeout(() => URL.revokeObjectURL(pdfUrl), 1000);
+      };
+    } else {
+      // Se o pop-up for bloqueado, tenta abrir diretamente
+      window.location.href = pdfUrl;
+    }
+    
   } else {
     // Default action: save
     doc.save(fileName);
