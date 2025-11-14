@@ -128,7 +128,7 @@ const perform_calculation = (args: { expression: string }) => {
   }
 };
 
-// Nova função para obter o ranking dos clientes
+// Função para obter o ranking dos clientes
 export const get_top_clients = async (args: { top_n?: number }) => {
   const { top_n = 5 } = args;
   const TIME_ZONE = 'America/Sao_Paulo';

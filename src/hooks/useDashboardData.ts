@@ -79,15 +79,19 @@ export const useDashboardData = () => {
       if (allOrdersError) throw new Error(allOrdersError.message);
       
       // --- NOVO: Buscar total de metros separadamente via RPC ---
-      const { data: currentMetersData } = await supabase.rpc('get_total_meters_by_period', {
+      const { data: currentMetersData, error: currentMetersError } = await supabase.rpc('get_total_meters_by_period', {
         p_start_date: firstDayCurrentMonth.toISOString(),
         p_end_date: lastDayCurrentMonth.toISOString()
       }).single();
       
-      const { data: previousMetersData } = await supabase.rpc('get_total_meters_by_period', {
+      if (currentMetersError) console.error("Erro ao buscar metros atuais:", currentMetersError);
+
+      const { data: previousMetersData, error: previousMetersError } = await supabase.rpc('get_total_meters_by_period', {
         p_start_date: firstDayPreviousMonth.toISOString(),
         p_end_date: lastDayPreviousMonth.toISOString()
       }).single();
+      
+      if (previousMetersError) console.error("Erro ao buscar metros anteriores:", previousMetersError);
       
       const totalMeters = currentMetersData?.total_meters || 0;
       const previousTotalMeters = previousMetersData?.total_meters || 0;

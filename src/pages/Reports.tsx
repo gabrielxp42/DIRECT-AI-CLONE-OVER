@@ -45,9 +45,11 @@ import {
   User,
   FileText,
   Filter,
-  BarChart3
+  BarChart3,
+  Ruler
 } from "lucide-react";
-import { useViewportZoom } from '@/hooks/useViewportZoom'; // Importar o novo hook
+import { useViewportZoom } from '@/hooks/useViewportZoom';
+import { MetersBarChart } from '@/components/MetersBarChart'; // Importar o novo componente
 
 interface SalesReport {
   totalRevenue: number;
@@ -105,6 +107,13 @@ interface SalesReport {
       observacoes_pedido?: string;
     }>;
   };
+  metersReport: { // NOVO RELATÓRIO
+    totalMeters: number;
+    metersByPeriod: Array<{
+      period: string;
+      meters: number;
+    }>;
+  };
 }
 
 const Reports = () => {
@@ -121,36 +130,59 @@ const Reports = () => {
     queryFn: async () => {
       if (!supabase) throw new Error("Supabase client is not available");
 
-      // Get current and previous month dates
       const now = new Date();
+      
+      // Helper para calcular datas de início e fim do período
+      const calculatePeriodDates = (period: string) => {
+        let periodStart: Date;
+        let periodEnd: Date = now;
+
+        switch (period) {
+          case "week":
+            const dayOfWeek = now.getDay();
+            const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+            periodStart = new Date(now);
+            periodStart.setDate(now.getDate() - daysToSubtract);
+            periodStart.setHours(0, 0, 0, 0);
+            break;
+          case "month":
+            periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
+            break;
+          case "quarter":
+            const currentQuarter = Math.floor(now.getMonth() / 3);
+            periodStart = new Date(now.getFullYear(), currentQuarter * 3, 1);
+            break;
+          case "year":
+            periodStart = new Date(now.getFullYear(), 0, 1);
+            break;
+          default:
+            periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        }
+        
+        // Ajustar o final do período para o final do dia atual, se for o período atual
+        if (periodStart.getTime() <= now.getTime()) {
+            periodEnd = new Date(now);
+        } else {
+            // Se for um período passado, calcular o final do período
+            if (period === "month") {
+                periodEnd = new Date(periodStart.getFullYear(), periodStart.getMonth() + 1, 0, 23, 59, 59, 999);
+            } else if (period === "quarter") {
+                periodEnd = new Date(periodStart.getFullYear(), periodStart.getMonth() + 3, 0, 23, 59, 59, 999);
+            } else if (period === "year") {
+                periodEnd = new Date(periodStart.getFullYear() + 1, 0, 0, 23, 59, 59, 999);
+            }
+        }
+
+        return { start: periodStart, end: periodEnd };
+      };
+
+      const { start: periodStart, end: periodEnd } = calculatePeriodDates(selectedPeriod);
+      
+      // Datas para cálculo de crescimento (mês anterior)
       const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
       const previousMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
       const previousMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
 
-      // Calculate period dates based on selection
-      let periodStart: Date;
-      
-      switch (selectedPeriod) {
-        case "week":
-          const dayOfWeek = now.getDay();
-          const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-          periodStart = new Date(now);
-          periodStart.setDate(now.getDate() - daysToSubtract);
-          periodStart.setHours(0, 0, 0, 0);
-          break;
-        case "month":
-          periodStart = currentMonthStart;
-          break;
-        case "quarter":
-          const currentQuarter = Math.floor(now.getMonth() / 3);
-          periodStart = new Date(now.getFullYear(), currentQuarter * 3, 1);
-          break;
-        case "year":
-          periodStart = new Date(now.getFullYear(), 0, 1);
-          break;
-        default:
-          periodStart = currentMonthStart;
-      }
 
       // Fetch all orders with related data
       const { data: orders, error: ordersError } = await supabase
@@ -159,6 +191,12 @@ const Reports = () => {
         .order("created_at", { ascending: false });
 
       if (ordersError) throw new Error(ordersError.message);
+
+      // Filter orders by selected period
+      const periodOrders = orders?.filter(order => {
+        const orderDate = new Date(order.created_at);
+        return orderDate >= periodStart && orderDate <= periodEnd;
+      }) || [];
 
       // Fetch customers
       const { data: customers, error: customersError } = await supabase
@@ -174,16 +212,16 @@ const Reports = () => {
 
       if (productsError) throw new Error(productsError.message);
 
-      // Calculate basic metrics
-      const totalRevenue = orders?.reduce((sum, order) => sum + order.valor_total, 0) || 0;
-      const totalOrders = orders?.length || 0;
+      // Calculate basic metrics (using ALL orders for total counts, but periodOrders for revenue/AOV)
+      const totalRevenue = periodOrders.reduce((sum, order) => sum + order.valor_total, 0) || 0;
+      const totalOrders = periodOrders.length || 0;
       const totalCustomers = customers?.length || 0;
       const totalProducts = products?.length || 0;
       const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
-      // Calculate top products
+      // Calculate top products (using periodOrders)
       const productSales = new Map();
-      orders?.forEach(order => {
+      periodOrders.forEach(order => {
         order.pedido_items.forEach(item => {
           const productName = item.produtos?.nome || item.produto_nome || 'Produto não encontrado';
           const existing = productSales.get(productName) || { totalSold: 0, revenue: 0 };
@@ -199,9 +237,9 @@ const Reports = () => {
         .sort((a, b) => b.revenue - a.revenue)
         .slice(0, 5);
 
-      // Calculate top customers
+      // Calculate top customers (using periodOrders)
       const customerSpending = new Map();
-      orders?.forEach(order => {
+      periodOrders.forEach(order => {
         const customerName = order.clientes?.nome || 'Cliente não encontrado';
         const existing = customerSpending.get(customerName) || { totalOrders: 0, totalSpent: 0 };
         customerSpending.set(customerName, {
@@ -215,7 +253,7 @@ const Reports = () => {
         .sort((a, b) => b.totalSpent - a.totalSpent)
         .slice(0, 5);
 
-      // Get recent orders
+      // Get recent orders (using ALL orders)
       const recentOrders = orders?.slice(0, 10).map(order => ({
         id: order.id,
         cliente_nome: order.clientes?.nome || 'Cliente não encontrado',
@@ -224,7 +262,7 @@ const Reports = () => {
         created_at: order.created_at
       })) || [];
 
-      // Calculate monthly growth
+      // Calculate monthly growth (using currentMonthStart/previousMonthStart)
       const currentMonthOrders = orders?.filter(order => 
         new Date(order.created_at) >= currentMonthStart
       ) || [];
@@ -252,9 +290,9 @@ const Reports = () => {
         customers: previousMonthCustomers.length > 0 ? ((currentMonthCustomers.length - previousMonthCustomers.length) / previousMonthCustomers.length) * 100 : 0,
       };
 
-      // SERVICES REPORT
+      // SERVICES REPORT (using periodOrders)
       const allServices = [];
-      orders?.forEach(order => {
+      periodOrders.forEach(order => {
         if (order.pedido_servicos && order.pedido_servicos.length > 0) {
           order.pedido_servicos.forEach(servico => {
             allServices.push({
@@ -275,18 +313,13 @@ const Reports = () => {
         }
       });
 
-      // Filter services by selected period
-      const periodServices = allServices.filter(service => 
-        new Date(service.order_date) >= periodStart
-      );
-
-      const totalServicesRevenue = periodServices.reduce((sum, service) => sum + service.total_value, 0);
-      const totalServicesCount = periodServices.reduce((sum, service) => sum + service.quantidade, 0);
+      const totalServicesRevenue = allServices.reduce((sum, service) => sum + service.total_value, 0);
+      const totalServicesCount = allServices.reduce((sum, service) => sum + service.quantidade, 0);
       const averageServiceValue = totalServicesCount > 0 ? totalServicesRevenue / totalServicesCount : 0;
 
       // Group services by name
       const servicesByName = new Map();
-      periodServices.forEach(service => {
+      allServices.forEach(service => {
         const existing = servicesByName.get(service.nome) || { 
           totalRevenue: 0, 
           totalCount: 0 
@@ -316,7 +349,7 @@ const Reports = () => {
           const dayEnd = new Date(dayStart);
           dayEnd.setHours(23, 59, 59, 999);
           
-          const dayServices = periodServices.filter(service => {
+          const dayServices = allServices.filter(service => {
             const serviceDate = new Date(service.order_date);
             return serviceDate >= dayStart && serviceDate <= dayEnd;
           });
@@ -335,7 +368,7 @@ const Reports = () => {
           const weekEnd = new Date(weekStart);
           weekEnd.setDate(weekStart.getDate() + 6);
           
-          const weekServices = periodServices.filter(service => {
+          const weekServices = allServices.filter(service => {
             const serviceDate = new Date(service.order_date);
             return serviceDate >= weekStart && serviceDate <= weekEnd;
           });
@@ -347,6 +380,70 @@ const Reports = () => {
           });
         }
       }
+
+      // METERS REPORT (using periodOrders)
+      const totalMeters = periodOrders.reduce((sum, order) => sum + (order.total_metros || 0), 0);
+      
+      const metersByPeriod: Array<{ period: string; meters: number }> = [];
+      
+      if (selectedPeriod === "week") {
+        const daysOfWeek = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+        for (let i = 0; i < 7; i++) {
+          const dayStart = new Date(periodStart);
+          dayStart.setDate(periodStart.getDate() + i);
+          const dayEnd = new Date(dayStart);
+          dayEnd.setHours(23, 59, 59, 999);
+          
+          const dayOrders = periodOrders.filter(order => {
+            const orderDate = new Date(order.created_at);
+            return orderDate >= dayStart && orderDate <= dayEnd;
+          });
+          
+          metersByPeriod.push({
+            period: daysOfWeek[dayStart.getDay()],
+            meters: dayOrders.reduce((sum, order) => sum + (order.total_metros || 0), 0),
+          });
+        }
+      } else if (selectedPeriod === "month") {
+        // Agrupar por semana do mês
+        const daysInMonth = new Date(periodStart.getFullYear(), periodStart.getMonth() + 1, 0).getDate();
+        const weeksInMonth = Math.ceil(daysInMonth / 7);
+        
+        for (let week = 0; week < weeksInMonth; week++) {
+          const weekStart = new Date(periodStart);
+          weekStart.setDate(1 + (week * 7));
+          const weekEnd = new Date(weekStart);
+          weekEnd.setDate(weekStart.getDate() + 6);
+          
+          const weekOrders = periodOrders.filter(order => {
+            const orderDate = new Date(order.created_at);
+            return orderDate >= weekStart && orderDate <= weekEnd;
+          });
+          
+          metersByPeriod.push({
+            period: `Semana ${week + 1}`,
+            meters: weekOrders.reduce((sum, order) => sum + (order.total_metros || 0), 0),
+          });
+        }
+      } else if (selectedPeriod === "quarter" || selectedPeriod === "year") {
+        // Agrupar por mês
+        const numMonths = selectedPeriod === "quarter" ? 3 : 12;
+        for (let i = 0; i < numMonths; i++) {
+          const monthStart = new Date(periodStart.getFullYear(), periodStart.getMonth() + i, 1);
+          const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0, 23, 59, 59, 999);
+          
+          const monthOrders = periodOrders.filter(order => {
+            const orderDate = new Date(order.created_at);
+            return orderDate >= monthStart && orderDate <= monthEnd;
+          });
+          
+          metersByPeriod.push({
+            period: monthStart.toLocaleDateString('pt-BR', { month: 'short' }),
+            meters: monthOrders.reduce((sum, order) => sum + (order.total_metros || 0), 0),
+          });
+        }
+      }
+
 
       return {
         totalRevenue,
@@ -364,7 +461,11 @@ const Reports = () => {
           averageServiceValue,
           servicesByPeriod,
           topServices,
-          servicosDetalhados: periodServices
+          servicosDetalhados: allServices
+        },
+        metersReport: {
+          totalMeters,
+          metersByPeriod
         }
       };
     },
@@ -480,7 +581,7 @@ const Reports = () => {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Receita Total</CardTitle>
+            <CardTitle className="text-sm font-medium">Receita Total ({getPeriodLabel()})</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -494,7 +595,7 @@ const Reports = () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total de Pedidos</CardTitle>
+            <CardTitle className="text-sm font-medium">Total de Pedidos ({getPeriodLabel()})</CardTitle>
             <ShoppingCart className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -522,7 +623,7 @@ const Reports = () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Ticket Médio</CardTitle>
+            <CardTitle className="text-sm font-medium">Ticket Médio ({getPeriodLabel()})</CardTitle>
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -536,8 +637,9 @@ const Reports = () => {
 
       {/* Tabbed Content */}
       <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-4 lg:grid-cols-5">
           <TabsTrigger value="overview">Visão Geral</TabsTrigger>
+          <TabsTrigger value="meters">Metragem (ML)</TabsTrigger> {/* NOVA ABA */}
           <TabsTrigger value="services">Serviços</TabsTrigger>
           <TabsTrigger value="products">Produtos</TabsTrigger>
           <TabsTrigger value="customers">Clientes</TabsTrigger>
@@ -548,7 +650,7 @@ const Reports = () => {
             {/* Top Products */}
             <Card>
               <CardHeader>
-                <CardTitle>Produtos Mais Vendidos</CardTitle>
+                <CardTitle>Produtos Mais Vendidos ({getPeriodLabel()})</CardTitle>
                 <CardDescription>Top 5 produtos por receita</CardDescription>
               </CardHeader>
               <CardContent>
@@ -576,7 +678,7 @@ const Reports = () => {
             {/* Top Customers */}
             <Card>
               <CardHeader>
-                <CardTitle>Melhores Clientes</CardTitle>
+                <CardTitle>Melhores Clientes ({getPeriodLabel()})</CardTitle>
                 <CardDescription>Top 5 clientes por valor gasto</CardDescription>
               </CardHeader>
               <CardContent>
@@ -635,6 +737,33 @@ const Reports = () => {
               </Table>
             </CardContent>
           </Card>
+        </TabsContent>
+        
+        {/* NOVA ABA: METRAGEM */}
+        <TabsContent value="meters" className="space-y-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total de Metros Lineares ({getPeriodLabel()})</CardTitle>
+              <Ruler className="h-4 w-4 text-blue-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-blue-600">
+                {reportData.metersReport.totalMeters.toFixed(2)} ML
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Metragem total impressa no período
+              </p>
+            </CardContent>
+          </Card>
+          
+          <MetersBarChart 
+            data={reportData.metersReport.metersByPeriod.map(d => ({
+              period: d.period,
+              meters: d.meters
+            }))}
+            title={`Metragem por ${selectedPeriod === 'week' ? 'Dia' : selectedPeriod === 'month' ? 'Semana' : 'Mês'}`}
+            description={`Distribuição da metragem impressa durante ${getPeriodLabel().toLowerCase()}`}
+          />
         </TabsContent>
 
         <TabsContent value="services" className="space-y-4">
@@ -862,7 +991,7 @@ const Reports = () => {
         <TabsContent value="products" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Análise Detalhada de Produtos</CardTitle>
+              <CardTitle>Análise Detalhada de Produtos ({getPeriodLabel()})</CardTitle>
               <CardDescription>Performance completa dos produtos</CardDescription>
             </CardHeader>
             <CardContent>
@@ -897,7 +1026,7 @@ const Reports = () => {
         <TabsContent value="customers" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Análise Detalhada de Clientes</CardTitle>
+              <CardTitle>Análise Detalhada de Clientes ({getPeriodLabel()})</CardTitle>
               <CardDescription>Performance completa dos clientes</CardDescription>
             </CardHeader>
             <CardContent>
