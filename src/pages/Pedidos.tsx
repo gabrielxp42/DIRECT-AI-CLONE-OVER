@@ -275,7 +275,7 @@ const PedidosPage: React.FC = () => {
 
       if (pedidoId) {
         // Update existing pedido
-        // Incluir created_at na atualização
+        // Incluir created_at e status na atualização
         const updateData = { 
           ...pedidoData, 
           created_at,
@@ -317,7 +317,7 @@ const PedidosPage: React.FC = () => {
         const newPedidoData = { 
           ...pedidoData, 
           user_id: session.user.id, 
-          // Não enviar 'status' para usar o valor padrão do banco ('pendente')
+          status: 'pendente', // Definir status explicitamente para garantir que o campo obrigatório seja preenchido
           created_at: created_at // Enviar a data de criação
         };
 
