@@ -1447,7 +1447,8 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       
       console.log(`📋 [generate_order_pdf] Dados obtidos, gerando PDF...`);
       
-      await generateOrderPDF(orderData);
+      // Ação padrão para a IA é 'save' (download)
+      await generateOrderPDF(orderData, 'save');
       
       console.log(`✅ [generate_order_pdf] PDF gerado com sucesso!`);
       
@@ -1484,7 +1485,8 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
         }
 
         const orderData = await fetchCompleteOrderData(fullOrderId);
-        await generateOrderPDF(orderData);
+        // Ação padrão para a IA é 'save' (download)
+        await generateOrderPDF(orderData, 'save');
         
         results.push(`✅ Pedido #${orderNumber}: PDF gerado`);
         console.log(`✅ [generate_multiple_pdfs] PDF do pedido #${orderNumber} gerado com sucesso`);

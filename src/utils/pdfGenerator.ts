@@ -21,7 +21,7 @@ const getImageAsBase64 = (url: string): Promise<string> => {
   });
 };
 
-export const generateOrderPDF = async (pedido: Pedido) => {
+export const generateOrderPDF = async (pedido: Pedido, action: 'save' | 'print' = 'save') => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.width;
   
@@ -303,9 +303,16 @@ export const generateOrderPDF = async (pedido: Pedido) => {
     tableLineWidth: 0.5
   });
 
-  // Save the PDF
+  // Save or Print the PDF
   const clientName = pedido.clientes?.nome?.replace(/[^a-zA-Z0-9]/g, '_') || 'Cliente_Desconhecido';
   const orderNumber = pedido.order_number; // Usando order_number
   const fileName = `PEDIDO_${orderNumber}_${clientName}.pdf`;
-  doc.save(fileName);
+
+  if (action === 'print') {
+    // Use output('dataurlnewwindow') to open in a new tab and trigger print dialog
+    doc.output('dataurlnewwindow', { filename: fileName });
+  } else {
+    // Default action: save
+    doc.save(fileName);
+  }
 };

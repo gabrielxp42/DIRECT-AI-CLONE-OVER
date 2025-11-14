@@ -237,17 +237,30 @@ const PedidosPage: React.FC = () => {
     }
   };
 
-  const handleGeneratePDF = async (pedido: Pedido) => {
+  const handleDownloadPDF = async (pedido: Pedido) => {
     try {
       if ((!pedido.pedido_items || pedido.pedido_items.length === 0) && (!pedido.servicos || pedido.servicos.length === 0)) {
         showError("O pedido não possui itens ou serviços para gerar o PDF.");
         return;
       }
       
-      await generateOrderPDF(pedido);
-      showSuccess("PDF gerado com sucesso!");
+      await generateOrderPDF(pedido, 'save');
+      showSuccess("PDF gerado e baixado com sucesso!");
     } catch (error: any) {
       showError(`Erro ao gerar PDF: ${error.message}`);
+    }
+  };
+
+  const handlePrintPDF = async (pedido: Pedido) => {
+    try {
+      if ((!pedido.pedido_items || pedido.pedido_items.length === 0) && (!pedido.servicos || pedido.servicos.length === 0)) {
+        showError("O pedido não possui itens ou serviços para imprimir.");
+        return;
+      }
+      
+      await generateOrderPDF(pedido, 'print');
+    } catch (error: any) {
+      showError(`Erro ao gerar PDF para impressão: ${error.message}`);
     }
   };
 
@@ -667,7 +680,7 @@ const PedidosPage: React.FC = () => {
                     size="sm" 
                     onClick={(e) => { 
                       e.stopPropagation(); 
-                      handleGeneratePDF(pedido); 
+                      handleDownloadPDF(pedido); 
                     }}
                     title="Gerar PDF"
                   >
@@ -678,7 +691,7 @@ const PedidosPage: React.FC = () => {
                     size="sm" 
                     onClick={(e) => { 
                       e.stopPropagation(); 
-                      handleGeneratePDF(pedido); 
+                      handlePrintPDF(pedido); 
                     }}
                     title="Imprimir Nota"
                   >

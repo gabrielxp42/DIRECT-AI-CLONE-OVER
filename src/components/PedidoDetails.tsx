@@ -171,13 +171,30 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
     return produto ? produto.nome : 'Produto não encontrado';
   };
 
-  const handleGeneratePDF = async () => {
+  const handleDownloadPDF = async () => {
     if (!pedido) return;
     try {
-      await generateOrderPDF(pedido);
-      showSuccess("PDF gerado com sucesso!");
+      if ((!pedido.pedido_items || pedido.pedido_items.length === 0) && (!pedido.servicos || pedido.servicos.length === 0)) {
+        showError("O pedido não possui itens ou serviços para gerar o PDF.");
+        return;
+      }
+      await generateOrderPDF(pedido, 'save');
+      showSuccess("PDF gerado e baixado com sucesso!");
     } catch (error: any) {
       showError(`Erro ao gerar PDF: ${error.message}`);
+    }
+  };
+
+  const handlePrintPDF = async () => {
+    if (!pedido) return;
+    try {
+      if ((!pedido.pedido_items || pedido.pedido_items.length === 0) && (!pedido.servicos || pedido.servicos.length === 0)) {
+        showError("O pedido não possui itens ou serviços para imprimir.");
+        return;
+      }
+      await generateOrderPDF(pedido, 'print');
+    } catch (error: any) {
+      showError(`Erro ao gerar PDF para impressão: ${error.message}`);
     }
   };
 
@@ -263,9 +280,13 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" onClick={handleGeneratePDF}>
+              <Button variant="outline" size="sm" onClick={handleDownloadPDF}>
+                <FileText className="h-4 w-4 mr-2" />
+                Baixar PDF
+              </Button>
+              <Button variant="outline" size="sm" onClick={handlePrintPDF}>
                 <Printer className="h-4 w-4 mr-2" />
-                Gerar PDF
+                Imprimir Nota
               </Button>
               {statusHistory.length > 0 && (
                 <Button 
