@@ -512,6 +512,7 @@ const Reports: React.FC = () => {
           <ToggleGroupItem value="year" aria-label="Este Ano" className="h-9 px-3 text-sm">
             Este Ano
           </ToggleGroupItem>
+        </ToggleGroup>
         
         {/* Seletor de Data Personalizado */}
         <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
