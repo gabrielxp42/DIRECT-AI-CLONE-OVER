@@ -20,16 +20,16 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { ClientDetailsCard } from "@/components/ClientDetailsCard";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"; // Importar DialogHeader, DialogTitle, DialogDescription
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useClientes } from "@/hooks/useDataFetch"; // Importar o novo hook
+import { useClientes } from "@/hooks/useDataFetch";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Cliente, NewCliente } from "@/types/cliente";
 import { showSuccess, showError } from "@/utils/toast";
 
 const Clientes = () => {
   const { supabase, session } = useSession();
-  const { data: clientes, isLoading, error } = useClientes(); // Usando o hook centralizado
+  const { data: clientes, isLoading, error } = useClientes();
   const queryClient = useQueryClient();
   
   const [searchTerm, setSearchTerm] = useState("");
@@ -303,6 +303,11 @@ const Clientes = () => {
           onOpenChange={(open) => !open && setSelectedClient(null)}
         >
           <DialogContent className="sm:max-w-[450px] max-h-[90vh] p-0">
+            {/* Adicionando DialogHeader/Title/Description para acessibilidade */}
+            <DialogHeader className="sr-only">
+              <DialogTitle>Detalhes do Cliente: {selectedClient.nome}</DialogTitle>
+              <DialogDescription>Informações detalhadas e métricas do cliente.</DialogDescription>
+            </DialogHeader>
             <ClientDetailsCard 
               cliente={selectedClient} 
               onClose={() => setSelectedClient(null)} 

@@ -28,7 +28,7 @@ export default defineConfig(() => ({
     dyadComponentTagger(),
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // Removido registerType: 'autoUpdate' para simplificar o ciclo de vida
       devOptions: {
         enabled: true,
       },
