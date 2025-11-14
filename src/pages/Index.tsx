@@ -4,7 +4,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { DollarSign, Users, CreditCard, Activity, Plus, MessageSquare, ShoppingCart, Package, User, Clock, Wrench, Handshake, Truck, CheckSquare } from "lucide-react";
+import { DollarSign, Users, CreditCard, Activity, Plus, MessageSquare, ShoppingCart, Package, User, Clock, Wrench, Handshake, Truck, CheckSquare, Ruler } from "lucide-react";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { Skeleton } from "@/components/ui/skeleton";
 import { QuickActionCard } from "@/components/QuickActionCard";
@@ -19,6 +19,10 @@ const Index = () => {
       style: 'currency',
       currency: 'BRL'
     }).format(value);
+  };
+  
+  const formatMeters = (value: number) => {
+    return `${value.toFixed(2)} ML`;
   };
 
   const formatGrowth = (growth: number) => {
@@ -109,6 +113,32 @@ const Index = () => {
             )}
           </CardContent>
         </Card>
+        
+        {/* NOVO CARD: Total de Metros */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Total de Metros (ML)
+            </CardTitle>
+            <Ruler className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-8 w-32" />
+                <Skeleton className="h-4 w-24" />
+              </div>
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{formatMeters(stats?.totalMeters || 0)}</div>
+                <p className={`text-xs ${getGrowthColor(stats?.metersGrowth || 0)}`}>
+                  {formatGrowth(stats?.metersGrowth || 0)} do último mês
+                </p>
+              </>
+            )}
+          </CardContent>
+        </Card>
+        
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
@@ -127,27 +157,6 @@ const Index = () => {
                 <div className="text-2xl font-bold">+{stats?.newCustomers || 0}</div>
                 <p className={`text-xs ${getGrowthColor(stats?.customersGrowth || 0)}`}>
                   {formatGrowth(stats?.customersGrowth || 0)} do último mês
-                </p>
-              </>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pedidos Ativos</CardTitle>
-            <CreditCard className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="space-y-2">
-                <Skeleton className="h-8 w-16" />
-                <Skeleton className="h-4 w-24" />
-              </div>
-            ) : (
-              <>
-                <div className="text-2xl font-bold">+{stats?.activeOrders || 0}</div>
-                <p className="text-xs text-muted-foreground">
-                  Pedidos pendentes
                 </p>
               </>
             )}
