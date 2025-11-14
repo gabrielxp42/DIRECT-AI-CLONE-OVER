@@ -392,7 +392,7 @@ const fetchReportData = async (supabase: any, selectedPeriod: string, customRang
   };
 };
 
-const Reports = () => {
+const Reports: React.FC = () => {
   const { supabase } = useSession();
   const [selectedPeriod, setSelectedPeriod] = useState("month");
   const [customDateRange, setCustomDateRange] = useState<{ from?: Date; to?: Date }>({});
@@ -511,7 +511,7 @@ const Reports = () => {
           </ToggleGroupItem>
           <ToggleGroupItem value="year" aria-label="Este Ano" className="h-9 px-3 text-sm">
             Este Ano
-          </ToggleGroup>
+          </ToggleGroupItem>
         
         {/* Seletor de Data Personalizado */}
         <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
