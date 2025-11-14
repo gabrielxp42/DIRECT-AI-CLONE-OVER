@@ -97,7 +97,7 @@ const PedidosPage: React.FC = () => {
     try {
       // Consulta ÚNICA e completa para todos os pedidos
       let query = supabase
-        .from('orders') // CORRIGIDO: Usando 'orders'
+        .from('pedidos') // REVERTIDO para 'pedidos'
         .select(`
           *,
           clientes (id, nome, telefone, email, endereco),
@@ -207,7 +207,7 @@ const PedidosPage: React.FC = () => {
       const statusAnterior = statusChangePedido.status;
 
       const { error } = await supabase
-        .from('orders') // CORRIGIDO: Usando 'orders'
+        .from('orders')
         .update({ status: newStatus })
         .eq('id', statusChangePedido.id);
       
