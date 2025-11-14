@@ -36,19 +36,19 @@ export const useDashboardData = () => {
       const firstDayPreviousMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1);
       const lastDayPreviousMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 0);
 
-      // Fetch current month orders (including total_metros)
+      // Fetch current month orders (REMOVENDO total_metros da seleção direta)
       const { data: currentOrders, error: currentOrdersError } = await supabase
-        .from("pedidos") // REVERTIDO para 'pedidos'
-        .select("valor_total, created_at, status, total_metros")
+        .from("pedidos")
+        .select("valor_total, created_at, status")
         .gte("created_at", firstDayCurrentMonth.toISOString())
         .lte("created_at", lastDayCurrentMonth.toISOString());
 
       if (currentOrdersError) throw new Error(currentOrdersError.message);
 
-      // Fetch previous month orders (including total_metros)
+      // Fetch previous month orders (REMOVENDO total_metros da seleção direta)
       const { data: previousOrders, error: previousOrdersError } = await supabase
-        .from("pedidos") // REVERTIDO para 'pedidos'
-        .select("valor_total, created_at, total_metros")
+        .from("pedidos")
+        .select("valor_total, created_at")
         .gte("created_at", firstDayPreviousMonth.toISOString())
         .lte("created_at", lastDayPreviousMonth.toISOString());
 
@@ -73,27 +73,40 @@ export const useDashboardData = () => {
 
       // Fetch all orders for status counts (explicitly selecting columns)
       const { data: allOrders, error: allOrdersError } = await supabase
-        .from("pedidos") // REVERTIDO para 'pedidos'
+        .from("pedidos")
         .select("id, status"); // Seleção explícita
 
       if (allOrdersError) throw new Error(allOrdersError.message);
+      
+      // --- NOVO: Buscar total de metros separadamente via RPC ---
+      const { data: currentMetersData } = await supabase.rpc('get_total_meters_by_period', {
+        p_start_date: firstDayCurrentMonth.toISOString(),
+        p_end_date: lastDayCurrentMonth.toISOString()
+      }).single();
+      
+      const { data: previousMetersData } = await supabase.rpc('get_total_meters_by_period', {
+        p_start_date: firstDayPreviousMonth.toISOString(),
+        p_end_date: lastDayPreviousMonth.toISOString()
+      }).single();
+      
+      const totalMeters = currentMetersData?.total_meters || 0;
+      const previousTotalMeters = previousMetersData?.total_meters || 0;
+      // ---------------------------------------------------------
 
       // Calculate current month stats
       const totalSales = currentOrders?.reduce((sum, order) => sum + order.valor_total, 0) || 0;
-      const totalMeters = currentOrders?.reduce((sum, order) => sum + (order.total_metros || 0), 0) || 0; // NOVO CÁLCULO
       const newCustomers = currentCustomers?.length || 0;
       const activeOrdersCount = allOrders?.filter(order => order.status === 'pendente').length || 0; // Usar allOrders para 'pendente'
       const averageTicket = currentOrders?.length ? totalSales / currentOrders.length : 0;
 
       // Calculate previous month stats for growth comparison
       const previousTotalSales = previousOrders?.reduce((sum, order) => sum + order.valor_total, 0) || 0;
-      const previousTotalMeters = previousOrders?.reduce((sum, order) => sum + (order.total_metros || 0), 0) || 0; // NOVO CÁLCULO
       const previousNewCustomers = previousCustomers?.length || 0;
       const previousAverageTicket = previousOrders?.length ? previousTotalSales / previousOrders.length : 0;
 
       // Calculate growth percentages
       const salesGrowth = previousTotalSales > 0 ? ((totalSales - previousTotalSales) / previousTotalSales) * 100 : 0;
-      const metersGrowth = previousTotalMeters > 0 ? ((totalMeters - previousTotalMeters) / previousTotalMeters) * 100 : 0; // NOVO CÁLCULO
+      const metersGrowth = previousTotalMeters > 0 ? ((totalMeters - previousTotalMeters) / previousTotalMeters) * 100 : 0; // USANDO RPC
       const customersGrowth = previousNewCustomers > 0 ? ((newCustomers - previousNewCustomers) / previousNewCustomers) * 100 : 0;
       const ticketGrowth = previousAverageTicket > 0 ? ((averageTicket - previousAverageTicket) / previousAverageTicket) * 100 : 0;
 
