@@ -480,11 +480,11 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
                 {/* NOVO: Total de Metros */}
                 {pedido.total_metros > 0 && (
                   <div className="flex justify-between border-t pt-3">
-                    <div className="flex items-center font-semibold text-primary">
+                    <div className="flex items-center font-semibold text-blue-500">
                       <Ruler className="h-4 w-4 mr-1" />
                       <span>Total Metros (ML):</span>
                     </div>
-                    <span className="font-semibold text-primary">{pedido.total_metros.toFixed(2)} ML</span>
+                    <span className="font-semibold text-blue-500">{pedido.total_metros.toFixed(2)} ML</span>
                   </div>
                 )}
 

@@ -669,8 +669,8 @@ const PedidosPage: React.FC = () => {
                 
                 {/* NOVO: Exibição do Total de Metros */}
                 {pedido.total_metros > 0 && (
-                  <div className="flex items-center text-sm text-gray-700 dark:text-gray-300">
-                    <Ruler className="h-4 w-4 mr-2 text-muted-foreground" />
+                  <div className="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <Ruler className="h-4 w-4 mr-2 text-blue-500" />
                     <span>Metros: {pedido.total_metros.toFixed(2)} ML</span>
                   </div>
                 )}
