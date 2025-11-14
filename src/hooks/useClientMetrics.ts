@@ -12,7 +12,7 @@ interface ClientMetrics {
 const fetchClientMetrics = async (supabase: any, clientId: string): Promise<ClientMetrics> => {
   // 1. Buscar todos os pedidos do cliente para calcular métricas
   const { data: allOrders, error: ordersError } = await supabase
-    .from('pedidos')
+    .from('orders') // CORRIGIDO: Usando 'orders'
     .select('valor_total, created_at, status, order_number, id, cliente_id')
     .eq('cliente_id', clientId)
     .order('created_at', { ascending: false });
@@ -36,6 +36,7 @@ const fetchClientMetrics = async (supabase: any, clientId: string): Promise<Clie
     desconto_percentual: 0,
     observacoes: null,
     user_id: '',
+    total_metros: 0, // Adicionado total_metros para satisfazer o tipo Pedido
   })) as Pedido[] || [];
 
   return {

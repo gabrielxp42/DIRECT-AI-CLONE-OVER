@@ -38,7 +38,7 @@ export const useDashboardData = () => {
 
       // Fetch current month orders (including total_metros)
       const { data: currentOrders, error: currentOrdersError } = await supabase
-        .from("pedidos")
+        .from("orders") // CORRIGIDO: Usando 'orders'
         .select("valor_total, created_at, status, total_metros")
         .gte("created_at", firstDayCurrentMonth.toISOString())
         .lte("created_at", lastDayCurrentMonth.toISOString());
@@ -47,7 +47,7 @@ export const useDashboardData = () => {
 
       // Fetch previous month orders (including total_metros)
       const { data: previousOrders, error: previousOrdersError } = await supabase
-        .from("pedidos")
+        .from("orders") // CORRIGIDO: Usando 'orders'
         .select("valor_total, created_at, total_metros")
         .gte("created_at", firstDayPreviousMonth.toISOString())
         .lte("created_at", lastDayPreviousMonth.toISOString());
@@ -73,7 +73,7 @@ export const useDashboardData = () => {
 
       // Fetch all orders for status counts (explicitly selecting columns)
       const { data: allOrders, error: allOrdersError } = await supabase
-        .from("pedidos")
+        .from("orders") // CORRIGIDO: Usando 'orders'
         .select("id, status"); // Seleção explícita
 
       if (allOrdersError) throw new Error(allOrdersError.message);

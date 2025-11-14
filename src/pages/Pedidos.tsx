@@ -97,7 +97,7 @@ const PedidosPage: React.FC = () => {
     try {
       // Consulta ÚNICA e completa para todos os pedidos
       let query = supabase
-        .from('pedidos')
+        .from('orders') // CORRIGIDO: Usando 'orders'
         .select(`
           *,
           clientes (id, nome, telefone, email, endereco),
@@ -207,7 +207,7 @@ const PedidosPage: React.FC = () => {
       const statusAnterior = statusChangePedido.status;
 
       const { error } = await supabase
-        .from('pedidos')
+        .from('orders') // CORRIGIDO: Usando 'orders'
         .update({ status: newStatus })
         .eq('id', statusChangePedido.id);
       
@@ -278,7 +278,7 @@ const PedidosPage: React.FC = () => {
         const updateData = { ...pedidoData, created_at };
 
         const { error: pedidoError } = await supabase
-          .from('pedidos')
+          .from('orders') // CORRIGIDO: Usando 'orders'
           .update(updateData)
           .eq('id', pedidoId);
         if (pedidoError) throw pedidoError;
@@ -317,7 +317,7 @@ const PedidosPage: React.FC = () => {
         };
 
         const { data: newPedido, error: pedidoError } = await supabase
-          .from('pedidos')
+          .from('orders') // CORRIGIDO: Usando 'orders'
           .insert([newPedidoData])
           .select()
           .single();
@@ -385,7 +385,7 @@ const PedidosPage: React.FC = () => {
       }
 
       const { error } = await supabase
-        .from('pedidos')
+        .from('orders') // CORRIGIDO: Usando 'orders'
         .delete()
         .eq('id', id)
         .eq('user_id', session?.user.id);
