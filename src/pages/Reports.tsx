@@ -46,10 +46,12 @@ import {
   FileText,
   Filter,
   BarChart3,
-  Ruler
+  Ruler,
+  Clock
 } from "lucide-react";
 import { useViewportZoom } from '@/hooks/useViewportZoom';
-import { MetersBarChart } from '@/components/MetersBarChart'; // Importar o novo componente
+import { MetersBarChart } from '@/components/MetersBarChart';
+import { cn } from "@/lib/utils";
 
 interface SalesReport {
   totalRevenue: number;
@@ -107,7 +109,7 @@ interface SalesReport {
       observacoes_pedido?: string;
     }>;
   };
-  metersReport: { // NOVO RELATÓRIO
+  metersReport: {
     totalMeters: number;
     metersByPeriod: Array<{
       period: string;
@@ -122,8 +124,17 @@ const Reports = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedService, setSelectedService] = useState("all");
 
-  // Ativa o zoom especificamente para a página de Relatórios
   useViewportZoom(true);
+
+  const getPeriodLabel = (period: string) => {
+    switch (period) {
+      case "week": return "Esta Semana";
+      case "month": return "Este Mês";
+      case "quarter": return "Este Trimestre";
+      case "year": return "Este Ano";
+      default: return "Este Período";
+    }
+  };
 
   const { data: reportData, isLoading } = useQuery<SalesReport>({
     queryKey: ["comprehensive-report", selectedPeriod],
@@ -270,15 +281,6 @@ const Reports = () => {
       const previousMonthOrders = orders?.filter(order => {
         const orderDate = new Date(order.created_at);
         return orderDate >= previousMonthStart && orderDate <= previousMonthEnd;
-      }) || [];
-
-      const currentMonthCustomers = customers?.filter(customer => 
-        new Date(customer.created_at) >= currentMonthStart
-      ) || [];
-      
-      const previousMonthCustomers = customers?.filter(customer => {
-        const customerDate = new Date(customer.created_at);
-        return customerDate >= previousMonthStart && customerDate <= previousMonthEnd;
       }) || [];
 
       const currentRevenue = currentMonthOrders.reduce((sum, order) => sum + order.valor_total, 0);
@@ -480,6 +482,10 @@ const Reports = () => {
     }).format(value);
   };
 
+  const formatMeters = (value: number) => {
+    return `${value.toFixed(2)} ML`;
+  };
+
   const formatGrowth = (growth: number) => {
     const sign = growth >= 0 ? '+' : '';
     return `${sign}${growth.toFixed(1)}%`;
@@ -491,16 +497,6 @@ const Reports = () => {
 
   const getGrowthColor = (growth: number) => {
     return growth >= 0 ? 'text-green-600' : 'text-red-600';
-  };
-
-  const getPeriodLabel = () => {
-    switch (selectedPeriod) {
-      case "week": return "Esta Semana";
-      case "month": return "Este Mês";
-      case "quarter": return "Este Trimestre";
-      case "year": return "Este Ano";
-      default: return "Este Período";
-    }
   };
 
   const formatDate = (dateString: string) => {
@@ -524,9 +520,9 @@ const Reports = () => {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 p-4 lg:p-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Relatórios</h1>
+          <Skeleton className="h-10 w-48" />
           <Skeleton className="h-10 w-40" />
         </div>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -556,33 +552,40 @@ const Reports = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      {/* HEADER E SELETOR DE PERÍODO */}
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b pb-4">
         <div className="flex items-center gap-2">
           <BarChart3 className="h-8 w-8 text-primary" />
-          <h1 className="text-3xl font-bold">Relatórios Completos</h1>
+          <h1 className="text-3xl font-bold">Relatórios</h1>
         </div>
-        <div className="flex items-center gap-2">
-          <Calendar className="h-4 w-4" />
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <Calendar className="h-4 w-4 text-muted-foreground" />
           <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-            <SelectTrigger className="w-40">
-              <SelectValue />
+            <SelectTrigger className="w-full md:w-40">
+              <SelectValue placeholder="Selecione o Período" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="week">Esta Semana</SelectItem>
               <SelectItem value="month">Este Mês</SelectItem>
-              <SelectItem value="quarter">Trimestre</SelectItem>
+              <SelectItem value="quarter">Este Trimestre</SelectItem>
               <SelectItem value="year">Este Ano</SelectItem>
             </SelectContent>
           </Select>
         </div>
       </div>
 
-      {/* Key Metrics */}
+      {/* Key Metrics - Visão Geral do Período */}
+      <h2 className="text-xl font-semibold flex items-center gap-2">
+        <Clock className="h-5 w-5 text-muted-foreground" />
+        Métricas Principais ({getPeriodLabel(selectedPeriod)})
+      </h2>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
+        
+        {/* Receita Total */}
+        <Card className="hover:shadow-lg transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Receita Total ({getPeriodLabel()})</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Receita Total</CardTitle>
+            <DollarSign className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{formatCurrency(reportData.totalRevenue)}</div>
@@ -593,10 +596,11 @@ const Reports = () => {
           </CardContent>
         </Card>
 
-        <Card>
+        {/* Total de Pedidos */}
+        <Card className="hover:shadow-lg transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total de Pedidos ({getPeriodLabel()})</CardTitle>
-            <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Total de Pedidos</CardTitle>
+            <ShoppingCart className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{reportData.totalOrders}</div>
@@ -606,24 +610,27 @@ const Reports = () => {
             </div>
           </CardContent>
         </Card>
-
-        <Card>
+        
+        {/* Total de Metros */}
+        <Card className="hover:shadow-lg transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total de Clientes</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Total de Metros (ML)</CardTitle>
+            <Ruler className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{reportData.totalCustomers}</div>
-            <div className={`text-xs flex items-center ${getGrowthColor(reportData.monthlyGrowth.customers)}`}>
-              {React.createElement(getGrowthIcon(reportData.monthlyGrowth.customers), { className: "h-3 w-3 mr-1" })}
-              {formatGrowth(reportData.monthlyGrowth.customers)} este mês
+            <div className="text-2xl font-bold text-blue-600">
+              {formatMeters(reportData.metersReport.totalMeters)}
             </div>
+            <p className="text-xs text-muted-foreground">
+              Metragem impressa no período
+            </p>
           </CardContent>
         </Card>
 
-        <Card>
+        {/* Ticket Médio */}
+        <Card className="hover:shadow-lg transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Ticket Médio ({getPeriodLabel()})</CardTitle>
+            <CardTitle className="text-sm font-medium">Ticket Médio</CardTitle>
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -637,21 +644,21 @@ const Reports = () => {
 
       {/* Tabbed Content */}
       <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4 lg:grid-cols-5">
-          <TabsTrigger value="overview">Visão Geral</TabsTrigger>
-          <TabsTrigger value="meters">Metragem (ML)</TabsTrigger> {/* NOVA ABA */}
-          <TabsTrigger value="services">Serviços</TabsTrigger>
-          <TabsTrigger value="products">Produtos</TabsTrigger>
-          <TabsTrigger value="customers">Clientes</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-5 lg:grid-cols-5 h-auto">
+          <TabsTrigger value="overview" className="py-2">Visão Geral</TabsTrigger>
+          <TabsTrigger value="meters" className="py-2">Metragem (ML)</TabsTrigger>
+          <TabsTrigger value="services" className="py-2">Serviços</TabsTrigger>
+          <TabsTrigger value="products" className="py-2">Produtos</TabsTrigger>
+          <TabsTrigger value="customers" className="py-2">Clientes</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-4">
+        <TabsContent value="overview" className="space-y-6">
           <div className="grid gap-6 md:grid-cols-2">
             {/* Top Products */}
             <Card>
               <CardHeader>
-                <CardTitle>Produtos Mais Vendidos ({getPeriodLabel()})</CardTitle>
-                <CardDescription>Top 5 produtos por receita</CardDescription>
+                <CardTitle>Produtos Mais Vendidos</CardTitle>
+                <CardDescription>Top 5 produtos por receita ({getPeriodLabel(selectedPeriod)})</CardDescription>
               </CardHeader>
               <CardContent>
                 <Table>
@@ -678,8 +685,8 @@ const Reports = () => {
             {/* Top Customers */}
             <Card>
               <CardHeader>
-                <CardTitle>Melhores Clientes ({getPeriodLabel()})</CardTitle>
-                <CardDescription>Top 5 clientes por valor gasto</CardDescription>
+                <CardTitle>Melhores Clientes</CardTitle>
+                <CardDescription>Top 5 clientes por valor gasto ({getPeriodLabel(selectedPeriod)})</CardDescription>
               </CardHeader>
               <CardContent>
                 <Table>
@@ -708,49 +715,51 @@ const Reports = () => {
           <Card>
             <CardHeader>
               <CardTitle>Pedidos Recentes</CardTitle>
-              <CardDescription>Últimos 10 pedidos realizados</CardDescription>
+              <CardDescription>Últimos 10 pedidos realizados (Geral)</CardDescription>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>ID</TableHead>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Valor</TableHead>
-                    <TableHead>Data</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {reportData.recentOrders.map((order) => (
-                    <TableRow key={order.id}>
-                      <TableCell className="font-mono text-sm">#{order.id.slice(-8)}</TableCell>
-                      <TableCell>{order.cliente_nome}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{order.status}</Badge>
-                      </TableCell>
-                      <TableCell className="text-right">{formatCurrency(order.valor_total)}</TableCell>
-                      <TableCell>{new Date(order.created_at).toLocaleDateString()}</TableCell>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>ID</TableHead>
+                      <TableHead>Cliente</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Valor</TableHead>
+                      <TableHead>Data</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {reportData.recentOrders.map((order) => (
+                      <TableRow key={order.id}>
+                        <TableCell className="font-mono text-sm">#{order.id.slice(-8)}</TableCell>
+                        <TableCell>{order.cliente_nome}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{order.status}</Badge>
+                        </TableCell>
+                        <TableCell className="text-right">{formatCurrency(order.valor_total)}</TableCell>
+                        <TableCell>{formatDate(order.created_at)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
         
-        {/* NOVA ABA: METRAGEM */}
-        <TabsContent value="meters" className="space-y-4">
+        {/* ABA: METRAGEM */}
+        <TabsContent value="meters" className="space-y-6">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total de Metros Lineares ({getPeriodLabel()})</CardTitle>
+              <CardTitle className="text-sm font-medium">Total de Metros Lineares ({getPeriodLabel(selectedPeriod)})</CardTitle>
               <Ruler className="h-4 w-4 text-blue-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-blue-600">
-                {reportData.metersReport.totalMeters.toFixed(2)} ML
+              <div className="text-3xl font-bold text-blue-600">
+                {formatMeters(reportData.metersReport.totalMeters)}
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 Metragem total impressa no período
               </p>
             </CardContent>
@@ -761,25 +770,25 @@ const Reports = () => {
               period: d.period,
               meters: d.meters
             }))}
-            title={`Metragem por ${selectedPeriod === 'week' ? 'Dia' : selectedPeriod === 'month' ? 'Semana' : 'Mês'}`}
-            description={`Distribuição da metragem impressa durante ${getPeriodLabel().toLowerCase()}`}
+            title={`Distribuição da Metragem`}
+            description={`Metragem por ${selectedPeriod === 'week' ? 'Dia' : selectedPeriod === 'month' ? 'Semana' : 'Mês'} durante ${getPeriodLabel(selectedPeriod).toLowerCase()}`}
           />
         </TabsContent>
 
-        <TabsContent value="services" className="space-y-4">
+        <TabsContent value="services" className="space-y-6">
           {/* Services Overview */}
           <div className="grid gap-4 md:grid-cols-3">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Receita de Serviços - {getPeriodLabel()}</CardTitle>
-                <DollarSign className="h-4 w-4 text-blue-600" />
+                <CardTitle className="text-sm font-medium">Receita de Serviços</CardTitle>
+                <DollarSign className="h-4 w-4 text-green-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-blue-600">
+                <div className="text-2xl font-bold text-green-600">
                   {formatCurrency(reportData.servicesReport.totalServicesRevenue)}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Receita total em serviços
+                  Total em {getPeriodLabel(selectedPeriod).toLowerCase()}
                 </p>
               </CardContent>
             </Card>
@@ -787,10 +796,10 @@ const Reports = () => {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total de Serviços</CardTitle>
-                <Wrench className="h-4 w-4 text-green-600" />
+                <Wrench className="h-4 w-4 text-primary" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-green-600">
+                <div className="text-2xl font-bold text-primary">
                   {reportData.servicesReport.totalServicesCount}
                 </div>
                 <p className="text-xs text-muted-foreground">
@@ -802,10 +811,10 @@ const Reports = () => {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Valor Médio</CardTitle>
-                <FileText className="h-4 w-4 text-purple-600" />
+                <FileText className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-purple-600">
+                <div className="text-2xl font-bold">
                   {formatCurrency(reportData.servicesReport.averageServiceValue)}
                 </div>
                 <p className="text-xs text-muted-foreground">
@@ -815,75 +824,50 @@ const Reports = () => {
             </Card>
           </div>
 
-          {/* Services by Period Chart */}
-          {reportData.servicesReport.servicesByPeriod.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Receita por Período - {getPeriodLabel()}</CardTitle>
-                <CardDescription>
-                  Distribuição da receita de serviços ao longo do período
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-2 md:grid-cols-7">
-                  {reportData.servicesReport.servicesByPeriod.map((period, index) => (
-                    <div key={index} className="text-center p-3 bg-muted rounded-lg">
-                      <div className="font-medium text-sm">{period.period}</div>
-                      <div className="text-lg font-bold text-blue-600">
-                        {formatCurrency(period.revenue)}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {period.count} serviços
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
           {/* Top Services */}
           <Card>
             <CardHeader>
-              <CardTitle>Serviços Mais Rentáveis - {getPeriodLabel()}</CardTitle>
+              <CardTitle>Serviços Mais Rentáveis</CardTitle>
               <CardDescription>
-                Performance de cada tipo de serviço no período
+                Performance de cada tipo de serviço ({getPeriodLabel(selectedPeriod)})
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Tipo de Serviço</TableHead>
-                    <TableHead className="text-center">Quantidade</TableHead>
-                    <TableHead className="text-right">Receita Total</TableHead>
-                    <TableHead className="text-right">Valor Médio</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {reportData.servicesReport.topServices.map((servico, index) => (
-                    <TableRow key={index}>
-                      <TableCell className="font-medium">{servico.nome}</TableCell>
-                      <TableCell className="text-center">{servico.totalCount}</TableCell>
-                      <TableCell className="text-right font-semibold text-blue-600">
-                        {formatCurrency(servico.totalRevenue)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {formatCurrency(servico.averageValue)}
-                      </TableCell>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Tipo de Serviço</TableHead>
+                      <TableHead className="text-center">Quantidade</TableHead>
+                      <TableHead className="text-right">Receita Total</TableHead>
+                      <TableHead className="text-right">Valor Médio</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {reportData.servicesReport.topServices.map((servico, index) => (
+                      <TableRow key={index}>
+                        <TableCell className="font-medium">{servico.nome}</TableCell>
+                        <TableCell className="text-center">{servico.totalCount}</TableCell>
+                        <TableCell className="text-right font-semibold text-green-600">
+                          {formatCurrency(servico.totalRevenue)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {formatCurrency(servico.averageValue)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </CardContent>
           </Card>
 
           {/* Detailed Services */}
           <Card>
             <CardHeader>
-              <CardTitle>Serviços Detalhados - {getPeriodLabel()}</CardTitle>
+              <CardTitle>Serviços Detalhados</CardTitle>
               <CardDescription>
-                Lista completa de todos os serviços executados com detalhes do cliente e pedido
+                Lista completa de todos os serviços executados ({getPeriodLabel(selectedPeriod)})
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -897,7 +881,7 @@ const Reports = () => {
                   />
                 </div>
                 <div className="flex items-center gap-2">
-                  <Filter className="h-4 w-4" />
+                  <Filter className="h-4 w-4 text-muted-foreground" />
                   <Select value={selectedService} onValueChange={setSelectedService}>
                     <SelectTrigger className="w-48">
                       <SelectValue placeholder="Filtrar por serviço" />
@@ -914,7 +898,7 @@ const Reports = () => {
                 </div>
               </div>
 
-              <div className="rounded-md border">
+              <div className="rounded-md border overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -934,7 +918,7 @@ const Reports = () => {
                         <TableRow key={servico.id}>
                           <TableCell className="font-medium">
                             <div className="flex items-center gap-2">
-                              <Wrench className="h-4 w-4 text-blue-600" />
+                              <Wrench className="h-4 w-4 text-primary" />
                               {servico.nome}
                             </div>
                           </TableCell>
@@ -948,7 +932,7 @@ const Reports = () => {
                           <TableCell className="text-right">
                             {formatCurrency(servico.valor_unitario)}
                           </TableCell>
-                          <TableCell className="text-right font-semibold text-blue-600">
+                          <TableCell className="text-right font-semibold text-green-600">
                             {formatCurrency(servico.valor_total)}
                           </TableCell>
                           <TableCell className="text-center">
@@ -969,7 +953,7 @@ const Reports = () => {
                           <p className="text-muted-foreground">
                             {searchTerm || selectedService !== "all" 
                               ? "Nenhum serviço encontrado com os filtros aplicados." 
-                              : `Nenhum serviço encontrado para ${getPeriodLabel().toLowerCase()}.`
+                              : `Nenhum serviço encontrado para ${getPeriodLabel(selectedPeriod).toLowerCase()}.`
                             }
                           </p>
                         </TableCell>
@@ -988,72 +972,76 @@ const Reports = () => {
           </Card>
         </TabsContent>
 
-        <TabsContent value="products" className="space-y-4">
+        <TabsContent value="products" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Análise Detalhada de Produtos ({getPeriodLabel()})</CardTitle>
-              <CardDescription>Performance completa dos produtos</CardDescription>
+              <CardTitle>Análise Detalhada de Produtos</CardTitle>
+              <CardDescription>Performance completa dos produtos ({getPeriodLabel(selectedPeriod)})</CardDescription>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Produto</TableHead>
-                    <TableHead className="text-center">Quantidade Vendida</TableHead>
-                    <TableHead className="text-right">Receita Total</TableHead>
-                    <TableHead className="text-right">Receita Média</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {reportData.topProducts.map((product, index) => (
-                    <TableRow key={index}>
-                      <TableCell className="font-medium">{product.nome}</TableCell>
-                      <TableCell className="text-center">{product.totalSold}</TableCell>
-                      <TableCell className="text-right font-semibold">
-                        {formatCurrency(product.revenue)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {formatCurrency(product.revenue / product.totalSold)}
-                      </TableCell>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Produto</TableHead>
+                      <TableHead className="text-center">Quantidade Vendida</TableHead>
+                      <TableHead className="text-right">Receita Total</TableHead>
+                      <TableHead className="text-right">Receita Média</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {reportData.topProducts.map((product, index) => (
+                      <TableRow key={index}>
+                        <TableCell className="font-medium">{product.nome}</TableCell>
+                        <TableCell className="text-center">{product.totalSold}</TableCell>
+                        <TableCell className="text-right font-semibold text-green-600">
+                          {formatCurrency(product.revenue)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {formatCurrency(product.revenue / product.totalSold)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="customers" className="space-y-4">
+        <TabsContent value="customers" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Análise Detalhada de Clientes ({getPeriodLabel()})</CardTitle>
-              <CardDescription>Performance completa dos clientes</CardDescription>
+              <CardTitle>Análise Detalhada de Clientes</CardTitle>
+              <CardDescription>Performance completa dos clientes ({getPeriodLabel(selectedPeriod)})</CardDescription>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead className="text-center">Total de Pedidos</TableHead>
-                    <TableHead className="text-right">Total Gasto</TableHead>
-                    <TableHead className="text-right">Ticket Médio</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {reportData.topCustomers.map((customer, index) => (
-                    <TableRow key={index}>
-                      <TableCell className="font-medium">{customer.nome}</TableCell>
-                      <TableCell className="text-center">{customer.totalOrders}</TableCell>
-                      <TableCell className="text-right font-semibold">
-                        {formatCurrency(customer.totalSpent)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {formatCurrency(customer.totalSpent / customer.totalOrders)}
-                      </TableCell>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Cliente</TableHead>
+                      <TableHead className="text-center">Total de Pedidos</TableHead>
+                      <TableHead className="text-right">Total Gasto</TableHead>
+                      <TableHead className="text-right">Ticket Médio</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {reportData.topCustomers.map((customer, index) => (
+                      <TableRow key={index}>
+                        <TableCell className="font-medium">{customer.nome}</TableCell>
+                        <TableCell className="text-center">{customer.totalOrders}</TableCell>
+                        <TableCell className="text-right font-semibold text-green-600">
+                          {formatCurrency(customer.totalSpent)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {formatCurrency(customer.totalSpent / customer.totalOrders)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

@@ -54,10 +54,7 @@ export const MetersBarChart: React.FC<MetersBarChartProps> = ({ data, title, des
                   {data.map((entry, index) => (
                     <Cell 
                       key={`cell-${index}`} 
-                      fill={cn(
-                        "hsl(var(--primary))",
-                        entry.meters === maxMeters && "hsl(var(--primary))" // Destaque para o maior
-                      )}
+                      fill="hsl(var(--primary))" // Usando a variável CSS para a cor primária
                     />
                   ))}
                 </Bar>
