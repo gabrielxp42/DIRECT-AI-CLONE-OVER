@@ -49,7 +49,8 @@ import {
   Ruler,
   Clock,
   ChevronDown,
-  CalendarIcon
+  CalendarIcon,
+  Loader2 // Adicionado Loader2
 } from "lucide-react";
 import { useViewportZoom } from '@/hooks/useViewportZoom';
 import { MetersBarChart } from '@/components/MetersBarChart';
