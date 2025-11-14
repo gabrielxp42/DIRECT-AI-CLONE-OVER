@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/contexts/SessionProvider";
 import { Produto, NewProduto } from "@/types/produto";
 import { Button } from "@/components/ui/button";
@@ -35,15 +35,18 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { PlusCircle, MoreHorizontal, Package, DollarSign } from "lucide-react";
+import { PlusCircle, MoreHorizontal, Package, DollarSign, Loader2 } from "lucide-react";
 import { ProdutoForm } from "@/components/ProdutoForm";
 import { SearchInput } from "@/components/SearchInput";
 import { LowStockAlert } from "@/components/LowStockAlert";
 import { showSuccess, showError } from "@/utils/toast";
+import { useProdutos } from "@/hooks/useDataFetch"; // Importar o novo hook
 
 const Produtos = () => {
   const { supabase, session } = useSession();
   const queryClient = useQueryClient();
+  const { data: produtos, isLoading, error } = useProdutos(); // Usando o hook centralizado
+  
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedProduto, setSelectedProduto] = useState<Produto | null>(null);
@@ -58,27 +61,14 @@ const Produtos = () => {
     }
   }, [location.state, navigate]);
 
-  const fetchProdutos = async () => {
-    if (!supabase) throw new Error("Supabase client is not available");
-    const { data, error } = await supabase
-      .from("produtos")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (error) throw new Error(error.message);
-    return data as Produto[];
-  };
-
-  const { data: produtos, isLoading } = useQuery<Produto[]>({
-    queryKey: ["produtos"],
-    queryFn: fetchProdutos,
-    enabled: !!supabase,
-  });
-
   const addProdutoMutation = useMutation({
-    mutationFn: async (newProduto: NewProduto) => {
+    mutationFn: async (newProduto: Omit<NewProduto, 'user_id'>) => {
+      if (!session) throw new Error("Sessão não encontrada");
       if (!supabase) throw new Error("Supabase client is not available");
-      const { error } = await supabase.from("produtos").insert([newProduto]);
+      
+      const productToInsert = { ...newProduto, user_id: session.user.id };
+      
+      const { error } = await supabase.from("produtos").insert([productToInsert]);
       if (error) throw new Error(error.message);
     },
     onSuccess: () => {
@@ -130,7 +120,7 @@ const Produtos = () => {
     if (id) {
       updateProdutoMutation.mutate({ id, ...formData });
     } else {
-      addProdutoMutation.mutate({ ...formData, user_id: session.user.id });
+      addProdutoMutation.mutate(formData);
     }
   };
 
@@ -156,6 +146,10 @@ const Produtos = () => {
   };
 
   const isMutating = addProdutoMutation.isPending || updateProdutoMutation.isPending;
+
+  if (error) {
+    return <div className="text-center py-8 text-red-600">Erro ao carregar produtos: {error.message}</div>;
+  }
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -215,7 +209,7 @@ const Produtos = () => {
               onClick={() => selectedProduto && deleteProdutoMutation.mutate(selectedProduto.id)}
               className="w-full sm:w-auto"
             >
-              Excluir
+              {deleteProdutoMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Excluir"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -227,7 +221,8 @@ const Produtos = () => {
         <div className="space-y-4">
           {isLoading ? (
             <div className="text-center py-8">
-              <p className="text-muted-foreground">Carregando...</p>
+              <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
+              <p className="text-muted-foreground mt-2">Carregando...</p>
             </div>
           ) : filteredProdutos.length > 0 ? (
             filteredProdutos.map((produto) => {
@@ -324,7 +319,8 @@ const Produtos = () => {
                 {isLoading ? (
                   <TableRow>
                     <TableCell colSpan={4} className="text-center py-8">
-                      Carregando...
+                      <Loader2 className="h-6 w-6 animate-spin text-primary mx-auto" />
+                      <p className="text-muted-foreground mt-2">Carregando...</p>
                     </TableCell>
                   </TableRow>
                 ) : filteredProdutos.length > 0 ? (

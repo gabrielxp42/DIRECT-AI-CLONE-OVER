@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Search, Plus, Edit, Trash2, Phone, Mail, MapPin, DollarSign, Eye } from "lucide-react";
+import { Search, Plus, Edit, Trash2, Phone, Mail, MapPin, DollarSign, Eye, Loader2 } from "lucide-react";
 import { useSession } from "@/contexts/SessionProvider";
 import { useToast } from "@/hooks/use-toast";
 import { ClienteForm } from "@/components/ClienteForm";
@@ -22,31 +22,24 @@ import {
 import { ClientDetailsCard } from "@/components/ClientDetailsCard";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useIsMobile } from "@/hooks/use-mobile";
-
-interface Cliente {
-  id: string;
-  nome: string;
-  email: string | null;
-  telefone: string | null;
-  endereco: string | null;
-  valor_metro: number | null;
-  status: 'ativo' | 'inativo';
-  created_at: string;
-}
+import { useClientes } from "@/hooks/useDataFetch"; // Importar o novo hook
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Cliente, NewCliente } from "@/types/cliente";
+import { showSuccess, showError } from "@/utils/toast";
 
 const Clientes = () => {
-  const [clientes, setClientes] = useState<Cliente[]>([]);
+  const { supabase, session } = useSession();
+  const { data: clientes, isLoading, error } = useClientes(); // Usando o hook centralizado
+  const queryClient = useQueryClient();
+  
   const [searchTerm, setSearchTerm] = useState("");
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingCliente, setEditingCliente] = useState<Cliente | null>(null);
-  const [selectedClient, setSelectedClient] = useState<Cliente | null>(null); // Novo estado para detalhes
-  const [loading, setLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const { supabase, session } = useSession();
-  const { toast } = useToast();
+  const [selectedClient, setSelectedClient] = useState<Cliente | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
+  const { toast } = useToast();
 
   useEffect(() => {
     if (location.state?.openForm) {
@@ -56,58 +49,67 @@ const Clientes = () => {
     }
   }, [location.state, navigate]);
 
-  const fetchClientes = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('clientes')
-        .select('*')
-        .order('created_at', { ascending: false });
+  // --- Mutações ---
+  const addOrUpdateClienteMutation = useMutation({
+    mutationFn: async ({ data, id }: { data: Omit<NewCliente, 'user_id'>, id?: string }) => {
+      if (!session) throw new Error('Sessão não encontrada');
+      
+      const clienteData = {
+        ...data,
+        user_id: session.user.id,
+        status: data.status || 'ativo'
+      };
 
-      if (error) throw error;
-      setClientes(data || []);
-    } catch (error) {
-      console.error('Erro ao buscar clientes:', error);
-      toast({
-        title: "Erro",
-        description: "Não foi possível carregar os clientes.",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+      if (id) {
+        // Update
+        const { error } = await supabase
+          .from('clientes')
+          .update(clienteData)
+          .eq('id', id);
+        if (error) throw error;
+        return { type: 'update', nome: data.nome };
+      } else {
+        // Create
+        const { error } = await supabase
+          .from('clientes')
+          .insert([clienteData]);
+        if (error) throw error;
+        return { type: 'create', nome: data.nome };
+      }
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["clientes"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      showSuccess(`Cliente ${result.type === 'create' ? 'criado' : 'atualizado'} com sucesso!`);
+      setIsFormOpen(false);
+      setEditingCliente(null);
+    },
+    onError: (error: any) => {
+      showError(`Erro ao salvar cliente: ${error.message}`);
+    },
+  });
 
-  useEffect(() => {
-    fetchClientes();
-  }, []);
-
-  const handleDelete = async (id: string) => {
-    try {
+  const deleteClienteMutation = useMutation({
+    mutationFn: async (id: string) => {
       const { error } = await supabase
         .from('clientes')
         .delete()
         .eq('id', id);
-
       if (error) throw error;
-
-      setClientes(clientes.filter(cliente => cliente.id !== id));
-      // Se o cliente excluído era o selecionado, feche os detalhes
+    },
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: ["clientes"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      showSuccess("Cliente excluído com sucesso.");
       if (selectedClient?.id === id) {
         setSelectedClient(null);
       }
-      toast({
-        title: "Sucesso",
-        description: "Cliente excluído com sucesso.",
-      });
-    } catch (error) {
-      console.error('Erro ao excluir cliente:', error);
-      toast({
-        title: "Erro",
-        description: "Não foi possível excluir o cliente.",
-        variant: "destructive",
-      });
-    }
-  };
+    },
+    onError: (error: any) => {
+      showError(`Não foi possível excluir o cliente: ${error.message}`);
+    },
+  });
+  // --- Fim Mutações ---
 
   const handleEdit = (cliente: Cliente) => {
     setEditingCliente(cliente);
@@ -118,93 +120,13 @@ const Clientes = () => {
     setSelectedClient(cliente);
   };
 
-  const handleSubmitCliente = async (data: any, id?: string) => {
-    console.log('handleSubmitCliente chamado com:', { data, id });
-    
-    if (!session) {
-      console.error('Sessão não encontrada');
-      toast({
-        title: "Erro",
-        description: "Você precisa estar logado para realizar esta ação.",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    setIsSubmitting(true);
-    
-    try {
-      // Garantir que os campos opcionais sejam tratados corretamente
-      const clienteData = {
-        nome: data.nome,
-        telefone: data.telefone || null,
-        email: data.email || null,
-        endereco: data.endereco || null,
-        valor_metro: data.valor_metro === '' || data.valor_metro === undefined ? null : data.valor_metro,
-        status: data.status || 'ativo'
-      };
-      
-      console.log('Dados preparados para Supabase:', clienteData);
-      
-      if (id) {
-        // Update existing client
-        console.log('Atualizando cliente existente:', id);
-        const { error } = await supabase
-          .from('clientes')
-          .update(clienteData)
-          .eq('id', id);
-        
-        if (error) {
-          console.error('Erro ao atualizar cliente:', error);
-          throw error;
-        }
-        
-        toast({
-          title: "Sucesso",
-          description: "Cliente atualizado com sucesso.",
-        });
-      } else {
-        // Create new client
-        console.log('Criando novo cliente');
-        const { data: result, error } = await supabase
-          .from('clientes')
-          .insert([{ ...clienteData, user_id: session.user.id }])
-          .select()
-          .single();
-        
-        console.log('Resultado da inserção:', { result, error });
-        
-        if (error) {
-          console.error('Erro ao criar cliente:', error);
-          throw error;
-        }
-        
-        toast({
-          title: "Sucesso",
-          description: "Cliente criado com sucesso.",
-        });
-      }
-      
-      setIsFormOpen(false);
-      setEditingCliente(null);
-      fetchClientes();
-    } catch (error: any) {
-      console.error('Erro completo ao salvar cliente:', error);
-      toast({
-        title: "Erro",
-        description: `Não foi possível salvar o cliente: ${error.message || 'Erro desconhecido'}`,
-        variant: "destructive",
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
+  const handleSubmitCliente = (data: Omit<NewCliente, 'user_id'>, id?: string) => {
+    addOrUpdateClienteMutation.mutate({ data, id });
   };
 
-  const filteredClientes = clientes.filter(cliente =>
-    cliente.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (cliente.email && cliente.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (cliente.telefone && cliente.telefone.includes(searchTerm))
-  );
+  const handleDelete = (id: string) => {
+    deleteClienteMutation.mutate(id);
+  };
 
   const formatCurrency = (value: number | null) => {
     if (value === null || value === undefined) return 'N/A';
@@ -214,8 +136,26 @@ const Clientes = () => {
     }).format(value);
   };
 
-  if (loading) {
-    return <div>Carregando...</div>;
+  const filteredClientes = clientes?.filter(cliente =>
+    cliente.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (cliente.email && cliente.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (cliente.telefone && cliente.telefone.includes(searchTerm))
+  ) || [];
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-10 w-48" />
+        <Skeleton className="h-10 w-full max-w-sm" />
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-40 w-full" />)}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return <div className="text-center py-8 text-red-600">Erro ao carregar clientes: {error.message}</div>;
   }
 
   return (
@@ -229,10 +169,11 @@ const Clientes = () => {
         </div>
         <Button 
           onClick={() => { setEditingCliente(null); setIsFormOpen(true); }}
-          size="icon"
-          className="h-10 w-10"
+          size="default"
+          className="h-10 w-full sm:w-auto"
         >
-          <Plus className="h-4 w-4" />
+          <Plus className="h-4 w-4 mr-2" />
+          Novo Cliente
         </Button>
       </div>
 
@@ -249,7 +190,7 @@ const Clientes = () => {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3 xl:grid-cols-4">
-        <div className="lg:col-span-3 xl:col-span-4"> {/* Removido a lógica de span condicional */}
+        <div className="lg:col-span-3 xl:col-span-4">
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
             {filteredClientes.map((cliente) => (
               <Card 
@@ -334,8 +275,6 @@ const Clientes = () => {
             ))}
           </div>
         </div>
-
-        {/* Removido a coluna lateral de detalhes */}
       </div>
 
       {filteredClientes.length === 0 && (
@@ -353,11 +292,11 @@ const Clientes = () => {
           if (!isOpen) setEditingCliente(null);
         }}
         onSubmit={handleSubmitCliente}
-        isSubmitting={isSubmitting}
+        isSubmitting={addOrUpdateClienteMutation.isPending || deleteClienteMutation.isPending}
         initialData={editingCliente}
       />
 
-      {/* Modal de Detalhes (Agora usado para todas as telas) */}
+      {/* Modal de Detalhes */}
       {selectedClient && (
         <Dialog 
           open={!!selectedClient} 

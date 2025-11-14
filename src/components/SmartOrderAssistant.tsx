@@ -14,11 +14,12 @@ import {
   Plus, 
   X, 
   AlertCircle,
-  CheckCircle2
+  Loader2
 } from 'lucide-react';
 import { useSession } from '@/contexts/SessionProvider';
 import { useToast } from '@/hooks/use-toast';
-import { createWorker } from 'tesseract.js';
+// Importação dinâmica do tesseract.js
+// import { createWorker } from 'tesseract.js'; // Removido importação estática
 import { PedidoFormValues } from './PedidoForm';
 
 interface SmartOrderItem {
@@ -63,36 +64,44 @@ export const SmartOrderAssistant: React.FC<SmartOrderAssistantProps> = ({
   const calculatePriceByMeters = (meters: number, customMeterValue?: number | null) => {
     const basePrice = customMeterValue || 45; // Default R$45 if no custom value
     
-    // Progressive pricing logic
+    // Lógica de precificação progressiva (mantida)
     let totalPrice = 0;
     let explanation = '';
+    let unitPrice = basePrice;
     
     if (meters <= 1) {
-      totalPrice = basePrice * meters;
-      explanation = `1 metro: R$${basePrice.toFixed(2)} cada`;
+      unitPrice = basePrice;
+      totalPrice = unitPrice * meters;
+      explanation = `1 metro: R$${unitPrice.toFixed(2)} cada`;
     } else if (meters <= 3) {
-      totalPrice = 70;
-      explanation = `2-3 metros: R$70 total`;
+      unitPrice = 70; // Preço fixo por metro para 2-3m
+      totalPrice = unitPrice * meters;
+      explanation = `2-3 metros: R$70,00 cada`;
     } else if (meters <= 6) {
-      totalPrice = 65;
-      explanation = `4-6 metros: R$65 total`;
+      unitPrice = 65;
+      totalPrice = unitPrice * meters;
+      explanation = `4-6 metros: R$65,00 cada`;
     } else if (meters <= 10) {
-      totalPrice = 60;
-      explanation = `7-10 metros: R$60 total`;
+      unitPrice = 60;
+      totalPrice = unitPrice * meters;
+      explanation = `7-10 metros: R$60,00 cada`;
     } else if (meters <= 20) {
-      totalPrice = 55;
-      explanation = `11-20 metros: R$55 total`;
+      unitPrice = 55;
+      totalPrice = unitPrice * meters;
+      explanation = `11-20 metros: R$55,00 cada`;
     } else if (meters <= 30) {
-      totalPrice = 52;
-      explanation = `21-30 metros: R$52 total`;
+      unitPrice = 52;
+      totalPrice = unitPrice * meters;
+      explanation = `21-30 metros: R$52,00 cada`;
     } else {
-      totalPrice = 49.90 * meters;
+      unitPrice = 49.90;
+      totalPrice = unitPrice * meters;
       explanation = `30+ metros: R$49,90 cada`;
     }
     
     return {
       totalPrice: parseFloat(totalPrice.toFixed(2)),
-      unitPrice: meters > 0 ? parseFloat((totalPrice / meters).toFixed(2)) : basePrice,
+      unitPrice: parseFloat(unitPrice.toFixed(2)),
       explanation
     };
   };
@@ -105,23 +114,27 @@ export const SmartOrderAssistant: React.FC<SmartOrderAssistantProps> = ({
     
     for (const line of lines) {
       // Match patterns like "1m- numero fla 25" or "2M - numero vasco"
-      const regex = /^(\d+(?:\.\d+)?)\s*m\s*[-–]\s*(.+)$/i;
+      // Regex aprimorada para capturar a quantidade (com ou sem decimal) e a descrição
+      const regex = /^(\d+(?:[.,]\d+)?)\s*m\s*[-–]?\s*(.+)$/i;
       const match = line.match(regex);
       
       if (match) {
-        const meters = parseFloat(match[1]);
+        // Substituir vírgula por ponto para parseFloat
+        const meters = parseFloat(match[1].replace(',', '.'));
         const description = match[2].trim();
         
-        const priceInfo = calculatePriceByMeters(meters, customMeterValue);
-        
-        items.push({
-          id: Math.random().toString(36).substr(2, 9),
-          produto_nome: description,
-          quantidade: meters,
-          preco_unitario: priceInfo.unitPrice,
-          suggestedPrice: priceInfo.totalPrice,
-          priceExplanation: priceInfo.explanation
-        });
+        if (meters > 0) {
+          const priceInfo = calculatePriceByMeters(meters, customMeterValue);
+          
+          items.push({
+            id: Math.random().toString(36).substr(2, 9),
+            produto_nome: description,
+            quantidade: meters,
+            preco_unitario: priceInfo.unitPrice,
+            suggestedPrice: priceInfo.totalPrice,
+            priceExplanation: priceInfo.explanation
+          });
+        }
       }
     }
     
@@ -145,7 +158,7 @@ export const SmartOrderAssistant: React.FC<SmartOrderAssistantProps> = ({
       if (items.length === 0) {
         toast({
           title: "Nenhum item encontrado",
-          description: "Não conseguimos identificar itens no formato esperado.",
+          description: "Não conseguimos identificar itens no formato esperado (Ex: '1.5m - nome do arquivo').",
           variant: "destructive"
         });
       } else {
@@ -171,6 +184,9 @@ export const SmartOrderAssistant: React.FC<SmartOrderAssistantProps> = ({
     setOcrProgress(0);
     
     try {
+      // Carregamento dinâmico do Tesseract
+      const { createWorker } = await import('tesseract.js');
+      
       const worker = await createWorker({
         logger: m => {
           if (m.status === 'recognizing text') {
@@ -199,7 +215,7 @@ export const SmartOrderAssistant: React.FC<SmartOrderAssistantProps> = ({
       setOcrProgress(0);
       toast({
         title: "Erro no processamento",
-        description: "Não foi possível extrair texto da imagem.",
+        description: "Não foi possível extrair texto da imagem. Verifique se a imagem está clara.",
         variant: "destructive"
       });
     }
@@ -289,7 +305,7 @@ export const SmartOrderAssistant: React.FC<SmartOrderAssistantProps> = ({
                 className="hidden"
                 id="image-upload"
               />
-              <Label htmlFor="image-upload">
+              <Label htmlFor="image-upload" className="w-full">
                 <Button 
                   asChild
                   variant="outline" 
@@ -297,7 +313,11 @@ export const SmartOrderAssistant: React.FC<SmartOrderAssistantProps> = ({
                   disabled={isProcessing}
                 >
                   <div className="flex items-center gap-2 cursor-pointer">
-                    <Camera className="h-4 w-4" />
+                    {isProcessing ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Camera className="h-4 w-4" />
+                    )}
                     {isProcessing ? `Processando... ${ocrProgress}%` : "Upload de Imagem"}
                   </div>
                 </Button>
@@ -311,7 +331,7 @@ export const SmartOrderAssistant: React.FC<SmartOrderAssistantProps> = ({
               onClick={handleTextParse}
               variant="outline" 
               className="w-full"
-              disabled={!text.trim()}
+              disabled={!text.trim() || isProcessing}
             >
               <FileText className="h-4 w-4 mr-2" />
               Processar Texto
@@ -324,8 +344,9 @@ export const SmartOrderAssistant: React.FC<SmartOrderAssistantProps> = ({
           <Textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Cole aqui o texto da lista de arquivos ou texto extraído da imagem..."
+            placeholder="Cole aqui o texto da lista de arquivos ou texto extraído da imagem (Ex: 1.5m - nome do arquivo)..."
             rows={4}
+            disabled={isProcessing}
           />
         </div>
         

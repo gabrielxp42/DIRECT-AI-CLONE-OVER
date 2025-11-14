@@ -41,13 +41,18 @@ import {
 import { OrderStatusIndicator } from '@/components/OrderStatusIndicator';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { usePedidos, useClientes, useProdutos } from '@/hooks/useDataFetch'; // Importar hooks de fetch
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 const PedidosPage: React.FC = () => {
   const { supabase, session } = useSession();
-  const [pedidos, setPedidos] = useState<Pedido[]>([]);
-  const [clientes, setClientes] = useState<Cliente[]>([]);
-  const [produtos, setProdutos] = useState<Produto[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  
+  // Usando hooks centralizados para dados
+  const { data: allPedidos, isLoading: isLoadingPedidos, error: pedidosError } = usePedidos();
+  const { data: clientes, isLoading: isLoadingClientes } = useClientes();
+  const { data: produtos, isLoading: isLoadingProdutos } = useProdutos();
+
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [isStatusChangeOpen, setIsStatusChangeOpen] = useState(false);
@@ -56,12 +61,10 @@ const PedidosPage: React.FC = () => {
   const [viewingPedidoId, setViewingPedidoId] = useState<string | null>(null);
   const [statusChangePedido, setStatusChangePedido] = useState<Pedido | null>(null);
   const [viewingStatusHistory, setViewingStatusHistory] = useState<Pedido | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('todos');
   const [filterDateRange, setFilterDateRange] = useState<{ from?: Date; to?: Date }>({});
   
-  // Novos estados para filtro de cliente
   const [filterClientId, setFilterClientId] = useState<string | null>(null);
   const [filterClientName, setFilterClientName] = useState<string | null>(null);
 
@@ -76,7 +79,6 @@ const PedidosPage: React.FC = () => {
       navigate(location.pathname, { replace: true, state: {} });
     }
     
-    // Captura o filtro de cliente
     if (location.state?.filterClientId) {
       setFilterClientId(location.state.filterClientId);
       setFilterClientName(location.state.filterClientName || 'Cliente Filtrado');
@@ -90,89 +92,9 @@ const PedidosPage: React.FC = () => {
     }
   }, [location.state, location.pathname, navigate]);
 
-
-  const fetchPedidos = useCallback(async () => {
-    if (!session || !supabase) return;
-    setLoading(true);
-    try {
-      // Consulta ÚNICA e completa para todos os pedidos
-      let query = supabase
-        .from('pedidos') // Usando 'pedidos' para leitura
-        .select(`
-          *,
-          clientes (id, nome, telefone, email, endereco),
-          pedido_items (*),
-          pedido_servicos (*),
-          pedido_status_history (*)
-        `)
-        .order('order_number', { ascending: false }); // Ordenar por número do pedido
-
-      if (filterClientId) {
-        query = query.eq('cliente_id', filterClientId);
-      }
-
-      const { data: pedidosData, error: pedidosError } = await query;
-
-      if (pedidosError) throw pedidosError;
-
-      // Mapear e processar os dados
-      const pedidosCompletos = pedidosData?.map(pedido => {
-        // Ordenar o histórico para pegar a última observação
-        const orderedHistory = (pedido.pedido_status_history || []).sort((a, b) => 
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        );
-        
-        const latestObservation = orderedHistory.length > 0 ? orderedHistory[0].observacao : null;
-        
-        return {
-          ...pedido,
-          pedido_items: pedido.pedido_items || [],
-          servicos: pedido.pedido_servicos || [],
-          status_history: orderedHistory,
-          latest_status_observation: latestObservation,
-        };
-      }) || [];
-
-      setPedidos(pedidosCompletos as Pedido[]);
-    } catch (error: any) {
-      console.error('Erro ao carregar pedidos:', error);
-      showError(`Erro ao carregar pedidos: ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
-  }, [session, supabase, filterClientId]); // Adicionado filterClientId como dependência
-
-  const fetchClientesAndProdutos = useCallback(async () => {
-    if (!session || !supabase) return;
-    try {
-      const { data: clientesData, error: clientesError } = await supabase
-        .from('clientes')
-        .select('*')
-        .eq('user_id', session.user.id);
-      if (clientesError) throw clientesError;
-      setClientes(clientesData as Cliente[]);
-
-      const { data: produtosData, error: produtosError } = await supabase
-        .from('produtos')
-        .select('*')
-        .eq('user_id', session.user.id);
-      if (produtosError) throw produtosError;
-      setProdutos(produtosData as Produto[]);
-
-    } catch (error: any) {
-      showError(`Erro ao carregar dados de suporte: ${error.message}`);
-    }
-  }, [session, supabase]);
-
-  useEffect(() => {
-    fetchPedidos();
-    fetchClientesAndProdutos();
-  }, [fetchPedidos, fetchClientesAndProdutos]);
-
   const handleClearClientFilter = () => {
     setFilterClientId(null);
     setFilterClientName(null);
-    // Re-fetch will be triggered by useEffect dependency
   };
 
   const handleCreatePedido = () => {
@@ -200,29 +122,27 @@ const PedidosPage: React.FC = () => {
     setIsStatusHistoryOpen(true);
   };
 
-  const handleSubmitStatusChange = async (newStatus: string, observacao?: string) => {
-    if (!statusChangePedido || !supabase) return;
-    
-    try {
-      const statusAnterior = statusChangePedido.status;
+  // --- Mutações ---
 
-      // Atualizar o campo status no banco de dados
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ id, newStatus, observacao, statusAnterior }: { id: string, newStatus: string, observacao?: string, statusAnterior: string }) => {
+      if (!supabase) throw new Error("Supabase client is not available");
+      
       const { error } = await supabase
         .from('pedidos') 
-        .update({ status: newStatus }) // Usando a coluna 'status'
-        .eq('id', statusChangePedido.id);
+        .update({ status: newStatus })
+        .eq('id', id);
       
       if (error) throw error;
       
-      // Se houver observação, adicionar ao histórico
-      if (observacao && observacao.trim()) {
+      if (newStatus !== statusAnterior || observacao) {
         const { error: historyError } = await supabase
           .from('pedido_status_history')
           .insert({
-            pedido_id: statusChangePedido.id,
+            pedido_id: id,
             status_anterior: statusAnterior,
             status_novo: newStatus,
-            observacao: observacao.trim(),
+            observacao: observacao?.trim() || null,
             user_id: session?.user.id
           });
 
@@ -230,56 +150,67 @@ const PedidosPage: React.FC = () => {
           console.warn('Aviso: Erro ao salvar histórico:', historyError);
         }
       }
-      
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       showSuccess("Status atualizado com sucesso!");
-      fetchPedidos();
-    } catch (error: any) {
+    },
+    onError: (error: any) => {
       showError(`Erro ao atualizar status: ${error.message}`);
     }
+  });
+
+  const handleSubmitStatusChange = (newStatus: string, observacao?: string) => {
+    if (!statusChangePedido) return;
+    updateStatusMutation.mutate({
+      id: statusChangePedido.id,
+      newStatus,
+      observacao,
+      statusAnterior: statusChangePedido.status
+    });
   };
 
-  const handleDownloadPDF = async (pedido: Pedido) => {
-    try {
-      if ((!pedido.pedido_items || pedido.pedido_items.length === 0) && (!pedido.servicos || pedido.servicos.length === 0)) {
-        showError("O pedido não possui itens ou serviços para gerar o PDF.");
-        return;
-      }
+  const deletePedidoMutation = useMutation({
+    mutationFn: async (id: string) => {
+      if (!supabase) throw new Error("Supabase client is not available");
       
-      await generateOrderPDF(pedido, 'save');
-      showSuccess("PDF gerado e baixado com sucesso!");
-    } catch (error: any) {
-      showError(`Erro ao gerar PDF: ${error.message}`);
-    }
-  };
+      // Excluir itens e serviços relacionados (RLS deve permitir)
+      await supabase.from('pedido_items').delete().eq('pedido_id', id);
+      await supabase.from('pedido_servicos').delete().eq('pedido_id', id);
+      await supabase.from('pedido_status_history').delete().eq('pedido_id', id);
 
-  const handlePrintPDF = async (pedido: Pedido) => {
-    try {
-      if ((!pedido.pedido_items || pedido.pedido_items.length === 0) && (!pedido.servicos || pedido.servicos.length === 0)) {
-        showError("O pedido não possui itens ou serviços para imprimir.");
-        return;
-      }
+      const { error } = await supabase
+        .from('pedidos')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', session?.user.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      showSuccess("Pedido excluído com sucesso!");
+      setIsDetailsOpen(false);
+      setViewingPedidoId(null);
+    },
+    onError: (error: any) => {
+      showError(`Erro ao excluir pedido: ${error.message}`);
+    }
+  });
+
+  const handleSubmitPedidoMutation = useMutation({
+    mutationFn: async ({ data, pedidoId }: { data: any, pedidoId?: string }) => {
+      if (!session || !supabase) throw new Error("Sessão não encontrada");
       
-      await generateOrderPDF(pedido, 'print');
-    } catch (error: any) {
-      showError(`Erro ao gerar PDF para impressão: ${error.message}`);
-    }
-  };
-
-  const handleSubmitPedido = async (data: Omit<Pedido, 'id' | 'created_at' | 'user_id' | 'status'> & { created_at: string }, pedidoId?: string) => {
-    if (!session || !supabase) return;
-    setIsSubmitting(true);
-
-    try {
-      // Separar dados do pedido principal dos itens/serviços
       const { items, servicos, created_at, ...pedidoData } = data;
-
+      
       if (pedidoId) {
         // Update existing pedido
-        // Incluir created_at e status na atualização
         const updateData = { 
           ...pedidoData, 
           created_at,
-          status: editingPedido?.status || 'pendente' // Manter o status atual ou 'pendente'
+          status: editingPedido?.status || 'pendente'
         };
 
         const { error: pedidoError } = await supabase
@@ -291,34 +222,26 @@ const PedidosPage: React.FC = () => {
         // Handle items: delete old, insert new
         await supabase.from('pedido_items').delete().eq('pedido_id', pedidoId);
         if (items && items.length > 0) {
-          const itemsToInsert = items.map(item => ({ ...item, pedido_id: pedidoId }));
+          const itemsToInsert = items.map((item: any) => ({ ...item, pedido_id: pedidoId }));
           const { error: itemsError } = await supabase.from('pedido_items').insert(itemsToInsert);
           if (itemsError) throw itemsError;
         }
 
         // Handle servicos: delete old, insert new
-        let servicosTable = 'pedido_servicos';
-        try {
-          await supabase.from('pedido_servicos').select('*').limit(1);
-        } catch (e) {
-          servicosTable = 'servicos';
-        }
-
-        await supabase.from(servicosTable).delete().eq('pedido_id', pedidoId);
+        await supabase.from('pedido_servicos').delete().eq('pedido_id', pedidoId);
         if (servicos && servicos.length > 0) {
-          const servicosToInsert = servicos.map(servico => ({ ...servico, pedido_id: pedidoId }));
-          const { error: servicosError } = await supabase.from(servicosTable).insert(servicosToInsert);
+          const servicosToInsert = servicos.map((servico: any) => ({ ...servico, pedido_id: pedidoId }));
+          const { error: servicosError } = await supabase.from('pedido_servicos').insert(servicosToInsert);
           if (servicosError) throw servicosError;
         }
-
-        showSuccess("Pedido atualizado com sucesso!");
+        return { type: 'update' };
       } else {
         // Create new pedido
         const newPedidoData = { 
           ...pedidoData, 
           user_id: session.user.id, 
-          status: 'pendente', // Definir status explicitamente para garantir que o campo obrigatório seja preenchido
-          created_at: created_at // Enviar a data de criação
+          status: 'pendente',
+          created_at: created_at
         };
 
         const { data: newPedido, error: pedidoError } = await supabase
@@ -330,79 +253,37 @@ const PedidosPage: React.FC = () => {
         if (pedidoError) throw pedidoError;
 
         if (items && items.length > 0) {
-          const itemsToInsert = items.map(item => ({ ...item, pedido_id: newPedido.id }));
+          const itemsToInsert = items.map((item: any) => ({ ...item, pedido_id: newPedido.id }));
           const { error: itemsError } = await supabase.from('pedido_items').insert(itemsToInsert);
           if (itemsError) throw itemsError;
         }
 
-        let servicosTable = 'pedido_servicos';
-        try {
-          await supabase.from('pedido_servicos').select('*').limit(1);
-        } catch (e) {
-          servicosTable = 'servicos';
-        }
-
         if (servicos && servicos.length > 0) {
-          const servicosToInsert = servicos.map(servico => ({ ...servico, pedido_id: newPedido.id }));
-          const { error: servicosError } = await supabase.from(servicosTable).insert(servicosToInsert);
+          const servicosToInsert = servicos.map((servico: any) => ({ ...servico, pedido_id: newPedido.id }));
+          const { error: servicosError } = await supabase.from('pedido_servicos').insert(servicosToInsert);
           if (servicosError) throw servicosError;
         }
-
-        showSuccess("Pedido criado com sucesso!");
+        return { type: 'create' };
       }
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      showSuccess(`Pedido ${result.type === 'create' ? 'criado' : 'atualizado'} com sucesso!`);
       setIsFormOpen(false);
-      fetchPedidos();
-    } catch (error: any) {
+      setEditingPedido(null);
+    },
+    onError: (error: any) => {
       showError(`Erro ao salvar pedido: ${error.message}`);
-    } finally {
-      setIsSubmitting(false);
     }
+  });
+
+  const handleSubmitPedido = (data: any, pedidoId?: string) => {
+    handleSubmitPedidoMutation.mutate({ data, pedidoId });
   };
 
-  const handleDeletePedido = async (id: string) => {
-    if (!supabase) return;
-    try {
-      const { error: historyError } = await supabase
-        .from('pedido_status_history')
-        .delete()
-        .eq('pedido_id', id);
-      if (historyError) console.warn('Aviso: Erro ao excluir histórico de status:', historyError.message);
+  // --- Fim Mutações ---
 
-      const { error: itemsError } = await supabase
-        .from('pedido_items')
-        .delete()
-        .eq('pedido_id', id);
-      if (itemsError) throw itemsError;
-
-      let servicosTable = 'pedido_servicos';
-      try {
-        await supabase.from('pedido_servicos').select('*').limit(1);
-      } catch (e) {
-        servicosTable = 'servicos';
-      }
-
-      const { error: servicosError } = await supabase
-        .from(servicosTable)
-        .delete()
-        .eq('pedido_id', id);
-      if (servicosError) {
-        console.warn('Aviso: Não foi possível excluir serviços:', servicosError.message);
-      }
-
-      const { error } = await supabase
-        .from('pedidos') // CORRIGIDO: Usando 'pedidos' para DELETE
-        .delete()
-        .eq('id', id)
-        .eq('user_id', session?.user.id);
-      if (error) throw error;
-      showSuccess("Pedido excluído com sucesso!");
-      fetchPedidos();
-    } catch (error: any) {
-      showError(`Erro ao excluir pedido: ${error.message}`);
-    }
-  };
-
-  // Reintroduzindo a função getStatusBadge para uso no mobile
   const getStatusBadge = (pedido: Pedido) => {
     const status = pedido.status;
     const baseClasses = "text-[0.6rem] px-1 py-0 whitespace-nowrap cursor-pointer";
@@ -499,7 +380,7 @@ const PedidosPage: React.FC = () => {
     }).format(value);
   };
 
-  const filteredPedidos = pedidos.filter(pedido => {
+  const filteredPedidos = allPedidos?.filter(pedido => {
     const matchesSearch = searchTerm === '' ||
       pedido.order_number.toString().includes(searchTerm) ||
       pedido.clientes?.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -516,9 +397,17 @@ const PedidosPage: React.FC = () => {
     const pedidoDate = new Date(pedido.created_at);
     const matchesDate = (!filterDateRange.from || pedidoDate >= filterDateRange.from) &&
                         (!filterDateRange.to || pedidoDate <= filterDateRange.to);
+    
+    const matchesClientFilter = !filterClientId || pedido.cliente_id === filterClientId;
 
-    return matchesSearch && matchesStatus && matchesDate;
-  });
+    return matchesSearch && matchesStatus && matchesDate && matchesClientFilter;
+  }) || [];
+
+  const isGlobalLoading = isLoadingPedidos || isLoadingClientes || isLoadingProdutos;
+
+  if (pedidosError) {
+    return <div className="text-center py-8 text-red-600">Erro ao carregar pedidos: {pedidosError.message}</div>;
+  }
 
   return (
     <div className="container mx-auto p-4">
@@ -609,7 +498,7 @@ const PedidosPage: React.FC = () => {
         </Popover>
       </div>
 
-      {loading ? (
+      {isGlobalLoading ? (
         <div className="flex justify-center items-center h-64">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
@@ -621,11 +510,11 @@ const PedidosPage: React.FC = () => {
             <Card 
               key={pedido.id} 
               className="touch-manipulation cursor-pointer transition-all duration-200 hover:shadow-lg hover:border-primary/50"
-              onClick={() => handleViewPedido(pedido.id)} // Adicionado o clique aqui
+              onClick={() => handleViewPedido(pedido.id)}
             >
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between w-full gap-2">
-                  <div className="flex-1 min-w-0"> {/* Adicionado min-w-0 aqui */}
+                  <div className="flex-1 min-w-0">
                     <CardTitle className="text-lg font-semibold">
                       Pedido #{pedido.order_number}
                     </CardTitle>
@@ -642,7 +531,7 @@ const PedidosPage: React.FC = () => {
                       )}
                     </CardDescription>
                   </div>
-                  <div className="flex-shrink-0 max-w-full"> {/* Adicionado max-w-full aqui */}
+                  <div className="flex-shrink-0 max-w-full">
                     {isMobile ? (
                       getStatusBadge(pedido)
                     ) : (
@@ -765,7 +654,7 @@ const PedidosPage: React.FC = () => {
                           </AlertDialogHeader>
                           <AlertDialogFooter>
                             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDeletePedido(pedido.id)}>Excluir</AlertDialogAction>
+                            <AlertDialogAction onClick={() => deletePedidoMutation.mutate(pedido.id)}>Excluir</AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>
                       </AlertDialog>
@@ -782,10 +671,10 @@ const PedidosPage: React.FC = () => {
         isOpen={isFormOpen}
         onOpenChange={setIsFormOpen}
         onSubmit={handleSubmitPedido}
-        isSubmitting={isSubmitting}
+        isSubmitting={handleSubmitPedidoMutation.isPending}
         initialData={editingPedido}
-        clientes={clientes}
-        produtos={produtos}
+        clientes={clientes || []}
+        produtos={produtos || []}
       />
 
       {viewingPedidoId && (
@@ -793,10 +682,10 @@ const PedidosPage: React.FC = () => {
           isOpen={isDetailsOpen}
           onOpenChange={setIsDetailsOpen}
           pedidoId={viewingPedidoId}
-          clientes={clientes}
-          produtos={produtos}
+          clientes={clientes || []}
+          produtos={produtos || []}
           onEdit={handleEditPedido}
-          onDelete={handleDeletePedido}
+          onDelete={deletePedidoMutation.mutate}
         />
       )}
 
@@ -806,6 +695,7 @@ const PedidosPage: React.FC = () => {
           onOpenChange={setIsStatusChangeOpen}
           currentStatus={statusChangePedido.status}
           onStatusChange={handleSubmitStatusChange}
+          isLoading={updateStatusMutation.isPending}
           orderNumber={statusChangePedido.order_number}
         />
       )}
