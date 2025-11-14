@@ -665,7 +665,7 @@ const Reports = () => {
 
       {/* Tabbed Content */}
       <Tabs defaultValue="services" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-3 lg:grid-cols-4 h-auto">
+        <TabsList className="grid w-full grid-cols-4 lg:grid-cols-4 h-auto">
           <TabsTrigger value="services" className="py-2 flex items-center gap-2"><Wrench className="h-4 w-4" /> Serviços</TabsTrigger>
           <TabsTrigger value="products" className="py-2 flex items-center gap-2"><Package className="h-4 w-4" /> Produtos</TabsTrigger>
           <TabsTrigger value="customers" className="py-2 flex items-center gap-2"><User className="h-4 w-4" /> Clientes</TabsTrigger>
