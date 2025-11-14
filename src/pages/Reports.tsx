@@ -392,7 +392,7 @@ const fetchReportData = async (supabase: any, selectedPeriod: string, customRang
   };
 };
 
-const Reports: React.FC = () => {
+const Reports = () => {
   const { supabase } = useSession();
   const [selectedPeriod, setSelectedPeriod] = useState("month");
   const [customDateRange, setCustomDateRange] = useState<{ from?: Date; to?: Date }>({});
