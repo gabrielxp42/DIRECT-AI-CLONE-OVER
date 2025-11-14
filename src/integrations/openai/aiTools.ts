@@ -175,6 +175,76 @@ export const get_top_clients = async (args: { top_n?: number }) => {
   }
 };
 
+// NOVO: Função para obter o total de metros lineares por período
+export const get_total_meters_by_period = async (args: {
+  startDate?: string;
+  endDate?: string;
+  allTime?: boolean;
+}) => {
+  let { startDate, endDate, allTime } = args;
+  const TIME_ZONE = 'America/Sao_Paulo';
+  const dateInfo = getCurrentDateTime();
+  let periodDescription = "em todo o período";
+
+  if (allTime) {
+    // Para 'allTime', usamos uma data muito antiga como início
+    startDate = '2000-01-01T00:00:00.000Z';
+    endDate = new Date().toISOString();
+    periodDescription = `desde o início`;
+  } else if (!startDate && !endDate) {
+    // Default para o mês atual
+    startDate = dateInfo.ranges.thisMonth.start;
+    endDate = dateInfo.ranges.thisMonth.end;
+    periodDescription = `neste mês de ${dateInfo.current.monthName} de ${dateInfo.current.year}`;
+  } else if (startDate && !endDate) {
+    const start = new Date(startDate);
+    const startDay = start.getUTCDate();
+    const startMonth = start.getUTCMonth();
+    const startYear = start.getUTCFullYear();
+    const end = new Date(Date.UTC(startYear, startMonth, startDay, 23, 59, 59, 999));
+    endDate = end.toISOString();
+    periodDescription = `em ${new Date(startDate).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE })}`;
+  } else if (!startDate && endDate) {
+    const end = new Date(endDate);
+    const endDay = end.getUTCDate();
+    const endMonth = end.getUTCMonth();
+    const endYear = end.getUTCFullYear();
+    const start = new Date(Date.UTC(endYear, endMonth, endDay, 0, 0, 0, 0));
+    startDate = start.toISOString();
+    periodDescription = `em ${new Date(endDate).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE })}`;
+  } else if (startDate && endDate) {
+    const startDisplayDate = new Date(startDate!).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE });
+    const endDisplayDate = new Date(endDate!).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE });
+    periodDescription = startDisplayDate === endDisplayDate ? `em ${startDisplayDate}` : `entre ${startDisplayDate} e ${endDisplayDate}`;
+  }
+
+  try {
+    const { data, error } = await supabase.rpc('get_total_meters_by_period', {
+      p_start_date: startDate,
+      p_end_date: endDate
+    }).single();
+
+    if (error) throw error;
+
+    const totalMeters = data?.total_meters || 0;
+    const totalOrders = data?.total_orders || 0;
+
+    if (totalOrders === 0) {
+      return { message: `❌ Nenhum pedido encontrado ${periodDescription}. Total de metros: 0 ML.` };
+    }
+
+    return {
+      total_meters: totalMeters,
+      total_orders: totalOrders,
+      message: `📏 **Total de Metros Lineares** ${periodDescription}:\n\nEncontrados **${totalMeters.toFixed(2)} ML** em ${totalOrders} pedidos.`
+    };
+
+  } catch (error: any) {
+    console.error("Erro ao buscar total de metros:", error);
+    throw new Error(`❌ Erro ao buscar total de metros: ${error.message}`);
+  }
+};
+
 
 // OpenAI Functions format
 export const openAIFunctions = [
@@ -216,8 +286,32 @@ export const openAIFunctions = [
     }
   },
   {
+    name: "get_total_meters_by_period", // NOVO TOOL
+    description: "Calcula o total de metros lineares (ML) vendidos em um período específico. Use para perguntas como 'quantos metros rodamos hoje?', 'total de ML deste mês', 'metragem total desde o início'.",
+    parameters: {
+      type: "object",
+      properties: {
+        startDate: {
+          type: "string",
+          format: "date-time",
+          description: "Data de início do período para filtrar (formato ISO 8601)."
+        },
+        endDate: {
+          type: "string",
+          format: "date-time",
+          description: "Data de fim do período para filtrar (formato ISO 8601)."
+        },
+        allTime: {
+          type: "boolean",
+          description: "Se verdadeiro, ignora startDate e endDate e busca o total de metros desde o início."
+        }
+      },
+      required: []
+    }
+  },
+  {
     name: "get_client_orders",
-    description: "Obtém TODOS os pedidos de um cliente específico, independente da data. Use esta função quando o usuário pedir 'pedidos do cliente X', 'todos os pedidos do Detto', 'pedidos do cliente Y desse mês', etc. Retorna o NÚMERO do pedido, status, valor total, data de criação e nome do cliente. Usa busca inteligente que encontra clientes mesmo com nomes parciais ou pequenos erros de digitação.",
+    description: "Obtém TODOS os pedidos de um cliente específico, independente da data. Use esta função quando o usuário pedir 'pedidos do cliente X', 'todos os pedidos do Detto', 'pedidos do cliente Y desse mês', etc. Retorna o NÚMERO do pedido, status, valor total, total de metros, data de criação e nome do cliente. Usa busca inteligente que encontra clientes mesmo com nomes parciais ou pequenos erros de digitação.",
     parameters: {
       type: "object",
       properties: {
@@ -259,7 +353,7 @@ export const openAIFunctions = [
   },
   {
     name: "get_orders_by_status",
-    description: "Obtém pedidos filtrando por um ou mais status. Use para perguntas como 'quantos pedidos pendentes?', 'liste os pedidos cancelados', 'quais pedidos não estão pagos?'. Retorna o NÚMERO do pedido, status, valor total, data de criação e nome do cliente.",
+    description: "Obtém pedidos filtrando por um ou mais status. Use para perguntas como 'quantos pedidos pendentes?', 'liste os pedidos cancelados', 'quais pedidos não estão pagos?'. Retorna o NÚMERO do pedido, status, valor total, total de metros, data de criação e nome do cliente.",
     parameters: {
       type: "object",
       properties: {
@@ -292,7 +386,7 @@ export const openAIFunctions = [
   },
   {
     name: "list_orders",
-    description: "Lista pedidos por filtros de data, sem especificar cliente. Use esta função SOMENTE quando o usuário pedir pedidos por período sem mencionar cliente específico (ex: 'pedidos de hoje', 'pedidos desta semana', 'último pedido', 'quantos pedidos esta semana', 'pedido mais caro'). NÃO use esta função quando o usuário mencionar um cliente específico. Retorna o NÚMERO do pedido, status, valor total, data de criação e nome do cliente.",
+    description: "Lista pedidos por filtros de data, sem especificar cliente. Use esta função SOMENTE quando o usuário pedir pedidos por período sem mencionar cliente específico (ex: 'pedidos de hoje', 'pedidos desta semana', 'último pedido', 'quantos pedidos esta semana', 'pedido mais caro'). NÃO use esta função quando o usuário mencionar um cliente específico. Retorna o NÚMERO do pedido, status, valor total, total de metros, data de criação e nome do cliente.",
     parameters: {
       type: "object",
       properties: {
@@ -704,6 +798,7 @@ export const list_orders = async (args: {
       order_number,
       status,
       valor_total,
+      total_metros,
       created_at,
       clientes (nome)
     `, { count: includeTotalCount ? 'exact' : null });
@@ -761,6 +856,7 @@ export const list_orders = async (args: {
     order_number: order.order_number,
     status: order.status,
     valor_total: order.valor_total,
+    total_metros: order.total_metros,
     created_at: new Date(order.created_at).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }),
     cliente: order.clientes?.nome
   }));
@@ -770,19 +866,22 @@ export const list_orders = async (args: {
     style: 'currency',
     currency: 'BRL'
   }).format(totalValue);
+  
+  const totalMetros = orders.reduce((sum, order) => sum + (order.total_metros || 0), 0);
 
   return { 
     orders: formattedOrders, 
     summary: {
       count: orders.length,
       totalValue: totalValue,
+      totalMetros: totalMetros,
       period: {
         start: startDate ? new Date(startDate).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }) : 'início',
         end: endDate ? new Date(endDate).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }) : 'fim'
       },
       totalMatchingOrders: count
     },
-    message: `📊 Encontrados **${orders.length} pedidos** ${periodDescription}.${totalCountMessage}\n💰 Receita total: **${totalValueFormatted}**` 
+    message: `📊 Encontrados **${orders.length} pedidos** ${periodDescription}.${totalCountMessage}\n💰 Receita total: **${totalValueFormatted}**\n📏 Total de Metros: **${totalMetros.toFixed(2)} ML**` 
   };
 };
 
@@ -1097,6 +1196,10 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
   if (name === "get_top_clients") {
     return get_top_clients(args);
   }
+  
+  if (name === "get_total_meters_by_period") { // Handle the new tool
+    return get_total_meters_by_period(args);
+  }
 
   if (name === "get_client_orders") {
     const { clientName } = args;
@@ -1132,6 +1235,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
         order_number,
         status,
         valor_total,
+        total_metros,
         created_at,
         clientes (nome)
       `)
@@ -1158,11 +1262,13 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       order_number: order.order_number,
       status: order.status,
       valor_total: order.valor_total,
+      total_metros: order.total_metros,
       created_at: new Date(order.created_at).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }),
       cliente: order.clientes?.nome
     }));
     
     const totalValue = orders.reduce((sum, order) => sum + order.valor_total, 0);
+    const totalMetros = orders.reduce((sum, order) => sum + (order.total_metros || 0), 0);
     const clientNames = foundClients.map(c => c.nome).join(', ');
     
     return { 
@@ -1171,9 +1277,10 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
         clientName: clientNames,
         totalOrders: orders.length,
         totalValue: totalValue,
+        totalMetros: totalMetros,
         foundMultipleClients: foundClients.length > 1
       },
-      message: `✅ Encontrei **${orders.length} pedido(s)** para o cliente: **${clientNames}**${foundClients.length > 1 ? ' (encontrei múltiplos clientes similares)' : ''}\n\n💰 Valor total: **R$ ${totalValue.toFixed(2)}**`
+      message: `✅ Encontrei **${orders.length} pedido(s)** para o cliente: **${clientNames}**${foundClients.length > 1 ? ' (encontrei múltiplos clientes similares)' : ''}\n\n💰 Valor total: **R$ ${totalValue.toFixed(2)}**\n📏 Total de Metros: **${totalMetros.toFixed(2)} ML**`
     };
   }
 
@@ -1269,6 +1376,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
           cliente: orderData.clientes?.nome || 'Cliente não encontrado',
           status: orderData.status,
           valor_total: orderData.valor_total,
+          total_metros: orderData.total_metros,
           data_criacao: new Date(orderData.created_at).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }),
           observacoes: orderData.observacoes || 'Nenhuma observação',
           items: formattedItems,
@@ -1295,6 +1403,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
         order_number,
         status,
         valor_total,
+        total_metros,
         created_at,
         clientes (nome)
       `, { count: includeTotalCount ? 'exact' : null }); // Adiciona contagem exata se solicitado
@@ -1332,17 +1441,20 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
         order_number: order.order_number,
         status: order.status,
         valor_total: order.valor_total,
+        total_metros: order.total_metros,
         created_at: new Date(order.created_at).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }),
         cliente: order.clientes?.nome
     }));
 
     const totalValue = orders.reduce((sum, order) => sum + order.valor_total, 0);
+    const totalMetros = orders.reduce((sum, order) => sum + (order.total_metros || 0), 0);
 
     return {
         orders: formattedOrders,
         summary: {
             count: orders.length,
             totalValue: totalValue,
+            totalMetros: totalMetros,
             totalMatchingOrders: count // Retorna a contagem total de correspondências
         },
         message: `📊 Encontrados **${orders.length} pedidos** com os filtros especificados.${totalCountMessage}`

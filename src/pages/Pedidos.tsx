@@ -6,7 +6,7 @@ import { Cliente } from '@/types/cliente';
 import { Produto } from '@/types/produto';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Plus, Search, Filter, Eye, Edit, Trash2, Loader2, CalendarIcon, DollarSign, FileText, Wrench, History, MessageSquare, MoreHorizontal, User, Clock, CheckCircle, XCircle, Package, X, Printer } from 'lucide-react';
+import { Plus, Search, Filter, Eye, Edit, Trash2, Loader2, CalendarIcon, DollarSign, FileText, Wrench, History, MessageSquare, MoreHorizontal, User, Clock, CheckCircle, XCircle, Package, X, Printer, Ruler } from 'lucide-react';
 import { PedidoForm } from '@/components/PedidoForm';
 import { PedidoDetails } from '@/components/PedidoDetails';
 import { showSuccess, showError } from '@/utils/toast';
@@ -274,7 +274,7 @@ const PedidosPage: React.FC = () => {
 
       if (pedidoId) {
         // Update existing pedido
-        // Incluir created_at na atualização
+        // Incluir created_at e total_metros na atualização
         const updateData = { ...pedidoData, created_at };
 
         const { error: pedidoError } = await supabase
@@ -666,6 +666,14 @@ const PedidosPage: React.FC = () => {
                   <DollarSign className="h-4 w-4 mr-2 text-primary" />
                   <span>Total: {formatCurrency(pedido.valor_total)}</span>
                 </div>
+                
+                {/* NOVO: Exibição do Total de Metros */}
+                {pedido.total_metros > 0 && (
+                  <div className="flex items-center text-sm text-gray-700 dark:text-gray-300">
+                    <Ruler className="h-4 w-4 mr-2 text-muted-foreground" />
+                    <span>Metros: {pedido.total_metros.toFixed(2)} ML</span>
+                  </div>
+                )}
 
                 {pedido.latest_status_observation && (
                   <div className="flex items-start text-sm text-muted-foreground italic bg-muted p-2 rounded-md">

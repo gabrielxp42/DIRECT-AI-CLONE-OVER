@@ -269,8 +269,8 @@ export const generateOrderPDF = async (pedido: Pedido, action: 'save' | 'print' 
 
   // Financial summary table - BARRAS PRETAS
   const summaryData = [
-    ['Produtos', formatCurrency(pedido.subtotal_produtos || 0)],
-    ['Serviços', formatCurrency(pedido.subtotal_servicos || 0)]
+    ['Subtotal Produtos', formatCurrency(pedido.subtotal_produtos || 0)],
+    ['Subtotal Serviços', formatCurrency(pedido.subtotal_servicos || 0)]
   ];
 
   // Add discount row if there's a discount
@@ -280,8 +280,13 @@ export const generateOrderPDF = async (pedido: Pedido, action: 'save' | 'print' 
       : 'Desconto';
     summaryData.push([discountLabel, `-${formatCurrency(pedido.desconto_valor)}`]);
   }
+  
+  // NOVO: Adicionar Total Metros
+  if (pedido.total_metros > 0) {
+    summaryData.push(['Total Metros (ML)', `${pedido.total_metros.toFixed(2)} ML`]);
+  }
 
-  summaryData.push(['Total', formatCurrency(pedido.valor_total)]);
+  summaryData.push(['Total Final', formatCurrency(pedido.valor_total)]);
 
   autoTable(doc, {
     startY: yPosition,

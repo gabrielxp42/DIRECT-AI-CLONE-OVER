@@ -37,7 +37,7 @@ import { NewPedido, Pedido } from "@/types/pedido";
 import { Cliente } from "@/types/cliente";
 import { Produto } from "@/types/produto";
 import { useEffect, useState, useRef } from "react";
-import { Trash2, Plus, Search, Edit3, X, User, Package, Wrench, Save, Zap, CalendarIcon } from "lucide-react";
+import { Trash2, Plus, Search, Edit3, X, User, Package, Wrench, Save, Zap, CalendarIcon, Ruler } from "lucide-react";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { QuickClientForm } from './QuickClientForm';
@@ -207,6 +207,8 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
     const descontoPercentualValor = subtotal * (descontoPercentual / 100);
     const valorTotal = Math.max(0, subtotal - descontoValor - descontoPercentualValor);
 
+    const totalMetros = items.reduce((sum, item) => sum + Number(item.quantidade || 0), 0); // NOVO CÁLCULO
+
     const formattedData = {
       cliente_id: data.cliente_id,
       valor_total: valorTotal,
@@ -214,6 +216,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
       subtotal_servicos: subtotalServicos,
       desconto_valor: descontoValor,
       desconto_percentual: descontoPercentual,
+      total_metros: totalMetros, // NOVO CAMPO
       observacoes: data.observacoes,
       created_at: data.created_at.toISOString(),
       items: items.map(item => ({
@@ -508,7 +511,10 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                     
                     {totalMetros > 0 && (
                       <div className="mt-2 p-2 bg-primary/20 rounded-md text-sm font-semibold flex justify-between items-center">
-                        <span className="text-primary-foreground">Total de Metros Lineares (ML):</span>
+                        <span className="text-primary-foreground flex items-center gap-1">
+                          <Ruler className="h-4 w-4" />
+                          Total de Metros Lineares (ML):
+                        </span>
                         <span className="text-primary-foreground">{Number(totalMetros).toFixed(2)} ML</span>
                       </div>
                     )}

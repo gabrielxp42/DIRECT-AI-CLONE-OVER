@@ -36,7 +36,8 @@ import {
   Printer,
   Clock,
   MessageSquare,
-  History
+  History,
+  Ruler
 } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
 import {
@@ -476,8 +477,19 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
                   </div>
                 )}
                 
+                {/* NOVO: Total de Metros */}
+                {pedido.total_metros > 0 && (
+                  <div className="flex justify-between border-t pt-3">
+                    <div className="flex items-center font-semibold text-primary">
+                      <Ruler className="h-4 w-4 mr-1" />
+                      <span>Total Metros (ML):</span>
+                    </div>
+                    <span className="font-semibold text-primary">{pedido.total_metros.toFixed(2)} ML</span>
+                  </div>
+                )}
+
                 <div className="border-t pt-3 flex justify-between text-lg font-semibold">
-                  <span>Total:</span>
+                  <span>Total Final:</span>
                   <span>{formatCurrency(pedido.valor_total)}</span>
                 </div>
               </div>

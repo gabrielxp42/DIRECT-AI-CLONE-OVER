@@ -39,6 +39,7 @@ export interface Pedido {
   subtotal_servicos: number;
   desconto_valor: number;
   desconto_percentual: number;
+  total_metros: number; // NOVO: Total de metros lineares
   status: 'pendente' | 'processando' | 'enviado' | 'entregue' | 'cancelado' | 'pago' | 'aguardando retirada'; // Tipos de status atualizados
   observacoes: string | null;
   created_at: string;
@@ -72,6 +73,7 @@ export interface NewPedido {
   subtotal_servicos: number;
   desconto_valor?: number;
   desconto_percentual?: number;
+  total_metros: number; // NOVO: Total de metros lineares
   status: 'pendente' | 'processando' | 'enviado' | 'entregue' | 'cancelado' | 'pago' | 'aguardando retirada'; // Tipos de status atualizados
   observacoes?: string;
   items: NewPedidoItem[];
