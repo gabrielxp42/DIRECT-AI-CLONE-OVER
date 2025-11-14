@@ -519,51 +519,31 @@ export const openAIFunctions = [
 const findOrderByNumber = async (orderNumber: number) => {
   console.log(`🔍 [findOrderByNumber] Buscando pedido #${orderNumber}...`);
   
-  // Strategy 1: Try RPC function first (assuming it uses 'orders' internally)
+  // Strategy: Direct query using 'orders' table
   try {
-    console.log('📍 [findOrderByNumber] Tentativa 1: Usando função RPC get_order_uuid_by_number');
-    // NOTE: Assuming get_order_uuid_by_number uses the correct table name ('orders') internally.
-    const { data: fullOrderId, error: rpcError } = await supabase.rpc('get_order_uuid_by_number', { p_order_number: orderNumber });
-    
-    if (!rpcError && fullOrderId) {
-      console.log(`✅ [findOrderByNumber] RPC encontrou UUID: ${fullOrderId}`);
-      return fullOrderId;
-    }
-    
-    if (rpcError) {
-      console.log('⚠️ [findOrderByNumber] Erro na função RPC:', rpcError.message);
-    } else {
-      console.log('❌ [findOrderByNumber] RPC não encontrou o pedido');
-    }
-  } catch (error) {
-    console.log('❌ [findOrderByNumber] Erro ao chamar RPC:', error);
-  }
-
-  // Strategy 2: Direct query fallback using 'orders' table
-  try {
-    console.log('📍 [findOrderByNumber] Tentativa 2: Busca direta na tabela orders');
+    console.log('📍 [findOrderByNumber] Busca direta na tabela orders');
     const { data: orders, error: directError } = await supabase
-      .from('orders') // CORRIGIDO: Usando 'orders'
+      .from('orders')
       .select('id')
       .eq('order_number', orderNumber)
-      .limit(1);
+      .limit(1)
+      .single();
 
-    if (!directError && orders && orders.length > 0) {
-      console.log(`✅ [findOrderByNumber] Busca direta encontrou UUID: ${orders[0].id}`);
-      return orders[0].id;
+    if (directError && directError.code !== 'PGRST116') { // PGRST116 = No rows found
+      throw directError;
+    }
+
+    if (orders) {
+      console.log(`✅ [findOrderByNumber] Busca direta encontrou UUID: ${orders.id}`);
+      return orders.id;
     }
     
-    if (directError) {
-      console.log('❌ [findOrderByNumber] Erro na busca direta:', directError.message);
-    } else {
-      console.log('❌ [findOrderByNumber] Busca direta não encontrou o pedido');
-    }
+    console.log('❌ [findOrderByNumber] Busca direta não encontrou o pedido');
+    return null;
   } catch (error) {
     console.log('❌ [findOrderByNumber] Erro na busca direta:', error);
+    return null;
   }
-
-  console.log('❌ [findOrderByNumber] Nenhuma estratégia encontrou o pedido');
-  return null;
 };
 
 // Helper function to perform multiple search strategies for clients
@@ -687,7 +667,7 @@ const fetchCompleteOrderData = async (fullOrderId: string) => {
   
   try {
     const { data: orderData, error: fetchError } = await supabase
-      .from('orders') // CORRIGIDO: Usando 'orders'
+      .from('orders')
       .select(`
         *,
         clientes (
@@ -794,7 +774,7 @@ export const list_orders = async (args: {
   console.log(`📊 [list_orders] Datas finais para consulta:`, { startDate, endDate }); // Log final dates
 
   let query = supabase
-    .from('orders') // CORRIGIDO: Usando 'orders'
+    .from('orders')
     .select(`
       id,
       order_number,
@@ -1058,7 +1038,7 @@ export const list_services = async (args: {
     console.log('📍 [list_services] Tentativa 2: Buscar pedidos primeiro, depois serviços');
     
     let ordersQuery = supabase
-      .from('orders') // CORRIGIDO: Usando 'orders'
+      .from('orders')
       .select(`
         id,
         order_number,
@@ -1231,7 +1211,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
 
     const clientIds = foundClients.map(c => c.id);
     const { data: orders, error: orderError } = await supabase
-      .from('orders') // CORRIGIDO: Usando 'orders'
+      .from('orders')
       .select(`
         id,
         order_number,
@@ -1399,7 +1379,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
     }
 
     let query = supabase
-      .from('orders') // CORRIGIDO: Usando 'orders'
+      .from('orders')
       .select(`
         id,
         order_number,
@@ -1487,7 +1467,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
 
       // Fetch current status to record in history
       const { data: currentOrder, error: fetchError } = await supabase
-        .from('orders') // CORRIGIDO: Usando 'orders'
+        .from('orders')
         .select('status')
         .eq('id', fullOrderId)
         .single();
@@ -1500,7 +1480,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       const statusAnterior = currentOrder?.status || 'desconhecido';
 
       const { error: updateError } = await supabase
-        .from('orders') // CORRIGIDO: Usando 'orders'
+        .from('orders')
         .update({ status: newStatus })
         .eq('id', fullOrderId);
 
