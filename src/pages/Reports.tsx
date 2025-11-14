@@ -223,7 +223,7 @@ const Reports = () => {
 
       if (productsError) throw new Error(productsError.message);
 
-      // Calculate basic metrics (using ALL orders for total counts, but periodOrders for revenue/AOV)
+      // Calculate basic metrics (using ALL customers for total count, but periodOrders for revenue/AOV)
       const totalRevenue = periodOrders.reduce((sum, order) => sum + order.valor_total, 0) || 0;
       const totalOrders = periodOrders.length || 0;
       const totalCustomers = customers?.length || 0;
@@ -273,15 +273,23 @@ const Reports = () => {
         created_at: order.created_at
       })) || [];
 
-      // Calculate monthly growth (using currentMonthStart/previousMonthStart)
-      const currentMonthOrders = orders?.filter(order => 
-        new Date(order.created_at) >= currentMonthStart
-      ) || [];
+      // --- CÁLCULO DE CRESCIMENTO MENSAL CORRIGIDO ---
       
-      const previousMonthOrders = orders?.filter(order => {
-        const orderDate = new Date(order.created_at);
-        return orderDate >= previousMonthStart && orderDate <= previousMonthEnd;
-      }) || [];
+      // 1. Buscar clientes do mês atual e anterior
+      const { data: currentMonthCustomers, error: currentCustomersError } = await supabase
+        .from("clientes")
+        .select("id, created_at")
+        .gte("created_at", currentMonthStart.toISOString());
+
+      if (currentCustomersError) throw new Error(currentCustomersError.message);
+
+      const { data: previousMonthCustomers, error: previousCustomersError } = await supabase
+        .from("clientes")
+        .select("id, created_at")
+        .gte("created_at", previousMonthStart.toISOString())
+        .lte("created_at", previousMonthEnd.toISOString());
+
+      if (previousCustomersError) throw new Error(previousCustomersError.message);
 
       const currentRevenue = currentMonthOrders.reduce((sum, order) => sum + order.valor_total, 0);
       const previousRevenue = previousMonthOrders.reduce((sum, order) => sum + order.valor_total, 0);
@@ -291,6 +299,8 @@ const Reports = () => {
         orders: previousMonthOrders.length > 0 ? ((currentMonthOrders.length - previousMonthOrders.length) / previousMonthOrders.length) * 100 : 0,
         customers: previousMonthCustomers.length > 0 ? ((currentMonthCustomers.length - previousMonthCustomers.length) / previousMonthCustomers.length) * 100 : 0,
       };
+      
+      // --- FIM CÁLCULO DE CRESCIMENTO MENSAL CORRIGIDO ---
 
       // SERVICES REPORT (using periodOrders)
       const allServices = [];
@@ -760,7 +770,7 @@ const Reports = () => {
                 {formatMeters(reportData.metersReport.totalMeters)}
               </div>
               <p className="text-sm text-muted-foreground">
-                Metragem total impressa no período
+                Metragem impressa no período
               </p>
             </CardContent>
           </Card>
