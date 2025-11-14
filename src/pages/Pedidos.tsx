@@ -135,7 +135,7 @@ const PedidosPage: React.FC = () => {
 
       setPedidos(pedidosCompletos as Pedido[]);
     } catch (error: any) {
-      console.error('Erro completo:', error);
+      console.error('Erro ao carregar pedidos:', error);
       showError(`Erro ao carregar pedidos: ${error.message}`);
     } finally {
       setLoading(false);
@@ -621,6 +621,7 @@ const PedidosPage: React.FC = () => {
             <Card 
               key={pedido.id} 
               className="touch-manipulation cursor-pointer transition-all duration-200 hover:shadow-lg hover:border-primary/50"
+              onClick={() => handleViewPedido(pedido.id)} // Adicionado o clique aqui
             >
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between w-full gap-2">
