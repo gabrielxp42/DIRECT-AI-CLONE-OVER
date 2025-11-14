@@ -71,10 +71,10 @@ export const useDashboardData = () => {
 
       if (previousCustomersError) throw new Error(previousCustomersError.message);
 
-      // Fetch all orders for status counts (no date filter for these specific counts)
+      // Fetch all orders for status counts (explicitly selecting columns)
       const { data: allOrders, error: allOrdersError } = await supabase
         .from("pedidos")
-        .select("id, status");
+        .select("id, status"); // Seleção explícita
 
       if (allOrdersError) throw new Error(allOrdersError.message);
 
