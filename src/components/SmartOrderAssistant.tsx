@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,9 +18,7 @@ import {
 } from 'lucide-react';
 import { useSession } from '@/contexts/SessionProvider';
 import { useToast } from '@/hooks/use-toast';
-// Importação dinâmica do tesseract.js
-// import { createWorker } from 'tesseract.js'; // Removido importação estática
-import { PedidoFormValues } from './PedidoForm';
+import { calculatePriceByMeters } from '@/utils/pricing'; // Importar o novo utilitário
 
 interface SmartOrderItem {
   id: string;
@@ -60,52 +58,6 @@ export const SmartOrderAssistant: React.FC<SmartOrderAssistantProps> = ({
     return client?.valor_metro || null;
   };
 
-  // Calculate price based on meters with progressive pricing
-  const calculatePriceByMeters = (meters: number, customMeterValue?: number | null) => {
-    const basePrice = customMeterValue || 45; // Default R$45 if no custom value
-    
-    // Lógica de precificação progressiva (mantida)
-    let totalPrice = 0;
-    let explanation = '';
-    let unitPrice = basePrice;
-    
-    if (meters <= 1) {
-      unitPrice = basePrice;
-      totalPrice = unitPrice * meters;
-      explanation = `1 metro: R$${unitPrice.toFixed(2)} cada`;
-    } else if (meters <= 3) {
-      unitPrice = 70; // Preço fixo por metro para 2-3m
-      totalPrice = unitPrice * meters;
-      explanation = `2-3 metros: R$70,00 cada`;
-    } else if (meters <= 6) {
-      unitPrice = 65;
-      totalPrice = unitPrice * meters;
-      explanation = `4-6 metros: R$65,00 cada`;
-    } else if (meters <= 10) {
-      unitPrice = 60;
-      totalPrice = unitPrice * meters;
-      explanation = `7-10 metros: R$60,00 cada`;
-    } else if (meters <= 20) {
-      unitPrice = 55;
-      totalPrice = unitPrice * meters;
-      explanation = `11-20 metros: R$55,00 cada`;
-    } else if (meters <= 30) {
-      unitPrice = 52;
-      totalPrice = unitPrice * meters;
-      explanation = `21-30 metros: R$52,00 cada`;
-    } else {
-      unitPrice = 49.90;
-      totalPrice = unitPrice * meters;
-      explanation = `30+ metros: R$49,90 cada`;
-    }
-    
-    return {
-      totalPrice: parseFloat(totalPrice.toFixed(2)),
-      unitPrice: parseFloat(unitPrice.toFixed(2)),
-      explanation
-    };
-  };
-
   // Parse text to extract items
   const parseTextToItems = (inputText: string) => {
     const lines = inputText.split('\n').filter(line => line.trim() !== '');
@@ -124,6 +76,7 @@ export const SmartOrderAssistant: React.FC<SmartOrderAssistantProps> = ({
         const description = match[2].trim();
         
         if (meters > 0) {
+          // Usar o utilitário de precificação
           const priceInfo = calculatePriceByMeters(meters, customMeterValue);
           
           items.push({
