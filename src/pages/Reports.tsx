@@ -61,7 +61,7 @@ import { Calendar as DatePicker } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ServiceCommissionReport } from "@/components/ServiceCommissionReport"; // Importar novo componente
+import { ServiceCommissionReport } from "@/components/ServiceCommissionReport";
 
 // Tipos de dados (mantidos do original, mas simplificados para o contexto)
 interface SalesReport {
@@ -262,7 +262,7 @@ const fetchReportData = async (supabase: any, selectedPeriod: string, customRang
     customers: previousMonthCustomers.length > 0 ? ((currentMonthCustomers.length - previousMonthCustomers.length) / previousMonthCustomers.length) * 100 : 0,
   };
 
-  // Services Report
+  // Services Report (Mantido apenas para compatibilidade de tipo, mas não usado na UI)
   const allServices = [];
   periodOrders.forEach(order => {
     if (order.pedido_servicos && order.pedido_servicos.length > 0) {
@@ -474,21 +474,10 @@ const Reports: React.FC = () => {
   };
 
   // Filter services based on search and selected service type
-  const filteredServicos = reportData?.servicesReport.servicosDetalhados.filter(servico => {
-    const matchesSearch = 
-      servico.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      servico.cliente_nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      servico.pedido_id.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesService = selectedService === "all" || servico.nome === selectedService;
-    
-    return matchesSearch && matchesService;
-  }) || [];
+  // REMOVIDO: Lógica de filtro de serviços detalhados, pois a tab foi removida.
 
   // Get unique service names for filter
-  const uniqueServices = useMemo(() => {
-    return Array.from(new Set(reportData?.servicesReport.servicosDetalhados.map(s => s.nome) || []));
-  }, [reportData]);
+  // REMOVIDO: Lógica de uniqueServices, pois a tab foi removida.
 
   if (error) {
     return (
@@ -686,9 +675,8 @@ const Reports: React.FC = () => {
       </div>
 
       {/* Tabbed Content */}
-      <Tabs defaultValue="services" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5 lg:grid-cols-5 h-auto">
-          <TabsTrigger value="services" className="py-2 flex items-center gap-2"><Wrench className="h-4 w-4" /> Serviços</TabsTrigger>
+      <Tabs defaultValue="commission" className="space-y-4">
+        <TabsList className="grid w-full grid-cols-4 lg:grid-cols-4 h-auto">
           <TabsTrigger value="commission" className="py-2 flex items-center gap-2"><DollarSign className="h-4 w-4" /> Comissão</TabsTrigger>
           <TabsTrigger value="products" className="py-2 flex items-center gap-2"><Package className="h-4 w-4" /> Produtos</TabsTrigger>
           <TabsTrigger value="customers" className="py-2 flex items-center gap-2"><User className="h-4 w-4" /> Clientes</TabsTrigger>
@@ -697,169 +685,6 @@ const Reports: React.FC = () => {
 
         <TabsContent value="commission" className="space-y-6">
           <ServiceCommissionReport />
-        </TabsContent>
-
-        <TabsContent value="services" className="space-y-6">
-          {/* Services Overview */}
-          <div className="grid gap-4 md:grid-cols-3">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Receita de Serviços</CardTitle>
-                <DollarSign className="h-4 w-4 text-green-600" />
-              </CardHeader>
-              <CardContent>
-                {isLoading ? <Skeleton className="h-8 w-3/4" /> : (
-                  <div className="text-2xl font-bold text-green-600">
-                    {formatCurrency(reportData?.servicesReport.totalServicesRevenue || 0)}
-                  </div>
-                )}
-                <p className="text-xs text-muted-foreground">
-                  Total em {getPeriodLabel(selectedPeriod).toLowerCase()}
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total de Serviços</CardTitle>
-                <Wrench className="h-4 w-4 text-primary" />
-              </CardHeader>
-              <CardContent>
-                {isLoading ? <Skeleton className="h-8 w-1/2" /> : (
-                  <div className="text-2xl font-bold text-primary">
-                    {reportData?.servicesReport.totalServicesCount || 0}
-                  </div>
-                )}
-                <p className="text-xs text-muted-foreground">
-                  Serviços executados
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Valor Médio</CardTitle>
-                <FileText className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                {isLoading ? <Skeleton className="h-8 w-3/4" /> : (
-                  <div className="text-2xl font-bold">
-                    {formatCurrency(reportData?.servicesReport.averageServiceValue || 0)}
-                  </div>
-                )}
-                <p className="text-xs text-muted-foreground">
-                  Por serviço
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Detailed Services */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Serviços Detalhados</CardTitle>
-              <CardDescription>
-                Lista completa de todos os serviços executados ({getPeriodLabel(selectedPeriod)})
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col sm:flex-row gap-4 mb-6">
-                <div className="flex-1">
-                  <SearchInput
-                    placeholder="Buscar por serviço, cliente ou ID do pedido..."
-                    value={searchTerm}
-                    onChange={setSearchTerm}
-                    className="w-full"
-                  />
-                </div>
-                <div className="flex items-center gap-2">
-                  <Filter className="h-4 w-4 text-muted-foreground" />
-                  <Select value={selectedService} onValueChange={setSelectedService}>
-                    <SelectTrigger className="w-full sm:w-48">
-                      <SelectValue placeholder="Filtrar por serviço" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos os serviços</SelectItem>
-                      {uniqueServices.map((service) => (
-                        <SelectItem key={service} value={service}>
-                          {service}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="rounded-md border overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Serviço</TableHead>
-                      <TableHead>Cliente</TableHead>
-                      <TableHead className="text-center">Qtd</TableHead>
-                      <TableHead className="text-right">Valor Unit.</TableHead>
-                      <TableHead className="text-right">Total</TableHead>
-                      <TableHead className="text-center">Status</TableHead>
-                      <TableHead>Pedido</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {isLoading ? (
-                      <TableRow><TableCell colSpan={7} className="text-center py-4"><Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" /></TableCell></TableRow>
-                    ) : filteredServicos.length > 0 ? (
-                      filteredServicos.map((servico) => (
-                        <TableRow key={servico.id}>
-                          <TableCell className="font-medium">
-                            <div className="flex items-center gap-2">
-                              <Wrench className="h-4 w-4 text-primary" />
-                              {servico.nome}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <User className="h-4 w-4 text-muted-foreground" />
-                              {servico.cliente_nome}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-center">{servico.quantidade}</TableCell>
-                          <TableCell className="text-right">
-                            {formatCurrency(servico.valor_unitario)}
-                          </TableCell>
-                          <TableCell className="text-right font-semibold text-green-600">
-                            {formatCurrency(servico.valor_total)}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <Badge variant="outline">{servico.status_pedido}</Badge>
-                          </TableCell>
-                          <TableCell className="font-mono text-sm">
-                            #{servico.pedido_id.slice(-8)}
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    ) : (
-                      <TableRow>
-                        <TableCell colSpan={7} className="text-center py-8">
-                          <Wrench className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                          <p className="text-muted-foreground">
-                            {searchTerm || selectedService !== "all" 
-                              ? "Nenhum serviço encontrado com os filtros aplicados." 
-                              : `Nenhum serviço encontrado para ${getPeriodLabel(selectedPeriod).toLowerCase()}.`
-                            }
-                          </p>
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-
-              {filteredServicos.length > 0 && (
-                <div className="mt-4 text-sm text-muted-foreground">
-                  Mostrando {filteredServicos.length} de {reportData?.servicesReport.servicosDetalhados.length} serviços
-                </div>
-              )}
-            </CardContent>
-          </Card>
         </TabsContent>
 
         <TabsContent value="products" className="space-y-6">

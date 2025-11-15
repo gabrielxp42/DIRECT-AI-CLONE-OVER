@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "@/contexts/SessionProvider";
 import { PedidoStatus } from "@/types/pedido";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 export interface CommissionServiceItem {
   service_name: string;
@@ -17,7 +19,8 @@ export interface DetailedServiceItem {
   total_value: number;
   order_number: number;
   order_status: PedidoStatus;
-  order_date: string;
+  order_date: string; // Data de criação ISO
+  order_date_formatted: string; // Data formatada para exibição
   client_name: string;
 }
 
@@ -89,6 +92,7 @@ const fetchCommissionReport = async (
       order_number: order.order_number,
       order_status: order.status as PedidoStatus,
       order_date: order.created_at,
+      order_date_formatted: format(new Date(order.created_at), 'dd/MM/yy', { locale: ptBR }), // Adicionando data formatada
       client_name: order.clientes?.nome || 'N/A',
     });
 

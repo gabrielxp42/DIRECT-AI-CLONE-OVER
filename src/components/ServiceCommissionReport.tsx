@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { PedidoStatus } from '@/types/pedido';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { OrderStatusBadge } from './OrderStatusBadge';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 // Define a semana de trabalho: Terça (2) a Sábado (6)
 const WORK_WEEK_START_DAY = 2; // Terça-feira (0=Dom, 1=Seg, 2=Ter...)
@@ -52,6 +53,7 @@ const statusOptions: { value: PedidoStatus[] | 'all', label: string }[] = [
 ];
 
 export const ServiceCommissionReport: React.FC = () => {
+  const isMobile = useIsMobile();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<string>('pago'); // Default para 'pago'
@@ -130,7 +132,7 @@ export const ServiceCommissionReport: React.FC = () => {
   return (
     <Card className="w-full">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+        <CardTitle className="text-xl flex items-center gap-2">
           <Wrench className="h-5 w-5 text-primary" />
           Relatório de Serviços (Comissão)
         </CardTitle>
@@ -336,29 +338,39 @@ export const ServiceCommissionReport: React.FC = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Pedido</TableHead>
-                    <TableHead>Cliente</TableHead>
+                    <TableHead className="w-[80px]">Data</TableHead>
+                    <TableHead className="w-[80px]">Pedido</TableHead>
+                    <TableHead className="w-[150px]">Cliente</TableHead>
                     <TableHead>Serviço</TableHead>
-                    <TableHead className="text-center">Qtd</TableHead>
-                    <TableHead className="text-right">Valor Unit.</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead className="text-center">Status</TableHead>
+                    <TableHead className="text-center w-[60px]">Qtd</TableHead>
+                    <TableHead className="text-right w-[100px]">Valor Unit.</TableHead>
+                    <TableHead className="text-right w-[100px]">Total</TableHead>
+                    <TableHead className="text-center w-[100px]">Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {isLoading ? (
-                    <TableRow><TableCell colSpan={7} className="text-center py-4"><Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" /></TableCell></TableRow>
+                    <TableRow><TableCell colSpan={8} className="text-center py-4"><Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" /></TableCell></TableRow>
                   ) : report?.detailedItems.length === 0 ? (
-                    <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Nenhum serviço detalhado encontrado com os filtros aplicados.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Nenhum serviço detalhado encontrado com os filtros aplicados.</TableCell></TableRow>
                   ) : (
                     report?.detailedItems.map((item: DetailedServiceItem) => (
                       <TableRow key={item.id}>
-                        <TableCell className="font-medium text-sm">#{item.order_number}</TableCell>
-                        <TableCell className="text-sm">{item.client_name}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                          {item.order_date_formatted}
+                        </TableCell>
+                        <TableCell className="font-medium text-sm whitespace-nowrap">
+                          #{item.order_number}
+                        </TableCell>
+                        <TableCell className="text-sm font-medium whitespace-nowrap">
+                          {item.client_name}
+                        </TableCell>
                         <TableCell className="text-sm">{item.service_name}</TableCell>
                         <TableCell className="text-center">{item.quantity}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(item.unit_value)}</TableCell>
-                        <TableCell className="text-right font-semibold text-green-600">
+                        <TableCell className="text-right whitespace-nowrap">
+                          {formatCurrency(item.unit_value)}
+                        </TableCell>
+                        <TableCell className="text-right font-semibold text-green-600 whitespace-nowrap">
                           {formatCurrency(item.total_value)}
                         </TableCell>
                         <TableCell className="text-center">
