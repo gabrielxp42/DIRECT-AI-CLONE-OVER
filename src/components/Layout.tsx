@@ -35,7 +35,7 @@ const Layout = () => {
   const gridTemplate = isExpanded ? 'md:grid-cols-[280px_1fr]' : 'md:grid-cols-[64px_1fr]';
 
   return (
-    <div className={cn("grid min-h-screen w-full", gridTemplate)}>
+    <div className={cn("grid min-h-screen w-full transition-all duration-300", gridTemplate)}>
       {/* Sidebar - Desktop (Primeira Coluna do Grid) */}
       <div 
         className={cn(
