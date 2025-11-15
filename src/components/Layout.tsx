@@ -36,10 +36,10 @@ const Layout = () => {
 
   return (
     <div className={cn("grid min-h-screen w-full", gridTemplate)}>
-      {/* Sidebar - Desktop */}
+      {/* Sidebar - Desktop (Primeira Coluna do Grid) */}
       <div 
         className={cn(
-          "hidden border-r bg-sidebar transition-all duration-300 ease-in-out md:block fixed top-0 left-0 h-full z-30",
+          "hidden border-r bg-sidebar transition-all duration-300 ease-in-out md:flex flex-col h-full",
           sidebarWidth
         )}
         onMouseEnter={() => setIsExpanded(true)}
@@ -100,7 +100,7 @@ const Layout = () => {
         </div>
       </div>
       
-      {/* Main Content */}
+      {/* Main Content (Segunda Coluna do Grid) */}
       <div className="flex flex-col">
         <header className="flex h-14 items-center gap-4 border-b bg-background px-4 lg:h-[60px] lg:px-6">
           <div className="flex items-center gap-2 font-semibold md:hidden">
