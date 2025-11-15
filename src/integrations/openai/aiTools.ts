@@ -1008,12 +1008,12 @@ export const list_services = async (args: {
       let formattedServices = services.map((service, index) => ({
         index: index + 1,
         service_name: service.nome,
-        quantity: service.quantidade,
-        unit_value: service.valor_unitario,
-        total_value: service.quantidade * service.valor_unitario,
+        quantity: Number(service.quantidade), // ADDED COERCION
+        unit_value: Number(service.valor_unitario), // ADDED COERCION
+        total_value: Number(service.quantidade) * Number(service.valor_unitario), // ADDED COERCION
         order_number: service.pedidos?.order_number,
         order_status: service.pedidos?.status,
-        order_date: new Date(service.pedidos?.created_at || '').toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }),
+        order_date: service.pedidos ? new Date(service.pedidos.created_at).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }) : 'N/A',
         client_name: service.pedidos?.clientes?.nome
       }));
 
@@ -1028,7 +1028,7 @@ export const list_services = async (args: {
         formattedServices.sort((a, b) => ascending ? a.total_value - b.total_value : b.total_value - a.total_value);
       }
 
-      const totalRevenue = formattedServices.reduce((sum, service) => sum + (service.quantity * service.valor_unitario), 0);
+      const totalRevenue = formattedServices.reduce((sum, service) => sum + service.total_value, 0);
       const totalRevenueFormatted = new Intl.NumberFormat('pt-BR', {
         style: 'currency',
         currency: 'BRL'
@@ -1135,9 +1135,9 @@ export const list_services = async (args: {
       return {
         index: index + 1,
         service_name: service.nome,
-        quantity: service.quantidade,
-        unit_value: service.valor_unitario,
-        total_value: service.quantidade * service.valor_unitario,
+        quantity: Number(service.quantidade), // ADDED COERCION
+        unit_value: Number(service.valor_unitario), // ADDED COERCION
+        total_value: Number(service.quantidade) * Number(service.valor_unitario), // ADDED COERCION
         order_number: relatedOrder?.order_number,
         order_status: relatedOrder?.status,
         order_date: relatedOrder ? new Date(relatedOrder.created_at).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }) : 'N/A',
