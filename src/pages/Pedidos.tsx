@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useSession } from '@/contexts/SessionProvider';
 import { Pedido, StatusHistoryItem, PedidoStatus } from '@/types/pedido';
@@ -408,28 +408,31 @@ const PedidosPage: React.FC = () => {
     }).format(value);
   };
 
-  const filteredPedidos = allPedidos?.filter(pedido => {
-    const matchesSearch = searchTerm === '' ||
-      pedido.order_number.toString().includes(searchTerm) ||
-      pedido.clientes?.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      pedido.pedido_items?.some(item => item.produto_nome?.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (pedido.servicos?.some(servico => servico.nome?.toLowerCase().includes(searchTerm.toLowerCase())) || false);
+  // OTIMIZAÇÃO: Usar useMemo para filtrar pedidos
+  const filteredPedidos = useMemo(() => {
+    return allPedidos?.filter(pedido => {
+      const matchesSearch = searchTerm === '' ||
+        pedido.order_number.toString().includes(searchTerm) ||
+        pedido.clientes?.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        pedido.pedido_items?.some(item => item.produto_nome?.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (pedido.servicos?.some(servico => servico.nome?.toLowerCase().includes(searchTerm.toLowerCase())) || false);
 
-    let matchesStatus = true;
-    if (filterStatus === 'pendente-pagamento') {
-      matchesStatus = pedido.status !== 'pago' && pedido.status !== 'cancelado' && pedido.status !== 'entregue';
-    } else if (filterStatus !== 'todos') {
-      matchesStatus = pedido.status === filterStatus;
-    }
+      let matchesStatus = true;
+      if (filterStatus === 'pendente-pagamento') {
+        matchesStatus = pedido.status !== 'pago' && pedido.status !== 'cancelado' && pedido.status !== 'entregue';
+      } else if (filterStatus !== 'todos') {
+        matchesStatus = pedido.status === filterStatus;
+      }
 
-    const pedidoDate = new Date(pedido.created_at);
-    const matchesDate = (!filterDateRange.from || pedidoDate >= filterDateRange.from) &&
-                        (!filterDateRange.to || pedidoDate <= filterDateRange.to);
-    
-    const matchesClientFilter = !filterClientId || pedido.cliente_id === filterClientId;
+      const pedidoDate = new Date(pedido.created_at);
+      const matchesDate = (!filterDateRange.from || pedidoDate >= filterDateRange.from) &&
+                          (!filterDateRange.to || pedidoDate <= filterDateRange.to);
+      
+      const matchesClientFilter = !filterClientId || pedido.cliente_id === filterClientId;
 
-    return matchesSearch && matchesStatus && matchesDate && matchesClientFilter;
-  }) || [];
+      return matchesSearch && matchesStatus && matchesDate && matchesClientFilter;
+    }) || [];
+  }, [allPedidos, searchTerm, filterStatus, filterDateRange, filterClientId]);
 
   const isGlobalLoading = isLoadingPedidos || isLoadingClientes || isLoadingProdutos;
 
@@ -645,10 +648,7 @@ const PedidosPage: React.FC = () => {
                       <Button 
                         variant="outline" 
                         size="icon" 
-                        onClick={(e) => { 
-                          e.stopPropagation(); 
-                          handleStatusChange(pedido); 
-                        }}
+                        onClick={(e) => { e.stopPropagation(); handleStatusChange(pedido); }}
                         className="h-9 w-9"
                       >
                         <Wrench className="h-4 w-4" />

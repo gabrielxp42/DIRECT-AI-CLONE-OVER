@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -136,11 +136,14 @@ const Clientes = () => {
     }).format(value);
   };
 
-  const filteredClientes = clientes?.filter(cliente =>
-    cliente.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (cliente.email && cliente.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (cliente.telefone && cliente.telefone.includes(searchTerm))
-  ) || [];
+  // OTIMIZAÇÃO: Usar useMemo para filtrar clientes
+  const filteredClientes = useMemo(() => {
+    return clientes?.filter(cliente =>
+      cliente.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (cliente.email && cliente.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (cliente.telefone && cliente.telefone.includes(searchTerm))
+    ) || [];
+  }, [clientes, searchTerm]);
 
   if (isLoading) {
     return (
