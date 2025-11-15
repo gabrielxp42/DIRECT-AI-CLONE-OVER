@@ -1019,7 +1019,7 @@ export const list_services = async (args: {
           },
           totalMatchingServices: count
         },
-        message: `🛠️ Encontrados **${services.length} serviços** ${periodDescription}.${totalCountMessage}\n💰 Receita total: **${totalRevenueFormatted}**` 
+        message: `🛠️ Encontrados **${services.length} serviços** ${periodDescription}.\n💰 Receita total: **${totalRevenueFormatted}**` 
       };
     }
     
@@ -1141,7 +1141,7 @@ export const list_services = async (args: {
         },
         totalMatchingServices: servicesCount // Use servicesCount for total matching services
       },
-      message: `🛠️ Encontrados **${services.length} serviços** ${periodDescription}.${totalCountMessage}\n💰 Receita total: **${totalRevenueFormatted}**` 
+      message: `🛠️ Encontrados **${services.length} serviços** ${periodDescription}.\n💰 Receita total: **${totalRevenueFormatted}**` 
     };
 
   } catch (error: any) {
