@@ -239,6 +239,32 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
   const handleInvalidSubmit = (errors: any) => {
     console.error("Erros de validação do formulário:", errors);
     showError("Por favor, corrija os erros no formulário antes de enviar.");
+
+    // --- Lógica de Scroll Automático ---
+    const firstError = Object.keys(errors).reduce((acc, key) => {
+      if (acc) return acc;
+      if (errors[key]) return key;
+      return acc;
+    }, null);
+
+    if (firstError) {
+      // Tenta focar no campo. Se for um campo aninhado (como items.0.quantidade),
+      // o setFocus pode não funcionar diretamente, mas o scrollIntoView deve funcionar.
+      form.setFocus(firstError as keyof PedidoFormValues);
+      
+      // Encontra o elemento DOM correspondente ao primeiro erro e rola até ele
+      const element = document.querySelector(`[name="${firstError}"]`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else {
+        // Se for um erro de lista (ex: items), tenta rolar para o cabeçalho da seção
+        const sectionElement = document.getElementById('section-items');
+        if (sectionElement) {
+          sectionElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }
+    }
+    // --- Fim Lógica de Scroll Automático ---
   };
 
   const handleQuickClientSubmit = async (clientData: { nome: string; telefone?: string; email?: string; endereco?: string; valor_metro?: number }) => {
@@ -492,7 +518,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                 control={form.control}
                 name="items"
                 render={({ field }) => (
-                  <FormItem>
+                  <FormItem id="section-items"> {/* Adicionado ID para scroll */}
                     <div className="flex items-center justify-between">
                       <h3 className="text-lg font-medium flex items-center gap-2">
                         <Package className="h-5 w-5" />
@@ -680,7 +706,12 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                         </p>
                       )}
                     </div>
-                    <FormMessage />
+                    {/* Exibe a mensagem de erro da lista de itens */}
+                    {form.formState.errors.items && (
+                      <p className="text-sm font-medium text-destructive mt-2">
+                        {form.formState.errors.items.message || "Pelo menos um item é obrigatório para o pedido."}
+                      </p>
+                    )}
                   </FormItem>
                 )}
               />
