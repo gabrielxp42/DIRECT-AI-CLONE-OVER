@@ -3,7 +3,7 @@ import { useServiceCommissionReport, DetailedServiceItem } from '@/hooks/useServ
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { DollarSign, Wrench, CalendarIcon, Loader2, Clock, TrendingUp, Filter, User, ShoppingCart } from 'lucide-react';
+import { DollarSign, Wrench, CalendarIcon, Loader2, Clock, TrendingUp, Filter, User, ShoppingCart, Ruler } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
@@ -51,6 +51,51 @@ const statusOptions: { value: PedidoStatus[] | 'all', label: string }[] = [
   { value: ['pago'], label: 'Apenas Pagos' },
   { value: ['pendente', 'processando'], label: 'Comissão Pendente (Em Aberto)' },
 ];
+
+const DetailedServiceCard: React.FC<{ item: DetailedServiceItem }> = ({ item }) => {
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(value);
+  };
+
+  return (
+    <Card className="p-4 space-y-2 border-l-4 border-primary/50">
+      <div className="flex justify-between items-start">
+        <div className="font-semibold text-base flex items-center gap-2">
+          <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+          Pedido #{item.order_number}
+        </div>
+        <OrderStatusBadge status={item.order_status} />
+      </div>
+      
+      <div className="text-sm text-muted-foreground flex justify-between">
+        <span className="flex items-center gap-1">
+          <User className="h-3 w-3" />
+          {item.client_name}
+        </span>
+        <span className="flex items-center gap-1">
+          <CalendarIcon className="h-3 w-3" />
+          {item.order_date_formatted}
+        </span>
+      </div>
+      
+      <div className="border-t pt-2 space-y-1">
+        <p className="font-medium text-sm">{item.service_name}</p>
+        <div className="flex justify-between text-xs">
+          <span className="text-muted-foreground">Qtd: {item.quantity}</span>
+          <span className="text-muted-foreground">V. Unit: {formatCurrency(item.unit_value)}</span>
+        </div>
+        <div className="flex justify-between font-bold text-green-600 text-lg">
+          <span>Total:</span>
+          <span>{formatCurrency(item.total_value)}</span>
+        </div>
+      </div>
+    </Card>
+  );
+};
+
 
 export const ServiceCommissionReport: React.FC = () => {
   const isMobile = useIsMobile();
@@ -132,7 +177,7 @@ export const ServiceCommissionReport: React.FC = () => {
   return (
     <Card className="w-full">
       <CardHeader>
-        <CardTitle className="text-xl flex items-center gap-2">
+        <CardTitle className="flex items-center gap-2">
           <Wrench className="h-5 w-5 text-primary" />
           Relatório de Serviços (Comissão)
         </CardTitle>
@@ -334,54 +379,66 @@ export const ServiceCommissionReport: React.FC = () => {
               Serviços por Pedido e Cliente
             </h3>
             
-            <div className="rounded-md border overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[80px]">Data</TableHead>
-                    <TableHead className="w-[80px]">Pedido</TableHead>
-                    <TableHead className="w-[150px]">Cliente</TableHead>
-                    <TableHead>Serviço</TableHead>
-                    <TableHead className="text-center w-[60px]">Qtd</TableHead>
-                    <TableHead className="text-right w-[100px]">Valor Unit.</TableHead>
-                    <TableHead className="text-right w-[100px]">Total</TableHead>
-                    <TableHead className="text-center w-[100px]">Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {isLoading ? (
-                    <TableRow><TableCell colSpan={8} className="text-center py-4"><Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" /></TableCell></TableRow>
-                  ) : report?.detailedItems.length === 0 ? (
-                    <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Nenhum serviço detalhado encontrado com os filtros aplicados.</TableCell></TableRow>
-                  ) : (
-                    report?.detailedItems.map((item: DetailedServiceItem) => (
-                      <TableRow key={item.id}>
-                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                          {item.order_date_formatted}
-                        </TableCell>
-                        <TableCell className="font-medium text-sm whitespace-nowrap">
-                          #{item.order_number}
-                        </TableCell>
-                        <TableCell className="text-sm font-medium whitespace-nowrap">
-                          {item.client_name}
-                        </TableCell>
-                        <TableCell className="text-sm">{item.service_name}</TableCell>
-                        <TableCell className="text-center">{item.quantity}</TableCell>
-                        <TableCell className="text-right whitespace-nowrap">
-                          {formatCurrency(item.unit_value)}
-                        </TableCell>
-                        <TableCell className="text-right font-semibold text-green-600 whitespace-nowrap">
-                          {formatCurrency(item.total_value)}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <OrderStatusBadge status={item.order_status} />
-                        </TableCell>
+            {isLoading ? (
+              <div className="flex justify-center items-center h-64">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : report?.detailedItems.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">Nenhum serviço detalhado encontrado com os filtros aplicados.</div>
+            ) : (
+              <>
+                {/* Tabela para Desktop */}
+                <div className="hidden sm:block rounded-md border overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[80px]">Data</TableHead>
+                        <TableHead className="w-[80px]">Pedido</TableHead>
+                        <TableHead className="w-[150px]">Cliente</TableHead>
+                        <TableHead>Serviço</TableHead>
+                        <TableHead className="text-center w-[60px]">Qtd</TableHead>
+                        <TableHead className="text-right w-[100px]">Valor Unit.</TableHead>
+                        <TableHead className="text-right w-[100px]">Total</TableHead>
+                        <TableHead className="text-center w-[100px]">Status</TableHead>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+                    </TableHeader>
+                    <TableBody>
+                      {report?.detailedItems.map((item: DetailedServiceItem) => (
+                        <TableRow key={item.id}>
+                          <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                            {item.order_date_formatted}
+                          </TableCell>
+                          <TableCell className="font-medium text-sm whitespace-nowrap">
+                            #{item.order_number}
+                          </TableCell>
+                          <TableCell className="text-sm font-medium whitespace-nowrap">
+                            {item.client_name}
+                          </TableCell>
+                          <TableCell className="text-sm">{item.service_name}</TableCell>
+                          <TableCell className="text-center">{item.quantity}</TableCell>
+                          <TableCell className="text-right whitespace-nowrap">
+                            {formatCurrency(item.unit_value)}
+                          </TableCell>
+                          <TableCell className="text-right font-semibold text-green-600 whitespace-nowrap">
+                            {formatCurrency(item.total_value)}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <OrderStatusBadge status={item.order_status} />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                
+                {/* Cards para Mobile */}
+                <div className="sm:hidden space-y-3">
+                  {report?.detailedItems.map((item: DetailedServiceItem) => (
+                    <DetailedServiceCard key={item.id} item={item} />
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         )}
       </CardContent>
