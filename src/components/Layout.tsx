@@ -77,7 +77,7 @@ const Layout = () => {
                   >
                     <item.icon className="h-5 w-5 flex-shrink-0" />
                     <span className={cn(
-                      "whitespace-nowrap transition-opacity duration-200",
+                      "whitespace-nowrap transition-opacity duration-300 delay-100", // Aumentei a duração da opacidade para 300ms e adicionei um pequeno delay
                       isExpanded ? "opacity-100" : "opacity-0"
                     )}>
                       {item.label}
@@ -91,7 +91,7 @@ const Layout = () => {
           {/* Footer do Sidebar */}
           <div className="p-4 border-t border-sidebar-border overflow-hidden">
             <p className={cn(
-              "text-xs text-sidebar-foreground/50 text-center transition-opacity duration-200",
+              "text-xs text-sidebar-foreground/50 text-center transition-opacity duration-300 delay-100", // Aumentei a duração da opacidade e adicionei um pequeno delay
               isExpanded ? "opacity-100" : "opacity-0"
             )}>
               Versão: {APP_VERSION}
