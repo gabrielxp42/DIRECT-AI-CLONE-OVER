@@ -34,19 +34,19 @@ const Layout = () => {
       <div className="hidden border-r bg-sidebar md:block">
         <div className="flex h-full max-h-screen flex-col gap-2">
           {/* Header do Sidebar */}
-          <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
-            <Link to="/" className="flex items-center gap-2 font-semibold text-sidebar-foreground">
-              <img src="/logo.png" alt="Direct DTF Logo" className="h-8 w-8" />
+          <div className="flex h-16 items-center border-b px-4 lg:h-[70px] lg:px-6">
+            <Link to="/" className="flex items-center gap-3 font-semibold text-sidebar-foreground">
+              <img src="/logo.png" alt="Direct DTF Logo" className="h-9 w-9" />
               <div className="flex flex-col">
-                <span className="text-base font-bold">DIRECT DTF - AI</span>
-                <span className="text-xs text-sidebar-foreground/70">Por Gabriel Lima</span>
+                <span className="text-lg font-bold">DIRECT AI</span>
+                <span className="text-xs text-sidebar-foreground/70">Assistente de Vendas</span>
               </div>
             </Link>
           </div>
           
           {/* Navegação */}
-          <div className="flex-1 overflow-y-auto p-2 lg:p-4">
-            <nav className="grid items-start gap-1 text-sm font-medium">
+          <div className="flex-1 overflow-y-auto p-4 lg:p-6">
+            <nav className="grid items-start gap-2 text-base font-medium">
               {navItems.map((item) => {
                 const isActive = location.pathname === item.href;
                 return (
@@ -54,13 +54,13 @@ const Layout = () => {
                     key={item.href}
                     to={item.href}
                     className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-2 transition-all",
+                      "flex items-center gap-4 rounded-xl px-4 py-3 transition-all",
                       isActive
-                        ? "bg-primary text-primary-foreground shadow-md hover:bg-primary/90"
+                        ? "bg-primary text-primary-foreground shadow-lg hover:bg-primary/90"
                         : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                     )}
                   >
-                    <item.icon className="h-4 w-4" />
+                    <item.icon className="h-5 w-5" />
                     {item.label}
                   </Link>
                 );
