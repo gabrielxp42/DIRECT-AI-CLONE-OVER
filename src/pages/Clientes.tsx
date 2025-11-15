@@ -26,13 +26,16 @@ import { useClientes } from "@/hooks/useDataFetch";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Cliente, NewCliente } from "@/types/cliente";
 import { showSuccess, showError } from "@/utils/toast";
+import { useDebounce } from "@/hooks/useDebounce"; // Importar useDebounce
 
 const Clientes = () => {
   const { supabase, session } = useSession();
   const { data: clientes, isLoading, error } = useClientes();
   const queryClient = useQueryClient();
   
-  const [searchTerm, setSearchTerm] = useState("");
+  const [rawSearchTerm, setRawSearchTerm] = useState("");
+  const searchTerm = useDebounce(rawSearchTerm, 300); // Aplicar debounce
+  
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingCliente, setEditingCliente] = useState<Cliente | null>(null);
   const [selectedClient, setSelectedClient] = useState<Cliente | null>(null);
@@ -143,7 +146,7 @@ const Clientes = () => {
       (cliente.email && cliente.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (cliente.telefone && cliente.telefone.includes(searchTerm))
     ) || [];
-  }, [clientes, searchTerm]);
+  }, [clientes, searchTerm]); // Depende do valor debounced
 
   if (isLoading) {
     return (
@@ -185,8 +188,8 @@ const Clientes = () => {
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Buscar clientes..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            value={rawSearchTerm} // Usa o valor bruto para o input
+            onChange={(e) => setRawSearchTerm(e.target.value)} // Atualiza o valor bruto
             className="pl-8 transition-all duration-300 focus:ring-2 focus:ring-primary/20"
           />
         </div>

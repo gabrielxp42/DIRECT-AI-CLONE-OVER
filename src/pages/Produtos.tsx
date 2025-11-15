@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/contexts/SessionProvider";
@@ -41,6 +41,7 @@ import { SearchInput } from "@/components/SearchInput";
 import { LowStockAlert } from "@/components/LowStockAlert";
 import { showSuccess, showError } from "@/utils/toast";
 import { useProdutos } from "@/hooks/useDataFetch"; // Importar o novo hook
+import { useDebounce } from "@/hooks/useDebounce"; // Importar useDebounce
 
 const Produtos = () => {
   const { supabase, session } = useSession();
@@ -50,7 +51,10 @@ const Produtos = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedProduto, setSelectedProduto] = useState<Produto | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
+  
+  const [rawSearchTerm, setRawSearchTerm] = useState("");
+  const searchTerm = useDebounce(rawSearchTerm, 300); // Aplicar debounce
+  
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -134,10 +138,12 @@ const Produtos = () => {
     setIsDeleteDialogOpen(true);
   };
 
-  const filteredProdutos = produtos?.filter(produto =>
-    produto.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    produto.descricao?.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || [];
+  const filteredProdutos = useMemo(() => {
+    return produtos?.filter(produto =>
+      produto.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      produto.descricao?.toLowerCase().includes(searchTerm.toLowerCase())
+    ) || [];
+  }, [produtos, searchTerm]); // Depende do valor debounced
 
   const getStockStatus = (estoque: number | null) => {
     if (!estoque || estoque === 0) return { text: "Sem estoque", color: "text-red-600" };
@@ -173,8 +179,8 @@ const Produtos = () => {
       <div className="w-full">
         <SearchInput
           placeholder="Buscar produtos por nome ou descrição..."
-          value={searchTerm}
-          onChange={setSearchTerm}
+          value={rawSearchTerm} // Usa o valor bruto para o input
+          onChange={setRawSearchTerm} // Atualiza o valor bruto
           className="w-full sm:max-w-md"
         />
       </div>

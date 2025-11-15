@@ -43,6 +43,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { usePedidos, useClientes, useProdutos } from '@/hooks/useDataFetch'; // Importar hooks de fetch
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useDebounce } from '@/hooks/useDebounce'; // Importar useDebounce
 
 const PedidosPage: React.FC = () => {
   const { supabase, session } = useSession();
@@ -61,7 +62,10 @@ const PedidosPage: React.FC = () => {
   const [viewingPedidoId, setViewingPedidoId] = useState<string | null>(null);
   const [statusChangePedido, setStatusChangePedido] = useState<Pedido | null>(null);
   const [viewingStatusHistory, setViewingStatusHistory] = useState<Pedido | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
+  
+  const [rawSearchTerm, setRawSearchTerm] = useState('');
+  const searchTerm = useDebounce(rawSearchTerm, 300); // Aplicar debounce
+  
   const [filterStatus, setFilterStatus] = useState<string>('todos');
   const [filterDateRange, setFilterDateRange] = useState<{ from?: Date; to?: Date }>({});
   
@@ -471,8 +475,8 @@ const PedidosPage: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
         <Input
           placeholder="Buscar por cliente, produto, ID..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
+          value={rawSearchTerm} // Usa o valor bruto para o input
+          onChange={(e) => setRawSearchTerm(e.target.value)} // Atualiza o valor bruto
           className="md:col-span-2 lg:col-span-2"
         />
         <Select value={filterStatus} onValueChange={setFilterStatus}>
