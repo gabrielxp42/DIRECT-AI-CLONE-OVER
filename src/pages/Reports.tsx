@@ -50,7 +50,7 @@ import {
   Clock,
   ChevronDown,
   CalendarIcon,
-  Loader2 // Adicionado Loader2
+  Loader2
 } from "lucide-react";
 import { useViewportZoom } from '@/hooks/useViewportZoom';
 import { MetersBarChart } from '@/components/MetersBarChart';
@@ -61,6 +61,7 @@ import { Calendar as DatePicker } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { ServiceCommissionReport } from "@/components/ServiceCommissionReport"; // Importar novo componente
 
 // Tipos de dados (mantidos do original, mas simplificados para o contexto)
 interface SalesReport {
@@ -153,7 +154,7 @@ const fetchReportData = async (supabase: any, selectedPeriod: string, customRang
     supabase.from("clientes").select("id, created_at").gte("created_at", previousMonthStart.toISOString()).lte("created_at", previousMonthEnd.toISOString()),
   ]);
 
-  if (currentOrdersError || previousOrdersError || currentCustomersError || previousCustomersError) {
+  if (currentOrdersError || previousOrdersError || currentCustomersError || previousMonthCustomers) {
     throw new Error("Erro ao buscar dados de crescimento.");
   }
 
@@ -667,12 +668,17 @@ const Reports: React.FC = () => {
 
       {/* Tabbed Content */}
       <Tabs defaultValue="services" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4 lg:grid-cols-4 h-auto">
+        <TabsList className="grid w-full grid-cols-5 lg:grid-cols-5 h-auto">
           <TabsTrigger value="services" className="py-2 flex items-center gap-2"><Wrench className="h-4 w-4" /> Serviços</TabsTrigger>
+          <TabsTrigger value="commission" className="py-2 flex items-center gap-2"><DollarSign className="h-4 w-4" /> Comissão</TabsTrigger>
           <TabsTrigger value="products" className="py-2 flex items-center gap-2"><Package className="h-4 w-4" /> Produtos</TabsTrigger>
           <TabsTrigger value="customers" className="py-2 flex items-center gap-2"><User className="h-4 w-4" /> Clientes</TabsTrigger>
           <TabsTrigger value="recent" className="py-2 flex items-center gap-2"><Clock className="h-4 w-4" /> Recentes</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="commission" className="space-y-6">
+          <ServiceCommissionReport />
+        </TabsContent>
 
         <TabsContent value="services" className="space-y-6">
           {/* Services Overview */}
