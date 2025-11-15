@@ -142,20 +142,39 @@ const fetchReportData = async (supabase: any, selectedPeriod: string, customRang
   const previousMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
 
   // --- BUSCA DE DADOS DE CRESCIMENTO (MÊS ATUAL E ANTERIOR) ---
-  const [
-    { data: currentMonthOrders, error: currentOrdersError },
-    { data: previousMonthOrders, error: previousOrdersError },
-    { data: currentMonthCustomers, error: currentCustomersError },
-    { data: previousMonthCustomers, error: previousCustomersError },
-  ] = await Promise.all([
-    supabase.from("pedidos").select("valor_total, created_at").gte("created_at", currentMonthStart.toISOString()).lte("created_at", now.toISOString()),
-    supabase.from("pedidos").select("valor_total, created_at").gte("created_at", previousMonthStart.toISOString()).lte("created_at", previousMonthEnd.toISOString()),
-    supabase.from("clientes").select("id, created_at").gte("created_at", currentMonthStart.toISOString()).lte("created_at", now.toISOString()),
-    supabase.from("clientes").select("id, created_at").gte("created_at", previousMonthStart.toISOString()).lte("created_at", previousMonthEnd.toISOString()),
-  ]);
+  
+  let currentMonthOrders, previousMonthOrders, currentMonthCustomers, previousMonthCustomers;
+  
+  try {
+    const { data, error } = await supabase.from("pedidos").select("valor_total, created_at").gte("created_at", currentMonthStart.toISOString()).lte("created_at", now.toISOString());
+    if (error) throw new Error(`Pedidos Mês Atual: ${error.message}`);
+    currentMonthOrders = data;
+  } catch (e: any) {
+    throw new Error(`Erro ao buscar pedidos do mês atual: ${e.message}`);
+  }
 
-  if (currentOrdersError || previousOrdersError || currentCustomersError || previousMonthCustomers) {
-    throw new Error("Erro ao buscar dados de crescimento.");
+  try {
+    const { data, error } = await supabase.from("pedidos").select("valor_total, created_at").gte("created_at", previousMonthStart.toISOString()).lte("created_at", previousMonthEnd.toISOString());
+    if (error) throw new Error(`Pedidos Mês Anterior: ${error.message}`);
+    previousMonthOrders = data;
+  } catch (e: any) {
+    throw new Error(`Erro ao buscar pedidos do mês anterior: ${e.message}`);
+  }
+
+  try {
+    const { data, error } = await supabase.from("clientes").select("id, created_at").gte("created_at", currentMonthStart.toISOString()).lte("created_at", now.toISOString());
+    if (error) throw new Error(`Clientes Mês Atual: ${error.message}`);
+    currentMonthCustomers = data;
+  } catch (e: any) {
+    throw new Error(`Erro ao buscar clientes do mês atual: ${e.message}`);
+  }
+
+  try {
+    const { data, error } = await supabase.from("clientes").select("id, created_at").gte("created_at", previousMonthStart.toISOString()).lte("created_at", previousMonthEnd.toISOString());
+    if (error) throw new Error(`Clientes Mês Anterior: ${error.message}`);
+    previousMonthCustomers = data;
+  } catch (e: any) {
+    throw new Error(`Erro ao buscar clientes do mês anterior: ${e.message}`);
   }
 
   // --- BUSCA DE DADOS PRINCIPAIS (PERÍODO SELECIONADO) ---
@@ -164,7 +183,7 @@ const fetchReportData = async (supabase: any, selectedPeriod: string, customRang
     .select("*, clientes(nome), pedido_items(*, produtos(nome)), pedido_servicos(*)")
     .order("created_at", { ascending: false });
 
-  if (ordersError) throw new Error(ordersError.message);
+  if (ordersError) throw new Error(`Erro ao buscar pedidos completos: ${ordersError.message}`);
 
   // Filter orders by selected period
   const periodOrders = orders?.filter(order => {
@@ -177,14 +196,14 @@ const fetchReportData = async (supabase: any, selectedPeriod: string, customRang
     .from("clientes")
     .select("*");
 
-  if (customersError) throw new Error(customersError.message);
+  if (customersError) throw new Error(`Erro ao buscar todos os clientes: ${customersError.message}`);
 
   // Fetch products (all time for total count)
   const { data: products, error: productsError } = await supabase
     .from("produtos")
     .select("*");
 
-  if (productsError) throw new Error(productsError.message);
+  if (productsError) throw new Error(`Erro ao buscar todos os produtos: ${productsError.message}`);
 
   // --- CÁLCULOS DE MÉTRICAS ---
   const totalRevenue = periodOrders.reduce((sum, order) => sum + order.valor_total, 0) || 0;
