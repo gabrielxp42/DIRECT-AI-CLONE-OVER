@@ -540,7 +540,7 @@ const PedidosPage: React.FC = () => {
           {filteredPedidos.map((pedido) => (
             <Card 
               key={pedido.id} 
-              className="touch-manipulation cursor-pointer transition-all duration-200 hover:shadow-lg hover:border-primary/50"
+              className="touch-manipulation cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-[1.02] hover:border-primary/50"
               onClick={() => handleViewPedido(pedido.id)}
             >
               <CardHeader className="pb-3">
