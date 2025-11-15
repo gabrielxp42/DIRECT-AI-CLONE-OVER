@@ -170,7 +170,7 @@ const Clientes = () => {
         <Button 
           onClick={() => { setEditingCliente(null); setIsFormOpen(true); }}
           size="default"
-          className="h-10 w-full sm:w-auto"
+          className="h-10 w-full sm:w-auto transition-all duration-300 hover:scale-[1.02]"
         >
           <Plus className="h-4 w-4 mr-2" />
           Novo Cliente
@@ -184,7 +184,7 @@ const Clientes = () => {
             placeholder="Buscar clientes..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-8"
+            className="pl-8 transition-all duration-300 focus:ring-2 focus:ring-primary/20"
           />
         </div>
       </div>
@@ -195,7 +195,7 @@ const Clientes = () => {
             {filteredClientes.map((cliente) => (
               <Card 
                 key={cliente.id} 
-                className="hover:shadow-md transition-shadow cursor-pointer"
+                className="hover:shadow-xl transition-all duration-300 hover:scale-[1.02] cursor-pointer"
                 onClick={() => handleViewDetails(cliente)}
               >
                 <CardHeader className="pb-3">
@@ -236,6 +236,7 @@ const Clientes = () => {
                       variant="outline"
                       size="sm"
                       onClick={(e) => { e.stopPropagation(); handleViewDetails(cliente); }}
+                      className="transition-all duration-200 hover:bg-primary/10"
                     >
                       <Eye className="h-4 w-4 mr-1" />
                       Detalhes
@@ -244,12 +245,13 @@ const Clientes = () => {
                       variant="outline"
                       size="sm"
                       onClick={(e) => { e.stopPropagation(); handleEdit(cliente); }}
+                      className="transition-all duration-200 hover:bg-primary/10"
                     >
                       <Edit className="h-4 w-4" />
                     </Button>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
-                        <Button variant="outline" size="sm" onClick={(e) => e.stopPropagation()}>
+                        <Button variant="outline" size="sm" onClick={(e) => e.stopPropagation()} className="transition-all duration-200 hover:bg-destructive/10 hover:text-destructive">
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </AlertDialogTrigger>

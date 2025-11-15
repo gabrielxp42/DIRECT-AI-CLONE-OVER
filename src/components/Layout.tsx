@@ -39,7 +39,7 @@ const Layout = () => {
       {/* Sidebar - Desktop (Primeira Coluna do Grid) */}
       <div 
         className={cn(
-          "hidden border-r bg-sidebar transition-all duration-300 ease-in-out md:flex flex-col h-full",
+          "hidden border-r bg-sidebar transition-all duration-300 ease-in-out md:flex flex-col h-full shadow-lg hover:shadow-xl", // Adicionado shadow
           sidebarWidth
         )}
         onMouseEnter={() => setIsExpanded(true)}
@@ -69,10 +69,10 @@ const Layout = () => {
                     key={item.href}
                     to={item.href}
                     className={cn(
-                      "flex items-center gap-4 rounded-lg px-3 py-2 transition-all duration-200",
+                      "flex items-center gap-4 rounded-lg px-3 py-2 transition-all duration-300 ease-in-out",
                       isActive
                         ? "bg-primary text-primary-foreground shadow-md hover:bg-primary/90"
-                        : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                        : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:scale-[1.02]" // Adicionado hover:scale
                     )}
                   >
                     <item.icon className="h-5 w-5 flex-shrink-0" />
@@ -119,7 +119,7 @@ const Layout = () => {
       <AIAssistant />
       {!isOpen && !isMobile && (
         <Button
-          className="fixed bottom-4 right-4 h-16 w-16 rounded-full shadow-lg z-50"
+          className="fixed bottom-4 right-4 h-16 w-16 rounded-full shadow-xl z-50 transition-all duration-300 hover:scale-110"
           onClick={openAIAssistant}
         >
           <MessageSquare className="h-8 w-8" />

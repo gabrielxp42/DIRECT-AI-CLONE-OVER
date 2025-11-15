@@ -11,7 +11,7 @@ interface QuickActionCardProps {
   onClick?: () => void; // Função para ação direta (ex: abrir modal)
   filterState?: any; // Estado para passar para a rota (ex: filtro de status)
   className?: string;
-  count?: number; // Nova prop para a contagem
+  count?: number | string; // Mantendo o tipo para suportar '...' durante o loading
 }
 
 export const QuickActionCard: React.FC<QuickActionCardProps> = ({
@@ -36,8 +36,8 @@ export const QuickActionCard: React.FC<QuickActionCardProps> = ({
   return (
     <Card 
       className={cn(
-        "flex flex-col items-center justify-center p-3 h-full text-center cursor-pointer transition-all duration-200 hover:shadow-md hover:border-primary/50",
-        "min-w-[80px] min-h-[80px]", // Aumenta um pouco o tamanho mínimo para melhor toque/clique
+        "flex flex-col items-center justify-center p-3 h-full text-center cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-[1.05]",
+        "min-w-[80px] min-h-[80px]",
         className
       )}
       onClick={handleClick}

@@ -424,7 +424,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                               variant="outline"
                               role="combobox"
                               aria-expanded={clienteOpen}
-                              className="w-full justify-between transition-all duration-200 hover:bg-accent/50"
+                              className="w-full justify-between transition-all duration-300 hover:bg-accent/50"
                             >
                               {selectedClienteName || "Selecione um cliente..."}
                               <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -447,7 +447,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                       key={cliente.id}
                                       value={cliente.nome}
                                       onSelect={() => handleClienteSelect(cliente.id, cliente.nome)}
-                                      className="cursor-pointer py-2"
+                                      className="cursor-pointer py-2 transition-all duration-200 hover:bg-accent/50"
                                     >
                                       <User className="mr-2 h-4 w-4" />
                                       <div className="flex flex-col">
@@ -498,7 +498,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                             <Button
                               variant={"outline"}
                               className={cn(
-                                "w-full justify-start text-left font-normal h-10",
+                                "w-full justify-start text-left font-normal h-10 transition-all duration-300 hover:bg-accent/50",
                                 !field.value && "text-muted-foreground"
                               )}
                             >
@@ -541,7 +541,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                         type="button" 
                         onClick={addItem} 
                         size="sm"
-                        className="transition-all duration-200 hover:scale-105"
+                        className="transition-all duration-300 hover:scale-[1.05] shadow-md hover:shadow-lg"
                       >
                         <Plus className="mr-2 h-4 w-4" />
                         Adicionar Item
@@ -572,7 +572,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                           className="w-full"
                         >
                           {form.watch('items')?.map((item, index) => (
-                            <AccordionItem key={index} value={`item-${index}`} className="border rounded-lg px-4 mb-2">
+                            <AccordionItem key={index} value={`item-${index}`} className="border rounded-lg px-4 mb-2 transition-all duration-300 hover:shadow-md">
                               <AccordionTrigger className="py-3 hover:no-underline">
                                 <div className="flex items-center justify-between w-full pr-4">
                                   <div className="flex-1 min-w-0 text-left">
@@ -588,7 +588,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                       type="button"
                                       variant="ghost"
                                       size="sm"
-                                      className="h-8 w-8 p-0 hover:text-destructive"
+                                      className="h-8 w-8 p-0 hover:text-destructive transition-all duration-200 hover:scale-110"
                                       onClick={(e) => { e.stopPropagation(); removeItem(index); }}
                                     >
                                       <Trash2 className="h-4 w-4" />
@@ -695,6 +695,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                     onClick={addServico} 
                     size="sm" 
                     variant="outline"
+                    className="transition-all duration-300 hover:scale-[1.05] shadow-sm hover:shadow-md"
                   >
                     <Plus className="mr-2 h-4 w-4" />
                     Adicionar Serviço
@@ -709,7 +710,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="rounded-full h-auto py-1 px-3 text-xs"
+                      className="rounded-full h-auto py-1 px-3 text-xs transition-all duration-200 hover:bg-primary/10 hover:border-primary"
                       onClick={() => addShortcutServico(servico.nome, servico.valor)}
                     >
                       {servico.nome} - {formatCurrency(servico.valor)}
@@ -731,7 +732,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                       className="w-full"
                     >
                       {form.watch('servicos')?.map((servico, index) => (
-                        <AccordionItem key={index} value={`servico-${index}`} className="border rounded-lg px-4 mb-2">
+                        <AccordionItem key={index} value={`servico-${index}`} className="border rounded-lg px-4 mb-2 transition-all duration-300 hover:shadow-md">
                           <AccordionTrigger className="py-3 hover:no-underline">
                             <div className="flex items-center justify-between w-full pr-4">
                               <div className="flex-1 min-w-0 text-left">
@@ -747,7 +748,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                   type="button"
                                   variant="ghost"
                                   size="sm"
-                                  className="h-8 w-8 p-0 hover:text-destructive"
+                                  className="h-8 w-8 p-0 hover:text-destructive transition-all duration-200 hover:scale-110"
                                   onClick={(e) => { e.stopPropagation(); removeServico(index); }}
                                 >
                                   <Trash2 className="h-4 w-4" />
@@ -859,8 +860,8 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
               </div>
 
               <DialogFooter className="gap-2">
-                <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-                <Button type="submit" disabled={isSubmitting}>
+                <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="transition-all duration-300 hover:scale-[1.02]">Cancelar</Button>
+                <Button type="submit" disabled={isSubmitting} className="transition-all duration-300 hover:scale-[1.02]">
                   {isSubmitting ? "Salvando..." : isEditing ? "Salvar Alterações" : "Criar Pedido"}
                 </Button>
               </DialogFooter>
