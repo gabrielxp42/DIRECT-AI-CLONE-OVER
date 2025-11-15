@@ -331,7 +331,7 @@ export const openAIFunctions = [
       properties: {
         clientName: {
           type: "string",
-          description: "O nome completo ou parcial do cliente. A busca é inteligente e encontra clientes mesmo com pequenos erros de digitação ou nomes incompletos."
+          description: "O nome completo ou parcial do cliente. A busca é inteligente e encontra clientes mesmo com nomes parciais ou pequenos erros de digitação."
         }
       },
       required: ["clientName"]
@@ -437,7 +437,7 @@ export const openAIFunctions = [
   },
   {
     name: "list_services", // NEW TOOL
-    description: "Lista serviços por filtros de data. Use para perguntas como 'quantos serviços tivemos esta semana?', 'quais serviços foram feitos hoje?'. Retorna o nome do serviço, quantidade, valor unitário, valor total, número do pedido, status do pedido, data do pedido e nome do cliente. **IMPORTANTE:** Quando o usuário perguntar sobre 'esta semana' ou 'semana passada', use o intervalo 'ranges.thisWorkWeek' ou calcule o intervalo de Terça a Sábado.",
+    description: "Lista serviços por filtros de data e status. Use para perguntas como 'quantos serviços tivemos esta semana?', 'quais serviços foram feitos hoje?'. Retorna o nome do serviço, quantidade, valor unitário, valor total, número do pedido, status do pedido, data do pedido e nome do cliente. **IMPORTANTE:** Quando o usuário perguntar sobre 'esta semana' ou 'semana passada', use o intervalo 'ranges.thisWorkWeek' ou calcule o intervalo de Terça a Sábado.",
     parameters: {
       type: "object",
       properties: {
@@ -450,6 +450,22 @@ export const openAIFunctions = [
           type: "string",
           format: "date-time",
           description: "Data de fim do período para filtrar serviços (formato ISO 8601, ex: '2023-10-27T23:59:59.999Z')."
+        },
+        statuses: {
+          type: "array",
+          items: {
+            type: "string",
+            enum: ["pendente", "processando", "enviado", "entregue", "cancelado", "pago", "aguardando retirada"]
+          },
+          description: "Uma lista de status de pedido para INCLUIR nos resultados."
+        },
+        exclude_statuses: {
+            type: "array",
+            items: {
+              type: "string",
+              enum: ["pendente", "processando", "enviado", "entregue", "cancelado", "pago", "aguardando retirada"]
+            },
+            description: "Uma lista de status de pedido para EXCLUIR dos resultados."
         },
         limit: {
           type: "number",
@@ -866,12 +882,14 @@ export const list_orders = async (args: {
 export const list_services = async (args: {
   startDate?: string;
   endDate?: string;
+  statuses?: string[]; // NEW
+  exclude_statuses?: string[]; // NEW
   limit?: number;
   orderBy?: "created_at_asc" | "created_at_desc" | "valor_total_desc";
   includeTotalCount?: boolean;
   allTime?: boolean;
 }) => {
-  let { startDate, endDate, limit = 10, orderBy = 'created_at_desc', includeTotalCount, allTime } = args;
+  let { startDate, endDate, statuses, exclude_statuses, limit = 10, orderBy = 'created_at_desc', includeTotalCount, allTime } = args;
   const TIME_ZONE = 'America/Sao_Paulo';
   const dateInfo = getCurrentDateTime();
   let periodDescription = "em todo o período";
@@ -960,6 +978,14 @@ export const list_services = async (args: {
     if (endDate) {
       query = query.lte('pedidos.created_at', endDate);
     }
+    
+    // NEW: Apply status filters
+    if (statuses && statuses.length > 0) {
+        query = query.in('pedidos.status', statuses);
+    }
+    if (exclude_statuses && exclude_statuses.length > 0) {
+        query = query.not('pedidos.status', 'in', `(${exclude_statuses.map(s => `"${s}"`).join(',')})`);
+    }
 
     // Removed direct ordering on joined table to avoid 400 error.
     // Ordering will be handled client-side or by Strategy 2.
@@ -1047,6 +1073,14 @@ export const list_services = async (args: {
     }
     if (endDate) {
       ordersQuery = ordersQuery.lte('created_at', endDate);
+    }
+    
+    // NEW: Apply status filters to orders query
+    if (statuses && statuses.length > 0) {
+        ordersQuery = ordersQuery.in('status', statuses);
+    }
+    if (exclude_statuses && exclude_statuses.length > 0) {
+        ordersQuery = ordersQuery.not('status', 'in', `(${exclude_statuses.map(s => `"${s}"`).join(',')})`);
     }
 
     // Apply order to ordersQuery if orderBy is related to order creation date
