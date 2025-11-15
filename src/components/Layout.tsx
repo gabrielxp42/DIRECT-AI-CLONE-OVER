@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { Home, ShoppingCart, Users, BarChart3, Package, MessageSquare } from 'lucide-react';
+import { Home, ShoppingCart, Users, BarChart3, Package, MessageSquare, Menu } from 'lucide-react';
 import { AIAssistant } from './AIAssistant';
 import { ThemeToggle } from './ThemeToggle';
 import { UserNav } from './UserNav';
@@ -24,29 +24,44 @@ const Layout = () => {
   const { isOpen, open: openAIAssistant } = useAIAssistant();
   const isMobile = useIsMobile();
   const location = useLocation();
+  
+  // Estado para controlar a expansão do menu lateral
+  const [isExpanded, setIsExpanded] = React.useState(false);
 
   // Desativa o zoom para todas as páginas dentro do Layout por padrão
   useViewportZoom(false); 
 
+  const sidebarWidth = isExpanded ? 'w-[280px]' : 'w-[64px]';
+  const gridTemplate = isExpanded ? 'md:grid-cols-[280px_1fr]' : 'md:grid-cols-[64px_1fr]';
+
   return (
-    <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
+    <div className={cn("grid min-h-screen w-full", gridTemplate)}>
       {/* Sidebar - Desktop */}
-      <div className="hidden border-r bg-sidebar md:block">
-        <div className="flex h-full max-h-screen flex-col gap-2">
+      <div 
+        className={cn(
+          "hidden border-r bg-sidebar transition-all duration-300 ease-in-out md:block fixed top-0 left-0 h-full z-30",
+          sidebarWidth
+        )}
+        onMouseEnter={() => setIsExpanded(true)}
+        onMouseLeave={() => setIsExpanded(false)}
+      >
+        <div className="flex h-full flex-col gap-2">
           {/* Header do Sidebar */}
-          <div className="flex h-16 items-center border-b px-4 lg:h-[70px] lg:px-6">
+          <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-4 overflow-hidden">
             <Link to="/" className="flex items-center gap-3 font-semibold text-sidebar-foreground">
-              <img src="/logo.png" alt="Direct DTF Logo" className="h-9 w-9" />
-              <div className="flex flex-col">
-                <span className="text-lg font-bold">DIRECT AI</span>
-                <span className="text-xs text-sidebar-foreground/70">Assistente de Vendas</span>
-              </div>
+              <img src="/logo.png" alt="Direct DTF Logo" className="h-8 w-8 flex-shrink-0" />
+              <span className={cn(
+                "text-lg font-bold whitespace-nowrap transition-opacity duration-200",
+                isExpanded ? "opacity-100" : "opacity-0"
+              )}>
+                DIRECT AI
+              </span>
             </Link>
           </div>
           
           {/* Navegação */}
-          <div className="flex-1 overflow-y-auto p-4 lg:p-6">
-            <nav className="grid items-start gap-2 text-base font-medium">
+          <div className="flex-1 overflow-y-auto p-2 lg:p-3">
+            <nav className="grid items-start gap-1 text-sm font-medium">
               {navItems.map((item) => {
                 const isActive = location.pathname === item.href;
                 return (
@@ -54,14 +69,19 @@ const Layout = () => {
                     key={item.href}
                     to={item.href}
                     className={cn(
-                      "flex items-center gap-4 rounded-xl px-4 py-3 transition-all",
+                      "flex items-center gap-4 rounded-lg px-3 py-2 transition-all duration-200",
                       isActive
-                        ? "bg-primary text-primary-foreground shadow-lg hover:bg-primary/90"
+                        ? "bg-primary text-primary-foreground shadow-md hover:bg-primary/90"
                         : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                     )}
                   >
-                    <item.icon className="h-5 w-5" />
-                    {item.label}
+                    <item.icon className="h-5 w-5 flex-shrink-0" />
+                    <span className={cn(
+                      "whitespace-nowrap transition-opacity duration-200",
+                      isExpanded ? "opacity-100" : "opacity-0"
+                    )}>
+                      {item.label}
+                    </span>
                   </Link>
                 );
               })}
@@ -69,8 +89,11 @@ const Layout = () => {
           </div>
           
           {/* Footer do Sidebar */}
-          <div className="p-4 border-t border-sidebar-border">
-            <p className="text-xs text-sidebar-foreground/50 text-center">
+          <div className="p-4 border-t border-sidebar-border overflow-hidden">
+            <p className={cn(
+              "text-xs text-sidebar-foreground/50 text-center transition-opacity duration-200",
+              isExpanded ? "opacity-100" : "opacity-0"
+            )}>
               Versão: {APP_VERSION}
             </p>
           </div>
