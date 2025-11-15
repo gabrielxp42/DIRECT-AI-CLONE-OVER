@@ -20,7 +20,8 @@ const fetchCommissionReport = async (
   endDate: string,
   excludedNames: string[]
 ): Promise<CommissionReport> => {
-  const { data, error } = await supabase.rpc('get_services_commission_report', {
+  // Alterado para chamar a nova função RPC
+  const { data, error } = await supabase.rpc('get_commission_report_v2', {
     p_start_date: startDate,
     p_end_date: endDate,
     excluded_service_names: excludedNames
