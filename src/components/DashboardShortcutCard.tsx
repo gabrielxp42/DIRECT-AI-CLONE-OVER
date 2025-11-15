@@ -13,6 +13,7 @@ interface DashboardShortcutCardProps {
   filterState?: any;
   loading?: boolean;
   className?: string;
+  children?: React.ReactNode; // Adicionado children para o texto de crescimento
 }
 
 export const DashboardShortcutCard: React.FC<DashboardShortcutCardProps> = ({
@@ -23,6 +24,7 @@ export const DashboardShortcutCard: React.FC<DashboardShortcutCardProps> = ({
   filterState,
   loading = false,
   className,
+  children, // Recebe o children
 }) => {
   return (
     <Link to={to} state={filterState} className={cn("block", className)}>
@@ -33,9 +35,15 @@ export const DashboardShortcutCard: React.FC<DashboardShortcutCardProps> = ({
         </CardHeader>
         <CardContent>
           {loading ? (
-            <Skeleton className="h-8 w-1/2" />
+            <div className="space-y-2">
+              <Skeleton className="h-8 w-3/4" />
+              <Skeleton className="h-4 w-1/2" />
+            </div>
           ) : (
-            <div className="text-2xl font-bold">{count}</div>
+            <>
+              <div className="text-2xl font-bold">{count}</div>
+              {children} {/* Renderiza o conteúdo de crescimento aqui */}
+            </>
           )}
         </CardContent>
       </Card>

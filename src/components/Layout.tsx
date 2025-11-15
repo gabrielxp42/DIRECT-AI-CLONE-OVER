@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Outlet, Link } from 'react-router-dom';
+import { Outlet, Link, useLocation } from 'react-router-dom';
 import { Home, ShoppingCart, Users, BarChart3, Package, MessageSquare } from 'lucide-react';
 import { AIAssistant } from './AIAssistant';
 import { ThemeToggle } from './ThemeToggle';
@@ -8,77 +8,78 @@ import { MobileBottomNav } from './MobileBottomNav';
 import { useAIAssistant } from '@/contexts/AIAssistantProvider';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from './ui/button';
-import { useViewportZoom } from '@/hooks/useViewportZoom'; // Importar o novo hook
-import { APP_VERSION } from '@/utils/version'; // Importar a versão
+import { useViewportZoom } from '@/hooks/useViewportZoom';
+import { APP_VERSION } from '@/utils/version';
+import { cn } from '@/lib/utils';
+
+const navItems = [
+  { href: '/', icon: Home, label: 'Dashboard' },
+  { href: '/pedidos', icon: ShoppingCart, label: 'Pedidos' },
+  { href: '/clientes', icon: Users, label: 'Clientes' },
+  { href: '/produtos', icon: Package, label: 'Produtos' },
+  { href: '/reports', icon: BarChart3, label: 'Relatórios' },
+];
 
 const Layout = () => {
   const { isOpen, open: openAIAssistant } = useAIAssistant();
   const isMobile = useIsMobile();
+  const location = useLocation();
 
   // Desativa o zoom para todas as páginas dentro do Layout por padrão
   useViewportZoom(false); 
 
   return (
     <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
-      <div className="hidden border-r bg-muted/40 md:block">
+      {/* Sidebar - Desktop */}
+      <div className="hidden border-r bg-sidebar md:block">
         <div className="flex h-full max-h-screen flex-col gap-2">
+          {/* Header do Sidebar */}
           <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
-            <Link to="/" className="flex items-center gap-2 font-semibold">
+            <Link to="/" className="flex items-center gap-2 font-semibold text-sidebar-foreground">
               <img src="/logo.png" alt="Direct DTF Logo" className="h-8 w-8" />
               <div className="flex flex-col">
-                <span className="">DIRECT DTF - AI</span>
-                <span className="text-xs text-muted-foreground">Por Gabriel Lima</span>
+                <span className="text-base font-bold">DIRECT DTF - AI</span>
+                <span className="text-xs text-sidebar-foreground/70">Por Gabriel Lima</span>
               </div>
             </Link>
           </div>
-          <div className="flex-1 overflow-y-auto">
-            <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
-              <Link
-                to="/"
-                className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
-              >
-                <Home className="h-4 w-4" />
-                Dashboard
-              </Link>
-              <Link
-                to="/pedidos"
-                className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
-              >
-                <ShoppingCart className="h-4 w-4" />
-                Pedidos
-              </Link>
-              <Link
-                to="/clientes"
-                className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
-              >
-                <Users className="h-4 w-4" />
-                Clientes
-              </Link>
-              <Link
-                to="/produtos"
-                className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
-              >
-                <Package className="h-4 w-4" />
-                Produtos
-              </Link>
-              <Link
-                to="/reports"
-                className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
-              >
-                <BarChart3 className="h-4 w-4" />
-                Relatórios
-              </Link>
+          
+          {/* Navegação */}
+          <div className="flex-1 overflow-y-auto p-2 lg:p-4">
+            <nav className="grid items-start gap-1 text-sm font-medium">
+              {navItems.map((item) => {
+                const isActive = location.pathname === item.href;
+                return (
+                  <Link
+                    key={item.href}
+                    to={item.href}
+                    className={cn(
+                      "flex items-center gap-3 rounded-lg px-3 py-2 transition-all",
+                      isActive
+                        ? "bg-primary text-primary-foreground shadow-md hover:bg-primary/90"
+                        : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                    )}
+                  >
+                    <item.icon className="h-4 w-4" />
+                    {item.label}
+                  </Link>
+                );
+              })}
             </nav>
           </div>
-          <div className="p-4 border-t">
-            <p className="text-xs text-muted-foreground text-center">
+          
+          {/* Footer do Sidebar */}
+          <div className="p-4 border-t border-sidebar-border">
+            <p className="text-xs text-sidebar-foreground/50 text-center">
               Versão: {APP_VERSION}
             </p>
           </div>
         </div>
       </div>
+      
+      {/* Main Content */}
       <div className="flex flex-col">
-        <header className="flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6">
+        <header className="flex h-14 items-center gap-4 border-b bg-background px-4 lg:h-[60px] lg:px-6">
           <div className="flex items-center gap-2 font-semibold md:hidden">
             <img src="/logo.png" alt="Direct DTF Logo" className="h-8 w-8" />
             <span>DIRECT AI</span>

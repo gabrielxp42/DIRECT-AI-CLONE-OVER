@@ -4,11 +4,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { DollarSign, Users, CreditCard, Activity, Plus, MessageSquare, ShoppingCart, Package, User, Clock, Wrench, Handshake, Truck, CheckSquare, Ruler } from "lucide-react";
+import { DollarSign, Users, Activity, Ruler, Clock, Wrench, Package, CheckSquare } from "lucide-react";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { Skeleton } from "@/components/ui/skeleton";
 import { QuickActionCard } from "@/components/QuickActionCard";
 import { useAIAssistant } from '@/contexts/AIAssistantProvider';
+import { DashboardShortcutCard } from "@/components/DashboardShortcutCard"; // Reutilizando o card maior para métricas
 
 const Index = () => {
   const { data: stats, isLoading, error } = useDashboardData();
@@ -46,144 +47,103 @@ const Index = () => {
     <div>
       <h1 className="text-3xl font-bold mb-6 text-left">Dashboard</h1>
       
-      {/* Nova seção de Ações Rápidas */}
+      {/* Seção de Ações Rápidas - Mais compacta */}
       <div className="mb-8">
         <h2 className="text-xl font-semibold mb-4">Ações Rápidas</h2>
-        <div className="grid grid-cols-5 gap-2"> {/* Força 5 colunas em todas as telas */}
+        <div className="grid grid-cols-3 sm:grid-cols-5 gap-4"> {/* Layout mais compacto */}
           <QuickActionCard 
             title="Pendentes" 
             icon={Clock} 
             to="/pedidos" 
             filterState={{ filterStatus: 'pendente' }}
-            count={stats?.pendingOrdersCount} // Removido isLoading para evitar skeleton
+            count={isLoading ? '...' : stats?.pendingOrdersCount}
           />
           <QuickActionCard 
             title="Processando" 
             icon={Wrench} 
             to="/pedidos" 
             filterState={{ filterStatus: 'processando' }}
-            count={stats?.processingOrdersCount} // Removido isLoading para evitar skeleton
+            count={isLoading ? '...' : stats?.processingOrdersCount}
           />
           <QuickActionCard 
             title="Faltam Pagar" 
             icon={DollarSign} 
             to="/pedidos" 
             filterState={{ filterStatus: 'pendente-pagamento' }}
-            count={stats?.pendingPaymentOrdersCount} // Removido isLoading para evitar skeleton
+            count={isLoading ? '...' : stats?.pendingPaymentOrdersCount}
           />
           <QuickActionCard 
             title="Aguardando Retirada" 
             icon={Package} 
             to="/pedidos" 
             filterState={{ filterStatus: 'aguardando retirada' }}
-            count={stats?.awaitingPickupOrdersCount} // Removido isLoading para evitar skeleton
+            count={isLoading ? '...' : stats?.awaitingPickupOrdersCount}
           />
           <QuickActionCard 
             title="Entregues" 
             icon={CheckSquare} 
             to="/pedidos" 
             filterState={{ filterStatus: 'entregue' }}
-            count={stats?.deliveredOrdersCount} // Removido isLoading para evitar skeleton
+            count={isLoading ? '...' : stats?.deliveredOrdersCount}
           />
         </div>
       </div>
 
-      {/* Cards de Visão Geral Existentes */}
+      {/* Cards de Visão Geral - Usando DashboardShortcutCard para melhor visualização */}
       <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Vendas Totais
-            </CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="space-y-2">
-                <Skeleton className="h-8 w-32" />
-                <Skeleton className="h-4 w-24" />
-              </div>
-            ) : (
-              <>
-                <div className="text-2xl font-bold">{formatCurrency(stats?.totalSales || 0)}</div>
-                <p className={`text-xs ${getGrowthColor(stats?.salesGrowth || 0)}`}>
-                  {formatGrowth(stats?.salesGrowth || 0)} do último mês
-                </p>
-              </>
-            )}
-          </CardContent>
-        </Card>
+        <DashboardShortcutCard
+          title="Vendas Totais"
+          icon={DollarSign}
+          to="/reports"
+          loading={isLoading}
+          count={formatCurrency(stats?.totalSales || 0)}
+          className={getGrowthColor(stats?.salesGrowth || 0)}
+        >
+          <p className={`text-xs ${getGrowthColor(stats?.salesGrowth || 0)}`}>
+            {formatGrowth(stats?.salesGrowth || 0)} do último mês
+          </p>
+        </DashboardShortcutCard>
         
-        {/* NOVO CARD: Total de Metros */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Total de Metros (ML)
-            </CardTitle>
-            <Ruler className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="space-y-2">
-                <Skeleton className="h-8 w-32" />
-                <Skeleton className="h-4 w-24" />
-              </div>
-            ) : (
-              <>
-                <div className="text-2xl font-bold">{formatMeters(stats?.totalMeters || 0)}</div>
-                <p className={`text-xs ${getGrowthColor(stats?.metersGrowth || 0)}`}>
-                  {formatGrowth(stats?.metersGrowth || 0)} do último mês
-                </p>
-              </>
-            )}
-          </CardContent>
-        </Card>
+        <DashboardShortcutCard
+          title="Total de Metros (ML)"
+          icon={Ruler}
+          to="/reports"
+          loading={isLoading}
+          count={formatMeters(stats?.totalMeters || 0)}
+          className={getGrowthColor(stats?.metersGrowth || 0)}
+        >
+          <p className={`text-xs ${getGrowthColor(stats?.metersGrowth || 0)}`}>
+            {formatGrowth(stats?.metersGrowth || 0)} do último mês
+          </p>
+        </DashboardShortcutCard>
         
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Novos Clientes
-            </CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="space-y-2">
-                <Skeleton className="h-8 w-16" />
-                <Skeleton className="h-4 w-24" />
-              </div>
-            ) : (
-              <>
-                <div className="text-2xl font-bold">+{stats?.newCustomers || 0}</div>
-                <p className={`text-xs ${getGrowthColor(stats?.customersGrowth || 0)}`}>
-                  {formatGrowth(stats?.customersGrowth || 0)} do último mês
-                </p>
-              </>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Ticket Médio</CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="space-y-2">
-                <Skeleton className="h-8 w-32" />
-                <Skeleton className="h-4 w-24" />
-              </div>
-            ) : (
-              <>
-                <div className="text-2xl font-bold">{formatCurrency(stats?.averageTicket || 0)}</div>
-                <p className={`text-xs ${getGrowthColor(stats?.ticketGrowth || 0)}`}>
-                  {formatGrowth(stats?.ticketGrowth || 0)} do último mês
-                </p>
-              </>
-            )}
-          </CardContent>
-        </Card>
+        <DashboardShortcutCard
+          title="Novos Clientes"
+          icon={Users}
+          to="/clientes"
+          loading={isLoading}
+          count={`+${stats?.newCustomers || 0}`}
+          className={getGrowthColor(stats?.customersGrowth || 0)}
+        >
+          <p className={`text-xs ${getGrowthColor(stats?.customersGrowth || 0)}`}>
+            {formatGrowth(stats?.customersGrowth || 0)} do último mês
+          </p>
+        </DashboardShortcutCard>
+        
+        <DashboardShortcutCard
+          title="Ticket Médio"
+          icon={Activity}
+          to="/reports"
+          loading={isLoading}
+          count={formatCurrency(stats?.averageTicket || 0)}
+          className={getGrowthColor(stats?.ticketGrowth || 0)}
+        >
+          <p className={`text-xs ${getGrowthColor(stats?.ticketGrowth || 0)}`}>
+            {formatGrowth(stats?.ticketGrowth || 0)} do último mês
+          </p>
+        </DashboardShortcutCard>
       </div>
+      
       <div className="mt-8 text-center">
         <p className="text-lg text-muted-foreground">
           Bem-vindo ao seu assistente de vendas!
