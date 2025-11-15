@@ -1002,7 +1002,7 @@ export const list_services = async (args: {
         formattedServices.sort((a, b) => ascending ? a.total_value - b.total_value : b.total_value - a.total_value);
       }
 
-      const totalRevenue = formattedServices.reduce((sum, service) => sum + (service.quantity * service.unit_value), 0);
+      const totalRevenue = formattedServices.reduce((sum, service) => sum + (service.quantity * service.valor_unitario), 0);
       const totalRevenueFormatted = new Intl.NumberFormat('pt-BR', {
         style: 'currency',
         currency: 'BRL'
