@@ -523,7 +523,7 @@ const findOrderByNumber = async (orderNumber: number) => {
   try {
     console.log('📍 [findOrderByNumber] Busca direta na tabela pedidos');
     const { data: orders, error: directError } = await supabase
-      .from('pedidos') // USANDO 'pedidos'
+      .from('pedidos') // USANDO 'pedidos' para leitura
       .select('id')
       .eq('order_number', orderNumber)
       .limit(1)
@@ -1154,7 +1154,9 @@ export const list_services = async (args: {
   }
 };
 
-// Update callOpenAIFunction to dispatch to list_services
+// Helper function to fetch complete order data for PDF generation (kept for completeness)
+// ... (fetchCompleteOrderData is defined above)
+
 export const callOpenAIFunction = async (functionCall: { name: string; arguments: any }) => {
   const { name, arguments: args } = functionCall;
   console.log(`🚀 [callOpenAIFunction] Executando: ${name}`, args);

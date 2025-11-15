@@ -37,7 +37,8 @@ import {
   Clock,
   MessageSquare,
   History,
-  Ruler
+  Ruler,
+  Loader2
 } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
 import {
@@ -268,7 +269,7 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-5xl max-w-[95vw] max-h-[95vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
@@ -350,14 +351,14 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
                   <Package className="h-5 w-5 mr-2 text-primary" />
                   <h3 className="text-lg font-semibold">Itens do Pedido</h3>
                 </div>
-                <div className="border rounded-lg">
+                <div className="border rounded-lg overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Produto</TableHead>
-                        <TableHead className="text-right">Quantidade</TableHead>
-                        <TableHead className="text-right">Preço Unitário</TableHead>
-                        <TableHead className="text-right">Total</TableHead>
+                        <TableHead className="min-w-[150px]">Produto</TableHead>
+                        <TableHead className="text-right min-w-[80px]">Quantidade</TableHead>
+                        <TableHead className="text-right min-w-[100px]">Preço Unitário</TableHead>
+                        <TableHead className="text-right min-w-[100px]">Total</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -365,7 +366,7 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
                         <TableRow key={item.id}>
                           <TableCell>
                             <div>
-                              <div>{item.produto_nome || getProdutoNome(item.produto_id)}</div>
+                              <div className="font-medium">{item.produto_nome || getProdutoNome(item.produto_id)}</div>
                               {item.observacao && (
                                 <div className="text-sm text-muted-foreground italic">
                                   Obs: {item.observacao}
@@ -395,14 +396,14 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
                   <Wrench className="h-5 w-5 mr-2 text-primary" />
                   <h3 className="text-lg font-semibold">Serviços</h3>
                 </div>
-                <div className="border rounded-lg">
+                <div className="border rounded-lg overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Serviço</TableHead>
-                        <TableHead className="text-right">Quantidade</TableHead>
-                        <TableHead className="text-right">Valor Unitário</TableHead>
-                        <TableHead className="text-right">Total</TableHead>
+                        <TableHead className="min-w-[150px]">Serviço</TableHead>
+                        <TableHead className="text-right min-w-[80px]">Quantidade</TableHead>
+                        <TableHead className="text-right min-w-[100px]">Valor Unitário</TableHead>
+                        <TableHead className="text-right min-w-[100px]">Total</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -432,7 +433,7 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
                   <h3 className="text-lg font-semibold">Observações</h3>
                 </div>
                 <div className="border rounded-lg p-4">
-                  <p className="text-muted-foreground">{pedido.observacoes}</p>
+                  <p className="text-muted-foreground whitespace-pre-wrap">{pedido.observacoes}</p>
                 </div>
               </div>
             )}
@@ -440,7 +441,7 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
 
           <div>
             {/* Resumo do Pedido */}
-            <div className="border rounded-lg p-4">
+            <div className="border rounded-lg p-4 sticky top-4">
               <div className="flex items-center mb-4">
                 <DollarSign className="h-5 w-5 mr-2 text-primary" />
                 <h3 className="text-lg font-semibold">Resumo do Pedido</h3>
@@ -461,7 +462,7 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
                   <div className="flex justify-between text-red-600">
                     <div className="flex items-center">
                       <Tag className="h-4 w-4 mr-1" />
-                      <span>Desconto:</span>
+                      <span>Desconto (R$):</span>
                     </div>
                     <span>-{formatCurrency(pedido.desconto_valor)}</span>
                   </div>
