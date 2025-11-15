@@ -27,15 +27,19 @@ const getWorkWeekRange = (date: Date) => {
   const dayOfWeek = date.getDay();
 
   // 1. Encontrar o início da semana de trabalho (Terça)
-  if (dayOfWeek === 0) { // Domingo
-    start = subDays(today, 5); // Início na Terça anterior (5 dias atrás)
-  } else if (dayOfWeek === 1) { // Segunda
-    start = subDays(today, 6); // Início na Terça anterior (6 dias atrás)
-  } else {
-    // Se for Terça a Sábado, subtrai os dias para chegar na Terça (dia 2)
-    start = subDays(today, dayOfWeek - WORK_WEEK_START_DAY);
+  let daysToStartOfWeek;
+  if (dayOfWeek >= WORK_WEEK_START_DAY && dayOfWeek <= WORK_WEEK_END_DAY) {
+    // Se for Terça a Sábado, subtrai para chegar na Terça
+    daysToStartOfWeek = dayOfWeek - WORK_WEEK_START_DAY;
+  } else if (dayOfWeek === 0) { // Domingo
+    daysToStartOfWeek = 5; // 5 dias para trás (Domingo -> Sábado -> Sexta -> Quinta -> Quarta -> Terça)
+  } else { // Segunda (dayOfWeekIndex === 1)
+    daysToStartOfWeek = 6; // 6 dias para trás (Segunda -> Domingo -> Sábado -> ... -> Terça)
   }
   
+  start = subDays(today, daysToStartOfWeek);
+  start.setHours(0, 0, 0, 0); // Garante o início do dia
+
   // 2. Encontrar o fim da semana de trabalho (Sábado)
   end = addDays(start, WORK_WEEK_END_DAY - WORK_WEEK_START_DAY);
   
@@ -152,11 +156,13 @@ export const ServiceCommissionReport: React.FC = () => {
   };
 
   const handlePreviousWeek = () => {
+    // Subtrai 7 dias da data base atual para calcular a semana anterior
     const newDate = subDays(currentDate, 7);
     setCurrentDate(newDate);
   };
 
   const handleNextWeek = () => {
+    // Adiciona 7 dias à data base atual para calcular a próxima semana
     const newDate = addDays(currentDate, 7);
     setCurrentDate(newDate);
   };

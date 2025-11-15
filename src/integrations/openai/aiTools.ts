@@ -16,7 +16,6 @@ export const getCurrentDateTime = () => {
     minute: 'numeric',
     second: 'numeric',
     weekday: 'long',
-    // month: 'long', // Já obtido no displayDate/monthName
     timeZone: TIME_ZONE,
     hour12: false,
   });
@@ -38,23 +37,37 @@ export const getCurrentDateTime = () => {
   }
 
   // Reconstruir um objeto Date que representa o momento atual no Rio de Janeiro (localmente)
-  // Isso é crucial para que as operações de setHours/setDate funcionem corretamente no contexto do Rio.
   const rioLocalTime = new Date(year, month - 1, day, hour, minute, second);
 
   // Formatos de exibição
   const displayDate = rioLocalTime.toLocaleDateString('pt-BR', { dateStyle: 'full', timeZone: TIME_ZONE });
   const displayTime = rioLocalTime.toLocaleTimeString('pt-BR', { timeStyle: 'medium', timeZone: TIME_ZONE });
 
-  // Calcular intervalos de data com base em rioLocalTime
-  const dayOfWeekIndex = rioLocalTime.getDay(); // 0 para Domingo, 6 para Sábado
-  const startOfRioWeek = new Date(rioLocalTime);
-  startOfRioWeek.setDate(rioLocalTime.getDate() - dayOfWeekIndex);
-  startOfRioWeek.setHours(0, 0, 0, 0);
+  // --- CÁLCULO DA SEMANA DE TRABALHO (TERÇA A SÁBADO) ---
+  // 0=Dom, 1=Seg, 2=Ter, 3=Qua, 4=Qui, 5=Sex, 6=Sáb
+  const WORK_WEEK_START_DAY_INDEX = 2; // Terça
+  const WORK_WEEK_END_DAY_INDEX = 6; // Sábado
+  const dayOfWeekIndex = rioLocalTime.getDay(); 
 
-  const endOfRioWeek = new Date(startOfRioWeek);
-  endOfRioWeek.setDate(startOfRioWeek.getDate() + 6);
-  endOfRioWeek.setHours(23, 59, 59, 999);
+  let daysToStartOfWeek;
+  if (dayOfWeekIndex >= WORK_WEEK_START_DAY_INDEX && dayOfWeekIndex <= WORK_WEEK_END_DAY_INDEX) {
+    // Se for Terça a Sábado, subtrai para chegar na Terça
+    daysToStartOfWeek = dayOfWeekIndex - WORK_WEEK_START_DAY_INDEX;
+  } else if (dayOfWeekIndex === 0) { // Domingo
+    daysToStartOfWeek = 5; // 5 dias para trás (Domingo -> Sábado -> Sexta -> Quinta -> Quarta -> Terça)
+  } else { // Segunda (dayOfWeekIndex === 1)
+    daysToStartOfWeek = 6; // 6 dias para trás (Segunda -> Domingo -> Sábado -> ... -> Terça)
+  }
 
+  const startOfWorkWeek = new Date(rioLocalTime);
+  startOfWorkWeek.setDate(rioLocalTime.getDate() - daysToStartOfWeek);
+  startOfWorkWeek.setHours(0, 0, 0, 0);
+
+  const endOfWorkWeek = new Date(startOfWorkWeek);
+  endOfWorkWeek.setDate(startOfWorkWeek.getDate() + (WORK_WEEK_END_DAY_INDEX - WORK_WEEK_START_DAY_INDEX));
+  endOfWorkWeek.setHours(23, 59, 59, 999);
+  
+  // --- CÁLCULO DE OUTROS RANGES ---
   const startOfRioDay = new Date(rioLocalTime);
   startOfRioDay.setHours(0, 0, 0, 0);
 
@@ -84,10 +97,10 @@ export const getCurrentDateTime = () => {
         end: endOfRioMonth.toISOString(),
         label: `${monthName} de ${year}`
       },
-      thisWeek: {
-        start: startOfRioWeek.toISOString(),
-        end: endOfRioWeek.toISOString(),
-        label: `Semana de ${startOfRioWeek.toLocaleDateString('pt-BR', { timeZone: TIME_ZONE })} a ${endOfRioWeek.toLocaleDateString('pt-BR', { timeZone: TIME_ZONE })}`
+      thisWorkWeek: { // NOVO RANGE
+        start: startOfWorkWeek.toISOString(),
+        end: endOfWorkWeek.toISOString(),
+        label: `Semana de Trabalho (${startOfWorkWeek.toLocaleDateString('pt-BR', { timeZone: TIME_ZONE })} a ${endOfWorkWeek.toLocaleDateString('pt-BR', { timeZone: TIME_ZONE })})`
       },
       today: {
         start: startOfRioDay.toISOString(),
@@ -251,7 +264,7 @@ export const get_total_meters_by_period = async (args: {
 export const openAIFunctions = [
   {
     name: "get_current_date",
-    description: "Obtém a data e hora atual do sistema, sempre no fuso horário de Rio de Janeiro (America/Sao_Paulo). Use esta função quando precisar saber 'que dia é hoje', 'que mês estamos', ou quando o usuário mencionar períodos relativos como 'desse mês', 'desta semana', 'hoje', 'ontem', etc.",
+    description: "Obtém a data e hora atual do sistema, sempre no fuso horário de Rio de Janeiro (America/Sao_Paulo). Use esta função quando precisar saber 'que dia é hoje', 'que mês estamos', ou quando o usuário mencionar períodos relativos como 'desse mês', 'desta semana', 'hoje', 'ontem', etc. O campo 'ranges.thisWorkWeek' retorna o intervalo de Terça a Sábado, que é a semana de trabalho da empresa.",
     parameters: {
       type: "object",
       properties: {},
@@ -424,7 +437,7 @@ export const openAIFunctions = [
   },
   {
     name: "list_services", // NEW TOOL
-    description: "Lista serviços por filtros de data. Use para perguntas como 'quantos serviços tivemos esta semana?', 'quais serviços foram feitos hoje?'. Retorna o nome do serviço, quantidade, valor unitário, valor total, número do pedido, status do pedido, data do pedido e nome do cliente.",
+    description: "Lista serviços por filtros de data. Use para perguntas como 'quantos serviços tivemos esta semana?', 'quais serviços foram feitos hoje?'. Retorna o nome do serviço, quantidade, valor unitário, valor total, número do pedido, status do pedido, data do pedido e nome do cliente. **IMPORTANTE:** Quando o usuário perguntar sobre 'esta semana' ou 'semana passada', use o intervalo 'ranges.thisWorkWeek' ou calcule o intervalo de Terça a Sábado.",
     parameters: {
       type: "object",
       properties: {
@@ -614,23 +627,6 @@ const findClientWithMultipleStrategies = async (clientName: string) => {
   }
 
   // Strategy 4: Original ILIKE search (if normalized didn't work, maybe original has a specific match)
-  try {
-    console.log('📍 [findClient] Tentativa 4: Busca ILIKE com nome original');
-    const { data: ilikeOriginalClients, error: ilikeOriginalError } = await supabase
-      .from('clientes')
-      .select('id, nome')
-      .ilike('nome', `%${originalName}%`)
-      .limit(10);
-
-    if (!ilikeOriginalError && ilikeOriginalClients && ilikeOriginalClients.length > 0) {
-      console.log(`✅ [findClient] ILIKE original encontrou ${ilikeOriginalClients.length} cliente(s):`, ilikeOriginalClients.map(c => c.nome));
-      return ilikeOriginalClients;
-    }
-  } catch (error) {
-    console.log('❌ [findClient] Erro na busca ILIKE original:', error);
-  }
-
-  // Strategy 5: Split name parts (less likely to be accent-sensitive, but kept for completeness)
   const nameParts = [
     ...originalName.split(' ').filter(part => part.length > 1),
     ...normalizedClientName.split(' ').filter(part => part.length > 1)
@@ -881,17 +877,17 @@ export const list_services = async (args: {
   let periodDescription = "em todo o período";
 
   console.log(`🛠️ [list_services] Args recebidos:`, args); // Log received args
-  console.log(`🛠️ [list_services] Current date info (thisWeek):`, dateInfo.ranges.thisWeek); // Log current week info
+  console.log(`🛠️ [list_services] Current date info (thisWorkWeek):`, dateInfo.ranges.thisWorkWeek); // Log current work week info
 
   if (allTime) {
     startDate = undefined;
     endDate = undefined;
     periodDescription = `desde o início`;
   } else if (!startDate && !endDate) {
-    // Default to current week for services
-    startDate = dateInfo.ranges.thisWeek.start;
-    endDate = dateInfo.ranges.thisWeek.end;
-    periodDescription = `nesta semana`;
+    // Default to current work week for services
+    startDate = dateInfo.ranges.thisWorkWeek.start;
+    endDate = dateInfo.ranges.thisWorkWeek.end;
+    periodDescription = `nesta semana de trabalho (${new Date(startDate).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE })} a ${new Date(endDate).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE })})`;
   } else if (startDate && !endDate) {
     const start = new Date(startDate);
     const startDay = start.getUTCDate();
