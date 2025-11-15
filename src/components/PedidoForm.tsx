@@ -37,7 +37,7 @@ import { NewPedido, Pedido } from "@/types/pedido";
 import { Cliente } from "@/types/cliente";
 import { Produto } from "@/types/produto";
 import { useEffect, useState, useRef } from "react";
-import { Trash2, Plus, Search, Edit3, X, User, Package, Wrench, Save, Zap, CalendarIcon, Ruler } from "lucide-react";
+import { Trash2, Plus, Search, Edit3, X, User, Package, Wrench, Save, Zap, CalendarIcon, Ruler, ChevronDown } from "lucide-react";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { QuickClientForm } from './QuickClientForm';
@@ -51,6 +51,12 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { removeAccents } from "@/utils/string";
 import { Separator } from "@/components/ui/separator";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 
 const formSchema = z.object({
   cliente_id: z.string().min(1, { message: "Cliente é obrigatório." }),
@@ -101,8 +107,10 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
   const [selectedClienteName, setSelectedClienteName] = useState('');
   const [isQuickClientFormOpen, setIsQuickClientFormOpen] = useState(false);
   const [isCreatingClient, setIsCreatingClient] = useState(false);
-  const [expandedItemIndex, setExpandedItemIndex] = useState<number | null>(null);
-  const [expandedServiceIndex, setExpandedServiceIndex] = useState<number | null>(null);
+  
+  // Removido expandedItemIndex e expandedServiceIndex
+  const [accordionItemValue, setAccordionItemValue] = useState<string | undefined>(undefined);
+  const [accordionServiceValue, setAccordionServiceValue] = useState<string | undefined>(undefined);
 
   const form = useForm<PedidoFormValues>({
     resolver: zodResolver(formSchema),
@@ -183,8 +191,8 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
       }
       
       setClienteSearch('');
-      setExpandedItemIndex(null);
-      setExpandedServiceIndex(null);
+      setAccordionItemValue(undefined);
+      setAccordionServiceValue(undefined);
       
       hasInitializedRef.current = true;
     }
@@ -303,38 +311,43 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
 
   const addItem = () => {
     const currentItems = form.getValues('items') || [];
+    const newItemIndex = currentItems.length;
     form.setValue('items', [{ produto_id: null, produto_nome: "", quantidade: 1, preco_unitario: 0, observacao: "" }, ...currentItems]);
-    setExpandedItemIndex(0);
+    // Abre o novo item (que agora está no índice 0)
+    setAccordionItemValue(`item-${0}`);
   };
 
   const removeItem = (index: number) => {
     const currentItems = form.getValues('items');
     form.setValue('items', currentItems.filter((_, i) => i !== index));
-    if (expandedItemIndex === index) {
-      setExpandedItemIndex(null);
-    } else if (expandedItemIndex !== null && expandedItemIndex > index) {
-      setExpandedItemIndex(expandedItemIndex - 1);
+    // Fecha o accordion se o item removido estava aberto
+    if (accordionItemValue === `item-${index}`) {
+      setAccordionItemValue(undefined);
     }
   };
 
   const addServico = () => {
     const currentServicos = form.getValues('servicos') || [];
+    const newServiceIndex = currentServicos.length;
     form.setValue('servicos', [...currentServicos, { nome: "", quantidade: 1, valor_unitario: 0 }]);
-    setExpandedServiceIndex(currentServicos.length);
+    // Abre o novo serviço
+    setAccordionServiceValue(`servico-${newServiceIndex}`);
   };
 
   const addShortcutServico = (nome: string, valor: number) => {
     const currentServicos = form.getValues('servicos') || [];
+    const newServiceIndex = currentServicos.length;
     form.setValue('servicos', [...currentServicos, { nome: nome, quantidade: 1, valor_unitario: valor }]);
+    // Abre o novo serviço
+    setAccordionServiceValue(`servico-${newServiceIndex}`);
   };
 
   const removeServico = (index: number) => {
     const currentServicos = form.getValues('servicos') || [];
     form.setValue('servicos', currentServicos.filter((_, i) => i !== index));
-    if (expandedServiceIndex === index) {
-      setExpandedServiceIndex(null);
-    } else if (expandedServiceIndex !== null && expandedServiceIndex > index) {
-      setExpandedServiceIndex(expandedServiceIndex - 1);
+    // Fecha o accordion se o serviço removido estava aberto
+    if (accordionServiceValue === `servico-${index}`) {
+      setAccordionServiceValue(undefined);
     }
   };
 
@@ -546,164 +559,117 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                     )}
                     
                     <div className="space-y-3 mt-4">
-                      {form.watch('items')?.map((item, index) => (
-                        <Card key={index} className="transition-all duration-300 hover:shadow-md">
-                          <CardContent className="p-4">
-                            {expandedItemIndex === index ? (
-                              <div className="space-y-4">
-                                <div className="flex items-center justify-between mb-4">
-                                  <h4 className="font-medium text-sm text-muted-foreground flex items-center gap-2">
-                                    <Edit3 className="h-4 w-4" />
-                                    Editando Item #{index + 1}
-                                  </h4>
-                                </div>
-                                
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                  <FormField
-                                    control={form.control}
-                                    name={`items.${index}.produto_nome`}
-                                    render={({ field }) => (
-                                      <FormItem className="md:col-span-3">
-                                        <FormLabel>Produto</FormLabel>
-                                        <FormControl>
-                                          <Input {...field} placeholder="Nome do produto" />
-                                        </FormControl>
-                                        <FormMessage />
-                                      </FormItem>
-                                    )}
-                                  />
-                                  
-                                  <FormField
-                                    control={form.control}
-                                    name={`items.${index}.quantidade`}
-                                    render={({ field }) => (
-                                      <FormItem>
-                                        <FormLabel>Quantidade (ML)</FormLabel>
-                                        <FormControl>
-                                          <Input 
-                                            type="number" 
-                                            step="0.01" 
-                                            placeholder="1.00"
-                                            {...field} 
-                                          />
-                                        </FormControl>
-                                        <FormMessage />
-                                      </FormItem>
-                                    )}
-                                  />
-                                  
-                                  <FormField
-                                    control={form.control}
-                                    name={`items.${index}.preco_unitario`}
-                                    render={({ field }) => (
-                                      <FormItem>
-                                        <FormLabel>Preço Unitário</FormLabel>
-                                        <FormControl>
-                                          <CurrencyInput 
-                                            value={field.value} 
-                                            onChange={(value) => field.onChange(value)}
-                                            placeholder="0,00"
-                                          />
-                                        </FormControl>
-                                        <FormMessage />
-                                      </FormItem>
-                                    )}
-                                  />
-
-                                  <FormField
-                                    control={form.control}
-                                    name={`items.${index}.observacao`}
-                                    render={({ field }) => (
-                                      <FormItem className="md:col-span-3">
-                                        <FormLabel>Observação do Item</FormLabel>
-                                        <FormControl>
-                                          <Textarea {...field} placeholder="Detalhes específicos deste item..." />
-                                        </FormControl>
-                                        <FormMessage />
-                                      </FormItem>
-                                    )}
-                                  />
-                                </div>
-
-                                <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t">
-                                  <Button
-                                    type="button"
-                                    onClick={() => setExpandedItemIndex(null)}
-                                    className="flex-1 sm:flex-none"
-                                  >
-                                    <Save className="mr-2 h-4 w-4" />
-                                    Salvar
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => setExpandedItemIndex(null)}
-                                    className="flex-1 sm:flex-none"
-                                  >
-                                    <X className="mr-2 h-4 w-4" />
-                                    Cancelar
-                                  </Button>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="flex items-center justify-between">
-                                <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setExpandedItemIndex(index)}>
-                                  <div className="font-medium text-sm truncate hover:text-primary transition-colors duration-200">
-                                    {item.produto_nome || "Produto sem nome"}
-                                  </div>
-                                  <div className="text-sm text-muted-foreground">
-                                    Qtd: {item.quantidade} | Total: {formatCurrency(Number(item.quantidade) * Number(item.preco_unitario))}
-                                  </div>
-                                  {item.observacao && <p className="text-xs text-muted-foreground italic truncate mt-1">Obs: {item.observacao}</p>}
-                                </div>
-                                <div className="flex items-center gap-4 ml-4">
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={(e) => { e.stopPropagation(); setExpandedItemIndex(index); }}
-                                    className="h-9 w-9 p-0"
-                                  >
-                                    <Edit3 className="h-4 w-4" />
-                                  </Button>
-                                  
-                                  <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-9 w-9 p-0 hover:text-destructive"
-                                        onClick={(e) => e.stopPropagation()}
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                      <AlertDialogHeader>
-                                        <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                          Tem certeza que deseja remover o item "{item.produto_nome || 'Produto sem nome'}"?
-                                        </AlertDialogDescription>
-                                      </AlertDialogHeader>
-                                      <AlertDialogFooter>
-                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                        <AlertDialogAction onClick={() => removeItem(index)}>
-                                          Remover
-                                        </AlertDialogAction>
-                                      </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                  </AlertDialog>
-                                </div>
-                              </div>
-                            )}
-                          </CardContent>
-                        </Card>
-                      ))}
-                      {form.watch('items')?.length === 0 && (
+                      {form.watch('items')?.length === 0 ? (
                         <p className="text-center text-muted-foreground py-4">
                           Nenhum produto adicionado. Clique em "Adicionar Item" para começar.
                         </p>
+                      ) : (
+                        <Accordion 
+                          type="single" 
+                          collapsible 
+                          value={accordionItemValue} 
+                          onValueChange={setAccordionItemValue}
+                          className="w-full"
+                        >
+                          {form.watch('items')?.map((item, index) => (
+                            <AccordionItem key={index} value={`item-${index}`} className="border rounded-lg px-4 mb-2">
+                              <AccordionTrigger className="py-3 hover:no-underline">
+                                <div className="flex items-center justify-between w-full pr-4">
+                                  <div className="flex-1 min-w-0 text-left">
+                                    <div className="font-medium text-sm truncate">
+                                      {item.produto_nome || `Item #${index + 1} (Sem nome)`}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                      Qtd: {item.quantidade} | Total: {formatCurrency(Number(item.quantidade) * Number(item.preco_unitario))}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2 ml-4">
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-8 w-8 p-0 hover:text-destructive"
+                                      onClick={(e) => { e.stopPropagation(); removeItem(index); }}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                    <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
+                                  </div>
+                                </div>
+                              </AccordionTrigger>
+                              <AccordionContent className="pt-2 pb-4">
+                                <div className="space-y-4">
+                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <FormField
+                                      control={form.control}
+                                      name={`items.${index}.produto_nome`}
+                                      render={({ field }) => (
+                                        <FormItem className="md:col-span-3">
+                                          <FormLabel>Produto</FormLabel>
+                                          <FormControl>
+                                            <Input {...field} placeholder="Nome do produto" />
+                                          </FormControl>
+                                          <FormMessage />
+                                        </FormItem>
+                                      )}
+                                    />
+                                    
+                                    <FormField
+                                      control={form.control}
+                                      name={`items.${index}.quantidade`}
+                                      render={({ field }) => (
+                                        <FormItem>
+                                          <FormLabel>Quantidade (ML)</FormLabel>
+                                          <FormControl>
+                                            <Input 
+                                              type="number" 
+                                              step="0.01" 
+                                              placeholder="1.00"
+                                              {...field} 
+                                            />
+                                          </FormControl>
+                                          <FormMessage />
+                                        </FormItem>
+                                      )}
+                                    />
+                                    
+                                    <FormField
+                                      control={form.control}
+                                      name={`items.${index}.preco_unitario`}
+                                      render={({ field }) => (
+                                        <FormItem>
+                                          <FormLabel>Preço Unitário</FormLabel>
+                                          <FormControl>
+                                            <CurrencyInput 
+                                              value={field.value} 
+                                              onChange={(value) => field.onChange(value)}
+                                              placeholder="0,00"
+                                            />
+                                          </FormControl>
+                                          <FormMessage />
+                                        </FormItem>
+                                      )}
+                                    />
+
+                                    <FormField
+                                      control={form.control}
+                                      name={`items.${index}.observacao`}
+                                      render={({ field }) => (
+                                        <FormItem className="md:col-span-3">
+                                          <FormLabel>Observação do Item</FormLabel>
+                                          <FormControl>
+                                            <Textarea {...field} placeholder="Detalhes específicos deste item..." />
+                                          </FormControl>
+                                          <FormMessage />
+                                        </FormItem>
+                                      )}
+                                    />
+                                  </div>
+                                </div>
+                              </AccordionContent>
+                            </AccordionItem>
+                          ))}
+                        </Accordion>
                       )}
                     </div>
                     {/* Exibe a mensagem de erro da lista de itens */}
@@ -752,11 +718,45 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                 </div>
                 
                 <div className="space-y-3">
-                  {form.watch('servicos')?.map((servico, index) => (
-                    <Card key={index}>
-                      <CardContent className="p-4">
-                        {expandedServiceIndex === index ? (
-                          <div className="space-y-4">
+                  {form.watch('servicos')?.length === 0 ? (
+                    <p className="text-center text-muted-foreground py-4">
+                      Nenhum serviço adicionado. Clique em "Adicionar Serviço" para começar.
+                    </p>
+                  ) : (
+                    <Accordion 
+                      type="single" 
+                      collapsible 
+                      value={accordionServiceValue} 
+                      onValueChange={setAccordionServiceValue}
+                      className="w-full"
+                    >
+                      {form.watch('servicos')?.map((servico, index) => (
+                        <AccordionItem key={index} value={`servico-${index}`} className="border rounded-lg px-4 mb-2">
+                          <AccordionTrigger className="py-3 hover:no-underline">
+                            <div className="flex items-center justify-between w-full pr-4">
+                              <div className="flex-1 min-w-0 text-left">
+                                <div className="font-medium text-sm truncate">
+                                  {servico.nome || `Serviço #${index + 1} (Sem nome)`}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  Qtd: {servico.quantidade} | Total: {formatCurrency(Number(servico.quantidade) * Number(servico.valor_unitario))}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 ml-4">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0 hover:text-destructive"
+                                  onClick={(e) => { e.stopPropagation(); removeServico(index); }}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                                <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
+                              </div>
+                            </div>
+                          </AccordionTrigger>
+                          <AccordionContent className="pt-2 pb-4">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                               <FormField
                                 control={form.control}
@@ -799,36 +799,10 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                 )}
                               />
                             </div>
-                            <div className="flex gap-3 pt-4 border-t">
-                              <Button type="button" onClick={() => setExpandedServiceIndex(null)}>Salvar</Button>
-                              <Button type="button" variant="outline" onClick={() => setExpandedServiceIndex(null)}>Cancelar</Button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-between">
-                            <div className="cursor-pointer" onClick={() => setExpandedServiceIndex(index)}>
-                              <div className="font-medium text-sm">{servico.nome || "Serviço sem nome"}</div>
-                              <div className="text-sm text-muted-foreground">
-                                Qtd: {servico.quantidade} | Total: {formatCurrency(Number(servico.quantidade) * Number(servico.valor_unitario))}
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-4">
-                              <Button type="button" variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setExpandedServiceIndex(index); }}>
-                                <Edit3 className="h-4 w-4" />
-                              </Button>
-                              <Button type="button" variant="ghost" size="sm" className="hover:text-destructive" onClick={() => removeServico(index)}>
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  ))}
-                  {form.watch('servicos')?.length === 0 && (
-                    <p className="text-center text-muted-foreground py-4">
-                      Nenhum serviço adicionado. Clique em "Adicionar Serviço" para começar.
-                    </p>
+                          </AccordionContent>
+                        </AccordionItem>
+                      ))}
+                    </Accordion>
                   )}
                 </div>
               </div>
