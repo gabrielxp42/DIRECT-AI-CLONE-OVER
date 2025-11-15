@@ -664,6 +664,26 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                       )}
                                     />
                                   </div>
+                                  
+                                  {/* BOTOES DE CONFIRMAÇÃO DO ITEM */}
+                                  <div className="flex justify-end gap-2 pt-4 border-t mt-4">
+                                    <Button 
+                                        type="button" 
+                                        variant="outline" 
+                                        onClick={() => setAccordionItemValue(undefined)} // Cancelar: fecha o accordion
+                                    >
+                                        <X className="h-4 w-4 mr-2" />
+                                        Cancelar
+                                    </Button>
+                                    <Button 
+                                        type="button" 
+                                        onClick={() => setAccordionItemValue(undefined)} // Salvar: fecha o accordion
+                                        className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                                    >
+                                        <Save className="h-4 w-4 mr-2" />
+                                        Salvar
+                                    </Button>
+                                  </div>
                                 </div>
                               </AccordionContent>
                             </AccordionItem>
@@ -798,6 +818,25 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                   </FormItem>
                                 )}
                               />
+                            </div>
+                            {/* BOTOES DE CONFIRMAÇÃO DO SERVIÇO */}
+                            <div className="flex justify-end gap-2 pt-4 border-t mt-4">
+                                <Button 
+                                    type="button" 
+                                    variant="outline" 
+                                    onClick={() => setAccordionServiceValue(undefined)} // Cancelar: fecha o accordion
+                                >
+                                    <X className="h-4 w-4 mr-2" />
+                                    Cancelar
+                                </Button>
+                                <Button 
+                                    type="button" 
+                                    onClick={() => setAccordionServiceValue(undefined)} // Salvar: fecha o accordion
+                                    className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                                >
+                                    <Save className="h-4 w-4 mr-2" />
+                                    Salvar
+                                </Button>
                             </div>
                           </AccordionContent>
                         </AccordionItem>
