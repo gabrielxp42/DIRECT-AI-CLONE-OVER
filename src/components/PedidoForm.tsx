@@ -108,7 +108,6 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
   const [isQuickClientFormOpen, setIsQuickClientFormOpen] = useState(false);
   const [isCreatingClient, setIsCreatingClient] = useState(false);
   
-  // Removido expandedItemIndex e expandedServiceIndex
   const [accordionItemValue, setAccordionItemValue] = useState<string | undefined>(undefined);
   const [accordionServiceValue, setAccordionServiceValue] = useState<string | undefined>(undefined);
 
