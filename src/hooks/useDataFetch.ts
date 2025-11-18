@@ -62,14 +62,16 @@ const fetchPedidos = async (
   supabase: any, 
   userId: string, 
   page: number, 
-  limit: number
+  limit: number,
+  filterStatus: string, // Novo parâmetro
+  filterDateRange: { from?: Date; to?: Date }, // Novo parâmetro
+  filterClientId: string | null // Novo parâmetro
 ): Promise<PaginatedPedidosResult> => {
   
   const start = (page - 1) * limit;
   const end = start + limit - 1;
 
-  // Consulta ÚNICA e completa para a página atual
-  const { data: pedidosData, error: pedidosError, count } = await supabase
+  let query = supabase
     .from('pedidos')
     .select(`
       *,
@@ -77,9 +79,36 @@ const fetchPedidos = async (
       pedido_items (*),
       pedido_servicos (*),
       pedido_status_history (*)
-    `, { count: 'exact' }) // Solicita a contagem total
+    `, { count: 'exact' });
+
+  // 1. Aplicar filtro de Status
+  if (filterStatus === 'pendente-pagamento') {
+    // Filtro complexo: status não é 'pago', 'cancelado' ou 'entregue'
+    query = query.not('status', 'in', '("pago", "cancelado", "entregue")');
+  } else if (filterStatus !== 'todos') {
+    query = query.eq('status', filterStatus);
+  }
+
+  // 2. Aplicar filtro de Data
+  if (filterDateRange.from) {
+    query = query.gte('created_at', filterDateRange.from.toISOString());
+  }
+  if (filterDateRange.to) {
+    // Adiciona 23:59:59.999 ao final do dia para incluir o dia inteiro
+    const endOfDay = new Date(filterDateRange.to);
+    endOfDay.setHours(23, 59, 59, 999);
+    query = query.lte('created_at', endOfDay.toISOString());
+  }
+
+  // 3. Aplicar filtro de Cliente
+  if (filterClientId) {
+    query = query.eq('cliente_id', filterClientId);
+  }
+
+  // 4. Aplicar ordenação e paginação
+  const { data: pedidosData, error: pedidosError, count } = await query
     .order('order_number', { ascending: false })
-    .range(start, end); // Aplica a paginação
+    .range(start, end);
 
   if (pedidosError) throw pedidosError;
 
@@ -108,26 +137,32 @@ const fetchPedidos = async (
   };
 };
 
-export const usePaginatedPedidos = (page: number, limit: number) => {
+export const usePaginatedPedidos = (
+  page: number, 
+  limit: number,
+  filterStatus: string,
+  filterDateRange: { from?: Date; to?: Date },
+  filterClientId: string | null
+) => {
   const { supabase, session } = useSession();
   const userId = session?.user.id;
 
+  // A chave da query agora inclui todos os filtros para garantir que o cache seja invalidado corretamente
+  const queryKey = ["pedidos", userId, page, limit, filterStatus, filterDateRange, filterClientId];
+
   return useQuery<PaginatedPedidosResult>({
-    queryKey: ["pedidos", userId, page, limit],
-    queryFn: () => fetchPedidos(supabase, userId!, page, limit),
+    queryKey: queryKey,
+    queryFn: () => fetchPedidos(supabase, userId!, page, limit, filterStatus, filterDateRange, filterClientId),
     enabled: !!supabase && !!userId,
-    // Aumentando o staleTime para 5 minutos para reduzir re-fetches desnecessários
     staleTime: 5 * 60 * 1000, 
   });
 };
 
-// Exportando usePedidos antigo para compatibilidade, mas ele não deve ser usado para a lista principal
+// Mantendo usePedidos para compatibilidade com Dashboard/Reports, mas renomeando a chave
 export const usePedidos = () => {
   const { supabase, session } = useSession();
   const userId = session?.user.id;
 
-  // Esta função agora busca TODOS os pedidos sem paginação.
-  // É mantida para compatibilidade com outros componentes que precisam de todos os dados (ex: Dashboard/Reports)
   const fetchAllPedidos = async (supabase: any, userId: string): Promise<Pedido[]> => {
     const { data: pedidosData, error: pedidosError } = await supabase
       .from('pedidos')
@@ -161,7 +196,7 @@ export const usePedidos = () => {
   };
 
   return useQuery<Pedido[]>({
-    queryKey: ["all-pedidos", userId],
+    queryKey: ["all-pedidos-unpaginated", userId], // Chave alterada para evitar conflito
     queryFn: () => fetchAllPedidos(supabase, userId!),
     enabled: !!supabase && !!userId,
     staleTime: 5 * 60 * 1000, 

@@ -5,7 +5,7 @@ import { Pedido, StatusHistoryItem, PedidoStatus } from '@/types/pedido';
 import { Cliente } from '@/types/cliente';
 import { Produto } from '@/types/produto';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'; // CORRIGIDO: Adicionado CardDescription
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Plus, Search, Filter, Eye, Edit, Trash2, Loader2, CalendarIcon, DollarSign, FileText, Wrench, History, MessageSquare, MoreHorizontal, User, Clock, CheckCircle, XCircle, Package, X, Printer, Ruler } from 'lucide-react';
 import { PedidoForm } from '@/components/PedidoForm';
 import { PedidoDetails } from '@/components/PedidoDetails';
@@ -41,25 +41,38 @@ import {
 import { OrderStatusIndicator } from '@/components/OrderStatusIndicator';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { usePedidos, useClientes, useProdutos, usePaginatedPedidos } from '@/hooks/useDataFetch'; // Importar usePaginatedPedidos
+import { usePedidos, useClientes, useProdutos, usePaginatedPedidos } from '@/hooks/useDataFetch';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useDebounce } from '@/hooks/useDebounce'; // Importar useDebounce
-import { Skeleton } from '@/components/ui/skeleton'; // Importar Skeleton
-import { PaginationControls } from '@/components/PaginationControls'; // Importar PaginationControls
+import { useDebounce } from '@/hooks/useDebounce';
+import { Skeleton } from '@/components/ui/skeleton';
+import { PaginationControls } from '@/components/PaginationControls';
 
-const ITEMS_PER_PAGE = 20;
+const ITEMS_PER_PAGE_OPTIONS = [10, 20, 50, 100];
 
 const PedidosPage: React.FC = () => {
   const { supabase, session } = useSession();
   const queryClient = useQueryClient();
   
-  // Estado de Paginação
+  // Estado de Paginação e Limite
   const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(ITEMS_PER_PAGE_OPTIONS[1]); // Default 20
   
-  // Usando hooks centralizados para dados
-  // Nota: allPedidos agora é usado apenas para a lógica de filtragem/busca, mas o fetch principal é paginado.
-  const { data: allPedidos } = usePedidos(); // Mantido para compatibilidade de filtros
-  const { data: paginatedData, isLoading: isLoadingPaginated, error: paginatedError } = usePaginatedPedidos(currentPage, ITEMS_PER_PAGE);
+  // Filtros
+  const [rawSearchTerm, setRawSearchTerm] = useState('');
+  const searchTerm = useDebounce(rawSearchTerm, 300);
+  const [filterStatus, setFilterStatus] = useState<string>('todos');
+  const [filterDateRange, setFilterDateRange] = useState<{ from?: Date; to?: Date }>({});
+  const [filterClientId, setFilterClientId] = useState<string | null>(null);
+  const [filterClientName, setFilterClientName] = useState<string | null>(null);
+
+  // Fetch de dados paginados com filtros
+  const { data: paginatedData, isLoading: isLoadingPaginated, error: paginatedError } = usePaginatedPedidos(
+    currentPage, 
+    itemsPerPage, 
+    filterStatus, 
+    filterDateRange, 
+    filterClientId
+  );
   
   const { data: clientes, isLoading: isLoadingClientes } = useClientes();
   const { data: produtos, isLoading: isLoadingProdutos } = useProdutos();
@@ -73,15 +86,6 @@ const PedidosPage: React.FC = () => {
   const [statusChangePedido, setStatusChangePedido] = useState<Pedido | null>(null);
   const [viewingStatusHistory, setViewingStatusHistory] = useState<Pedido | null>(null);
   
-  const [rawSearchTerm, setRawSearchTerm] = useState('');
-  const searchTerm = useDebounce(rawSearchTerm, 300); // Aplicar debounce
-  
-  const [filterStatus, setFilterStatus] = useState<string>('todos');
-  const [filterDateRange, setFilterDateRange] = useState<{ from?: Date; to?: Date }>({});
-  
-  const [filterClientId, setFilterClientId] = useState<string | null>(null);
-  const [filterClientName, setFilterClientName] = useState<string | null>(null);
-
   const isMobile = useIsMobile();
   const location = useLocation();
   const navigate = useNavigate();
@@ -105,6 +109,11 @@ const PedidosPage: React.FC = () => {
       navigate(location.pathname, { replace: true, state: {} });
     }
   }, [location.state, location.pathname, navigate]);
+  
+  // Resetar página para 1 quando filtros mudam
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterStatus, filterDateRange, filterClientId]);
 
   const handleClearClientFilter = () => {
     setFilterClientId(null);
@@ -423,43 +432,28 @@ const PedidosPage: React.FC = () => {
     }).format(value);
   };
 
-  // OTIMIZAÇÃO: Usar useMemo para filtrar pedidos
-  // NOTA: A filtragem por data/status/cliente deve ser feita no backend para performance ideal,
-  // mas como o Supabase não suporta filtros complexos em consultas aninhadas de forma simples,
-  // mantemos a filtragem por termo de busca no frontend sobre os dados paginados.
-  // Se o usuário aplicar filtros de status/data/cliente, ele deve ver todos os resultados
-  // que correspondem, o que exigiria buscar TODOS os pedidos novamente.
-  // Para manter a performance, vamos aplicar a filtragem APENAS sobre os dados da página atual,
-  // e instruir o usuário a usar a busca por termo para refinar a página atual.
-  
+  // OTIMIZAÇÃO: Filtragem de busca no frontend sobre os dados paginados
   const pedidosDaPagina = paginatedData?.pedidos || [];
   const totalPedidos = paginatedData?.totalCount || 0;
-  const totalPages = Math.ceil(totalPedidos / ITEMS_PER_PAGE);
+  const totalPages = Math.ceil(totalPedidos / itemsPerPage);
 
   const filteredPedidos = useMemo(() => {
     if (!pedidosDaPagina) return [];
     
     const lowerCaseSearchTerm = searchTerm.toLowerCase();
 
-    // Se houver filtros de status, data ou cliente, usamos a lista completa (allPedidos)
-    // para garantir que o filtro seja preciso, mas isso pode ser lento.
-    // Para manter a performance, vamos aplicar a filtragem APENAS sobre os dados da página atual.
-    // Se o usuário quiser filtrar por status/data/cliente, ele deve usar a busca por termo
-    // para refinar a página atual.
+    // A filtragem de status, data e cliente já está sendo feita no backend (usePaginatedPedidos).
+    // Aqui, aplicamos apenas a busca por termo sobre os resultados da página atual.
     
+    if (searchTerm === '') {
+      return pedidosDaPagina;
+    }
+
     return pedidosDaPagina.filter(pedido => {
-      const matchesSearch = searchTerm === '' ||
-        pedido.order_number.toString().includes(searchTerm) ||
+      return pedido.order_number.toString().includes(searchTerm) ||
         pedido.clientes?.nome.toLowerCase().includes(lowerCaseSearchTerm) ||
         pedido.pedido_items?.some(item => item.produto_nome?.toLowerCase().includes(lowerCaseSearchTerm)) ||
         (pedido.servicos?.some(servico => servico.nome?.toLowerCase().includes(lowerCaseSearchTerm)) || false);
-
-      // Ignoramos filtros de status/data/cliente na lista paginada para manter a performance,
-      // pois a paginação já está ordenada por data.
-      // Se o usuário quiser filtrar por status/data/cliente, ele deve usar a busca por termo
-      // para refinar a página atual.
-      
-      return matchesSearch;
     });
   }, [pedidosDaPagina, searchTerm]);
 
@@ -472,7 +466,7 @@ const PedidosPage: React.FC = () => {
   // Componente de Skeleton otimizado para a lista de pedidos
   const PedidoSkeleton = () => (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-      {[...Array(ITEMS_PER_PAGE)].map((_, i) => (
+      {[...Array(itemsPerPage)].map((_, i) => (
         <Card key={i} className="p-4 space-y-3">
           <div className="flex justify-between items-start">
             <Skeleton className="h-6 w-24" />
@@ -522,30 +516,52 @@ const PedidosPage: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
         <Input
           placeholder="Buscar por cliente, produto, ID..."
-          value={rawSearchTerm} // Usa o valor bruto para o input
-          onChange={(e) => setRawSearchTerm(e.target.value)} // Atualiza o valor bruto
+          value={rawSearchTerm}
+          onChange={(e) => setRawSearchTerm(e.target.value)}
           className="md:col-span-2 lg:col-span-2"
         />
-        {/* NOTA: Filtros de Status/Data/Cliente estão desabilitados na lista paginada para manter a performance. */}
-        <Select value={filterStatus} onValueChange={setFilterStatus} disabled={true}>
+        
+        {/* Filtro de Status - REATIVADO */}
+        <Select value={filterStatus} onValueChange={setFilterStatus}>
           <SelectTrigger className="w-full">
-            <SelectValue placeholder="Filtrar por status (Desabilitado)" />
+            <SelectValue placeholder="Filtrar por status" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="todos">Todos os Status</SelectItem>
+            <SelectItem value="pendente-pagamento">Falta Pagar</SelectItem>
+            <SelectItem value="pendente">Pendente</SelectItem>
+            <SelectItem value="processando">Processando</SelectItem>
+            <SelectItem value="enviado">Enviado</SelectItem>
+            <SelectItem value="entregue">Entregue</SelectItem>
+            <SelectItem value="cancelado">Cancelado</SelectItem>
+            <SelectItem value="pago">Pago</SelectItem>
+            <SelectItem value="aguardando retirada">Aguardando Retirada</SelectItem>
           </SelectContent>
         </Select>
+        
+        {/* Filtro de Data - REATIVADO */}
         <Popover>
           <PopoverTrigger asChild>
             <Button
               variant={"outline"}
               className={cn(
-                "w-full justify-start text-left font-normal text-muted-foreground",
+                "w-full justify-start text-left font-normal",
+                !filterDateRange.from && "text-muted-foreground"
               )}
-              disabled={true}
             >
               <CalendarIcon className="mr-2 h-4 w-4" />
-              <span>Filtrar por data (Desabilitado)</span>
+              {filterDateRange.from ? (
+                filterDateRange.to ? (
+                  <>
+                    {format(filterDateRange.from, "dd/MM/yyyy", { locale: ptBR })} -{" "}
+                    {format(filterDateRange.to, "dd/MM/yyyy", { locale: ptBR })}
+                  </>
+                ) : (
+                  format(filterDateRange.from, "dd/MM/yyyy", { locale: ptBR })
+                )
+              ) : (
+                <span>Filtrar por data</span>
+              )}
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="end">
@@ -737,12 +753,38 @@ const PedidosPage: React.FC = () => {
             ))}
           </div>
           
-          <PaginationControls
-            currentPage={currentPage}
-            totalPages={totalPages}
-            onPageChange={setCurrentPage}
-            isLoading={isLoadingPaginated}
-          />
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-4">
+            <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+              <span>Pedidos por página:</span>
+              <Select 
+                value={String(itemsPerPage)} 
+                onValueChange={(value) => setItemsPerPage(Number(value))}
+                disabled={isGlobalLoading}
+              >
+                <SelectTrigger className="w-[80px] h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ITEMS_PER_PAGE_OPTIONS.map(option => (
+                    <SelectItem key={option} value={String(option)}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <PaginationControls
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+              isLoading={isLoadingPaginated}
+            />
+            
+            <div className="text-sm text-muted-foreground">
+              Total de {totalPedidos} pedidos
+            </div>
+          </div>
         </>
       )}
 
