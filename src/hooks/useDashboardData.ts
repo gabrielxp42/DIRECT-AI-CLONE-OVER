@@ -84,14 +84,22 @@ export const useDashboardData = () => {
         p_end_date: lastDayCurrentMonth.toISOString()
       }).single();
       
-      if (currentMetersError) console.error("Erro ao buscar metros atuais:", currentMetersError);
+      if (currentMetersError) {
+        console.error("Erro ao buscar metros atuais:", currentMetersError);
+        // Lançar o erro para que o useQuery falhe e o erro seja exibido
+        throw new Error(`Falha na RPC de metros atuais: ${currentMetersError.message}`);
+      }
 
       const { data: previousMetersData, error: previousMetersError } = await supabase.rpc('get_total_meters_by_period', {
         p_start_date: firstDayPreviousMonth.toISOString(),
         p_end_date: lastDayPreviousMonth.toISOString()
       }).single();
       
-      if (previousMetersError) console.error("Erro ao buscar metros anteriores:", previousMetersError);
+      if (previousMetersError) {
+        console.error("Erro ao buscar metros anteriores:", previousMetersError);
+        // Lançar o erro para que o useQuery falhe e o erro seja exibido
+        throw new Error(`Falha na RPC de metros anteriores: ${previousMetersError.message}`);
+      }
       
       const totalMeters = currentMetersData?.total_meters || 0;
       const previousTotalMeters = previousMetersData?.total_meters || 0;
