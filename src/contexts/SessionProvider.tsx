@@ -15,6 +15,14 @@ type SessionContextType = {
   organizationId: string | null; // Adicionado organizationId
 };
 
+// Inicializa o contexto com o cliente Supabase síncrono
+const initialContextValue: SessionContextType = {
+  session: null,
+  supabase: supabaseClient, // O cliente é síncrono e deve estar aqui
+  isLoading: true,
+  organizationId: null,
+};
+
 const SessionContext = createContext<SessionContextType | null>(null);
 
 export const SessionProvider = ({ children }: { children: React.ReactNode }) => {
@@ -125,7 +133,6 @@ export const useSession = () => {
   const context = useContext(SessionContext);
   if (context === null) {
     // Esta linha é a que lança o erro se chamada fora do provedor.
-    // Se o provedor estiver renderizando, isso não deve acontecer.
     throw new Error('useSession must be used within a SessionProvider');
   }
   return context;
