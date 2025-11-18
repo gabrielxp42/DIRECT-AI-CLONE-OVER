@@ -56,7 +56,7 @@ export const useClientMetrics = (clientId: string | null) => {
   return useQuery<ClientMetrics>({
     queryKey: ["client-metrics", clientId],
     queryFn: () => fetchClientMetrics(supabase, clientId!),
-    enabled: !!supabase && !!clientId,
+    enabled: !!supabase && !!clientId && typeof supabase.from === 'function', // VERIFICAÇÃO ADICIONADA
     staleTime: 5 * 60 * 1000, // 5 minutos de cache
   });
 };
