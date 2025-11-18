@@ -178,6 +178,10 @@ const perform_calculation = (args: { expression: string }) => {
 
 // Função para obter o ranking dos clientes
 export const get_top_clients = async (args: { top_n?: number }) => {
+  if (!supabase || typeof supabase.rpc !== 'function') {
+    throw new Error("❌ Cliente Supabase não está disponível para buscar ranking de clientes.");
+  }
+  
   const { top_n = 5 } = args;
   const TIME_ZONE = 'America/Sao_Paulo';
 
@@ -229,6 +233,10 @@ export const get_total_meters_by_period = async (args: {
   endDate?: string;
   allTime?: boolean;
 }) => {
+  if (!supabase || typeof supabase.rpc !== 'function') {
+    throw new Error("❌ Cliente Supabase não está disponível para buscar total de metros.");
+  }
+  
   let { startDate, endDate, allTime } = args;
   const TIME_ZONE = 'America/Sao_Paulo';
   const dateInfo = getCurrentDateTime();
@@ -582,6 +590,10 @@ export const openAIFunctions = [
 
 // Helper function to find order by number with multiple strategies
 const findOrderByNumber = async (orderNumber: number) => {
+  if (!supabase || typeof supabase.from !== 'function') {
+    throw new Error("❌ Cliente Supabase não está disponível para buscar pedido.");
+  }
+  
   console.log(`🔍 [findOrderByNumber] Buscando pedido #${orderNumber}...`);
   
   // Strategy: Direct query using 'pedidos' table
@@ -613,6 +625,10 @@ const findOrderByNumber = async (orderNumber: number) => {
 
 // Helper function to perform multiple search strategies for clients
 const findClientWithMultipleStrategies = async (clientName: string) => {
+  if (!supabase || typeof supabase.from !== 'function') {
+    throw new Error("❌ Cliente Supabase não está disponível para buscar cliente.");
+  }
+  
   console.log(`🔍 [findClient] Buscando cliente: "${clientName}"`);
   
   const originalName = clientName.trim();
@@ -711,11 +727,15 @@ const findClientWithMultipleStrategies = async (clientName: string) => {
 
 // Helper function to fetch complete order data for PDF generation
 const fetchCompleteOrderData = async (fullOrderId: string) => {
+  if (!supabase || typeof supabase.from !== 'function') {
+    throw new Error("❌ Cliente Supabase não está disponível para buscar dados do pedido.");
+  }
+  
   console.log(`📋 [fetchCompleteOrderData] Buscando dados completos do pedido: ${fullOrderId}`);
   
   try {
     const { data: orderData, error: fetchError } = await supabase
-      .from('pedidos') // USANDO 'pedidos'
+      .from('pedidos') // USANDO 'pedidos' para leitura
       .select(`
         *,
         clientes (
@@ -780,6 +800,10 @@ export const list_orders = async (args: {
   includeTotalCount?: boolean;
   allTime?: boolean; // NEW
 }) => {
+  if (!supabase || typeof supabase.from !== 'function') {
+    throw new Error("❌ Cliente Supabase não está disponível para listar pedidos.");
+  }
+  
   let { startDate, endDate, limit = 10, orderBy = 'created_at_desc', includeTotalCount, allTime } = args;
   const TIME_ZONE = 'America/Sao_Paulo';
   const dateInfo = getCurrentDateTime();
@@ -927,6 +951,10 @@ export const list_services = async (args: {
   includeTotalCount?: boolean;
   allTime?: boolean;
 }) => {
+  if (!supabase || typeof supabase.from !== 'function') {
+    throw new Error("❌ Cliente Supabase não está disponível para listar serviços.");
+  }
+  
   let { startDate, endDate, statuses, exclude_statuses, limit = 10, orderBy = 'created_at_desc', includeTotalCount, allTime } = args;
   const TIME_ZONE = 'America/Sao_Paulo';
   const dateInfo = getCurrentDateTime();
@@ -1231,6 +1259,11 @@ export const list_services = async (args: {
 // ... (fetchCompleteOrderData is defined above)
 
 export const callOpenAIFunction = async (functionCall: { name: string; arguments: any }) => {
+  // Adiciona verificação de segurança para o cliente Supabase no início
+  if (!supabase || typeof supabase.from !== 'function') {
+    throw new Error("❌ Cliente Supabase não está disponível. O assistente não pode acessar o banco de dados.");
+  }
+  
   const { name, arguments: args } = functionCall;
   console.log(`🚀 [callOpenAIFunction] Executando: ${name}`, args);
 

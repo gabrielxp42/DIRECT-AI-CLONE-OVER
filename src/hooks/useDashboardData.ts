@@ -156,7 +156,7 @@ export const useDashboardData = () => {
         deliveredOrdersCount,
       };
     },
-    enabled: !!supabase,
+    enabled: !!supabase && typeof supabase.from === 'function', // Adicionado verificação de função
     refetchInterval: 5 * 60 * 1000, // Refetch every 5 minutes
   });
 };
