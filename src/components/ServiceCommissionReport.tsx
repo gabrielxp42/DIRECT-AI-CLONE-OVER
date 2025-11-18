@@ -15,6 +15,7 @@ import { PedidoStatus } from '@/types/pedido';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { OrderStatusBadge } from './OrderStatusBadge';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { DateRange } from 'react-day-picker'; // Importar DateRange
 
 // Define a semana de trabalho: Terça (2) a Sábado (6)
 const WORK_WEEK_START_DAY = 2; // Terça-feira (0=Dom, 1=Seg, 2=Ter...)
@@ -111,7 +112,7 @@ export const ServiceCommissionReport: React.FC = () => {
   // Calcula o intervalo da semana de trabalho com base na data atual
   const { start: defaultStart, end: defaultEnd } = useMemo(() => getWorkWeekRange(currentDate), [currentDate]);
   
-  const [dateRange, setDateRange] = useState<{ from?: Date; to?: Date }>({
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({ // Usar DateRange | undefined
     from: defaultStart,
     to: defaultEnd,
   });
@@ -129,8 +130,8 @@ export const ServiceCommissionReport: React.FC = () => {
   }, [selectedStatus]);
 
   const { data: report, isLoading, error } = useServiceCommissionReport(
-    dateRange.from || null,
-    dateRange.to || null,
+    dateRange?.from || null,
+    dateRange?.to || null,
     requiredStatusArray as PedidoStatus[] | 'all',
     ['Sedex', 'sedex', 'SEDEX'] // Excluir Sedex
   );
@@ -142,7 +143,7 @@ export const ServiceCommissionReport: React.FC = () => {
     }).format(value);
   };
   
-  const handleDateSelect = (range: { from?: Date; to?: Date } | undefined) => {
+  const handleDateSelect = (range: DateRange | undefined) => { // Usar DateRange | undefined
     if (range?.from && range.to) {
       // Se um range completo for selecionado, use-o
       setDateRange({ from: startOfDay(range.from), to: endOfDay(range.to) });
@@ -151,7 +152,7 @@ export const ServiceCommissionReport: React.FC = () => {
       // Se apenas o início for selecionado, use o dia inteiro
       setDateRange({ from: startOfDay(range.from), to: endOfDay(range.from) });
     } else {
-      setDateRange({});
+      setDateRange(undefined);
     }
   };
 
@@ -168,7 +169,7 @@ export const ServiceCommissionReport: React.FC = () => {
   };
 
   const displayRange = useMemo(() => {
-    if (dateRange.from && dateRange.to) {
+    if (dateRange?.from && dateRange.to) {
       const from = format(dateRange.from, 'dd/MM/yyyy', { locale: ptBR });
       const to = format(dateRange.to, 'dd/MM/yyyy', { locale: ptBR });
       return from === to ? from : `${from} - ${to}`;
@@ -207,7 +208,7 @@ export const ServiceCommissionReport: React.FC = () => {
                     variant={"outline"}
                     className={cn(
                       "w-full sm:w-64 justify-start text-left font-normal",
-                      !dateRange.from && "text-muted-foreground"
+                      !dateRange?.from && "text-muted-foreground"
                     )}
                     disabled={isLoading}
                   >
@@ -219,7 +220,7 @@ export const ServiceCommissionReport: React.FC = () => {
                   <Calendar
                     initialFocus
                     mode="range"
-                    defaultMonth={dateRange.from}
+                    defaultMonth={dateRange?.from}
                     selected={dateRange}
                     onSelect={handleDateSelect}
                     numberOfMonths={2}

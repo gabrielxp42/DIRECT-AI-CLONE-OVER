@@ -1,7 +1,7 @@
 import React, { useState, useEffect, forwardRef } from 'react';
-import { Input, InputProps } from "@/components/ui/input";
+import { Input } from "@/components/ui/input";
 
-interface CurrencyInputProps extends Omit<InputProps, 'onChange' | 'value'> {
+interface CurrencyInputProps extends Omit<React.ComponentPropsWithoutRef<typeof Input>, 'onChange' | 'value'> {
   value: number; // O valor numérico real (ex: 700.00)
   onChange: (value: number) => void;
 }

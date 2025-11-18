@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -146,11 +146,11 @@ export const SmartOrderAssistant: React.FC<SmartOrderAssistantProps> = ({
             setOcrProgress(Math.round(m.progress * 100));
           }
         }
-      });
+      } as any); // Adicionado type assertion para contornar o erro de tipagem do logger
       
-      await worker.load();
-      await worker.loadLanguage('por');
-      await worker.initialize('por');
+      await (worker as any).load();
+      await (worker as any).loadLanguage('por');
+      await (worker as any).initialize('por');
       
       const { data: { text: ocrText } } = await worker.recognize(file);
       await worker.terminate();

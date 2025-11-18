@@ -47,8 +47,8 @@ export const PedidoPreview = ({ pedido }: PedidoPreviewProps) => {
           <p className="text-gray-800">{format(new Date(pedido.created_at), "dd 'de' MMMM 'de' yyyy, HH:mm", { locale: ptBR })}</p>
           <h3 className="text-lg font-semibold text-gray-600 mt-4 mb-2">Status:</h3>
           <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-            pedido.status === 'concluido' ? 'bg-green-100 text-green-800' :
-            pedido.status === 'em_producao' ? 'bg-yellow-100 text-yellow-800' :
+            pedido.status === 'entregue' ? 'bg-green-100 text-green-800' :
+            pedido.status === 'processando' ? 'bg-yellow-100 text-yellow-800' :
             pedido.status === 'cancelado' ? 'bg-red-100 text-red-800' :
             'bg-blue-100 text-blue-800'
           }`}>

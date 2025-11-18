@@ -234,13 +234,14 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
         observacao: item.observacao,
       })),
       servicos: servicos.map(servico => ({
-        ...servico,
+        nome: servico.nome, // Garantir que o nome está presente
         quantidade: Number(servico.quantidade),
         valor_unitario: Number(servico.valor_unitario),
       })),
     };
 
-    onSubmit(formattedData, initialData?.id);
+    // Casting explícito para garantir que o TS saiba que os campos obrigatórios estão presentes
+    onSubmit(formattedData as Omit<NewPedido, 'user_id' | 'status'>, initialData?.id);
   };
 
   const handleInvalidSubmit = (errors: any) => {

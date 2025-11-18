@@ -19,6 +19,12 @@ export interface DashboardStats {
   metersGrowth: number; // NOVO
 }
 
+// Tipo de retorno da função RPC get_total_meters_by_period
+interface MetersReportResult {
+  total_meters: number;
+  total_orders: number;
+}
+
 export const useDashboardData = () => {
   const { supabase } = useSession();
 
@@ -101,8 +107,8 @@ export const useDashboardData = () => {
         throw new Error(`Falha na RPC de metros anteriores: ${previousMetersError.message}`);
       }
       
-      const totalMeters = currentMetersData?.total_meters || 0;
-      const previousTotalMeters = previousMetersData?.total_meters || 0;
+      const totalMeters = (currentMetersData as MetersReportResult)?.total_meters || 0;
+      const previousTotalMeters = (previousMetersData as MetersReportResult)?.total_meters || 0;
       // ---------------------------------------------------------
 
       // Calculate current month stats

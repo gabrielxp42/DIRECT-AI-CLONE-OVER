@@ -46,6 +46,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useDebounce } from '@/hooks/useDebounce';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PaginationControls } from '@/components/PaginationControls';
+import { DateRange } from 'react-day-picker'; // Importar DateRange
 
 const ITEMS_PER_PAGE_OPTIONS = [10, 20, 50, 100];
 
@@ -61,7 +62,7 @@ const PedidosPage: React.FC = () => {
   const [rawSearchTerm, setRawSearchTerm] = useState('');
   const searchTerm = useDebounce(rawSearchTerm, 300);
   const [filterStatus, setFilterStatus] = useState<string>('todos');
-  const [filterDateRange, setFilterDateRange] = useState<{ from?: Date; to?: Date }>({});
+  const [filterDateRange, setFilterDateRange] = useState<DateRange | undefined>(undefined); // Usar DateRange | undefined
   const [filterClientId, setFilterClientId] = useState<string | null>(null);
   const [filterClientName, setFilterClientName] = useState<string | null>(null);
 
@@ -530,11 +531,11 @@ const PedidosPage: React.FC = () => {
               variant={"outline"}
               className={cn(
                 "w-full justify-start text-left font-normal",
-                !filterDateRange.from && "text-muted-foreground"
+                !filterDateRange?.from && "text-muted-foreground"
               )}
             >
               <CalendarIcon className="mr-2 h-4 w-4" />
-              {filterDateRange.from ? (
+              {filterDateRange?.from ? (
                 filterDateRange.to ? (
                   <>
                     {format(filterDateRange.from, "dd/MM/yyyy", { locale: ptBR })} -{" "}
@@ -552,7 +553,7 @@ const PedidosPage: React.FC = () => {
             <Calendar
               initialFocus
               mode="range"
-              defaultMonth={filterDateRange.from}
+              defaultMonth={filterDateRange?.from}
               selected={filterDateRange}
               onSelect={setFilterDateRange}
               numberOfMonths={2}

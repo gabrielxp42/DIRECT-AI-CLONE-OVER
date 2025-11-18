@@ -2,6 +2,41 @@ import { supabase } from '@/integrations/supabase/client';
 import { generateOrderPDF } from '@/utils/pdfGenerator';
 import { removeAccents } from '@/utils/string';
 
+// Tipos de dados para resultados de consultas Supabase com JOINs
+interface ClientName {
+  nome: string;
+}
+
+interface OrderWithClient {
+  id: string;
+  order_number: number;
+  status: string;
+  valor_total: number;
+  total_metros: number;
+  created_at: string;
+  clientes: ClientName | null;
+}
+
+interface ServiceWithOrder {
+  id: string;
+  nome: string;
+  quantidade: number;
+  valor_unitario: number;
+  pedido_id: string;
+  pedidos: {
+    id: string;
+    order_number: number;
+    status: string;
+    created_at: string;
+    clientes: ClientName | null;
+  } | null;
+}
+
+interface MetersReportResult {
+  total_meters: number;
+  total_orders: number;
+}
+
 // Função para obter data e hora atual no fuso horário do Rio de Janeiro
 export const getCurrentDateTime = () => {
   const now = new Date();
@@ -159,7 +194,7 @@ export const get_top_clients = async (args: { top_n?: number }) => {
       return { message: "❌ Não foi possível encontrar dados de ranking de clientes. Verifique se há pedidos registrados." };
     }
 
-    const formattedClients = topClients.map((client, index) => ({
+    const formattedClients = (topClients as any[]).map((client, index) => ({
       rank: index + 1,
       client_name: client.client_name,
       total_orders: client.total_orders,
@@ -240,8 +275,9 @@ export const get_total_meters_by_period = async (args: {
 
     if (error) throw error;
 
-    const totalMeters = data?.total_meters || 0;
-    const totalOrders = data?.total_orders || 0;
+    const result = data as MetersReportResult;
+    const totalMeters = result?.total_meters || 0;
+    const totalOrders = result?.total_orders || 0;
 
     if (totalOrders === 0) {
       return { message: `❌ Nenhum pedido encontrado ${periodDescription}. Total de metros: 0 ML.` };
@@ -287,7 +323,7 @@ export const openAIFunctions = [
   },
   {
     name: "get_top_clients",
-    description: "Obtém o ranking dos clientes que mais fizeram pedidos ou gastaram. Use esta ferramenta para responder perguntas como 'qual cliente mais pede?', 'quem é o top cliente?', 'liste os 5 melhores clientes'.",
+    description: "Obtém o ranking dos clientes que mais fizeram pedidos ou gastaram. Use esta função para responder perguntas como 'qual cliente mais pede?', 'quem é o top cliente?', 'liste os 5 melhores clientes'.",
     parameters: {
       type: "object",
       properties: {
@@ -592,7 +628,7 @@ const findClientWithMultipleStrategies = async (clientName: string) => {
       });
 
     if (!fuzzyError && fuzzyClients && fuzzyClients.length > 0) {
-      console.log(`✅ [findClient] Busca fuzzy encontrou ${fuzzyClients.length} cliente(s):`, fuzzyClients.map(c => c.nome));
+      console.log(`✅ [findClient] Busca fuzzy encontrou ${fuzzyClients.length} cliente(s):`, fuzzyClients.map((c: any) => c.nome));
       return fuzzyClients;
     }
     if (fuzzyError) {
@@ -612,7 +648,7 @@ const findClientWithMultipleStrategies = async (clientName: string) => {
       .limit(10);
 
     if (!ilikeNormalizedError && ilikeNormalizedClients && ilikeNormalizedClients.length > 0) {
-      console.log(`✅ [findClient] ILIKE normalizado encontrou ${ilikeNormalizedClients.length} cliente(s):`, ilikeNormalizedClients.map(c => c.nome));
+      console.log(`✅ [findClient] ILIKE normalizado encontrou ${ilikeNormalizedClients.length} cliente(s):`, ilikeNormalizedClients.map((c: any) => c.nome));
       return ilikeNormalizedClients;
     }
   } catch (error) {
@@ -630,11 +666,11 @@ const findClientWithMultipleStrategies = async (clientName: string) => {
       .limit(100); // Fetch up to 100 clients for client-side filtering
 
     if (!allClientsError && allClients && allClients.length > 0) {
-      const filteredClients = allClients.filter(client => 
+      const filteredClients = (allClients as any[]).filter(client => 
         removeAccents(client.nome.toLowerCase()).includes(normalizedClientName)
       );
       if (filteredClients.length > 0) {
-        console.log(`✅ [findClient] Busca ampla + client-side encontrou ${filteredClients.length} cliente(s):`, filteredClients.map(c => c.nome));
+        console.log(`✅ [findClient] Busca ampla + client-side encontrou ${filteredClients.length} cliente(s):`, filteredClients.map((c: any) => c.nome));
         return filteredClients;
       }
     }
@@ -660,7 +696,7 @@ const findClientWithMultipleStrategies = async (clientName: string) => {
           .limit(10);
 
         if (!clientError && clients && clients.length > 0) {
-          console.log(`✅ [findClient] Busca por parte encontrou ${clients.length} cliente(s):`, clients.map(c => c.nome));
+          console.log(`✅ [findClient] Busca por parte encontrou ${clients.length} cliente(s):`, clients.map((c: any) => c.nome));
           return clients;
         }
       } catch (error) {
@@ -845,7 +881,7 @@ export const list_orders = async (args: {
     return { message: `❌ Nenhum pedido encontrado ${periodDescription}.${totalCountMessage}` };
   }
 
-  const formattedOrders = orders.map((order, index) => ({
+  const formattedOrders = (orders as OrderWithClient[]).map((order, index) => ({
     index: index + 1,
     order_number: order.order_number,
     status: order.status,
@@ -855,8 +891,8 @@ export const list_orders = async (args: {
     cliente: order.clientes?.nome
   }));
 
-  const totalValue = orders.reduce((sum, order) => sum + order.valor_total, 0);
-  const totalMetros = orders.reduce((sum, order) => sum + (order.total_metros || 0), 0);
+  const totalValue = orders.reduce((sum, order) => sum + (order as OrderWithClient).valor_total, 0);
+  const totalMetros = orders.reduce((sum, order) => sum + ((order as OrderWithClient).total_metros || 0), 0);
   const totalValueFormatted = new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL'
@@ -1005,7 +1041,7 @@ export const list_services = async (args: {
         return { message: `❌ Nenhum serviço encontrado ${periodDescription}.${totalCountMessage}` };
       }
 
-      let formattedServices = services.map((service, index) => ({
+      let formattedServices = (services as ServiceWithOrder[]).map((service, index) => ({
         index: index + 1,
         service_name: service.nome,
         quantity: Number(service.quantidade), // ADDED COERCION
@@ -1130,8 +1166,8 @@ export const list_services = async (args: {
     console.log(`✅ [list_services] Estratégia 2 funcionou: ${services.length} serviços encontrados`);
 
     // Map services with order information
-    let formattedServices = services.map((service, index) => {
-      const relatedOrder = orders.find(order => order.id === service.pedido_id);
+    let formattedServices = (services as any[]).map((service, index) => {
+      const relatedOrder = (orders as OrderWithClient[]).find(order => order.id === service.pedido_id);
       return {
         index: index + 1,
         service_name: service.nome,
@@ -1230,7 +1266,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
           .select('nome')
           .limit(10);
         
-        const clientList = allClients ? allClients.map(c => c.nome).join(', ') : 'Nenhum cliente encontrado';
+        const clientList = (allClients as ClientName[]).map(c => c.nome).join(', ');
         throw new Error(`❌ Não encontrei nenhum cliente com o nome "${clientName}".\n\n📋 Alguns clientes disponíveis no sistema:\n${clientList}\n\n💡 Dica: Tente usar o nome completo ou verifique a grafia.`);
       } catch (error: any) {
         console.error(`❌ [get_client_orders] Erro ao buscar lista de clientes:`, error);
@@ -1238,9 +1274,9 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       }
     }
 
-    console.log(`✅ [get_client_orders] Cliente(s) encontrado(s):`, foundClients.map(c => c.nome));
+    console.log(`✅ [get_client_orders] Cliente(s) encontrado(s):`, foundClients.map((c: any) => c.nome));
 
-    const clientIds = foundClients.map(c => c.id);
+    const clientIds = foundClients.map((c: any) => c.id);
     const { data: orders, error: orderError } = await supabase
       .from('pedidos') // USANDO 'pedidos'
       .select(`
@@ -1261,7 +1297,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
     }
 
     if (!orders || orders.length === 0) {
-      const clientNames = foundClients.map(c => c.nome).join(', ');
+      const clientNames = foundClients.map((c: any) => c.nome).join(', ');
       console.log(`❌ [get_client_orders] Nenhum pedido encontrado para: ${clientNames}`);
       return { 
         message: `✅ Cliente encontrado: **${clientNames}**\n\n❌ Porém, este cliente ainda não possui nenhum pedido registrado no sistema.` 
@@ -1270,7 +1306,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
 
     console.log(`✅ [get_client_orders] Encontrados ${orders.length} pedidos`);
 
-    const formattedOrders = orders.map((order, index) => ({
+    const formattedOrders = (orders as OrderWithClient[]).map((order, index) => ({
       index: index + 1,
       order_number: order.order_number,
       status: order.status,
@@ -1280,9 +1316,9 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       cliente: order.clientes?.nome
     }));
     
-    const totalValue = orders.reduce((sum, order) => sum + order.valor_total, 0);
-    const totalMetros = orders.reduce((sum, order) => sum + (order.total_metros || 0), 0);
-    const clientNames = foundClients.map(c => c.nome).join(', ');
+    const totalValue = orders.reduce((sum, order) => sum + (order as OrderWithClient).valor_total, 0);
+    const totalMetros = orders.reduce((sum, order) => sum + ((order as OrderWithClient).total_metros || 0), 0);
+    const clientNames = foundClients.map((c: any) => c.nome).join(', ');
     
     return { 
       orders: formattedOrders, 
@@ -1312,7 +1348,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
           .select('nome')
           .limit(10);
         
-        const clientList = allClients ? allClients.map(c => c.nome).join(', ') : 'Nenhum cliente encontrado';
+        const clientList = (allClients as ClientName[]).map(c => c.nome).join(', ');
         throw new Error(`❌ Não encontrei nenhum cliente com o nome "${clientName}".\n\n📋 Alguns clientes disponíveis:\n${clientList}`);
       } catch (error: any) {
         console.error(`❌ [get_client_details] Erro ao buscar lista de clientes:`, error);
@@ -1320,9 +1356,9 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       }
     }
 
-    console.log(`✅ [get_client_details] Cliente(s) encontrado(s):`, foundClients.map(c => c.nome));
+    console.log(`✅ [get_client_details] Cliente(s) encontrado(s):`, foundClients.map((c: any) => c.nome));
 
-    const clientId = foundClients[0].id;
+    const clientId = (foundClients as any[])[0].id;
     const { data, error } = await supabase
       .from('clientes')
       .select('*')
@@ -1334,11 +1370,11 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       throw new Error(error.message);
     }
 
-    const client = data;
+    const client = data as any;
     let message = `👤 **Detalhes do cliente: ${client.nome}**`;
     
     if (foundClients.length > 1) {
-      const otherClients = foundClients.slice(1).map(c => c.nome).join(', ');
+      const otherClients = foundClients.slice(1).map((c: any) => c.nome).join(', ');
       message += `\n\n🔍 Também encontrei clientes similares: ${otherClients}`;
     }
 
@@ -1367,7 +1403,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
     try {
       const orderData = await fetchCompleteOrderData(fullOrderId);
       
-      const formattedItems = orderData.pedido_items.map((item: any) => ({
+      const formattedItems = (orderData as any).pedido_items.map((item: any) => ({
         nome: item.produto_nome,
         quantidade: item.quantidade,
         preco_unitario: item.preco_unitario,
@@ -1375,7 +1411,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
         observacao: item.observacao || ''
       }));
       
-      const formattedServices = orderData.pedido_servicos.map((service: any) => ({
+      const formattedServices = (orderData as any).pedido_servicos.map((service: any) => ({
         nome: service.nome,
         quantidade: service.quantidade,
         valor_unitario: service.valor_unitario,
@@ -1383,15 +1419,15 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       }));
 
       return {
-        message: `📋 **Detalhes do pedido #${orderData.order_number}**`,
+        message: `📋 **Detalhes do pedido #${(orderData as any).order_number}**`,
         order: {
-          order_number: orderData.order_number,
-          cliente: orderData.clientes?.nome || 'Cliente não encontrado',
-          status: orderData.status,
-          valor_total: orderData.valor_total,
-          total_metros: orderData.total_metros,
-          data_criacao: new Date(orderData.created_at).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }),
-          observacoes: orderData.observacoes || 'Nenhuma observação',
+          order_number: (orderData as any).order_number,
+          cliente: (orderData as any).clientes?.nome || 'Cliente não encontrado',
+          status: (orderData as any).status,
+          valor_total: (orderData as any).valor_total,
+          total_metros: (orderData as any).total_metros,
+          data_criacao: new Date((orderData as any).created_at).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }),
+          observacoes: (orderData as any).observacoes || 'Nenhuma observação',
           items: formattedItems,
           servicos: formattedServices
         }
@@ -1449,7 +1485,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
         return { message: `✅ Nenhum pedido encontrado com os filtros especificados.${totalCountMessage}` };
     }
 
-    const formattedOrders = orders.map((order, index) => ({
+    const formattedOrders = (orders as OrderWithClient[]).map((order, index) => ({
         index: index + 1,
         order_number: order.order_number,
         status: order.status,
@@ -1459,8 +1495,8 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
         cliente: order.clientes?.nome
     }));
 
-    const totalValue = orders.reduce((sum, order) => sum + order.valor_total, 0);
-    const totalMetros = orders.reduce((sum, order) => sum + (order.total_metros || 0), 0);
+    const totalValue = orders.reduce((sum, order) => sum + (order as OrderWithClient).valor_total, 0);
+    const totalMetros = orders.reduce((sum, order) => sum + ((order as OrderWithClient).total_metros || 0), 0);
 
     return {
         orders: formattedOrders,
@@ -1573,7 +1609,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       console.log(`📋 [generate_order_pdf] Dados obtidos, gerando PDF...`);
       
       // Ação padrão para a IA é 'save' (download)
-      await generateOrderPDF(orderData, 'save');
+      await generateOrderPDF(orderData as any, 'save');
       
       console.log(`✅ [generate_order_pdf] PDF gerado com sucesso!`);
       
@@ -1581,7 +1617,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
         message: `✅ PDF do pedido #${orderNumber} gerado com sucesso! 📄\n\nO arquivo foi baixado automaticamente para seu dispositivo.`,
         pdf: {
           orderNumber: orderNumber,
-          clientName: orderData.clientes?.nome || 'Cliente não encontrado',
+          clientName: (orderData as any).clientes?.nome || 'Cliente não encontrado',
           timestamp: new Date().toLocaleString('pt-BR', { timeZone: TIME_ZONE })
         }
       };
@@ -1611,7 +1647,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
 
         const orderData = await fetchCompleteOrderData(fullOrderId);
         // Ação padrão para a IA é 'save' (download)
-        await generateOrderPDF(orderData, 'save');
+        await generateOrderPDF(orderData as any, 'save');
         
         results.push(`✅ Pedido #${orderNumber}: PDF gerado`);
         console.log(`✅ [generate_multiple_pdfs] PDF do pedido #${orderNumber} gerado com sucesso`);

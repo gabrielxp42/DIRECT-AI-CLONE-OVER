@@ -62,6 +62,7 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ServiceCommissionReport } from "@/components/ServiceCommissionReport";
+import { DateRange } from "react-day-picker"; // Importar DateRange
 
 // Tipos de dados (mantidos do original, mas simplificados para o contexto)
 interface SalesReport {
@@ -95,7 +96,7 @@ interface SalesReport {
 
 // --- Lógica de Data e Fetch ---
 
-const calculatePeriodDates = (period: string, customRange?: { from?: Date; to?: Date }) => {
+const calculatePeriodDates = (period: string, customRange?: DateRange) => { // Usar DateRange
   const now = new Date();
   let periodStart: Date;
   let periodEnd: Date = now;
@@ -132,7 +133,7 @@ const calculatePeriodDates = (period: string, customRange?: { from?: Date; to?: 
   return { start: periodStart, end: periodEnd };
 };
 
-const fetchReportData = async (supabase: any, selectedPeriod: string, customRange?: { from?: Date; to?: Date }): Promise<SalesReport> => {
+const fetchReportData = async (supabase: any, selectedPeriod: string, customRange?: DateRange): Promise<SalesReport> => { // Usar DateRange
   const { start: periodStart, end: periodEnd } = calculatePeriodDates(selectedPeriod, customRange);
   const now = new Date();
 
@@ -416,7 +417,7 @@ const fetchReportData = async (supabase: any, selectedPeriod: string, customRang
 const Reports: React.FC = () => {
   const { supabase } = useSession();
   const [selectedPeriod, setSelectedPeriod] = useState("month");
-  const [customDateRange, setCustomDateRange] = useState<{ from?: Date; to?: Date }>({});
+  const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>(undefined); // Usar DateRange | undefined
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedService, setSelectedService] = useState("all");
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
@@ -437,7 +438,7 @@ const Reports: React.FC = () => {
       case "month": return "Este Mês";
       case "year": return "Este Ano";
       case "custom": 
-        if (customDateRange.from && customDateRange.to) {
+        if (customDateRange?.from && customDateRange?.to) {
           return `${format(customDateRange.from, 'dd/MM')} - ${format(customDateRange.to, 'dd/MM')}`;
         }
         return "Período Personalizado";
@@ -505,7 +506,7 @@ const Reports: React.FC = () => {
           onValueChange={(value) => {
             if (value && value !== 'custom') {
               setSelectedPeriod(value);
-              setCustomDateRange({}); // Limpa o range customizado
+              setCustomDateRange(undefined); // Limpa o range customizado
             }
           }}
           className="flex-wrap justify-start"
@@ -536,7 +537,7 @@ const Reports: React.FC = () => {
               onClick={() => setSelectedPeriod('custom')}
             >
               <CalendarIcon className="mr-2 h-4 w-4" />
-              {selectedPeriod === 'custom' && customDateRange.from ? (
+              {selectedPeriod === 'custom' && customDateRange?.from ? (
                 customDateRange.to ? (
                   <>
                     {format(customDateRange.from, "dd/MM/yyyy")} -{" "}
@@ -554,10 +555,10 @@ const Reports: React.FC = () => {
             <DatePicker
               initialFocus
               mode="range"
-              defaultMonth={customDateRange.from}
+              defaultMonth={customDateRange?.from}
               selected={customDateRange}
               onSelect={(range) => {
-                setCustomDateRange(range || {});
+                setCustomDateRange(range);
                 if (range?.from && range?.to) {
                   setIsDatePickerOpen(false);
                 }

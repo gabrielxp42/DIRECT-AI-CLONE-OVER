@@ -91,7 +91,8 @@ export const ProdutoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, init
   }, [isOpen, isEditing, initialData, form]);
 
   const handleSubmit = (data: ProdutoFormValues) => {
-    onSubmit(data, initialData?.id);
+    // Casting explícito para garantir que o TS saiba que os campos obrigatórios estão presentes
+    onSubmit(data as Omit<NewProduto, 'user_id'>, initialData?.id);
   };
 
   return (
