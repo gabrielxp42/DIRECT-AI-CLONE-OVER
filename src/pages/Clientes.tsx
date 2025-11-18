@@ -27,6 +27,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Cliente, NewCliente } from "@/types/cliente";
 import { showSuccess, showError } from "@/utils/toast";
 import { useDebounce } from "@/hooks/useDebounce"; // Importar useDebounce
+import { Skeleton } from "@/components/ui/skeleton"; // IMPORTAÇÃO ADICIONADA
 
 const Clientes = () => {
   const { supabase, session } = useSession();
