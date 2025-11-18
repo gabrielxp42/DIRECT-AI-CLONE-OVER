@@ -135,21 +135,12 @@ const fetchPedidos = async (
     // Se o termo de busca não resultou em IDs de cliente (ou era numérico), 
     // aplicamos a busca em order_number e observacoes
     
-    const isNumeric = !isNaN(Number(finalSearchTerm));
+    // Para buscar em order_number (integer) com ILIKE, precisamos usar a sintaxe de cast (::text)
+    // O Supabase JS não suporta o cast diretamente, então precisamos usar a sintaxe de filtro OR
+    // que o PostgREST entende: `coluna::tipo.operador.valor`
     
-    if (isNumeric) {
-      // Se for numérico, tentamos buscar por order_number (busca exata)
-      // E também buscamos em observações (caso o número esteja lá)
-      const orderNumber = Number(finalSearchTerm);
-      
-      // Usamos a sintaxe de filtro OR do Supabase para buscar no order_number (exato) OU observacoes (ilike)
-      // Nota: order_number é um inteiro, então usamos 'eq' ou 'in'
-      query = query.or(`order_number.eq.${orderNumber},observacoes.ilike.%${finalSearchTerm}%`);
-      
-    } else {
-      // Se for texto, buscamos apenas em observacoes (ilike)
-      query = query.ilike('observacoes', `%${finalSearchTerm}%`);
-    }
+    const searchFilter = `order_number::text.ilike.%${finalSearchTerm}%,observacoes.ilike.%${finalSearchTerm}%`;
+    query = query.or(searchFilter);
   }
 
 
