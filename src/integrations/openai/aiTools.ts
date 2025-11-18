@@ -881,7 +881,8 @@ export const list_orders = async (args: {
     return { message: `❌ Nenhum pedido encontrado ${periodDescription}.${totalCountMessage}` };
   }
 
-  const formattedOrders = (orders as OrderWithClient[]).map((order, index) => ({
+  // FIX 1: Casting para OrderWithClient[]
+  const formattedOrders = (orders as unknown as OrderWithClient[]).map((order, index) => ({
     index: index + 1,
     order_number: order.order_number,
     status: order.status,
@@ -891,8 +892,9 @@ export const list_orders = async (args: {
     cliente: order.clientes?.nome
   }));
 
-  const totalValue = orders.reduce((sum, order) => sum + (order as OrderWithClient).valor_total, 0);
-  const totalMetros = orders.reduce((sum, order) => sum + ((order as OrderWithClient).total_metros || 0), 0);
+  // FIX 2, 3: Casting para OrderWithClient[]
+  const totalValue = (orders as unknown as OrderWithClient[]).reduce((sum, order) => sum + order.valor_total, 0);
+  const totalMetros = (orders as unknown as OrderWithClient[]).reduce((sum, order) => sum + (order.total_metros || 0), 0);
   const totalValueFormatted = new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL'
@@ -999,6 +1001,7 @@ export const list_services = async (args: {
         nome,
         quantidade,
         valor_unitario,
+        pedido_id,
         pedidos!inner (
           id,
           order_number,
@@ -1041,7 +1044,8 @@ export const list_services = async (args: {
         return { message: `❌ Nenhum serviço encontrado ${periodDescription}.${totalCountMessage}` };
       }
 
-      let formattedServices = (services as ServiceWithOrder[]).map((service, index) => ({
+      // FIX 4: Casting para ServiceWithOrder[]
+      let formattedServices = (services as unknown as ServiceWithOrder[]).map((service, index) => ({
         index: index + 1,
         service_name: service.nome,
         quantity: Number(service.quantidade), // ADDED COERCION
@@ -1100,6 +1104,8 @@ export const list_services = async (args: {
         id,
         order_number,
         status,
+        valor_total,
+        total_metros,
         created_at,
         clientes (nome)
       `);
@@ -1167,7 +1173,8 @@ export const list_services = async (args: {
 
     // Map services with order information
     let formattedServices = (services as any[]).map((service, index) => {
-      const relatedOrder = (orders as OrderWithClient[]).find(order => order.id === service.pedido_id);
+      // FIX 5: Casting para OrderWithClient[]
+      const relatedOrder = (orders as unknown as OrderWithClient[]).find(order => order.id === service.pedido_id);
       return {
         index: index + 1,
         service_name: service.nome,
@@ -1306,7 +1313,8 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
 
     console.log(`✅ [get_client_orders] Encontrados ${orders.length} pedidos`);
 
-    const formattedOrders = (orders as OrderWithClient[]).map((order, index) => ({
+    // FIX 6: Casting para OrderWithClient[]
+    const formattedOrders = (orders as unknown as OrderWithClient[]).map((order, index) => ({
       index: index + 1,
       order_number: order.order_number,
       status: order.status,
@@ -1316,8 +1324,9 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       cliente: order.clientes?.nome
     }));
     
-    const totalValue = orders.reduce((sum, order) => sum + (order as OrderWithClient).valor_total, 0);
-    const totalMetros = orders.reduce((sum, order) => sum + ((order as OrderWithClient).total_metros || 0), 0);
+    // FIX 7, 8: Casting para OrderWithClient[]
+    const totalValue = (orders as unknown as OrderWithClient[]).reduce((sum, order) => sum + order.valor_total, 0);
+    const totalMetros = (orders as unknown as OrderWithClient[]).reduce((sum, order) => sum + (order.total_metros || 0), 0);
     const clientNames = foundClients.map((c: any) => c.nome).join(', ');
     
     return { 
@@ -1485,7 +1494,8 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
         return { message: `✅ Nenhum pedido encontrado com os filtros especificados.${totalCountMessage}` };
     }
 
-    const formattedOrders = (orders as OrderWithClient[]).map((order, index) => ({
+    // FIX 9: Casting para OrderWithClient[]
+    const formattedOrders = (orders as unknown as OrderWithClient[]).map((order, index) => ({
         index: index + 1,
         order_number: order.order_number,
         status: order.status,
@@ -1495,8 +1505,9 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
         cliente: order.clientes?.nome
     }));
 
-    const totalValue = orders.reduce((sum, order) => sum + (order as OrderWithClient).valor_total, 0);
-    const totalMetros = orders.reduce((sum, order) => sum + ((order as OrderWithClient).total_metros || 0), 0);
+    // FIX 10, 11: Casting para OrderWithClient[]
+    const totalValue = (orders as unknown as OrderWithClient[]).reduce((sum, order) => sum + order.valor_total, 0);
+    const totalMetros = (orders as unknown as OrderWithClient[]).reduce((sum, order) => sum + (order.total_metros || 0), 0);
 
     return {
         orders: formattedOrders,
