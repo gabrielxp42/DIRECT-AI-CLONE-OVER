@@ -100,7 +100,7 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
 
   return (
     <SessionContext.Provider value={value}>
-      {!isLoading && children}
+      {children}
     </SessionContext.Provider>
   );
 };
@@ -108,6 +108,8 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
 export const useSession = () => {
   const context = useContext(SessionContext);
   if (context === null) {
+    // Esta linha é a que lança o erro se chamada fora do provedor.
+    // Se o provedor estiver renderizando, isso não deve acontecer.
     throw new Error('useSession must be used within a SessionProvider');
   }
   return context;
