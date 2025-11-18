@@ -27,7 +27,7 @@ export const useClientes = () => {
       if (!supabase || !userId) throw new Error("Supabase client or User ID is missing.");
       return fetchClientes(supabase, userId);
     },
-    enabled: !!supabase && !!userId,
+    enabled: !!supabase && !!userId && typeof supabase.from === 'function', // Adicionado verificação de função
     staleTime: 5 * 60 * 1000, // 5 minutos de cache
   });
 };
@@ -54,7 +54,7 @@ export const useProdutos = () => {
       if (!supabase || !userId) throw new Error("Supabase client or User ID is missing.");
       return fetchProdutos(supabase, userId);
     },
-    enabled: !!supabase && !!userId,
+    enabled: !!supabase && !!userId && typeof supabase.from === 'function', // Adicionado verificação de função
     staleTime: 5 * 60 * 1000, // 5 minutos de cache
   });
 };
@@ -79,7 +79,9 @@ const fetchPedidos = async (
   
   // VALIDAÇÃO CRÍTICA: Se o cliente Supabase não estiver aqui, algo deu errado no hook chamador.
   if (!supabase || typeof supabase.from !== 'function') {
-    throw new Error("Supabase client is not properly initialized or available.");
+    // Se esta verificação falhar, o enabled deveria ter impedido a chamada.
+    // Se for chamada, lançamos um erro claro.
+    throw new Error("Supabase client is not properly initialized or available (missing 'from' function).");
   }
   
   const start = (page - 1) * limit;
@@ -219,7 +221,7 @@ export const usePaginatedPedidos = (
       }
       return fetchPedidos(supabase, userId, page, limit, filterStatus, filterDateRange, filterClientId, searchTerm, organizationId);
     },
-    enabled: !!supabase && !!userId,
+    enabled: !!supabase && !!userId && typeof supabase.from === 'function', // Adicionado verificação de função
     staleTime: 5 * 60 * 1000, 
   });
 };
@@ -232,7 +234,7 @@ export const usePedidos = () => {
   const fetchAllPedidos = async (supabase: SupabaseClient, userId: string): Promise<Pedido[]> => {
     // VALIDAÇÃO CRÍTICA
     if (!supabase || typeof supabase.from !== 'function') {
-      throw new Error("Supabase client is not properly initialized or available.");
+      throw new Error("Supabase client is not properly initialized or available (missing 'from' function).");
     }
     
     const { data: pedidosData, error: pedidosError } = await supabase
@@ -272,7 +274,7 @@ export const usePedidos = () => {
       if (!supabase || !userId) throw new Error("Supabase client or User ID is missing.");
       return fetchAllPedidos(supabase, userId);
     },
-    enabled: !!supabase && !!userId,
+    enabled: !!supabase && !!userId && typeof supabase.from === 'function', // Adicionado verificação de função
     staleTime: 5 * 60 * 1000, 
   });
 };
