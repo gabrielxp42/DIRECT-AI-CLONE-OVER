@@ -72,29 +72,6 @@ const fetchPedidos = async (
   const start = (page - 1) * limit;
   const end = start + limit - 1;
 
-  let finalClientIds: string[] | null = null;
-  let finalSearchTerm = searchTerm.trim();
-
-  // 4. Aplicar Termo de Busca (Search Term) - Lógica de pré-busca de cliente
-  if (finalSearchTerm) {
-    const isNumeric = !isNaN(Number(finalSearchTerm));
-    
-    if (!isNumeric) {
-      // Se for texto, tentamos buscar clientes por nome fuzzy
-      const { data: fuzzyClients, error: fuzzyError } = await supabase
-        .rpc('find_client_by_fuzzy_name', { 
-          partial_name: finalSearchTerm,
-          similarity_threshold: 0.3 // Usar um threshold razoável
-        });
-
-      if (!fuzzyError && fuzzyClients && fuzzyClients.length > 0) {
-        finalClientIds = fuzzyClients.map((c: { id: string }) => c.id);
-        // Limpar o termo de busca para que ele não seja aplicado em order_number/observacoes
-        finalSearchTerm = ''; 
-      }
-    }
-  }
-
   let query = supabase
     .from('pedidos')
     .select(`
@@ -127,23 +104,33 @@ const fetchPedidos = async (
     query = query.eq('cliente_id', filterClientId);
   }
 
-  // 4. Aplicar Busca por Termo (se não for filtro de cliente ativo)
-  if (finalClientIds && !filterClientId) {
-    // Se encontramos clientes via busca fuzzy, filtramos por esses IDs
-    query = query.in('cliente_id', finalClientIds);
-  } else if (finalSearchTerm) {
-    const isNumeric = !isNaN(Number(finalSearchTerm));
+  // 4. Aplicar Busca por Termo (se não houver filtro de cliente ativo)
+  const trimmedSearchTerm = searchTerm.trim();
+  
+  if (trimmedSearchTerm && !filterClientId) {
+    const isNumeric = !isNaN(Number(trimmedSearchTerm));
     
     if (isNumeric) {
-      const orderNumber = Number(finalSearchTerm);
-      
       // Se for numérico, buscamos por order_number (exato) OU observacoes (ilike)
-      // Usamos a sintaxe de filtro OR do Supabase para evitar o erro de cast
-      query = query.or(`order_number.eq.${orderNumber},observacoes.ilike.%${finalSearchTerm}%`);
+      const orderNumber = Number(trimmedSearchTerm);
+      query = query.or(`order_number.eq.${orderNumber},observacoes.ilike.%${trimmedSearchTerm}%`);
       
     } else {
-      // Se for texto, buscamos apenas em observacoes (ilike)
-      query = query.ilike('observacoes', `%${finalSearchTerm}%`);
+      // Se for texto, tentamos buscar clientes por nome fuzzy
+      const { data: fuzzyClients, error: fuzzyError } = await supabase
+        .rpc('find_client_by_fuzzy_name', { 
+          partial_name: trimmedSearchTerm,
+          similarity_threshold: 0.3 
+        });
+
+      if (!fuzzyError && fuzzyClients && fuzzyClients.length > 0) {
+        const clientIds = fuzzyClients.map((c: { id: string }) => c.id);
+        // Se encontrou clientes, filtramos por ID do cliente
+        query = query.in('cliente_id', clientIds);
+      } else {
+        // Se não encontrou clientes, buscamos o termo nas observações
+        query = query.ilike('observacoes', `%${trimmedSearchTerm}%`);
+      }
     }
   }
 
