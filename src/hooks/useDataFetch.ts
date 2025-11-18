@@ -72,6 +72,30 @@ const fetchPedidos = async (
   const start = (page - 1) * limit;
   const end = start + limit - 1;
 
+  let finalClientIds: string[] | null = null;
+  let finalSearchTerm = searchTerm.trim();
+
+  // 4. Aplicar Termo de Busca (Search Term) - Lógica de pré-busca de cliente
+  if (finalSearchTerm) {
+    const isNumeric = !isNaN(Number(finalSearchTerm));
+    
+    if (!isNumeric) {
+      // Se for texto, tentamos buscar clientes por nome fuzzy
+      const { data: fuzzyClients, error: fuzzyError } = await supabase
+        .rpc('find_client_by_fuzzy_name', { 
+          partial_name: finalSearchTerm,
+          similarity_threshold: 0.3 // Usar um threshold razoável
+        });
+
+      if (!fuzzyError && fuzzyClients && fuzzyClients.length > 0) {
+        finalClientIds = fuzzyClients.map((c: { id: string }) => c.id);
+        // Limpar o termo de busca para que ele não seja aplicado em order_number/observacoes
+        // se encontrarmos clientes, focando no filtro de cliente_id.
+        finalSearchTerm = ''; 
+      }
+    }
+  }
+
   let query = supabase
     .from('pedidos')
     .select(`
@@ -99,43 +123,24 @@ const fetchPedidos = async (
     query = query.lte('created_at', endOfDay.toISOString());
   }
 
-  // 3. Aplicar filtro de Cliente
+  // 3. Aplicar filtro de Cliente (prioritário)
   if (filterClientId) {
     query = query.eq('cliente_id', filterClientId);
   }
-  
-  // 4. Aplicar Termo de Busca (Search Term)
-  if (searchTerm) {
-    // Tenta buscar por order_number (número) OU nome do cliente (texto)
-    // Nota: A busca por nome do cliente em uma coluna de relacionamento (clientes.nome)
-    // é complexa no Supabase/PostgREST. A maneira mais robusta é usar a função `or`
-    // para buscar no order_number (se for número) ou no nome do cliente (se for texto).
+
+  // 4. Aplicar Busca por Termo (se não for filtro de cliente ativo)
+  if (finalClientIds && !filterClientId) {
+    // Se encontramos clientes via busca fuzzy, filtramos por esses IDs
+    query = query.in('cliente_id', finalClientIds);
+  } else if (finalSearchTerm) {
+    // Se o termo de busca não resultou em IDs de cliente (ou era numérico), 
+    // aplicamos a busca em order_number e observacoes
     
-    const isNumeric = !isNaN(Number(searchTerm));
+    // Nota: Usamos a sintaxe de filtro OR do Supabase de forma mais segura
+    // para buscar em order_number (se for numérico) OU observacoes (se for texto)
     
-    if (isNumeric) {
-      // Se for numérico, busca por order_number
-      query = query.ilike('order_number', `%${searchTerm}%`);
-    } else {
-      // Se for texto, busca por nome do cliente (usando a coluna de relacionamento)
-      // Nota: Isso requer que a RLS permita a busca na tabela `clientes` ou que a coluna `clientes.nome`
-      // esteja disponível para filtro. Como a coluna `clientes` está sendo selecionada,
-      // podemos tentar usar um filtro de texto na coluna `clientes.nome` se o Supabase suportar.
-      // No entanto, para evitar erros de PostgREST em filtros complexos de JOIN,
-      // vamos simplificar a busca por texto para o campo `observacoes` do pedido,
-      // e confiar que o filtro de cliente (se ativo) já restringe o suficiente.
-      
-      // Para buscar por nome do cliente, precisamos de uma consulta mais complexa.
-      // A maneira mais simples e performática é buscar por order_number ou observações.
-      
-      // Se o termo de busca for texto, buscamos em observações e tentamos buscar por order_number
-      // (caso o usuário tenha digitado um número, mas o isNumeric falhou por algum motivo).
-      query = query.or(`observacoes.ilike.%${searchTerm}%,order_number.ilike.%${searchTerm}%`);
-      
-      // Para buscar no nome do cliente, precisaríamos de uma view ou função RPC.
-      // Por enquanto, vamos focar em order_number e observações para manter a estabilidade.
-      // O usuário ainda pode usar o filtro de cliente dedicado.
-    }
+    const searchFilter = `order_number.ilike.%${finalSearchTerm}%,observacoes.ilike.%${finalSearchTerm}%`;
+    query = query.or(searchFilter);
   }
 
 

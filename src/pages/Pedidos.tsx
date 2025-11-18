@@ -114,7 +114,7 @@ const PedidosPage: React.FC = () => {
   // Resetar página para 1 quando filtros mudam
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterStatus, filterDateRange, filterClientId, searchTerm]); // Adicionado searchTerm
+  }, [filterStatus, filterDateRange, filterClientId, searchTerm]);
 
   const handleClearClientFilter = () => {
     setFilterClientId(null);
