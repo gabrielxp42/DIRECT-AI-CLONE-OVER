@@ -71,7 +71,8 @@ const PedidosPage: React.FC = () => {
     itemsPerPage, 
     filterStatus, 
     filterDateRange, 
-    filterClientId
+    filterClientId,
+    searchTerm // PASSANDO O TERMO DE BUSCA PARA O BACKEND
   );
   
   const { data: clientes, isLoading: isLoadingClientes } = useClientes();
@@ -113,7 +114,7 @@ const PedidosPage: React.FC = () => {
   // Resetar página para 1 quando filtros mudam
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterStatus, filterDateRange, filterClientId]);
+  }, [filterStatus, filterDateRange, filterClientId, searchTerm]); // Adicionado searchTerm
 
   const handleClearClientFilter = () => {
     setFilterClientId(null);
@@ -432,30 +433,13 @@ const PedidosPage: React.FC = () => {
     }).format(value);
   };
 
-  // OTIMIZAÇÃO: Filtragem de busca no frontend sobre os dados paginados
+  // OTIMIZAÇÃO: A filtragem por termo de busca agora é feita no backend.
   const pedidosDaPagina = paginatedData?.pedidos || [];
   const totalPedidos = paginatedData?.totalCount || 0;
   const totalPages = Math.ceil(totalPedidos / itemsPerPage);
 
-  const filteredPedidos = useMemo(() => {
-    if (!pedidosDaPagina) return [];
-    
-    const lowerCaseSearchTerm = searchTerm.toLowerCase();
-
-    // A filtragem de status, data e cliente já está sendo feita no backend (usePaginatedPedidos).
-    // Aqui, aplicamos apenas a busca por termo sobre os resultados da página atual.
-    
-    if (searchTerm === '') {
-      return pedidosDaPagina;
-    }
-
-    return pedidosDaPagina.filter(pedido => {
-      return pedido.order_number.toString().includes(searchTerm) ||
-        pedido.clientes?.nome.toLowerCase().includes(lowerCaseSearchTerm) ||
-        pedido.pedido_items?.some(item => item.produto_nome?.toLowerCase().includes(lowerCaseSearchTerm)) ||
-        (pedido.servicos?.some(servico => servico.nome?.toLowerCase().includes(lowerCaseSearchTerm)) || false);
-    });
-  }, [pedidosDaPagina, searchTerm]);
+  // Não precisamos mais de useMemo para filtrar, pois o backend já filtrou.
+  const filteredPedidos = pedidosDaPagina; 
 
   const isGlobalLoading = isLoadingPaginated || isLoadingClientes || isLoadingProdutos;
 

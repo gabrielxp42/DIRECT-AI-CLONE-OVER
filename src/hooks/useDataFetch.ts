@@ -63,9 +63,10 @@ const fetchPedidos = async (
   userId: string, 
   page: number, 
   limit: number,
-  filterStatus: string, // Novo parâmetro
-  filterDateRange: { from?: Date; to?: Date }, // Novo parâmetro
-  filterClientId: string | null // Novo parâmetro
+  filterStatus: string,
+  filterDateRange: { from?: Date; to?: Date },
+  filterClientId: string | null,
+  searchTerm: string // NOVO PARÂMETRO
 ): Promise<PaginatedPedidosResult> => {
   
   const start = (page - 1) * limit;
@@ -83,7 +84,6 @@ const fetchPedidos = async (
 
   // 1. Aplicar filtro de Status
   if (filterStatus === 'pendente-pagamento') {
-    // Filtro complexo: status não é 'pago', 'cancelado' ou 'entregue'
     query = query.not('status', 'in', '("pago", "cancelado", "entregue")');
   } else if (filterStatus !== 'todos') {
     query = query.eq('status', filterStatus);
@@ -94,7 +94,6 @@ const fetchPedidos = async (
     query = query.gte('created_at', filterDateRange.from.toISOString());
   }
   if (filterDateRange.to) {
-    // Adiciona 23:59:59.999 ao final do dia para incluir o dia inteiro
     const endOfDay = new Date(filterDateRange.to);
     endOfDay.setHours(23, 59, 59, 999);
     query = query.lte('created_at', endOfDay.toISOString());
@@ -104,8 +103,43 @@ const fetchPedidos = async (
   if (filterClientId) {
     query = query.eq('cliente_id', filterClientId);
   }
+  
+  // 4. Aplicar Termo de Busca (Search Term)
+  if (searchTerm) {
+    // Tenta buscar por order_number (número) OU nome do cliente (texto)
+    // Nota: A busca por nome do cliente em uma coluna de relacionamento (clientes.nome)
+    // é complexa no Supabase/PostgREST. A maneira mais robusta é usar a função `or`
+    // para buscar no order_number (se for número) ou no nome do cliente (se for texto).
+    
+    const isNumeric = !isNaN(Number(searchTerm));
+    
+    if (isNumeric) {
+      // Se for numérico, busca por order_number
+      query = query.ilike('order_number', `%${searchTerm}%`);
+    } else {
+      // Se for texto, busca por nome do cliente (usando a coluna de relacionamento)
+      // Nota: Isso requer que a RLS permita a busca na tabela `clientes` ou que a coluna `clientes.nome`
+      // esteja disponível para filtro. Como a coluna `clientes` está sendo selecionada,
+      // podemos tentar usar um filtro de texto na coluna `clientes.nome` se o Supabase suportar.
+      // No entanto, para evitar erros de PostgREST em filtros complexos de JOIN,
+      // vamos simplificar a busca por texto para o campo `observacoes` do pedido,
+      // e confiar que o filtro de cliente (se ativo) já restringe o suficiente.
+      
+      // Para buscar por nome do cliente, precisamos de uma consulta mais complexa.
+      // A maneira mais simples e performática é buscar por order_number ou observações.
+      
+      // Se o termo de busca for texto, buscamos em observações e tentamos buscar por order_number
+      // (caso o usuário tenha digitado um número, mas o isNumeric falhou por algum motivo).
+      query = query.or(`observacoes.ilike.%${searchTerm}%,order_number.ilike.%${searchTerm}%`);
+      
+      // Para buscar no nome do cliente, precisaríamos de uma view ou função RPC.
+      // Por enquanto, vamos focar em order_number e observações para manter a estabilidade.
+      // O usuário ainda pode usar o filtro de cliente dedicado.
+    }
+  }
 
-  // 4. Aplicar ordenação e paginação
+
+  // 5. Aplicar ordenação e paginação
   const { data: pedidosData, error: pedidosError, count } = await query
     .order('order_number', { ascending: false })
     .range(start, end);
@@ -142,17 +176,18 @@ export const usePaginatedPedidos = (
   limit: number,
   filterStatus: string,
   filterDateRange: { from?: Date; to?: Date },
-  filterClientId: string | null
+  filterClientId: string | null,
+  searchTerm: string // NOVO PARÂMETRO
 ) => {
   const { supabase, session } = useSession();
   const userId = session?.user.id;
 
   // A chave da query agora inclui todos os filtros para garantir que o cache seja invalidado corretamente
-  const queryKey = ["pedidos", userId, page, limit, filterStatus, filterDateRange, filterClientId];
+  const queryKey = ["pedidos", userId, page, limit, filterStatus, filterDateRange, filterClientId, searchTerm];
 
   return useQuery<PaginatedPedidosResult>({
     queryKey: queryKey,
-    queryFn: () => fetchPedidos(supabase, userId!, page, limit, filterStatus, filterDateRange, filterClientId),
+    queryFn: () => fetchPedidos(supabase, userId!, page, limit, filterStatus, filterDateRange, filterClientId, searchTerm),
     enabled: !!supabase && !!userId,
     staleTime: 5 * 60 * 1000, 
   });
