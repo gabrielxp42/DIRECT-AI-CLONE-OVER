@@ -4,10 +4,15 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import type { Session, SupabaseClient } from '@supabase/supabase-js';
 import { supabase as supabaseClient } from '@/integrations/supabase/client';
 
+type Profile = {
+  organization_id: string | null;
+};
+
 type SessionContextType = {
   session: Session | null;
   supabase: SupabaseClient;
   isLoading: boolean;
+  organizationId: string | null; // Adicionado organizationId
 };
 
 const SessionContext = createContext<SessionContextType | null>(null);
@@ -15,17 +20,39 @@ const SessionContext = createContext<SessionContextType | null>(null);
 export const SessionProvider = ({ children }: { children: React.ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [organizationId, setOrganizationId] = useState<string | null>(null);
 
   useEffect(() => {
+    const fetchProfile = async (userId: string) => {
+      const { data, error } = await supabaseClient
+        .from('profiles')
+        .select('organization_id')
+        .eq('id', userId)
+        .single();
+
+      if (error) {
+        console.error('Error fetching profile:', error);
+        return null;
+      }
+      return data?.organization_id || null;
+    };
+
     const getSession = async () => {
       try {
-        const { data: { session }, error } = await supabaseClient.auth.getSession();
+        const { data: { session: currentSession }, error } = await supabaseClient.auth.getSession();
         
         if (error) {
           console.error('Error getting session:', error);
         }
         
-        setSession(session);
+        setSession(currentSession);
+        
+        if (currentSession?.user) {
+          const orgId = await fetchProfile(currentSession.user.id);
+          setOrganizationId(orgId);
+        } else {
+          setOrganizationId(null);
+        }
       } catch (error) {
         console.error('Error in getSession:', error);
       } finally {
@@ -41,6 +68,13 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
         setSession(session);
         setIsLoading(false);
         
+        if (session?.user) {
+          const orgId = await fetchProfile(session.user.id);
+          setOrganizationId(orgId);
+        } else {
+          setOrganizationId(null);
+        }
+        
         // Handle session refresh
         if (event === 'TOKEN_REFRESHED') {
           console.log('Token refreshed successfully');
@@ -49,7 +83,7 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
         // Handle sign out
         if (event === 'SIGNED_OUT') {
           console.log('User signed out');
-          // Clear any cached data if needed
+          setOrganizationId(null);
         }
       }
     );
@@ -61,6 +95,7 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
     session,
     supabase: supabaseClient,
     isLoading,
+    organizationId,
   };
 
   return (

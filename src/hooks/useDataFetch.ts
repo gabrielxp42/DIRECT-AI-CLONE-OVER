@@ -66,7 +66,8 @@ const fetchPedidos = async (
   filterStatus: string,
   filterDateRange: { from?: Date; to?: Date },
   filterClientId: string | null,
-  searchTerm: string // NOVO PARÂMETRO
+  searchTerm: string,
+  organizationId: string | null // NOVO PARÂMETRO
 ): Promise<PaginatedPedidosResult> => {
   
   const start = (page - 1) * limit;
@@ -116,11 +117,12 @@ const fetchPedidos = async (
       query = query.or(`order_number.eq.${orderNumber},observacoes.ilike.%${trimmedSearchTerm}%`);
       
     } else {
-      // Se for texto, tentamos buscar clientes por nome fuzzy
+      // Se for texto, tentamos buscar clientes por nome fuzzy, passando o organizationId
       const { data: fuzzyClients, error: fuzzyError } = await supabase
         .rpc('find_client_by_fuzzy_name', { 
           partial_name: trimmedSearchTerm,
-          similarity_threshold: 0.3 
+          similarity_threshold: 0.3,
+          organization_id_filter: organizationId // PASSANDO O ORGANIZATION ID
         });
 
       if (!fuzzyError && fuzzyClients && fuzzyClients.length > 0) {
@@ -173,17 +175,17 @@ export const usePaginatedPedidos = (
   filterStatus: string,
   filterDateRange: { from?: Date; to?: Date },
   filterClientId: string | null,
-  searchTerm: string // NOVO PARÂMETRO
+  searchTerm: string
 ) => {
-  const { supabase, session } = useSession();
+  const { supabase, session, organizationId } = useSession();
   const userId = session?.user.id;
 
   // A chave da query agora inclui todos os filtros para garantir que o cache seja invalidado corretamente
-  const queryKey = ["pedidos", userId, page, limit, filterStatus, filterDateRange, filterClientId, searchTerm];
+  const queryKey = ["pedidos", userId, page, limit, filterStatus, filterDateRange, filterClientId, searchTerm, organizationId];
 
   return useQuery<PaginatedPedidosResult>({
     queryKey: queryKey,
-    queryFn: () => fetchPedidos(supabase, userId!, page, limit, filterStatus, filterDateRange, filterClientId, searchTerm),
+    queryFn: () => fetchPedidos(supabase, userId!, page, limit, filterStatus, filterDateRange, filterClientId, searchTerm, organizationId),
     enabled: !!supabase && !!userId,
     staleTime: 5 * 60 * 1000, 
   });
