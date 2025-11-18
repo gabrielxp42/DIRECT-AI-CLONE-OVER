@@ -90,7 +90,6 @@ const fetchPedidos = async (
       if (!fuzzyError && fuzzyClients && fuzzyClients.length > 0) {
         finalClientIds = fuzzyClients.map((c: { id: string }) => c.id);
         // Limpar o termo de busca para que ele não seja aplicado em order_number/observacoes
-        // se encontrarmos clientes, focando no filtro de cliente_id.
         finalSearchTerm = ''; 
       }
     }
@@ -136,11 +135,21 @@ const fetchPedidos = async (
     // Se o termo de busca não resultou em IDs de cliente (ou era numérico), 
     // aplicamos a busca em order_number e observacoes
     
-    // Nota: Usamos a sintaxe de filtro OR do Supabase de forma mais segura
-    // para buscar em order_number (se for numérico) OU observacoes (se for texto)
+    const isNumeric = !isNaN(Number(finalSearchTerm));
     
-    const searchFilter = `order_number.ilike.%${finalSearchTerm}%,observacoes.ilike.%${finalSearchTerm}%`;
-    query = query.or(searchFilter);
+    if (isNumeric) {
+      // Se for numérico, tentamos buscar por order_number (busca exata)
+      // E também buscamos em observações (caso o número esteja lá)
+      const orderNumber = Number(finalSearchTerm);
+      
+      // Usamos a sintaxe de filtro OR do Supabase para buscar no order_number (exato) OU observacoes (ilike)
+      // Nota: order_number é um inteiro, então usamos 'eq' ou 'in'
+      query = query.or(`order_number.eq.${orderNumber},observacoes.ilike.%${finalSearchTerm}%`);
+      
+    } else {
+      // Se for texto, buscamos apenas em observacoes (ilike)
+      query = query.ilike('observacoes', `%${finalSearchTerm}%`);
+    }
   }
 
 
