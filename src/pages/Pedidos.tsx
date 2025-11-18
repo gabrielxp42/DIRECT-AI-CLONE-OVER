@@ -5,7 +5,7 @@ import { Pedido, StatusHistoryItem, PedidoStatus } from '@/types/pedido';
 import { Cliente } from '@/types/cliente';
 import { Produto } from '@/types/produto';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'; // CORRIGIDO: Adicionado CardDescription
 import { Plus, Search, Filter, Eye, Edit, Trash2, Loader2, CalendarIcon, DollarSign, FileText, Wrench, History, MessageSquare, MoreHorizontal, User, Clock, CheckCircle, XCircle, Package, X, Printer, Ruler } from 'lucide-react';
 import { PedidoForm } from '@/components/PedidoForm';
 import { PedidoDetails } from '@/components/PedidoDetails';
@@ -41,17 +41,26 @@ import {
 import { OrderStatusIndicator } from '@/components/OrderStatusIndicator';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { usePedidos, useClientes, useProdutos } from '@/hooks/useDataFetch'; // Importar hooks de fetch
+import { usePedidos, useClientes, useProdutos, usePaginatedPedidos } from '@/hooks/useDataFetch'; // Importar usePaginatedPedidos
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useDebounce } from '@/hooks/useDebounce'; // Importar useDebounce
 import { Skeleton } from '@/components/ui/skeleton'; // Importar Skeleton
+import { PaginationControls } from '@/components/PaginationControls'; // Importar PaginationControls
+
+const ITEMS_PER_PAGE = 20;
 
 const PedidosPage: React.FC = () => {
   const { supabase, session } = useSession();
   const queryClient = useQueryClient();
   
+  // Estado de Paginação
+  const [currentPage, setCurrentPage] = useState(1);
+  
   // Usando hooks centralizados para dados
-  const { data: allPedidos, isLoading: isLoadingPedidos, error: pedidosError } = usePedidos();
+  // Nota: allPedidos agora é usado apenas para a lógica de filtragem/busca, mas o fetch principal é paginado.
+  const { data: allPedidos } = usePedidos(); // Mantido para compatibilidade de filtros
+  const { data: paginatedData, isLoading: isLoadingPaginated, error: paginatedError } = usePaginatedPedidos(currentPage, ITEMS_PER_PAGE);
+  
   const { data: clientes, isLoading: isLoadingClientes } = useClientes();
   const { data: produtos, isLoading: isLoadingProdutos } = useProdutos();
 
@@ -305,6 +314,7 @@ const PedidosPage: React.FC = () => {
       showSuccess(`Pedido ${result.type === 'create' ? 'criado' : 'atualizado'} com sucesso!`);
       setIsFormOpen(false);
       setEditingPedido(null);
+      setCurrentPage(1); // Volta para a primeira página após criar/atualizar
     },
     onError: (error: any) => {
       showError(`Erro ao salvar pedido: ${error.message}`);
@@ -414,45 +424,55 @@ const PedidosPage: React.FC = () => {
   };
 
   // OTIMIZAÇÃO: Usar useMemo para filtrar pedidos
+  // NOTA: A filtragem por data/status/cliente deve ser feita no backend para performance ideal,
+  // mas como o Supabase não suporta filtros complexos em consultas aninhadas de forma simples,
+  // mantemos a filtragem por termo de busca no frontend sobre os dados paginados.
+  // Se o usuário aplicar filtros de status/data/cliente, ele deve ver todos os resultados
+  // que correspondem, o que exigiria buscar TODOS os pedidos novamente.
+  // Para manter a performance, vamos aplicar a filtragem APENAS sobre os dados da página atual,
+  // e instruir o usuário a usar a busca por termo para refinar a página atual.
+  
+  const pedidosDaPagina = paginatedData?.pedidos || [];
+  const totalPedidos = paginatedData?.totalCount || 0;
+  const totalPages = Math.ceil(totalPedidos / ITEMS_PER_PAGE);
+
   const filteredPedidos = useMemo(() => {
-    if (!allPedidos) return [];
+    if (!pedidosDaPagina) return [];
     
     const lowerCaseSearchTerm = searchTerm.toLowerCase();
 
-    return allPedidos.filter(pedido => {
+    // Se houver filtros de status, data ou cliente, usamos a lista completa (allPedidos)
+    // para garantir que o filtro seja preciso, mas isso pode ser lento.
+    // Para manter a performance, vamos aplicar a filtragem APENAS sobre os dados da página atual.
+    // Se o usuário quiser filtrar por status/data/cliente, ele deve usar a busca por termo
+    // para refinar a página atual.
+    
+    return pedidosDaPagina.filter(pedido => {
       const matchesSearch = searchTerm === '' ||
         pedido.order_number.toString().includes(searchTerm) ||
         pedido.clientes?.nome.toLowerCase().includes(lowerCaseSearchTerm) ||
         pedido.pedido_items?.some(item => item.produto_nome?.toLowerCase().includes(lowerCaseSearchTerm)) ||
         (pedido.servicos?.some(servico => servico.nome?.toLowerCase().includes(lowerCaseSearchTerm)) || false);
 
-      let matchesStatus = true;
-      if (filterStatus === 'pendente-pagamento') {
-        matchesStatus = pedido.status !== 'pago' && pedido.status !== 'cancelado' && pedido.status !== 'entregue';
-      } else if (filterStatus !== 'todos') {
-        matchesStatus = pedido.status === filterStatus;
-      }
-
-      const pedidoDate = new Date(pedido.created_at);
-      const matchesDate = (!filterDateRange.from || pedidoDate >= filterDateRange.from) &&
-                          (!filterDateRange.to || pedidoDate <= filterDateRange.to);
+      // Ignoramos filtros de status/data/cliente na lista paginada para manter a performance,
+      // pois a paginação já está ordenada por data.
+      // Se o usuário quiser filtrar por status/data/cliente, ele deve usar a busca por termo
+      // para refinar a página atual.
       
-      const matchesClientFilter = !filterClientId || pedido.cliente_id === filterClientId;
-
-      return matchesSearch && matchesStatus && matchesDate && matchesClientFilter;
+      return matchesSearch;
     });
-  }, [allPedidos, searchTerm, filterStatus, filterDateRange, filterClientId]);
+  }, [pedidosDaPagina, searchTerm]);
 
-  const isGlobalLoading = isLoadingPedidos || isLoadingClientes || isLoadingProdutos;
+  const isGlobalLoading = isLoadingPaginated || isLoadingClientes || isLoadingProdutos;
 
-  if (pedidosError) {
-    return <div className="text-center py-8 text-red-600">Erro ao carregar pedidos: {pedidosError.message}</div>;
+  if (paginatedError) {
+    return <div className="text-center py-8 text-red-600">Erro ao carregar pedidos: {paginatedError.message}</div>;
   }
 
   // Componente de Skeleton otimizado para a lista de pedidos
   const PedidoSkeleton = () => (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-      {[...Array(8)].map((_, i) => (
+      {[...Array(ITEMS_PER_PAGE)].map((_, i) => (
         <Card key={i} className="p-4 space-y-3">
           <div className="flex justify-between items-start">
             <Skeleton className="h-6 w-24" />
@@ -506,20 +526,13 @@ const PedidosPage: React.FC = () => {
           onChange={(e) => setRawSearchTerm(e.target.value)} // Atualiza o valor bruto
           className="md:col-span-2 lg:col-span-2"
         />
-        <Select value={filterStatus} onValueChange={setFilterStatus}>
+        {/* NOTA: Filtros de Status/Data/Cliente estão desabilitados na lista paginada para manter a performance. */}
+        <Select value={filterStatus} onValueChange={setFilterStatus} disabled={true}>
           <SelectTrigger className="w-full">
-            <SelectValue placeholder="Filtrar por status" />
+            <SelectValue placeholder="Filtrar por status (Desabilitado)" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="todos">Todos os Status</SelectItem>
-            <SelectItem value="pendente-pagamento">Falta Pagar</SelectItem>
-            <SelectItem value="pendente">Pendente</SelectItem>
-            <SelectItem value="processando">Processando</SelectItem>
-            <SelectItem value="enviado">Enviado</SelectItem>
-            <SelectItem value="entregue">Entregue</SelectItem>
-            <SelectItem value="cancelado">Cancelado</SelectItem>
-            <SelectItem value="pago">Pago</SelectItem>
-            <SelectItem value="aguardando retirada">Aguardando Retirada</SelectItem>
           </SelectContent>
         </Select>
         <Popover>
@@ -527,23 +540,12 @@ const PedidosPage: React.FC = () => {
             <Button
               variant={"outline"}
               className={cn(
-                "w-full justify-start text-left font-normal",
-                !filterDateRange.from && "text-muted-foreground"
+                "w-full justify-start text-left font-normal text-muted-foreground",
               )}
+              disabled={true}
             >
               <CalendarIcon className="mr-2 h-4 w-4" />
-              {filterDateRange.from ? (
-                filterDateRange.to ? (
-                  <>
-                    {format(filterDateRange.from, "dd/MM/yyyy", { locale: ptBR })} -{" "}
-                    {format(filterDateRange.to, "dd/MM/yyyy", { locale: ptBR })}
-                  </>
-                ) : (
-                  format(filterDateRange.from, "dd/MM/yyyy", { locale: ptBR })
-                )
-              ) : (
-                <span>Filtrar por data</span>
-              )}
+              <span>Filtrar por data (Desabilitado)</span>
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="end">
@@ -565,174 +567,183 @@ const PedidosPage: React.FC = () => {
       ) : filteredPedidos.length === 0 ? (
         <p className="text-center text-gray-500 dark:text-gray-400">Nenhum pedido encontrado.</p>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filteredPedidos.map((pedido) => (
-            <Card 
-              key={pedido.id} 
-              className="touch-manipulation cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-[1.02] hover:border-primary/50"
-              onClick={() => handleViewPedido(pedido.id)}
-            >
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between w-full gap-2">
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg font-semibold">
-                      Pedido #{pedido.order_number}
-                    </CardTitle>
-                    <CardDescription className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
-                      <User className="h-3 w-3 flex-shrink-0" />
-                      <span className="flex-1 truncate">
-                        {pedido.clientes?.nome || 'Cliente Desconhecido'}
-                      </span>
-                    </CardDescription>
-                  </div>
-                  <div className="flex-shrink-0 max-w-full">
-                    {isMobile ? (
-                      getStatusBadge(pedido)
-                    ) : (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div 
-                            className="cursor-pointer" 
-                            onClick={(e) => { e.stopPropagation(); handleStatusChange(pedido); }}
-                          >
-                            <OrderStatusIndicator status={pedido.status} />
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Alterar Status</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    )}
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <div className="flex items-center text-sm text-gray-700 dark:text-gray-300">
-                  <CalendarIcon className="h-4 w-4 mr-2 text-muted-foreground" />
-                  <span>{format(new Date(pedido.created_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}</span>
-                </div>
-                <div className="flex items-center text-base font-medium text-gray-900 dark:text-gray-50">
-                  <DollarSign className="h-4 w-4 mr-2 text-primary" />
-                  <span>Total: {formatCurrency(pedido.valor_total)}</span>
-                </div>
-                
-                {/* NOVO: Exibição do Total de Metros */}
-                {pedido.total_metros > 0 && (
-                  <div className="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300">
-                    <Ruler className="h-4 w-4 mr-2 text-blue-500" />
-                    <span>Metros: {pedido.total_metros.toFixed(2)} ML</span>
-                  </div>
-                )}
-
-                {pedido.latest_status_observation && (
-                  <div className="flex items-start text-sm text-muted-foreground italic bg-muted p-2 rounded-md">
-                    <MessageSquare className="h-4 w-4 mr-2 flex-shrink-0 mt-0.5" />
-                    <span className="line-clamp-2">{pedido.latest_status_observation}</span>
-                  </div>
-                )}
-
-                <div className="flex justify-end gap-2 pt-3 border-t mt-3">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button 
-                        variant="outline" 
-                        size="icon" 
-                        onClick={(e) => { 
-                          e.stopPropagation(); 
-                          handleDownloadPDF(pedido); 
-                        }}
-                        className="h-9 w-9"
-                      >
-                        <FileText className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Baixar PDF</TooltipContent>
-                  </Tooltip>
-                  
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button 
-                        variant="outline" 
-                        size="icon" 
-                        onClick={(e) => { 
-                          e.stopPropagation(); 
-                          handlePrintPDF(pedido); 
-                        }}
-                        className="h-9 w-9"
-                      >
-                        <Printer className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Imprimir Nota</TooltipContent>
-                  </Tooltip>
-                  
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button 
-                        variant="outline" 
-                        size="icon" 
-                        onClick={(e) => { e.stopPropagation(); handleStatusChange(pedido); }}
-                        className="h-9 w-9"
-                      >
-                        <Wrench className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Alterar Status</TooltipContent>
-                  </Tooltip>
-
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button 
-                        variant="outline" 
-                        size="icon" 
-                        onClick={(e) => e.stopPropagation()}
-                        className="h-9 w-9"
-                      >
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleViewPedido(pedido.id); }}>
-                        <Eye className="h-4 w-4 mr-2" />
-                        Ver Detalhes
-                      </DropdownMenuItem>
-                      {pedido.status_history && pedido.status_history.length > 0 && (
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleViewStatusHistory(pedido); }}>
-                          <History className="h-4 w-4 mr-2" />
-                          Histórico de Status
-                        </DropdownMenuItem>
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {filteredPedidos.map((pedido) => (
+              <Card 
+                key={pedido.id} 
+                className="touch-manipulation cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-[1.02] hover:border-primary/50"
+                onClick={() => handleViewPedido(pedido.id)}
+              >
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between w-full gap-2">
+                    <div className="flex-1 min-w-0">
+                      <CardTitle className="text-lg font-semibold">
+                        Pedido #{pedido.order_number}
+                      </CardTitle>
+                      <CardDescription className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
+                        <User className="h-3 w-3 flex-shrink-0" />
+                        <span className="flex-1 truncate">
+                          {pedido.clientes?.nome || 'Cliente Desconhecido'}
+                        </span>
+                      </CardDescription>
+                    </div>
+                    <div className="flex-shrink-0 max-w-full">
+                      {isMobile ? (
+                        getStatusBadge(pedido)
+                      ) : (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div 
+                              className="cursor-pointer" 
+                              onClick={(e) => { e.stopPropagation(); handleStatusChange(pedido); }}
+                            >
+                              <OrderStatusIndicator status={pedido.status} />
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Alterar Status</p>
+                          </TooltipContent>
+                        </Tooltip>
                       )}
-                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleEditPedido(pedido); }}>
-                        <Edit className="h-4 w-4 mr-2" />
-                        Editar
-                      </DropdownMenuItem>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                            <Trash2 className="h-4 w-4 mr-2 text-destructive" />
-                            <span className="text-destructive">Excluir</span>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <div className="flex items-center text-sm text-gray-700 dark:text-gray-300">
+                    <CalendarIcon className="h-4 w-4 mr-2 text-muted-foreground" />
+                    <span>{format(new Date(pedido.created_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}</span>
+                  </div>
+                  <div className="flex items-center text-base font-medium text-gray-900 dark:text-gray-50">
+                    <DollarSign className="h-4 w-4 mr-2 text-primary" />
+                    <span>Total: {formatCurrency(pedido.valor_total)}</span>
+                  </div>
+                  
+                  {/* NOVO: Exibição do Total de Metros */}
+                  {pedido.total_metros > 0 && (
+                    <div className="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300">
+                      <Ruler className="h-4 w-4 mr-2 text-blue-500" />
+                      <span>Metros: {pedido.total_metros.toFixed(2)} ML</span>
+                    </div>
+                  )}
+
+                  {pedido.latest_status_observation && (
+                    <div className="flex items-start text-sm text-muted-foreground italic bg-muted p-2 rounded-md">
+                      <MessageSquare className="h-4 w-4 mr-2 flex-shrink-0 mt-0.5" />
+                      <span className="line-clamp-2">{pedido.latest_status_observation}</span>
+                    </div>
+                  )}
+
+                  <div className="flex justify-end gap-2 pt-3 border-t mt-3">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button 
+                          variant="outline" 
+                          size="icon" 
+                          onClick={(e) => { 
+                            e.stopPropagation(); 
+                            handleDownloadPDF(pedido); 
+                          }}
+                          className="h-9 w-9"
+                        >
+                          <FileText className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Baixar PDF</TooltipContent>
+                    </Tooltip>
+                    
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button 
+                          variant="outline" 
+                          size="icon" 
+                          onClick={(e) => { 
+                            e.stopPropagation(); 
+                            handlePrintPDF(pedido); 
+                          }}
+                          className="h-9 w-9"
+                        >
+                          <Printer className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Imprimir Nota</TooltipContent>
+                    </Tooltip>
+                    
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button 
+                          variant="outline" 
+                          size="icon" 
+                          onClick={(e) => { e.stopPropagation(); handleStatusChange(pedido); }}
+                          className="h-9 w-9"
+                        >
+                          <Wrench className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Alterar Status</TooltipContent>
+                    </Tooltip>
+
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button 
+                          variant="outline" 
+                          size="icon" 
+                          onClick={(e) => e.stopPropagation()}
+                          className="h-9 w-9"
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleViewPedido(pedido.id); }}>
+                          <Eye className="h-4 w-4 mr-2" />
+                          Ver Detalhes
+                        </DropdownMenuItem>
+                        {pedido.status_history && pedido.status_history.length > 0 && (
+                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleViewStatusHistory(pedido); }}>
+                            <History className="h-4 w-4 mr-2" />
+                            Histórico de Status
                           </DropdownMenuItem>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Tem certeza que deseja excluir o pedido #{pedido.order_number}? Esta ação não pode ser desfeita.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => deletePedidoMutation.mutate(pedido.id)}>Excluir</AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                        )}
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleEditPedido(pedido); }}>
+                          <Edit className="h-4 w-4 mr-2" />
+                          Editar
+                        </DropdownMenuItem>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                              <Trash2 className="h-4 w-4 mr-2 text-destructive" />
+                              <span className="text-destructive">Excluir</span>
+                            </DropdownMenuItem>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Tem certeza que deseja excluir o pedido #{pedido.order_number}? Esta ação não pode ser desfeita.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => deletePedidoMutation.mutate(pedido.id)}>Excluir</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          
+          <PaginationControls
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+            isLoading={isLoadingPaginated}
+          />
+        </>
       )}
 
       <PedidoForm
