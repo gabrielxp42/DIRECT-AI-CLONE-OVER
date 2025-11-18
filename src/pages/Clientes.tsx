@@ -142,11 +142,16 @@ const Clientes = () => {
 
   // OTIMIZAÇÃO: Usar useMemo para filtrar clientes
   const filteredClientes = useMemo(() => {
-    return clientes?.filter(cliente =>
-      cliente.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (cliente.email && cliente.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    if (!clientes) return [];
+    if (!searchTerm) return clientes; // Retorna todos se a busca estiver vazia
+
+    const lowerCaseSearchTerm = searchTerm.toLowerCase();
+    
+    return clientes.filter(cliente =>
+      cliente.nome.toLowerCase().includes(lowerCaseSearchTerm) ||
+      (cliente.email && cliente.email.toLowerCase().includes(lowerCaseSearchTerm)) ||
       (cliente.telefone && cliente.telefone.includes(searchTerm))
-    ) || [];
+    );
   }, [clientes, searchTerm]); // Depende do valor debounced
 
   if (isLoading) {
@@ -185,7 +190,7 @@ const Clientes = () => {
       </div>
 
       <div className="flex items-center space-x-2">
-        <div className="relative flex-1 max-w-full sm:max-w-sm"> {/* Ajustado max-w-full para mobile */}
+        <div className="relative flex-1 max-w-full sm:max-w-sm">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Buscar clientes..."
@@ -302,13 +307,13 @@ const Clientes = () => {
         initialData={editingCliente}
       />
 
-      {/* Modal de Detalhes - Ajustado para ser responsivo */}
+      {/* Modal de Detalhes */}
       {selectedClient && (
         <Dialog 
           open={!!selectedClient} 
           onOpenChange={(open) => !open && setSelectedClient(null)}
         >
-          <DialogContent className="sm:max-w-[450px] max-w-[95vw] max-h-[95vh] p-0"> {/* Ajustado max-w para mobile */}
+          <DialogContent className="sm:max-w-[450px] max-w-[95vw] max-h-[95vh] p-0">
             {/* Adicionando DialogHeader/Title/Description para acessibilidade */}
             <DialogHeader className="sr-only">
               <DialogTitle>Detalhes do Cliente: {selectedClient.nome}</DialogTitle>

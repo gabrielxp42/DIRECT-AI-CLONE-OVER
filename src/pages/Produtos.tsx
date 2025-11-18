@@ -42,6 +42,7 @@ import { LowStockAlert } from "@/components/LowStockAlert";
 import { showSuccess, showError } from "@/utils/toast";
 import { useProdutos } from "@/hooks/useDataFetch"; // Importar o novo hook
 import { useDebounce } from "@/hooks/useDebounce"; // Importar useDebounce
+import { Skeleton } from "@/components/ui/skeleton"; // Importar Skeleton
 
 const Produtos = () => {
   const { supabase, session } = useSession();
@@ -139,10 +140,15 @@ const Produtos = () => {
   };
 
   const filteredProdutos = useMemo(() => {
-    return produtos?.filter(produto =>
-      produto.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      produto.descricao?.toLowerCase().includes(searchTerm.toLowerCase())
-    ) || [];
+    if (!produtos) return [];
+    if (!searchTerm) return produtos; // Retorna todos se a busca estiver vazia
+    
+    const lowerCaseSearchTerm = searchTerm.toLowerCase();
+    
+    return produtos.filter(produto =>
+      produto.nome.toLowerCase().includes(lowerCaseSearchTerm) ||
+      produto.descricao?.toLowerCase().includes(lowerCaseSearchTerm)
+    );
   }, [produtos, searchTerm]); // Depende do valor debounced
 
   const getStockStatus = (estoque: number | null) => {
