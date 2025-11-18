@@ -9,7 +9,7 @@ const fetchClientes = async (supabase: any, userId: string): Promise<Cliente[]> 
   const { data, error } = await supabase
     .from('clientes')
     .select('*')
-    .eq('user_id', userId)
+    // REMOVIDO: Filtro explícito por user_id. A RLS já garante que apenas dados do usuário ou da organização sejam retornados.
     .order('created_at', { ascending: false });
 
   if (error) throw error;
@@ -33,7 +33,7 @@ const fetchProdutos = async (supabase: any, userId: string): Promise<Produto[]> 
   const { data, error } = await supabase
     .from('produtos')
     .select('*')
-    .eq('user_id', userId)
+    // REMOVIDO: Filtro explícito por user_id. A RLS já garante que apenas dados do usuário ou da organização sejam retornados.
     .order('created_at', { ascending: false });
 
   if (error) throw error;
