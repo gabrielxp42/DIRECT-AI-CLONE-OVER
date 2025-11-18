@@ -69,11 +69,14 @@ const fetchPedidos = async (supabase: any, userId: string): Promise<Pedido[]> =>
   if (pedidosError) throw pedidosError;
 
   // Mapear e processar os dados (ordenar histórico e pegar última observação)
+  // Este processamento é feito APENAS uma vez após o fetch, o que é eficiente.
   const pedidosCompletos = pedidosData?.map(pedido => {
+    // Ordenação do histórico: mais recente primeiro
     const orderedHistory = (pedido.pedido_status_history || []).sort((a, b) => 
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );
     
+    // Última observação do histórico
     const latestObservation = orderedHistory.length > 0 ? orderedHistory[0].observacao : null;
     
     return {
@@ -96,6 +99,7 @@ export const usePedidos = () => {
     queryKey: ["pedidos", userId],
     queryFn: () => fetchPedidos(supabase, userId!),
     enabled: !!supabase && !!userId,
-    staleTime: 60 * 1000, // 1 minuto de cache para pedidos (mais dinâmico)
+    // Aumentando o staleTime para 5 minutos para reduzir re-fetches desnecessários
+    staleTime: 5 * 60 * 1000, 
   });
 };

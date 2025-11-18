@@ -5,7 +5,7 @@ import { Pedido, StatusHistoryItem, PedidoStatus } from '@/types/pedido';
 import { Cliente } from '@/types/cliente';
 import { Produto } from '@/types/produto';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Plus, Search, Filter, Eye, Edit, Trash2, Loader2, CalendarIcon, DollarSign, FileText, Wrench, History, MessageSquare, MoreHorizontal, User, Clock, CheckCircle, XCircle, Package, X, Printer, Ruler } from 'lucide-react';
 import { PedidoForm } from '@/components/PedidoForm';
 import { PedidoDetails } from '@/components/PedidoDetails';
@@ -44,6 +44,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { usePedidos, useClientes, useProdutos } from '@/hooks/useDataFetch'; // Importar hooks de fetch
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useDebounce } from '@/hooks/useDebounce'; // Importar useDebounce
+import { Skeleton } from '@/components/ui/skeleton'; // Importar Skeleton
 
 const PedidosPage: React.FC = () => {
   const { supabase, session } = useSession();
@@ -414,12 +415,16 @@ const PedidosPage: React.FC = () => {
 
   // OTIMIZAÇÃO: Usar useMemo para filtrar pedidos
   const filteredPedidos = useMemo(() => {
-    return allPedidos?.filter(pedido => {
+    if (!allPedidos) return [];
+    
+    const lowerCaseSearchTerm = searchTerm.toLowerCase();
+
+    return allPedidos.filter(pedido => {
       const matchesSearch = searchTerm === '' ||
         pedido.order_number.toString().includes(searchTerm) ||
-        pedido.clientes?.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        pedido.pedido_items?.some(item => item.produto_nome?.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (pedido.servicos?.some(servico => servico.nome?.toLowerCase().includes(searchTerm.toLowerCase())) || false);
+        pedido.clientes?.nome.toLowerCase().includes(lowerCaseSearchTerm) ||
+        pedido.pedido_items?.some(item => item.produto_nome?.toLowerCase().includes(lowerCaseSearchTerm)) ||
+        (pedido.servicos?.some(servico => servico.nome?.toLowerCase().includes(lowerCaseSearchTerm)) || false);
 
       let matchesStatus = true;
       if (filterStatus === 'pendente-pagamento') {
@@ -435,7 +440,7 @@ const PedidosPage: React.FC = () => {
       const matchesClientFilter = !filterClientId || pedido.cliente_id === filterClientId;
 
       return matchesSearch && matchesStatus && matchesDate && matchesClientFilter;
-    }) || [];
+    });
   }, [allPedidos, searchTerm, filterStatus, filterDateRange, filterClientId]);
 
   const isGlobalLoading = isLoadingPedidos || isLoadingClientes || isLoadingProdutos;
@@ -443,6 +448,28 @@ const PedidosPage: React.FC = () => {
   if (pedidosError) {
     return <div className="text-center py-8 text-red-600">Erro ao carregar pedidos: {pedidosError.message}</div>;
   }
+
+  // Componente de Skeleton otimizado para a lista de pedidos
+  const PedidoSkeleton = () => (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      {[...Array(8)].map((_, i) => (
+        <Card key={i} className="p-4 space-y-3">
+          <div className="flex justify-between items-start">
+            <Skeleton className="h-6 w-24" />
+            <Skeleton className="h-5 w-16" />
+          </div>
+          <Skeleton className="h-4 w-3/4" />
+          <Skeleton className="h-4 w-1/2" />
+          <Skeleton className="h-4 w-2/3" />
+          <div className="flex justify-end gap-2 pt-3 border-t">
+            <Skeleton className="h-9 w-9 rounded-full" />
+            <Skeleton className="h-9 w-9 rounded-full" />
+            <Skeleton className="h-9 w-9 rounded-full" />
+          </div>
+        </Card>
+      ))}
+    </div>
+  );
 
   return (
     <div className="container mx-auto p-4">
@@ -534,9 +561,7 @@ const PedidosPage: React.FC = () => {
       </div>
 
       {isGlobalLoading ? (
-        <div className="flex justify-center items-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
+        <PedidoSkeleton />
       ) : filteredPedidos.length === 0 ? (
         <p className="text-center text-gray-500 dark:text-gray-400">Nenhum pedido encontrado.</p>
       ) : (
@@ -555,15 +580,9 @@ const PedidosPage: React.FC = () => {
                     </CardTitle>
                     <CardDescription className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
                       <User className="h-3 w-3 flex-shrink-0" />
-                      {isMobile ? (
-                        <span className="flex-1 truncate">
-                          {pedido.clientes?.nome || 'Cliente Desconhecido'}
-                        </span>
-                      ) : (
-                        <span className="flex-1 truncate">
-                          {pedido.clientes?.nome || 'Cliente Desconhecido'}
-                        </span>
-                      )}
+                      <span className="flex-1 truncate">
+                        {pedido.clientes?.nome || 'Cliente Desconhecido'}
+                      </span>
                     </CardDescription>
                   </div>
                   <div className="flex-shrink-0 max-w-full">
