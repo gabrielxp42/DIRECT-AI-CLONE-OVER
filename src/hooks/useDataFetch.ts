@@ -71,6 +71,11 @@ const fetchPedidos = async (
   organizationId: string | null 
 ): Promise<PaginatedPedidosResult> => {
   
+  // VALIDAÇÃO CRÍTICA
+  if (!supabase || typeof supabase.from !== 'function') {
+    throw new Error("Supabase client is not properly initialized or available.");
+  }
+  
   const start = (page - 1) * limit;
   const end = start + limit - 1;
 
@@ -204,6 +209,11 @@ export const usePedidos = () => {
   const userId = session?.user.id;
 
   const fetchAllPedidos = async (supabase: SupabaseClient, userId: string): Promise<Pedido[]> => {
+    // VALIDAÇÃO CRÍTICA
+    if (!supabase || typeof supabase.from !== 'function') {
+      throw new Error("Supabase client is not properly initialized or available.");
+    }
+    
     const { data: pedidosData, error: pedidosError } = await supabase
       .from('pedidos')
       .select(`
