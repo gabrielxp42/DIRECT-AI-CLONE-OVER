@@ -24,21 +24,35 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
 
   useEffect(() => {
     const fetchProfile = async (userId: string) => {
+      if (!supabaseClient) {
+        console.error('Supabase client is undefined during fetchProfile.');
+        return null;
+      }
+      
+      // Alterado de .single() para .limit(1) para ser mais robusto contra 406
       const { data, error } = await supabaseClient
         .from('profiles')
         .select('organization_id')
         .eq('id', userId)
-        .single();
+        .limit(1);
 
       if (error) {
         console.error('Error fetching profile:', error);
         return null;
       }
-      return data?.organization_id || null;
+      
+      // Pega o primeiro item do array, se existir
+      return data?.[0]?.organization_id || null;
     };
 
     const getSession = async () => {
       try {
+        if (!supabaseClient) {
+          console.error('Supabase client is undefined during getSession.');
+          setIsLoading(false);
+          return;
+        }
+        
         const { data: { session: currentSession }, error } = await supabaseClient.auth.getSession();
         
         if (error) {
@@ -61,6 +75,8 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
     };
 
     getSession();
+
+    if (!supabaseClient) return; // Evita a subscrição se o cliente for nulo
 
     const { data: { subscription } } = supabaseClient.auth.onAuthStateChange(
       async (event, session) => {

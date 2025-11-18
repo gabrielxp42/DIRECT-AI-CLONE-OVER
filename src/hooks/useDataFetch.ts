@@ -3,9 +3,10 @@ import { useSession } from "@/contexts/SessionProvider";
 import { Cliente } from "@/types/cliente";
 import { Pedido } from "@/types/pedido";
 import { Produto } from "@/types/produto";
+import { SupabaseClient } from "@supabase/supabase-js"; // Importar SupabaseClient
 
 // --- Fetch Clientes ---
-const fetchClientes = async (supabase: any, userId: string): Promise<Cliente[]> => {
+const fetchClientes = async (supabase: SupabaseClient, userId: string): Promise<Cliente[]> => {
   const { data, error } = await supabase
     .from('clientes')
     .select('*')
@@ -29,7 +30,7 @@ export const useClientes = () => {
 };
 
 // --- Fetch Produtos ---
-const fetchProdutos = async (supabase: any, userId: string): Promise<Produto[]> => {
+const fetchProdutos = async (supabase: SupabaseClient, userId: string): Promise<Produto[]> => {
   const { data, error } = await supabase
     .from('produtos')
     .select('*')
@@ -59,7 +60,7 @@ interface PaginatedPedidosResult {
 }
 
 const fetchPedidos = async (
-  supabase: any, 
+  supabase: SupabaseClient, // Garantindo que é SupabaseClient
   userId: string, 
   page: number, 
   limit: number,
@@ -67,7 +68,7 @@ const fetchPedidos = async (
   filterDateRange: { from?: Date; to?: Date },
   filterClientId: string | null,
   searchTerm: string,
-  organizationId: string | null // NOVO PARÂMETRO
+  organizationId: string | null 
 ): Promise<PaginatedPedidosResult> => {
   
   const start = (page - 1) * limit;
@@ -185,7 +186,13 @@ export const usePaginatedPedidos = (
 
   return useQuery<PaginatedPedidosResult>({
     queryKey: queryKey,
-    queryFn: () => fetchPedidos(supabase, userId!, page, limit, filterStatus, filterDateRange, filterClientId, searchTerm, organizationId),
+    queryFn: () => {
+      if (!supabase || !userId) {
+        // Isso não deve acontecer se enabled for false, mas é uma segurança extra
+        throw new Error("Supabase client or User ID is missing.");
+      }
+      return fetchPedidos(supabase, userId, page, limit, filterStatus, filterDateRange, filterClientId, searchTerm, organizationId);
+    },
     enabled: !!supabase && !!userId,
     staleTime: 5 * 60 * 1000, 
   });
@@ -196,7 +203,7 @@ export const usePedidos = () => {
   const { supabase, session } = useSession();
   const userId = session?.user.id;
 
-  const fetchAllPedidos = async (supabase: any, userId: string): Promise<Pedido[]> => {
+  const fetchAllPedidos = async (supabase: SupabaseClient, userId: string): Promise<Pedido[]> => {
     const { data: pedidosData, error: pedidosError } = await supabase
       .from('pedidos')
       .select(`
