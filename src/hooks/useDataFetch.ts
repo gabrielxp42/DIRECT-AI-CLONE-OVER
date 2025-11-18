@@ -23,7 +23,10 @@ export const useClientes = () => {
 
   return useQuery<Cliente[]>({
     queryKey: ["clientes", userId],
-    queryFn: () => fetchClientes(supabase, userId!),
+    queryFn: () => {
+      if (!supabase || !userId) throw new Error("Supabase client or User ID is missing.");
+      return fetchClientes(supabase, userId);
+    },
     enabled: !!supabase && !!userId,
     staleTime: 5 * 60 * 1000, // 5 minutos de cache
   });
@@ -47,7 +50,10 @@ export const useProdutos = () => {
 
   return useQuery<Produto[]>({
     queryKey: ["produtos", userId],
-    queryFn: () => fetchProdutos(supabase, userId!),
+    queryFn: () => {
+      if (!supabase || !userId) throw new Error("Supabase client or User ID is missing.");
+      return fetchProdutos(supabase, userId);
+    },
     enabled: !!supabase && !!userId,
     staleTime: 5 * 60 * 1000, // 5 minutos de cache
   });
@@ -73,6 +79,7 @@ const fetchPedidos = async (
   
   // VALIDAÇÃO CRÍTICA
   if (!supabase || typeof supabase.from !== 'function') {
+    // Esta verificação deve ser redundante se o enabled estiver correto, mas é mantida por segurança.
     throw new Error("Supabase client is not properly initialized or available.");
   }
   
@@ -193,7 +200,7 @@ export const usePaginatedPedidos = (
     queryKey: queryKey,
     queryFn: () => {
       if (!supabase || !userId) {
-        // Isso não deve acontecer se enabled for false, mas é uma segurança extra
+        // Lançar erro aqui para ser capturado pelo React Query e evitar a chamada de fetchPedidos com null/undefined
         throw new Error("Supabase client or User ID is missing.");
       }
       return fetchPedidos(supabase, userId, page, limit, filterStatus, filterDateRange, filterClientId, searchTerm, organizationId);
@@ -247,7 +254,10 @@ export const usePedidos = () => {
 
   return useQuery<Pedido[]>({
     queryKey: ["all-pedidos-unpaginated", userId], // Chave alterada para evitar conflito
-    queryFn: () => fetchAllPedidos(supabase, userId!),
+    queryFn: () => {
+      if (!supabase || !userId) throw new Error("Supabase client or User ID is missing.");
+      return fetchAllPedidos(supabase, userId);
+    },
     enabled: !!supabase && !!userId,
     staleTime: 5 * 60 * 1000, 
   });
