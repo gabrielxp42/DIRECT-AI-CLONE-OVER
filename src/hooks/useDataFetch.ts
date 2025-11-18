@@ -77,9 +77,8 @@ const fetchPedidos = async (
   organizationId: string | null 
 ): Promise<PaginatedPedidosResult> => {
   
-  // VALIDAÇÃO CRÍTICA
+  // VALIDAÇÃO CRÍTICA: Se o cliente Supabase não estiver aqui, algo deu errado no hook chamador.
   if (!supabase || typeof supabase.from !== 'function') {
-    // Esta verificação deve ser redundante se o enabled estiver correto, mas é mantida por segurança.
     throw new Error("Supabase client is not properly initialized or available.");
   }
   
@@ -131,19 +130,34 @@ const fetchPedidos = async (
       
     } else {
       // Se for texto, tentamos buscar clientes por nome fuzzy, passando o organizationId
-      const { data: fuzzyClients, error: fuzzyError } = await supabase
-        .rpc('find_client_by_fuzzy_name', { 
-          partial_name: trimmedSearchTerm,
-          similarity_threshold: 0.3,
-          organization_id_filter: organizationId // PASSANDO O ORGANIZATION ID
-        });
+      let clientIds: string[] = [];
+      
+      try {
+        const { data: fuzzyClients, error: fuzzyError } = await supabase
+          .rpc('find_client_by_fuzzy_name', { 
+            partial_name: trimmedSearchTerm,
+            similarity_threshold: 0.3,
+            organization_id_filter: organizationId // PASSANDO O ORGANIZATION ID
+          });
 
-      if (!fuzzyError && fuzzyClients && fuzzyClients.length > 0) {
-        const clientIds = fuzzyClients.map((c: { id: string }) => c.id);
+        if (fuzzyError) {
+          console.error("Erro na RPC find_client_by_fuzzy_name:", fuzzyError);
+          // Não lançamos o erro aqui, apenas logamos e continuamos com a busca por observações
+        }
+
+        if (fuzzyClients && fuzzyClients.length > 0) {
+          clientIds = fuzzyClients.map((c: { id: string }) => c.id);
+        }
+      } catch (e) {
+        console.error("Erro fatal ao chamar RPC find_client_by_fuzzy_name:", e);
+        // Se a RPC falhar completamente, clientIds permanece vazio e caímos no fallback
+      }
+
+      if (clientIds.length > 0) {
         // Se encontrou clientes, filtramos por ID do cliente
         query = query.in('cliente_id', clientIds);
       } else {
-        // Se não encontrou clientes, buscamos o termo nas observações
+        // Se não encontrou clientes (ou a RPC falhou), buscamos o termo nas observações
         query = query.ilike('observacoes', `%${trimmedSearchTerm}%`);
       }
     }
@@ -199,8 +213,8 @@ export const usePaginatedPedidos = (
   return useQuery<PaginatedPedidosResult>({
     queryKey: queryKey,
     queryFn: () => {
+      // A verificação de supabase e userId é feita aqui, e o cliente é passado para fetchPedidos
       if (!supabase || !userId) {
-        // Lançar erro aqui para ser capturado pelo React Query e evitar a chamada de fetchPedidos com null/undefined
         throw new Error("Supabase client or User ID is missing.");
       }
       return fetchPedidos(supabase, userId, page, limit, filterStatus, filterDateRange, filterClientId, searchTerm, organizationId);
