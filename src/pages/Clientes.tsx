@@ -185,7 +185,7 @@ const Clientes = () => {
       </div>
 
       <div className="flex items-center space-x-2">
-        <div className="relative flex-1 max-w-sm">
+        <div className="relative flex-1 max-w-full sm:max-w-sm"> {/* Ajustado max-w-full para mobile */}
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Buscar clientes..."
@@ -196,94 +196,91 @@ const Clientes = () => {
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3 xl:grid-cols-4">
-        <div className="lg:col-span-3 xl:col-span-4">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
-            {filteredClientes.map((cliente) => (
-              <Card 
-                key={cliente.id} 
-                className="hover:shadow-xl transition-all duration-300 hover:scale-[1.02] cursor-pointer"
-                onClick={() => handleViewDetails(cliente)}
-              >
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">{cliente.nome}</CardTitle>
-                    <Badge variant={cliente.status === 'ativo' ? 'default' : 'secondary'}>
-                      {cliente.status}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {cliente.email && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Mail className="h-4 w-4" />
-                      <span className="truncate">{cliente.email}</span>
-                    </div>
-                  )}
-                  {cliente.telefone && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Phone className="h-4 w-4" />
-                      <span>{cliente.telefone}</span>
-                    </div>
-                  )}
-                  {cliente.endereco && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <MapPin className="h-4 w-4" />
-                      <span className="truncate">{cliente.endereco}</span>
-                    </div>
-                  )}
-                  {cliente.valor_metro !== null && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <DollarSign className="h-4 w-4" />
-                      <span>Valor do Metro: {formatCurrency(cliente.valor_metro)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-end gap-2 pt-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={(e) => { e.stopPropagation(); handleViewDetails(cliente); }}
-                      className="transition-all duration-200 hover:bg-primary/10"
-                    >
-                      <Eye className="h-4 w-4 mr-1" />
-                      Detalhes
+      {/* Grid de Clientes - Simplificado para melhor responsividade */}
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {filteredClientes.map((cliente) => (
+          <Card 
+            key={cliente.id} 
+            className="hover:shadow-xl transition-all duration-300 hover:scale-[1.02] cursor-pointer"
+            onClick={() => handleViewDetails(cliente)}
+          >
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg">{cliente.nome}</CardTitle>
+                <Badge variant={cliente.status === 'ativo' ? 'default' : 'secondary'}>
+                  {cliente.status}
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {cliente.email && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Mail className="h-4 w-4" />
+                  <span className="truncate">{cliente.email}</span>
+                </div>
+              )}
+              {cliente.telefone && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Phone className="h-4 w-4" />
+                  <span>{cliente.telefone}</span>
+                </div>
+              )}
+              {cliente.endereco && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <MapPin className="h-4 w-4" />
+                  <span className="truncate">{cliente.endereco}</span>
+                </div>
+              )}
+              {cliente.valor_metro !== null && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <DollarSign className="h-4 w-4" />
+                  <span>Valor do Metro: {formatCurrency(cliente.valor_metro)}</span>
+                </div>
+              )}
+              <div className="flex justify-end gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={(e) => { e.stopPropagation(); handleViewDetails(cliente); }}
+                  className="transition-all duration-200 hover:bg-primary/10"
+                >
+                  <Eye className="h-4 w-4 mr-1" />
+                  Detalhes
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={(e) => { e.stopPropagation(); handleEdit(cliente); }}
+                  className="transition-all duration-200 hover:bg-primary/10"
+                >
+                  <Edit className="h-4 w-4" />
+                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="outline" size="sm" onClick={(e) => e.stopPropagation()} className="transition-all duration-200 hover:bg-destructive/10 hover:text-destructive">
+                      <Trash2 className="h-4 w-4" />
                     </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={(e) => { e.stopPropagation(); handleEdit(cliente); }}
-                      className="transition-all duration-200 hover:bg-primary/10"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="outline" size="sm" onClick={(e) => e.stopPropagation()} className="transition-all duration-200 hover:bg-destructive/10 hover:text-destructive">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Tem certeza que deseja excluir o cliente "{cliente.nome}"? 
-                            Esta ação não pode ser desfeita.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => handleDelete(cliente.id)}>
-                            Excluir
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Tem certeza que deseja excluir o cliente "{cliente.nome}"? 
+                        Esta ação não pode ser desfeita.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => handleDelete(cliente.id)}>
+                        Excluir
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       {filteredClientes.length === 0 && (
@@ -305,13 +302,13 @@ const Clientes = () => {
         initialData={editingCliente}
       />
 
-      {/* Modal de Detalhes */}
+      {/* Modal de Detalhes - Ajustado para ser responsivo */}
       {selectedClient && (
         <Dialog 
           open={!!selectedClient} 
           onOpenChange={(open) => !open && setSelectedClient(null)}
         >
-          <DialogContent className="sm:max-w-[450px] max-h-[90vh] p-0">
+          <DialogContent className="sm:max-w-[450px] max-w-[95vw] max-h-[95vh] p-0"> {/* Ajustado max-w para mobile */}
             {/* Adicionando DialogHeader/Title/Description para acessibilidade */}
             <DialogHeader className="sr-only">
               <DialogTitle>Detalhes do Cliente: {selectedClient.nome}</DialogTitle>
