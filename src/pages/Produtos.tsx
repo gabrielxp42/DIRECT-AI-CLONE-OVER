@@ -43,11 +43,13 @@ import { showSuccess, showError } from "@/utils/toast";
 import { useProdutos } from "@/hooks/useDataFetch"; // Importar o novo hook
 import { useDebounce } from "@/hooks/useDebounce"; // Importar useDebounce
 import { Skeleton } from "@/components/ui/skeleton"; // Importar Skeleton
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "@/integrations/supabase/client";
 
 const Produtos = () => {
-  const { supabase, session } = useSession();
+  const { session } = useSession();
   const queryClient = useQueryClient();
   const { data: produtos, isLoading, error } = useProdutos(); // Usando o hook centralizado
+  const accessToken = session?.access_token;
   
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -68,13 +70,28 @@ const Produtos = () => {
 
   const addProdutoMutation = useMutation({
     mutationFn: async (newProduto: Omit<NewProduto, 'user_id'>) => {
-      if (!session) throw new Error("Sessão não encontrada");
-      if (!supabase) throw new Error("Supabase client is not available");
+      if (!session || !accessToken) throw new Error("Sessão não encontrada");
       
       const productToInsert = { ...newProduto, user_id: session.user.id };
       
-      const { error } = await supabase.from("produtos").insert([productToInsert]);
-      if (error) throw new Error(error.message);
+      const headers = {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      };
+
+      const url = `${SUPABASE_URL}/rest/v1/produtos`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify([productToInsert])
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Erro ao adicionar produto: ${response.status} ${response.statusText} - ${errorText}`);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["produtos"] });
@@ -88,9 +105,26 @@ const Produtos = () => {
 
   const updateProdutoMutation = useMutation({
     mutationFn: async ({ id, ...updateData }: { id: string } & Omit<NewProduto, 'user_id'>) => {
-      if (!supabase) throw new Error("Supabase client is not available");
-      const { error } = await supabase.from("produtos").update(updateData).eq("id", id);
-      if (error) throw new Error(error.message);
+      if (!accessToken) throw new Error("Token de acesso não encontrado");
+
+      const headers = {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      };
+
+      const url = `${SUPABASE_URL}/rest/v1/produtos?id=eq.${id}`;
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify(updateData)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Erro ao atualizar produto: ${response.status} ${response.statusText} - ${errorText}`);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["produtos"] });
@@ -105,9 +139,24 @@ const Produtos = () => {
 
   const deleteProdutoMutation = useMutation({
     mutationFn: async (id: string) => {
-      if (!supabase) throw new Error("Supabase client is not available");
-      const { error } = await supabase.from("produtos").delete().eq("id", id);
-      if (error) throw new Error(error.message);
+      if (!accessToken) throw new Error("Token de acesso não encontrado");
+
+      const headers = {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      };
+
+      const url = `${SUPABASE_URL}/rest/v1/produtos?id=eq.${id}`;
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Erro ao excluir produto: ${response.status} ${response.statusText} - ${errorText}`);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["produtos"] });

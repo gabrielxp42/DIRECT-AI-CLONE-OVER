@@ -37,12 +37,14 @@ import { NewPedido, Pedido } from "@/types/pedido";
 import { Cliente } from "@/types/cliente";
 import { Produto } from "@/types/produto";
 import { useEffect, useState, useRef } from "react";
-import { Trash2, Plus, Search, Edit3, X, User, Package, Wrench, Save, Zap, CalendarIcon, Ruler, ChevronDown } from "lucide-react";
+import { Trash2, Plus, Search, Edit3, X, User, Package, Wrench, Save, Zap, CalendarIcon, Ruler, ChevronDown, Loader2 } from "lucide-react";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { QuickClientForm } from './QuickClientForm';
 import { useSession } from '@/contexts/SessionProvider';
 import { showSuccess, showError } from '@/utils/toast';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/integrations/supabase/client';
+import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { CurrencyInput } from './CurrencyInput';
 import { Calendar } from "@/components/ui/calendar";
@@ -101,15 +103,20 @@ const servicosRapidos = [
 
 export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clientes, produtos, initialData }: PedidoFormProps) => {
   const { supabase, session } = useSession();
+  const queryClient = useQueryClient();
   const [filteredClientes, setFilteredClientes] = useState<Cliente[]>([]);
   const [clienteSearch, setClienteSearch] = useState('');
   const [clienteOpen, setClienteOpen] = useState(false);
   const [selectedClienteName, setSelectedClienteName] = useState('');
   const [isQuickClientFormOpen, setIsQuickClientFormOpen] = useState(false);
   const [isCreatingClient, setIsCreatingClient] = useState(false);
-  
+
   const [accordionItemValue, setAccordionItemValue] = useState<string | undefined>(undefined);
   const [accordionServiceValue, setAccordionServiceValue] = useState<string | undefined>(undefined);
+
+  // Snapshots para permitir cancelar alterações
+  const [itemSnapshot, setItemSnapshot] = useState<any>(null);
+  const [servicoSnapshot, setServicoSnapshot] = useState<any>(null);
 
   const form = useForm<PedidoFormValues>({
     resolver: zodResolver(formSchema),
@@ -133,16 +140,16 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
       setFilteredClientes(clientes);
     } else {
       const normalizedSearch = removeAccents(clienteSearch.toLowerCase());
-      
+
       const results = clientes.filter(cliente => {
         const normalizedClientName = removeAccents(cliente.nome.toLowerCase());
-        
+
         const nameMatch = normalizedClientName.includes(normalizedSearch);
         const phoneMatch = cliente.telefone && cliente.telefone.includes(clienteSearch.trim());
-        
+
         return nameMatch || phoneMatch;
       });
-      
+
       setFilteredClientes(results);
     }
   }, [clientes, clienteSearch]);
@@ -175,7 +182,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
         });
         const selectedClient = clientes.find(c => c.id === initialData.cliente_id);
         setSelectedClienteName(selectedClient ? selectedClient.nome : '');
-        
+
       } else {
         form.reset({
           cliente_id: "",
@@ -188,14 +195,14 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
         });
         setSelectedClienteName('');
       }
-      
+
       setClienteSearch('');
       setAccordionItemValue(undefined);
       setAccordionServiceValue(undefined);
-      
+
       hasInitializedRef.current = true;
     }
-    
+
     if (!isOpen) {
       hasInitializedRef.current = false;
     }
@@ -210,7 +217,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
     const subtotalProdutos = items.reduce((sum, item) => sum + (Number(item.quantidade) * Number(item.preco_unitario)), 0);
     const subtotalServicos = servicos.reduce((sum, servico) => sum + (Number(servico.quantidade) * Number(servico.valor_unitario)), 0);
     const subtotal = subtotalProdutos + subtotalServicos;
-    
+
     const descontoPercentualValor = subtotal * (descontoPercentual / 100);
     const valorTotal = Math.max(0, subtotal - descontoValor - descontoPercentualValor);
 
@@ -259,7 +266,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
       // Tenta focar no campo. Se for um campo aninhado (como items.0.quantidade),
       // o setFocus pode não funcionar diretamente, mas o scrollIntoView deve funcionar.
       form.setFocus(firstError as keyof PedidoFormValues);
-      
+
       // Encontra o elemento DOM correspondente ao primeiro erro e rola até ele
       const element = document.querySelector(`[name="${firstError}"]`);
       if (element) {
@@ -276,34 +283,79 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
   };
 
   const handleQuickClientSubmit = async (clientData: { nome: string; telefone?: string; email?: string; endereco?: string; valor_metro?: number }) => {
-    if (!session || !supabase) return;
-    
+    if (!session || !session.access_token) {
+      showError("Sessão não encontrada. Por favor, recarregue a página.");
+      return;
+    }
+
     setIsCreatingClient(true);
     try {
-      const { data: result, error } = await supabase
-        .from('clientes')
-        .insert([{ 
-          ...clientData, 
-          telefone: clientData.telefone || null,
-          email: clientData.email || null,
-          endereco: clientData.endereco || null,
-          valor_metro: clientData.valor_metro || null,
-          user_id: session.user.id,
-          status: 'ativo'
-        }])
-        .select()
-        .single();
+      const accessToken = session.access_token;
+      const headers = {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      };
 
-      if (error) throw error;
+      const clienteData = {
+        ...clientData,
+        telefone: clientData.telefone || null,
+        email: clientData.email || null,
+        endereco: clientData.endereco || null,
+        valor_metro: clientData.valor_metro || null,
+        user_id: session.user.id,
+        status: 'ativo'
+      };
 
-      form.setValue('cliente_id', result.id);
-      setSelectedClienteName(result.nome);
+      const url = `${SUPABASE_URL}/rest/v1/clientes`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify([clienteData])
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Erro ao criar cliente: ${response.status} ${response.statusText} - ${errorText}`);
+      }
+
+      // Fazer parse seguro do JSON
+      const contentType = response.headers.get('content-type');
+      const text = await response.text();
+
+      if (!text || !text.trim()) {
+        throw new Error("Resposta vazia ao criar cliente.");
+      }
+
+      let result;
+      try {
+        result = JSON.parse(text);
+      } catch (parseError) {
+        console.error('❌ [handleQuickClientSubmit] Erro ao fazer parse JSON:', parseError, 'Texto:', text.substring(0, 100));
+        throw new Error("Resposta inválida do servidor ao criar cliente.");
+      }
+
+      // PostgREST retorna array mesmo com single, pegar o primeiro elemento
+      const newCliente = Array.isArray(result) ? (result.length > 0 ? result[0] : null) : result;
+
+      if (!newCliente || !newCliente.id) {
+        throw new Error("Resposta inválida ao criar cliente. Cliente não foi retornado corretamente.");
+      }
+
+      form.setValue('cliente_id', newCliente.id);
+      setSelectedClienteName(newCliente.nome);
       setClienteOpen(false);
       setIsQuickClientFormOpen(false);
-      
+
+      // Invalidar queries para atualizar a lista de clientes
+      queryClient.invalidateQueries({ queryKey: ["clientes"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+
       showSuccess("Cliente criado e selecionado com sucesso!");
     } catch (error: any) {
-      showError(`Erro ao criar cliente: ${error.message}`);
+      console.error('❌ [handleQuickClientSubmit] Erro:', error);
+      showError(`Erro ao criar cliente: ${error.message || 'Erro desconhecido'}`);
     } finally {
       setIsCreatingClient(false);
     }
@@ -311,10 +363,23 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
 
   const addItem = () => {
     const currentItems = form.getValues('items') || [];
-    const newItemIndex = currentItems.length;
-    form.setValue('items', [{ produto_id: null, produto_nome: "", quantidade: 1, preco_unitario: 0, observacao: "" }, ...currentItems]);
-    // Abre o novo item (que agora está no índice 0)
-    setAccordionItemValue(`item-${0}`);
+    const newItem = {
+      produto_id: null,
+      produto_nome: "",
+      quantidade: 1,
+      preco_unitario: 0,
+      observacao: ""
+    };
+
+    form.setValue('items', [newItem, ...currentItems]);
+
+    // Limpar snapshot anterior
+    setItemSnapshot(null);
+
+    // Aguardar um tick para garantir que o formulário atualizou
+    setTimeout(() => {
+      setAccordionItemValue(`item-0`);
+    }, 0);
   };
 
   const removeItem = (index: number) => {
@@ -328,18 +393,29 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
 
   const addServico = () => {
     const currentServicos = form.getValues('servicos') || [];
+    const newServico = {
+      nome: "",
+      quantidade: 1,
+      valor_unitario: 0
+    };
     const newServiceIndex = currentServicos.length;
-    form.setValue('servicos', [...currentServicos, { nome: "", quantidade: 1, valor_unitario: 0 }]);
-    // Abre o novo serviço
-    setAccordionServiceValue(`servico-${newServiceIndex}`);
+
+    form.setValue('servicos', [...currentServicos, newServico]);
+
+    // Limpar snapshot anterior
+    setServicoSnapshot(null);
+
+    // Aguardar um tick para garantir que o formulário atualizou
+    setTimeout(() => {
+      setAccordionServiceValue(`servico-${newServiceIndex}`);
+    }, 0);
   };
 
   const addShortcutServico = (nome: string, valor: number) => {
     const currentServicos = form.getValues('servicos') || [];
-    const newServiceIndex = currentServicos.length;
     form.setValue('servicos', [...currentServicos, { nome: nome, quantidade: 1, valor_unitario: valor }]);
-    // Abre o novo serviço
-    setAccordionServiceValue(`servico-${newServiceIndex}`);
+    // NÃO expande automaticamente - o usuário pode expandir se quiser editar
+    // setAccordionServiceValue(`servico-${newServiceIndex}`);
   };
 
   const removeServico = (index: number) => {
@@ -360,12 +436,12 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
     const subtotalProdutos = items.reduce((sum, item) => sum + (Number(item.quantidade) * Number(item.preco_unitario)), 0);
     const subtotalServicos = servicos.reduce((sum, servico) => sum + (Number(servico.quantidade) * Number(servico.valor_unitario)), 0);
     const subtotal = subtotalProdutos + subtotalServicos;
-    
+
     const descontoPercentualValor = subtotal * (descontoPercentual / 100);
     const valorTotal = Math.max(0, subtotal - descontoValor - descontoPercentualValor);
 
-    const totalMetros = items.reduce((sum, item) => sum + Number(item.quantidade || 0), 0); 
-    
+    const totalMetros = items.reduce((sum, item) => sum + Number(item.quantidade || 0), 0);
+
     return {
       subtotalProdutos,
       subtotalServicos,
@@ -406,7 +482,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
           </DialogHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleValidSubmit, handleInvalidSubmit)} className="space-y-6">
-              
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <FormField
                   control={form.control}
@@ -431,14 +507,17 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                             </Button>
                           </FormControl>
                         </PopoverTrigger>
-                        <PopoverContent className="w-full p-0" align="start">
+                        <PopoverContent
+                          className="w-full p-0"
+                          align="start"
+                        >
                           <Command>
-                            <CommandInput 
-                              placeholder="Buscar cliente..." 
+                            <CommandInput
+                              placeholder="Buscar cliente..."
                               value={clienteSearch}
                               onValueChange={setClienteSearch}
                             />
-                            <div className="max-h-[300px] overflow-y-auto">
+                            <div className="max-h-[300px] overflow-y-auto" style={{ overscrollBehavior: 'contain' }}>
                               <CommandList>
                                 <CommandEmpty>Nenhum cliente encontrado.</CommandEmpty>
                                 <CommandGroup>
@@ -537,9 +616,9 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                         <Package className="h-5 w-5" />
                         Produtos
                       </h3>
-                      <Button 
-                        type="button" 
-                        onClick={addItem} 
+                      <Button
+                        type="button"
+                        onClick={addItem}
                         size="sm"
                         className="transition-all duration-300 hover:scale-[1.05] shadow-md hover:shadow-lg"
                       >
@@ -547,7 +626,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                         Adicionar Item
                       </Button>
                     </div>
-                    
+
                     {totalMetros > 0 && (
                       <div className="mt-2 p-2 bg-primary/20 rounded-md text-sm font-semibold flex justify-between items-center">
                         <span className="text-primary-foreground flex items-center gap-1">
@@ -557,139 +636,165 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                         <span className="text-primary-foreground">{Number(totalMetros).toFixed(2)} ML</span>
                       </div>
                     )}
-                    
+
                     <div className="space-y-3 mt-4">
                       {form.watch('items')?.length === 0 ? (
                         <p className="text-center text-muted-foreground py-4">
                           Nenhum produto adicionado. Clique em "Adicionar Item" para começar.
                         </p>
                       ) : (
-                        <Accordion 
-                          type="single" 
-                          collapsible 
-                          value={accordionItemValue} 
-                          onValueChange={setAccordionItemValue}
-                          className="w-full"
-                        >
-                          {form.watch('items')?.map((item, index) => (
-                            <AccordionItem key={index} value={`item-${index}`} className="border rounded-lg px-4 mb-2 transition-all duration-300 hover:shadow-md">
-                              <AccordionTrigger className="py-3 hover:no-underline">
-                                <div className="flex items-center justify-between w-full pr-4">
-                                  <div className="flex-1 min-w-0 text-left">
-                                    <div className="font-medium text-sm truncate">
+                        <div className="space-y-3">
+                          {form.watch('items')?.map((item, index) => {
+                            const isOpen = accordionItemValue === `item-${index}`;
+
+                            return (
+                              <Card key={index} className="overflow-hidden">
+                                {/* Cabeçalho clicável */}
+                                <div
+                                  className="flex items-center justify-between p-4 cursor-pointer hover:bg-accent/50 transition-colors"
+                                  onClick={() => {
+                                    if (isOpen) {
+                                      setAccordionItemValue(undefined);
+                                      setItemSnapshot(null);
+                                    } else {
+                                      // Salvar snapshot dos valores atuais
+                                      const currentItem = form.getValues(`items.${index}`);
+                                      setItemSnapshot({ index, data: { ...currentItem } });
+                                      setAccordionItemValue(`item-${index}`);
+                                    }
+                                  }}
+                                >
+                                  <div className="flex-1">
+                                    <div className="font-medium text-sm flex items-center gap-2">
+                                      <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                                       {item.produto_nome || `Item #${index + 1} (Sem nome)`}
                                     </div>
-                                    <div className="text-xs text-muted-foreground">
+                                    <div className="text-xs text-muted-foreground ml-6">
                                       Qtd: {item.quantidade} | Total: {formatCurrency(Number(item.quantidade) * Number(item.preco_unitario))}
                                     </div>
                                   </div>
-                                  <div className="flex items-center gap-2 ml-4">
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-8 w-8 p-0 hover:text-destructive transition-all duration-200 hover:scale-110"
-                                      onClick={(e) => { e.stopPropagation(); removeItem(index); }}
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                    <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
-                                  </div>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0 hover:text-destructive"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      removeItem(index);
+                                    }}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
                                 </div>
-                              </AccordionTrigger>
-                              <AccordionContent className="pt-2 pb-4">
-                                <div className="space-y-4">
-                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <FormField
-                                      control={form.control}
-                                      name={`items.${index}.produto_nome`}
-                                      render={({ field }) => (
-                                        <FormItem className="md:col-span-3">
-                                          <FormLabel>Produto</FormLabel>
-                                          <FormControl>
-                                            <Input {...field} placeholder="Nome do produto" />
-                                          </FormControl>
-                                          <FormMessage />
-                                        </FormItem>
-                                      )}
-                                    />
-                                    
-                                    <FormField
-                                      control={form.control}
-                                      name={`items.${index}.quantidade`}
-                                      render={({ field }) => (
-                                        <FormItem>
-                                          <FormLabel>Quantidade (ML)</FormLabel>
-                                          <FormControl>
-                                            <Input 
-                                              type="number" 
-                                              step="0.01" 
-                                              placeholder="1.00"
-                                              {...field} 
-                                            />
-                                          </FormControl>
-                                          <FormMessage />
-                                        </FormItem>
-                                      )}
-                                    />
-                                    
-                                    <FormField
-                                      control={form.control}
-                                      name={`items.${index}.preco_unitario`}
-                                      render={({ field }) => (
-                                        <FormItem>
-                                          <FormLabel>Preço Unitário</FormLabel>
-                                          <FormControl>
-                                            <CurrencyInput 
-                                              value={field.value} 
-                                              onChange={(value) => field.onChange(value)}
-                                              placeholder="0,00"
-                                            />
-                                          </FormControl>
-                                          <FormMessage />
-                                        </FormItem>
-                                      )}
-                                    />
 
-                                    <FormField
-                                      control={form.control}
-                                      name={`items.${index}.observacao`}
-                                      render={({ field }) => (
-                                        <FormItem className="md:col-span-3">
-                                          <FormLabel>Observação do Item</FormLabel>
-                                          <FormControl>
-                                            <Textarea {...field} placeholder="Detalhes específicos deste item..." />
-                                          </FormControl>
-                                          <FormMessage />
-                                        </FormItem>
-                                      )}
-                                    />
-                                  </div>
-                                  
-                                  {/* BOTOES DE CONFIRMAÇÃO DO ITEM */}
-                                  <div className="flex justify-end gap-2 pt-4 border-t mt-4">
-                                    <Button 
-                                        type="button" 
-                                        variant="outline" 
-                                        onClick={() => setAccordionItemValue(undefined)} // Cancelar: fecha o accordion
-                                    >
-                                        <X className="h-4 w-4 mr-2" />
-                                        Cancelar
-                                    </Button>
-                                    <Button 
-                                        type="button" 
-                                        onClick={() => setAccordionItemValue(undefined)} // Salvar: fecha o accordion
-                                        className="bg-primary hover:bg-primary/90 text-primary-foreground"
-                                    >
-                                        <Save className="h-4 w-4 mr-2" />
-                                        Salvar
-                                    </Button>
+                                {/* Conteúdo expansível */}
+                                <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                                  <div className="px-4 pb-4 pt-2 border-t">
+                                    <div className="space-y-4">
+                                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <FormField
+                                          control={form.control}
+                                          name={`items.${index}.produto_nome`}
+                                          render={({ field }) => (
+                                            <FormItem className="md:col-span-3">
+                                              <FormLabel>Produto</FormLabel>
+                                              <FormControl>
+                                                <Input {...field} placeholder="Nome do produto" />
+                                              </FormControl>
+                                              <FormMessage />
+                                            </FormItem>
+                                          )}
+                                        />
+
+                                        <FormField
+                                          control={form.control}
+                                          name={`items.${index}.quantidade`}
+                                          render={({ field }) => (
+                                            <FormItem>
+                                              <FormLabel>Quantidade (ML)</FormLabel>
+                                              <FormControl>
+                                                <Input
+                                                  type="number"
+                                                  step="0.01"
+                                                  placeholder="1.00"
+                                                  {...field}
+                                                />
+                                              </FormControl>
+                                              <FormMessage />
+                                            </FormItem>
+                                          )}
+                                        />
+
+                                        <FormField
+                                          control={form.control}
+                                          name={`items.${index}.preco_unitario`}
+                                          render={({ field }) => (
+                                            <FormItem>
+                                              <FormLabel>Preço Unitário</FormLabel>
+                                              <FormControl>
+                                                <CurrencyInput
+                                                  value={field.value}
+                                                  onChange={(value) => field.onChange(value)}
+                                                  placeholder="0,00"
+                                                />
+                                              </FormControl>
+                                              <FormMessage />
+                                            </FormItem>
+                                          )}
+                                        />
+
+                                        <FormField
+                                          control={form.control}
+                                          name={`items.${index}.observacao`}
+                                          render={({ field }) => (
+                                            <FormItem className="md:col-span-3">
+                                              <FormLabel>Observação do Item</FormLabel>
+                                              <FormControl>
+                                                <Textarea {...field} placeholder="Detalhes específicos deste item..." />
+                                              </FormControl>
+                                              <FormMessage />
+                                            </FormItem>
+                                          )}
+                                        />
+                                      </div>
+
+                                      {/* Botões Salvar e Cancelar */}
+                                      <div className="flex justify-end gap-2 pt-2 border-t">
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => {
+                                            // Restaurar valores do snapshot
+                                            if (itemSnapshot && itemSnapshot.index === index) {
+                                              form.setValue(`items.${index}`, itemSnapshot.data);
+                                            }
+                                            setAccordionItemValue(undefined);
+                                            setItemSnapshot(null);
+                                          }}
+                                        >
+                                          <X className="h-4 w-4 mr-2" />
+                                          Cancelar
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          size="sm"
+                                          onClick={() => {
+                                            setAccordionItemValue(undefined);
+                                            setItemSnapshot(null);
+                                          }}
+                                        >
+                                          <Save className="h-4 w-4 mr-2" />
+                                          Salvar
+                                        </Button>
+                                      </div>
+                                    </div>
                                   </div>
                                 </div>
-                              </AccordionContent>
-                            </AccordionItem>
-                          ))}
-                        </Accordion>
+                              </Card>
+                            );
+                          })}
+                        </div>
                       )}
                     </div>
                     {/* Exibe a mensagem de erro da lista de itens */}
@@ -710,10 +815,10 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                     <Wrench className="h-5 w-5" />
                     Serviços
                   </h3>
-                  <Button 
-                    type="button" 
-                    onClick={addServico} 
-                    size="sm" 
+                  <Button
+                    type="button"
+                    onClick={addServico}
+                    size="sm"
                     variant="outline"
                     className="transition-all duration-300 hover:scale-[1.05] shadow-sm hover:shadow-md"
                   >
@@ -737,112 +842,141 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                     </Button>
                   ))}
                 </div>
-                
+
                 <div className="space-y-3">
                   {form.watch('servicos')?.length === 0 ? (
                     <p className="text-center text-muted-foreground py-4">
                       Nenhum serviço adicionado. Clique em "Adicionar Serviço" para começar.
                     </p>
                   ) : (
-                    <Accordion 
-                      type="single" 
-                      collapsible 
-                      value={accordionServiceValue} 
-                      onValueChange={setAccordionServiceValue}
-                      className="w-full"
-                    >
-                      {form.watch('servicos')?.map((servico, index) => (
-                        <AccordionItem key={index} value={`servico-${index}`} className="border rounded-lg px-4 mb-2 transition-all duration-300 hover:shadow-md">
-                          <AccordionTrigger className="py-3 hover:no-underline">
-                            <div className="flex items-center justify-between w-full pr-4">
-                              <div className="flex-1 min-w-0 text-left">
-                                <div className="font-medium text-sm truncate">
+                    <div className="space-y-3">
+                      {form.watch('servicos')?.map((servico, index) => {
+                        const isOpen = accordionServiceValue === `servico-${index}`;
+
+                        return (
+                          <Card key={index} className="overflow-hidden">
+                            {/* Cabeçalho clicável */}
+                            <div
+                              className="flex items-center justify-between p-4 cursor-pointer hover:bg-accent/50 transition-colors"
+                              onClick={() => {
+                                if (isOpen) {
+                                  setAccordionServiceValue(undefined);
+                                  setServicoSnapshot(null);
+                                } else {
+                                  // Salvar snapshot dos valores atuais
+                                  const currentServico = form.getValues(`servicos.${index}`);
+                                  setServicoSnapshot({ index, data: { ...currentServico } });
+                                  setAccordionServiceValue(`servico-${index}`);
+                                }
+                              }}
+                            >
+                              <div className="flex-1">
+                                <div className="font-medium text-sm flex items-center gap-2">
+                                  <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                                   {servico.nome || `Serviço #${index + 1} (Sem nome)`}
                                 </div>
-                                <div className="text-xs text-muted-foreground">
+                                <div className="text-xs text-muted-foreground ml-6">
                                   Qtd: {servico.quantidade} | Total: {formatCurrency(Number(servico.quantidade) * Number(servico.valor_unitario))}
                                 </div>
                               </div>
-                              <div className="flex items-center gap-2 ml-4">
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-8 w-8 p-0 hover:text-destructive transition-all duration-200 hover:scale-110"
-                                  onClick={(e) => { e.stopPropagation(); removeServico(index); }}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                                <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 hover:text-destructive"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  removeServico(index);
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+
+                            {/* Conteúdo expansível */}
+                            <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                              <div className="px-4 pb-4 pt-2 border-t">
+                                <div className="space-y-4">
+                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <FormField
+                                      control={form.control}
+                                      name={`servicos.${index}.nome`}
+                                      render={({ field }) => (
+                                        <FormItem>
+                                          <FormLabel>Serviço</FormLabel>
+                                          <FormControl>
+                                            <Input {...field} placeholder="Ex: Montagem de Arq" />
+                                          </FormControl>
+                                        </FormItem>
+                                      )}
+                                    />
+                                    <FormField
+                                      control={form.control}
+                                      name={`servicos.${index}.quantidade`}
+                                      render={({ field }) => (
+                                        <FormItem>
+                                          <FormLabel>Quantidade</FormLabel>
+                                          <FormControl>
+                                            <Input type="number" {...field} />
+                                          </FormControl>
+                                        </FormItem>
+                                      )}
+                                    />
+                                    <FormField
+                                      control={form.control}
+                                      name={`servicos.${index}.valor_unitario`}
+                                      render={({ field }) => (
+                                        <FormItem>
+                                          <FormLabel>Valor Unitário</FormLabel>
+                                          <FormControl>
+                                            <CurrencyInput
+                                              value={field.value}
+                                              onChange={(value) => field.onChange(value)}
+                                              placeholder="0,00"
+                                            />
+                                          </FormControl>
+                                        </FormItem>
+                                      )}
+                                    />
+                                  </div>
+
+                                  {/* Botões Salvar e Cancelar */}
+                                  <div className="flex justify-end gap-2 pt-2 border-t">
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => {
+                                        // Restaurar valores do snapshot
+                                        if (servicoSnapshot && servicoSnapshot.index === index) {
+                                          form.setValue(`servicos.${index}`, servicoSnapshot.data);
+                                        }
+                                        setAccordionServiceValue(undefined);
+                                        setServicoSnapshot(null);
+                                      }}
+                                    >
+                                      <X className="h-4 w-4 mr-2" />
+                                      Cancelar
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      onClick={() => {
+                                        setAccordionServiceValue(undefined);
+                                        setServicoSnapshot(null);
+                                      }}
+                                    >
+                                      <Save className="h-4 w-4 mr-2" />
+                                      Salvar
+                                    </Button>
+                                  </div>
+                                </div>
                               </div>
                             </div>
-                          </AccordionTrigger>
-                          <AccordionContent className="pt-2 pb-4">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                              <FormField
-                                control={form.control}
-                                name={`servicos.${index}.nome`}
-                                render={({ field }) => (
-                                  <FormItem>
-                                    <FormLabel>Serviço</FormLabel>
-                                    <FormControl>
-                                      <Input {...field} placeholder="Ex: Montagem de Arq" />
-                                    </FormControl>
-                                  </FormItem>
-                                )}
-                              />
-                              <FormField
-                                control={form.control}
-                                name={`servicos.${index}.quantidade`}
-                                render={({ field }) => (
-                                  <FormItem>
-                                    <FormLabel>Quantidade</FormLabel>
-                                    <FormControl>
-                                      <Input type="number" {...field} />
-                                    </FormControl>
-                                  </FormItem>
-                                )}
-                              />
-                              <FormField
-                                control={form.control}
-                                name={`servicos.${index}.valor_unitario`}
-                                render={({ field }) => (
-                                  <FormItem>
-                                    <FormLabel>Valor Unitário</FormLabel>
-                                    <FormControl>
-                                      <CurrencyInput 
-                                        value={field.value} 
-                                        onChange={(value) => field.onChange(value)}
-                                        placeholder="0,00"
-                                      />
-                                    </FormControl>
-                                  </FormItem>
-                                )}
-                              />
-                            </div>
-                            {/* BOTOES DE CONFIRMAÇÃO DO SERVIÇO */}
-                            <div className="flex justify-end gap-2 pt-4 border-t mt-4">
-                                <Button 
-                                    type="button" 
-                                    variant="outline" 
-                                    onClick={() => setAccordionServiceValue(undefined)} // Cancelar: fecha o accordion
-                                >
-                                    <X className="h-4 w-4 mr-2" />
-                                    Cancelar
-                                </Button>
-                                <Button 
-                                    type="button" 
-                                    onClick={() => setAccordionServiceValue(undefined)} // Salvar: fecha o accordion
-                                    className="bg-primary hover:bg-primary/90 text-primary-foreground"
-                                >
-                                    <Save className="h-4 w-4 mr-2" />
-                                    Salvar
-                                </Button>
-                            </div>
-                          </AccordionContent>
-                        </AccordionItem>
-                      ))}
-                    </Accordion>
+                          </Card>
+                        );
+                      })}
+                    </div>
                   )}
                 </div>
               </div>
@@ -855,8 +989,8 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                     <FormItem>
                       <FormLabel>Desconto (R$)</FormLabel>
                       <FormControl>
-                        <CurrencyInput 
-                          value={field.value} 
+                        <CurrencyInput
+                          value={field.value}
                           onChange={(value) => field.onChange(value)}
                           placeholder="0,00"
                         />
@@ -901,6 +1035,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
               <DialogFooter className="gap-2">
                 <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="transition-all duration-300 hover:scale-[1.02]">Cancelar</Button>
                 <Button type="submit" disabled={isSubmitting} className="transition-all duration-300 hover:scale-[1.02]">
+                  {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {isSubmitting ? "Salvando..." : isEditing ? "Salvar Alterações" : "Criar Pedido"}
                 </Button>
               </DialogFooter>

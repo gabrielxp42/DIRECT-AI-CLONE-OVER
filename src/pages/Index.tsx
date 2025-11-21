@@ -10,6 +10,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { QuickActionCard } from "@/components/QuickActionCard";
 import { useAIAssistant } from '@/contexts/AIAssistantProvider';
 import { DashboardShortcutCard } from "@/components/DashboardShortcutCard"; // Reutilizando o card maior para métricas
+import { AIMessagesWidget } from "@/components/AIMessagesWidget";
+
+import { DashboardQuickActions } from "@/components/DashboardQuickActions";
+import { DailySummaryCard } from "@/components/DailySummaryCard";
 
 const Index = () => {
   const { data: stats, isLoading, error } = useDashboardData();
@@ -21,7 +25,7 @@ const Index = () => {
       currency: 'BRL'
     }).format(value);
   };
-  
+
   const formatMeters = (value: number) => {
     return `${value.toFixed(2)} ML`;
   };
@@ -36,53 +40,69 @@ const Index = () => {
   };
 
   if (error) {
+    console.error('[Dashboard] Erro ao carregar dados:', error);
     return (
       <div className="text-center py-8">
         <p className="text-red-600">Erro ao carregar dados do dashboard</p>
+        <p className="text-sm text-gray-500 mt-2">{error.message}</p>
       </div>
     );
   }
 
+  // Log para debug
+  console.log('[Dashboard] Estado:', { isLoading, hasData: !!stats, error: !!error });
+
   return (
     <div>
       <h1 className="text-3xl font-bold mb-6 text-left">Dashboard</h1>
-      
-      {/* Seção de Ações Rápidas - Mais compacta */}
+
+      {/* Mensagens da IA e Resumo */}
+      <div className="grid gap-6 md:grid-cols-2 mb-6">
+        <AIMessagesWidget />
+        <DailySummaryCard />
+      </div>
+
+      {/* Ações Rápidas */}
+      <DashboardQuickActions />
+
+      {/* Status dos Pedidos */}
       <div className="mb-8">
-        <h2 className="text-xl font-semibold mb-4">Ações Rápidas</h2>
+        <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+          <span className="bg-blue-100 text-blue-600 p-1 rounded">📊</span> Status dos Pedidos
+        </h2>
         <div className="grid grid-cols-3 sm:grid-cols-5 gap-4"> {/* Layout mais compacto */}
-          <QuickActionCard 
-            title="Pendentes" 
-            icon={Clock} 
-            to="/pedidos" 
+          <QuickActionCard
+            title="Pendentes"
+            icon={Clock}
+            to="/pedidos"
             filterState={{ filterStatus: 'pendente' }}
             count={isLoading ? '...' : stats?.pendingOrdersCount}
           />
-          <QuickActionCard 
-            title="Processando" 
-            icon={Wrench} 
-            to="/pedidos" 
+          <QuickActionCard
+            title="Processando"
+            icon={Wrench}
+            to="/pedidos"
             filterState={{ filterStatus: 'processando' }}
             count={isLoading ? '...' : stats?.processingOrdersCount}
           />
-          <QuickActionCard 
-            title="Faltam Pagar" 
-            icon={DollarSign} 
-            to="/pedidos" 
+          <QuickActionCard
+            title="Faltam Pagar"
+            icon={DollarSign}
+            to="/pedidos"
             filterState={{ filterStatus: 'pendente-pagamento' }}
             count={isLoading ? '...' : stats?.pendingPaymentOrdersCount}
           />
-          <QuickActionCard 
-            title="Aguardando Retirada" 
-            icon={Package} 
-            to="/pedidos" 
+          <QuickActionCard
+            title="Aguardando"
+            icon={Package}
+            to="/pedidos"
             filterState={{ filterStatus: 'aguardando retirada' }}
             count={isLoading ? '...' : stats?.awaitingPickupOrdersCount}
           />
-          <QuickActionCard 
-            title="Entregues" 
-            icon={CheckSquare} 
-            to="/pedidos" 
+          <QuickActionCard
+            title="Entregues"
+            icon={CheckSquare}
+            to="/pedidos"
             filterState={{ filterStatus: 'entregue' }}
             count={isLoading ? '...' : stats?.deliveredOrdersCount}
           />
@@ -103,7 +123,7 @@ const Index = () => {
             {formatGrowth(stats?.salesGrowth || 0)} do último mês
           </p>
         </DashboardShortcutCard>
-        
+
         <DashboardShortcutCard
           title="Total de Metros (ML)"
           icon={Ruler}
@@ -116,7 +136,7 @@ const Index = () => {
             {formatGrowth(stats?.metersGrowth || 0)} do último mês
           </p>
         </DashboardShortcutCard>
-        
+
         <DashboardShortcutCard
           title="Novos Clientes"
           icon={Users}
@@ -129,7 +149,7 @@ const Index = () => {
             {formatGrowth(stats?.customersGrowth || 0)} do último mês
           </p>
         </DashboardShortcutCard>
-        
+
         <DashboardShortcutCard
           title="Ticket Médio"
           icon={Activity}
@@ -143,7 +163,7 @@ const Index = () => {
           </p>
         </DashboardShortcutCard>
       </div>
-      
+
       <div className="mt-8 text-center">
         <p className="text-lg text-muted-foreground">
           Bem-vindo ao seu assistente de vendas!

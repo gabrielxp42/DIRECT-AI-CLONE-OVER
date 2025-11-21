@@ -4,10 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Search, Plus, Edit, Trash2, Phone, Mail, MapPin, DollarSign, Eye, Loader2 } from "lucide-react";
+import { Search, Plus, Edit, Trash2, Phone, Mail, MapPin, DollarSign, Eye, Loader2, UserX } from "lucide-react";
 import { useSession } from "@/contexts/SessionProvider";
 import { useToast } from "@/hooks/use-toast";
 import { ClienteForm } from "@/components/ClienteForm";
+import { EmptyState } from "@/components/EmptyState";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,15 +29,18 @@ import { Cliente, NewCliente } from "@/types/cliente";
 import { showSuccess, showError } from "@/utils/toast";
 import { useDebounce } from "@/hooks/useDebounce"; // Importar useDebounce
 import { Skeleton } from "@/components/ui/skeleton"; // IMPORTAÇÃO ADICIONADA
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "@/integrations/supabase/client";
+import { removeAccents } from "@/utils/string"; // Importar função de normalização
 
 const Clientes = () => {
-  const { supabase, session } = useSession();
+  const { session } = useSession();
   const { data: clientes, isLoading, error } = useClientes();
   const queryClient = useQueryClient();
-  
+  const accessToken = session?.access_token;
+
   const [rawSearchTerm, setRawSearchTerm] = useState("");
   const searchTerm = useDebounce(rawSearchTerm, 300); // Aplicar debounce
-  
+
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingCliente, setEditingCliente] = useState<Cliente | null>(null);
   const [selectedClient, setSelectedClient] = useState<Cliente | null>(null);
@@ -56,28 +60,50 @@ const Clientes = () => {
   // --- Mutações ---
   const addOrUpdateClienteMutation = useMutation({
     mutationFn: async ({ data, id }: { data: Omit<NewCliente, 'user_id'>, id?: string }) => {
-      if (!session) throw new Error('Sessão não encontrada');
-      
+      if (!session || !accessToken) throw new Error('Sessão não encontrada');
+
       const clienteData = {
         ...data,
         user_id: session.user.id,
         status: data.status || 'ativo'
       };
 
+      const headers = {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      };
+
       if (id) {
-        // Update
-        const { error } = await supabase
-          .from('clientes')
-          .update(clienteData)
-          .eq('id', id);
-        if (error) throw error;
+        // Update usando PATCH
+        const url = `${SUPABASE_URL}/rest/v1/clientes?id=eq.${id}`;
+        const response = await fetch(url, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify(clienteData)
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Erro ao atualizar cliente: ${response.status} ${response.statusText} - ${errorText}`);
+        }
+
         return { type: 'update', nome: data.nome };
       } else {
-        // Create
-        const { error } = await supabase
-          .from('clientes')
-          .insert([clienteData]);
-        if (error) throw error;
+        // Create usando POST
+        const url = `${SUPABASE_URL}/rest/v1/clientes`;
+        const response = await fetch(url, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify([clienteData])
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Erro ao criar cliente: ${response.status} ${response.statusText} - ${errorText}`);
+        }
+
         return { type: 'create', nome: data.nome };
       }
     },
@@ -95,11 +121,24 @@ const Clientes = () => {
 
   const deleteClienteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('clientes')
-        .delete()
-        .eq('id', id);
-      if (error) throw error;
+      if (!accessToken) throw new Error('Token de acesso não encontrado');
+
+      const headers = {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      };
+
+      const url = `${SUPABASE_URL}/rest/v1/clientes?id=eq.${id}`;
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Erro ao excluir cliente: ${response.status} ${response.statusText} - ${errorText}`);
+      }
     },
     onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: ["clientes"] });
@@ -140,18 +179,35 @@ const Clientes = () => {
     }).format(value);
   };
 
-  // OTIMIZAÇÃO: Usar useMemo para filtrar clientes
+  // OTIMIZAÇÃO: Usar useMemo para filtrar clientes com busca inteligente (normalização de acentos)
   const filteredClientes = useMemo(() => {
     if (!clientes) return [];
-    if (!searchTerm) return clientes; // Retorna todos se a busca estiver vazia
+    if (!searchTerm || searchTerm.trim() === '') return clientes; // Retorna todos se a busca estiver vazia
 
-    const lowerCaseSearchTerm = searchTerm.toLowerCase();
-    
-    return clientes.filter(cliente =>
-      cliente.nome.toLowerCase().includes(lowerCaseSearchTerm) ||
-      (cliente.email && cliente.email.toLowerCase().includes(lowerCaseSearchTerm)) ||
-      (cliente.telefone && cliente.telefone.includes(searchTerm))
-    );
+    const trimmedSearch = searchTerm.trim();
+    const normalizedSearch = removeAccents(trimmedSearch.toLowerCase());
+
+    return clientes.filter(cliente => {
+      // Busca no nome (normalizado, sem acentos)
+      const normalizedNome = removeAccents(cliente.nome.toLowerCase());
+      const nomeMatch = normalizedNome.includes(normalizedSearch) ||
+        cliente.nome.toLowerCase().includes(trimmedSearch.toLowerCase());
+
+      // Busca no email (case-insensitive)
+      const emailMatch = cliente.email ?
+        cliente.email.toLowerCase().includes(trimmedSearch.toLowerCase()) : false;
+
+      // Busca no telefone (mantém formato original para números)
+      const telefoneMatch = cliente.telefone ?
+        cliente.telefone.includes(trimmedSearch) : false;
+
+      // Busca no endereço (normalizado, sem acentos)
+      const enderecoMatch = cliente.endereco ?
+        removeAccents(cliente.endereco.toLowerCase()).includes(normalizedSearch) ||
+        cliente.endereco.toLowerCase().includes(trimmedSearch.toLowerCase()) : false;
+
+      return nomeMatch || emailMatch || telefoneMatch || enderecoMatch;
+    });
   }, [clientes, searchTerm]); // Depende do valor debounced
 
   if (isLoading) {
@@ -179,7 +235,7 @@ const Clientes = () => {
             Gerencie seus clientes e informações de contato
           </p>
         </div>
-        <Button 
+        <Button
           onClick={() => { setEditingCliente(null); setIsFormOpen(true); }}
           size="default"
           className="h-10 w-full sm:w-auto transition-all duration-300 hover:scale-[1.02]"
@@ -204,8 +260,8 @@ const Clientes = () => {
       {/* Grid de Clientes - Simplificado para melhor responsividade */}
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {filteredClientes.map((cliente) => (
-          <Card 
-            key={cliente.id} 
+          <Card
+            key={cliente.id}
             className="hover:shadow-xl transition-all duration-300 hover:scale-[1.02] cursor-pointer"
             onClick={() => handleViewDetails(cliente)}
           >
@@ -270,7 +326,7 @@ const Clientes = () => {
                     <AlertDialogHeader>
                       <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
                       <AlertDialogDescription>
-                        Tem certeza que deseja excluir o cliente "{cliente.nome}"? 
+                        Tem certeza que deseja excluir o cliente "{cliente.nome}"?
                         Esta ação não pode ser desfeita.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
@@ -289,11 +345,13 @@ const Clientes = () => {
       </div>
 
       {filteredClientes.length === 0 && (
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">
-            {searchTerm ? "Nenhum cliente encontrado." : "Nenhum cliente cadastrado ainda."}
-          </p>
-        </div>
+        <EmptyState
+          title={searchTerm ? "Nenhum cliente encontrado" : "Nenhum cliente cadastrado"}
+          description={searchTerm ? "Não encontramos clientes com esse termo de busca. Tente buscar por nome, email, telefone ou endereço." : "Comece criando seu primeiro cliente para gerenciar suas vendas de forma eficiente."}
+          icon={UserX}
+          actionLabel={searchTerm ? "Limpar Busca" : "Criar Primeiro Cliente"}
+          onAction={searchTerm ? () => setRawSearchTerm('') : () => { setEditingCliente(null); setIsFormOpen(true); }}
+        />
       )}
 
       <ClienteForm
@@ -309,8 +367,8 @@ const Clientes = () => {
 
       {/* Modal de Detalhes */}
       {selectedClient && (
-        <Dialog 
-          open={!!selectedClient} 
+        <Dialog
+          open={!!selectedClient}
           onOpenChange={(open) => !open && setSelectedClient(null)}
         >
           <DialogContent className="sm:max-w-[450px] max-w-[95vw] max-h-[95vh] p-0">
@@ -319,9 +377,9 @@ const Clientes = () => {
               <DialogTitle>Detalhes do Cliente: {selectedClient.nome}</DialogTitle>
               <DialogDescription>Informações detalhadas e métricas do cliente.</DialogDescription>
             </DialogHeader>
-            <ClientDetailsCard 
-              cliente={selectedClient} 
-              onClose={() => setSelectedClient(null)} 
+            <ClientDetailsCard
+              cliente={selectedClient}
+              onClose={() => setSelectedClient(null)}
             />
           </DialogContent>
         </Dialog>

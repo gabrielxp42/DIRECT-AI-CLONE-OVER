@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { Home, ShoppingCart, Users, BarChart3, Package, MessageSquare, Menu } from 'lucide-react';
+import { Home, ShoppingCart, Users, BarChart3, Package, MessageSquare, Menu, Layers } from 'lucide-react';
 import { AIAssistant } from './AIAssistant';
 import { ThemeToggle } from './ThemeToggle';
 import { UserNav } from './UserNav';
@@ -11,12 +11,14 @@ import { Button } from './ui/button';
 import { useViewportZoom } from '@/hooks/useViewportZoom';
 import { APP_VERSION } from '@/utils/version';
 import { cn } from '@/lib/utils';
+import { CommandMenu } from './CommandMenu';
 
 const navItems = [
   { href: '/', icon: Home, label: 'Dashboard' },
   { href: '/pedidos', icon: ShoppingCart, label: 'Pedidos' },
   { href: '/clientes', icon: Users, label: 'Clientes' },
   { href: '/produtos', icon: Package, label: 'Produtos' },
+  { href: '/insumos', icon: Layers, label: 'Insumos' },
   { href: '/reports', icon: BarChart3, label: 'Relatórios' },
 ];
 
@@ -24,12 +26,12 @@ const Layout = () => {
   const { isOpen, open: openAIAssistant } = useAIAssistant();
   const isMobile = useIsMobile();
   const location = useLocation();
-  
+
   // Estado para controlar a expansão do menu lateral
   const [isExpanded, setIsExpanded] = React.useState(false);
 
   // Desativa o zoom para todas as páginas dentro do Layout por padrão
-  useViewportZoom(false); 
+  useViewportZoom(false);
 
   const sidebarWidth = isExpanded ? 'w-[280px]' : 'w-[64px]';
   const gridTemplate = isExpanded ? 'md:grid-cols-[280px_1fr]' : 'md:grid-cols-[64px_1fr]';
@@ -37,7 +39,7 @@ const Layout = () => {
   return (
     <div className={cn("grid min-h-screen w-full transition-all duration-300", gridTemplate)}>
       {/* Sidebar - Desktop (Primeira Coluna do Grid) */}
-      <div 
+      <div
         className={cn(
           "hidden border-r bg-sidebar transition-all duration-300 ease-in-out md:flex flex-col h-full shadow-lg hover:shadow-xl", // Adicionado shadow
           sidebarWidth
@@ -58,7 +60,7 @@ const Layout = () => {
               </span>
             </Link>
           </div>
-          
+
           {/* Navegação */}
           <div className="flex-1 overflow-y-auto p-2 lg:p-3">
             <nav className="grid items-start gap-1 text-sm font-medium">
@@ -87,7 +89,7 @@ const Layout = () => {
               })}
             </nav>
           </div>
-          
+
           {/* Footer do Sidebar */}
           <div className="p-4 border-t border-sidebar-border overflow-hidden">
             <p className={cn(
@@ -99,7 +101,7 @@ const Layout = () => {
           </div>
         </div>
       </div>
-      
+
       {/* Main Content (Segunda Coluna do Grid) */}
       <div className="flex flex-col">
         <header className="flex h-14 items-center gap-4 border-b bg-background px-4 lg:h-[60px] lg:px-6">
@@ -117,6 +119,7 @@ const Layout = () => {
         <MobileBottomNav />
       </div>
       <AIAssistant />
+      <CommandMenu />
       {!isOpen && !isMobile && (
         <Button
           className="fixed bottom-4 right-4 h-16 w-16 rounded-full shadow-xl z-50 transition-all duration-300 hover:scale-110"

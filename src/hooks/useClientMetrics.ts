@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "@/contexts/SessionProvider";
 import { Pedido } from "@/types/pedido";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "@/integrations/supabase/client";
 
 interface ClientMetrics {
   totalSpent: number;
@@ -10,15 +11,27 @@ interface ClientMetrics {
   lastOrders: Pedido[];
 }
 
-const fetchClientMetrics = async (supabase: any, clientId: string): Promise<ClientMetrics> => {
-  // 1. Buscar todos os pedidos do cliente para calcular métricas
-  const { data: allOrders, error: ordersError } = await supabase
-    .from('pedidos') 
-    .select('valor_total, created_at, status, order_number, id, cliente_id, total_metros') // Incluindo total_metros
-    .eq('cliente_id', clientId)
-    .order('created_at', { ascending: false });
+const fetchClientMetrics = async (accessToken: string, clientId: string): Promise<ClientMetrics> => {
+  if (!accessToken) {
+    throw new Error("Sem token de acesso para fetch.");
+  }
 
-  if (ordersError) throw ordersError;
+  const headers = {
+    'apikey': SUPABASE_ANON_KEY,
+    'Authorization': `Bearer ${accessToken}`,
+    'Content-Type': 'application/json'
+  };
+
+  // 1. Buscar todos os pedidos do cliente para calcular métricas
+  const url = `${SUPABASE_URL}/rest/v1/pedidos?select=valor_total,created_at,status,order_number,id,cliente_id,total_metros&cliente_id=eq.${clientId}&order=created_at.desc`;
+  
+  const response = await fetch(url, { method: 'GET', headers });
+  
+  if (!response.ok) {
+    throw new Error(`Erro ao buscar pedidos do cliente: ${response.statusText}`);
+  }
+  
+  const allOrders = await response.json();
 
   const totalSpent = allOrders?.reduce((sum, order) => sum + order.valor_total, 0) || 0;
   const totalOrdersCount = allOrders?.length || 0;
@@ -51,12 +64,25 @@ const fetchClientMetrics = async (supabase: any, clientId: string): Promise<Clie
 };
 
 export const useClientMetrics = (clientId: string | null) => {
-  const { supabase } = useSession();
+  const { session, isLoading: sessionLoading } = useSession();
+  const accessToken = session?.access_token;
+
+  // Validação crítica: só executar se sessão não estiver carregando E token estiver disponível
+  const isEnabled = !sessionLoading && !!accessToken && !!clientId;
 
   return useQuery<ClientMetrics>({
     queryKey: ["client-metrics", clientId],
-    queryFn: () => fetchClientMetrics(supabase, clientId!),
-    enabled: !!supabase && !!clientId && typeof supabase.from === 'function', // VERIFICAÇÃO ADICIONADA
-    staleTime: 5 * 60 * 1000, // 5 minutos de cache
+    queryFn: () => {
+      if (!accessToken) {
+        throw new Error("Sem token de acesso para fetch.");
+      }
+      if (!clientId) {
+        throw new Error("Client ID is missing.");
+      }
+      return fetchClientMetrics(accessToken, clientId);
+    },
+    enabled: isEnabled, // Aguardar sessão carregar antes de executar
+    staleTime: 0, // Sempre considerar stale para forçar refetch
+    refetchOnMount: true, // Sempre refetch quando o componente monta
   });
 };

@@ -28,9 +28,11 @@ export default defineConfig(() => ({
     dyadComponentTagger(),
     react(),
     VitePWA({
-      // Removido registerType: 'autoUpdate' para simplificar o ciclo de vida
+      // ⚠️ Em desenvolvimento o SW estava servindo um bundle antigo (com a chave errada)
+      // Isso faz com que, após um F5, o app inteiro carregue arquivos com as credenciais desatualizadas.
+      // Desativamos o service worker no modo dev para garantir que sempre usamos o bundle em memória do Vite.
       devOptions: {
-        enabled: true,
+        enabled: false,
       },
       manifest: {
         name: 'DIRECT AI',

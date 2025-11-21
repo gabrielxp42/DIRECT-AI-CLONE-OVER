@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "@/contexts/SessionProvider";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "@/integrations/supabase/client";
 import {
   Card,
   CardContent,
@@ -33,14 +34,14 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { SearchInput } from "@/components/SearchInput";
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  Users, 
-  Package, 
-  ShoppingCart, 
-  DollarSign, 
-  Wrench, 
+import {
+  TrendingUp,
+  TrendingDown,
+  Users,
+  Package,
+  ShoppingCart,
+  DollarSign,
+  Wrench,
   Calendar,
   User,
   FileText,
@@ -63,6 +64,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ServiceCommissionReport } from "@/components/ServiceCommissionReport";
 import { DateRange } from "react-day-picker"; // Importar DateRange
+import { EmptyState } from "@/components/EmptyState";
 
 // Tipos de dados (mantidos do original, mas simplificados para o contexto)
 interface SalesReport {
@@ -129,11 +131,29 @@ const calculatePeriodDates = (period: string, customRange?: DateRange) => { // U
     // Para períodos predefinidos, o fim é sempre o momento atual
     periodEnd = now;
   }
-  
+
   return { start: periodStart, end: periodEnd };
 };
 
-const fetchReportData = async (supabase: any, selectedPeriod: string, customRange?: DateRange): Promise<SalesReport> => { // Usar DateRange
+const fetchReportData = async (accessToken: string, selectedPeriod: string, customRange?: DateRange): Promise<SalesReport> => { // Usar DateRange
+  if (!accessToken) {
+    throw new Error("Sem token de acesso para fetch.");
+  }
+
+  const headers = {
+    'apikey': SUPABASE_ANON_KEY,
+    'Authorization': `Bearer ${accessToken}`,
+    'Content-Type': 'application/json'
+  };
+
+  // Helper para fetch
+  const doFetch = async (endpoint: string, params: URLSearchParams) => {
+    const url = `${SUPABASE_URL}/rest/v1/${endpoint}?${params.toString()}`;
+    const res = await fetch(url, { method: 'GET', headers });
+    if (!res.ok) throw new Error(`Fetch error ${endpoint}: ${res.statusText}`);
+    return res.json();
+  };
+
   const { start: periodStart, end: periodEnd } = calculatePeriodDates(selectedPeriod, customRange);
   const now = new Date();
 
@@ -143,68 +163,80 @@ const fetchReportData = async (supabase: any, selectedPeriod: string, customRang
   const previousMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
 
   // --- BUSCA DE DADOS DE CRESCIMENTO (MÊS ATUAL E ANTERIOR) ---
-  
+
   let currentMonthOrders, previousMonthOrders, currentMonthCustomers, previousMonthCustomers;
-  
+
   try {
-    const { data, error } = await supabase.from("pedidos").select("valor_total, created_at").gte("created_at", currentMonthStart.toISOString()).lte("created_at", now.toISOString());
-    if (error) throw new Error(`Pedidos Mês Atual: ${error.message}`);
-    currentMonthOrders = data;
+    currentMonthOrders = await doFetch('pedidos', new URLSearchParams({
+      select: 'valor_total,created_at',
+      created_at: `gte.${currentMonthStart.toISOString()}`,
+    })).then(data => data.filter((d: any) => new Date(d.created_at) <= now));
   } catch (e: any) {
     throw new Error(`Erro ao buscar pedidos do mês atual: ${e.message}`);
   }
 
   try {
-    const { data, error } = await supabase.from("pedidos").select("valor_total, created_at").gte("created_at", previousMonthStart.toISOString()).lte("created_at", previousMonthEnd.toISOString());
-    if (error) throw new Error(`Pedidos Mês Anterior: ${error.message}`);
-    previousMonthOrders = data;
+    previousMonthOrders = await doFetch('pedidos', new URLSearchParams({
+      select: 'valor_total,created_at',
+      created_at: `gte.${previousMonthStart.toISOString()}`,
+    })).then(data => data.filter((d: any) => new Date(d.created_at) <= previousMonthEnd));
   } catch (e: any) {
     throw new Error(`Erro ao buscar pedidos do mês anterior: ${e.message}`);
   }
 
   try {
-    const { data, error } = await supabase.from("clientes").select("id, created_at").gte("created_at", currentMonthStart.toISOString()).lte("created_at", now.toISOString());
-    if (error) throw new Error(`Clientes Mês Atual: ${error.message}`);
-    currentMonthCustomers = data;
+    currentMonthCustomers = await doFetch('clientes', new URLSearchParams({
+      select: 'id,created_at',
+      created_at: `gte.${currentMonthStart.toISOString()}`,
+    })).then(data => data.filter((d: any) => new Date(d.created_at) <= now));
   } catch (e: any) {
     throw new Error(`Erro ao buscar clientes do mês atual: ${e.message}`);
   }
 
   try {
-    const { data, error } = await supabase.from("clientes").select("id, created_at").gte("created_at", previousMonthStart.toISOString()).lte("created_at", previousMonthEnd.toISOString());
-    if (error) throw new Error(`Clientes Mês Anterior: ${error.message}`);
-    previousMonthCustomers = data;
+    previousMonthCustomers = await doFetch('clientes', new URLSearchParams({
+      select: 'id,created_at',
+      created_at: `gte.${previousMonthStart.toISOString()}`,
+    })).then(data => data.filter((d: any) => new Date(d.created_at) <= previousMonthEnd));
   } catch (e: any) {
     throw new Error(`Erro ao buscar clientes do mês anterior: ${e.message}`);
   }
 
   // --- BUSCA DE DADOS PRINCIPAIS (PERÍODO SELECIONADO) ---
-  const { data: orders, error: ordersError } = await supabase
-    .from("pedidos")
-    .select("*, clientes(nome), pedido_items(*, produtos(nome)), pedido_servicos(*)")
-    .order("created_at", { ascending: false });
+  let orders, customers, products;
 
-  if (ordersError) throw new Error(`Erro ao buscar pedidos completos: ${ordersError.message}`);
+  try {
+    orders = await doFetch('pedidos', new URLSearchParams({
+      select: '*,clientes(nome),pedido_items(*,produtos(nome)),pedido_servicos(*)',
+      order: 'created_at.desc'
+    }));
+  } catch (e: any) {
+    throw new Error(`Erro ao buscar pedidos completos: ${e.message}`);
+  }
 
   // Filter orders by selected period
-  const periodOrders = orders?.filter(order => {
+  const periodOrders = orders?.filter((order: any) => {
     const orderDate = new Date(order.created_at);
     return orderDate >= periodStart && orderDate <= periodEnd;
   }) || [];
 
   // Fetch customers (all time for total count)
-  const { data: customers, error: customersError } = await supabase
-    .from("clientes")
-    .select("*");
-
-  if (customersError) throw new Error(`Erro ao buscar todos os clientes: ${customersError.message}`);
+  try {
+    customers = await doFetch('clientes', new URLSearchParams({
+      select: '*'
+    }));
+  } catch (e: any) {
+    throw new Error(`Erro ao buscar todos os clientes: ${e.message}`);
+  }
 
   // Fetch products (all time for total count)
-  const { data: products, error: productsError } = await supabase
-    .from("produtos")
-    .select("*");
-
-  if (productsError) throw new Error(`Erro ao buscar todos os produtos: ${productsError.message}`);
+  try {
+    products = await doFetch('produtos', new URLSearchParams({
+      select: '*'
+    }));
+  } catch (e: any) {
+    throw new Error(`Erro ao buscar todos os produtos: ${e.message}`);
+  }
 
   // --- CÁLCULOS DE MÉTRICAS ---
   const totalRevenue = periodOrders.reduce((sum, order) => sum + order.valor_total, 0) || 0;
@@ -313,38 +345,38 @@ const fetchReportData = async (supabase: any, selectedPeriod: string, customRang
 
   // Meters Report
   const totalMeters = periodOrders.reduce((sum, order) => sum + (order.total_metros || 0), 0);
-  
+
   // Meters by period (simplified for now)
   const metersByPeriod: Array<{ period: string; meters: number }> = [];
-  
+
   // Revenue by period (for line chart)
   const revenueByPeriod: Array<{ period: string; revenue: number }> = [];
-  
+
   // Lógica de agrupamento para o gráfico de linha (por dia se for semana, por semana se for mês, por mês se for ano)
   if (selectedPeriod === "today" || selectedPeriod === "week") {
     const daysOfWeek = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
     const startDay = new Date(periodStart);
     const numDays = selectedPeriod === "today" ? 1 : 7;
-    
+
     for (let i = 0; i < numDays; i++) {
       const dayStart = new Date(startDay);
       dayStart.setDate(startDay.getDate() + i);
       dayStart.setHours(0, 0, 0, 0);
       const dayEnd = new Date(dayStart);
       dayEnd.setHours(23, 59, 59, 999);
-      
+
       const dayOrders = periodOrders.filter(order => {
         const orderDate = new Date(order.created_at);
         return orderDate >= dayStart && orderDate <= dayEnd;
       });
-      
+
       const revenue = dayOrders.reduce((sum, order) => sum + order.valor_total, 0);
-      
+
       revenueByPeriod.push({
         period: selectedPeriod === "today" ? 'Hoje' : daysOfWeek[dayStart.getDay()],
         revenue: revenue,
       });
-      
+
       metersByPeriod.push({
         period: selectedPeriod === "today" ? 'Hoje' : daysOfWeek[dayStart.getDay()],
         meters: dayOrders.reduce((sum, order) => sum + (order.total_metros || 0), 0),
@@ -354,7 +386,7 @@ const fetchReportData = async (supabase: any, selectedPeriod: string, customRang
     // Agrupar por semana (mês) ou por mês (ano)
     const isMonth = selectedPeriod === "month";
     const numPeriods = isMonth ? 4 : 12; // 4 semanas ou 12 meses
-    
+
     for (let i = 0; i < numPeriods; i++) {
       let periodLabel: string;
       let periodStartCalc: Date;
@@ -379,9 +411,9 @@ const fetchReportData = async (supabase: any, selectedPeriod: string, customRang
         const orderDate = new Date(order.created_at);
         return orderDate >= periodStartCalc && orderDate <= periodEndCalc;
       });
-      
+
       const revenue = periodOrdersCalc.reduce((sum, order) => sum + order.valor_total, 0);
-      
+
       revenueByPeriod.push({ period: periodLabel, revenue });
       metersByPeriod.push({ period: periodLabel, meters: periodOrdersCalc.reduce((sum, order) => sum + (order.total_metros || 0), 0) });
     }
@@ -415,7 +447,8 @@ const fetchReportData = async (supabase: any, selectedPeriod: string, customRang
 };
 
 const Reports: React.FC = () => {
-  const { supabase } = useSession();
+  const { session, isLoading: sessionLoading } = useSession();
+  const accessToken = session?.access_token;
   const [selectedPeriod, setSelectedPeriod] = useState("month");
   const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>(undefined); // Usar DateRange | undefined
   const [searchTerm, setSearchTerm] = useState("");
@@ -424,11 +457,20 @@ const Reports: React.FC = () => {
 
   useViewportZoom(true);
 
+  // Validação crítica: só executar se sessão não estiver carregando E token estiver disponível
+  const isEnabled = !sessionLoading && !!accessToken;
+
   const { data: reportData, isLoading, error } = useQuery<SalesReport>({
     queryKey: ["comprehensive-report", selectedPeriod, customDateRange],
-    queryFn: () => fetchReportData(supabase, selectedPeriod, customDateRange),
-    enabled: !!supabase,
-    staleTime: 5 * 60 * 1000,
+    queryFn: () => {
+      if (!accessToken) {
+        throw new Error("Sem token de acesso para fetch.");
+      }
+      return fetchReportData(accessToken, selectedPeriod, customDateRange);
+    },
+    enabled: isEnabled, // Aguardar sessão carregar antes de executar
+    staleTime: 0, // Sempre considerar stale para forçar refetch
+    refetchOnMount: true, // Sempre refetch quando o componente monta
   });
 
   const getPeriodLabel = (period: string) => {
@@ -437,7 +479,7 @@ const Reports: React.FC = () => {
       case "week": return "Esta Semana";
       case "month": return "Este Mês";
       case "year": return "Este Ano";
-      case "custom": 
+      case "custom":
         if (customDateRange?.from && customDateRange?.to) {
           return `${format(customDateRange.from, 'dd/MM')} - ${format(customDateRange.to, 'dd/MM')}`;
         }
@@ -500,9 +542,9 @@ const Reports: React.FC = () => {
 
       {/* SELEÇÃO DE PERÍODO REIMAGINADA */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-        <ToggleGroup 
-          type="single" 
-          value={selectedPeriod} 
+        <ToggleGroup
+          type="single"
+          value={selectedPeriod}
           onValueChange={(value) => {
             if (value && value !== 'custom') {
               setSelectedPeriod(value);
@@ -524,7 +566,7 @@ const Reports: React.FC = () => {
             Este Ano
           </ToggleGroupItem>
         </ToggleGroup>
-        
+
         {/* Seletor de Data Personalizado */}
         <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
           <PopoverTrigger asChild>
@@ -577,7 +619,7 @@ const Reports: React.FC = () => {
 
       {/* Key Metrics - Visão Geral do Período */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        
+
         {/* Receita Total */}
         <Card className="hover:shadow-lg transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -615,7 +657,7 @@ const Reports: React.FC = () => {
             )}
           </CardContent>
         </Card>
-        
+
         {/* Total de Metros */}
         <Card className="hover:shadow-lg transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -666,7 +708,7 @@ const Reports: React.FC = () => {
               title="Tendência de Receita"
               description={`Evolução da receita por ${selectedPeriod === 'week' || selectedPeriod === 'today' ? 'Dia' : 'Período'} em ${getPeriodLabel(selectedPeriod)}`}
             />
-            <MetersBarChart 
+            <MetersBarChart
               data={reportData?.metersReport.metersByPeriod || []}
               title={`Distribuição da Metragem`}
               description={`Metragem por ${selectedPeriod === 'week' || selectedPeriod === 'today' ? 'Dia' : 'Período'} em ${getPeriodLabel(selectedPeriod)}`}
@@ -696,32 +738,40 @@ const Reports: React.FC = () => {
             </CardHeader>
             <CardContent>
               {isLoading ? <Skeleton className="h-40 w-full" /> : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Produto</TableHead>
-                        <TableHead className="text-center">Qtd Vendida</TableHead>
-                        <TableHead className="text-right">Receita</TableHead>
-                        <TableHead className="text-right">Receita Média</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {reportData?.topProducts.map((product, index) => (
-                        <TableRow key={index}>
-                          <TableCell className="font-medium">{product.nome}</TableCell>
-                          <TableCell className="text-center">{product.totalSold}</TableCell>
-                          <TableCell className="text-right font-semibold text-green-600">
-                            {formatCurrency(product.revenue)}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {formatCurrency(product.revenue / product.totalSold)}
-                          </TableCell>
+                reportData?.topProducts.length === 0 ? (
+                  <EmptyState
+                    icon={Package}
+                    title="Nenhum produto vendido"
+                    description="Não houve vendas de produtos neste período."
+                  />
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Produto</TableHead>
+                          <TableHead className="text-center">Qtd Vendida</TableHead>
+                          <TableHead className="text-right">Receita</TableHead>
+                          <TableHead className="text-right">Receita Média</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                      </TableHeader>
+                      <TableBody>
+                        {reportData?.topProducts.map((product, index) => (
+                          <TableRow key={index}>
+                            <TableCell className="font-medium">{product.nome}</TableCell>
+                            <TableCell className="text-center">{product.totalSold}</TableCell>
+                            <TableCell className="text-right font-semibold text-green-600">
+                              {formatCurrency(product.revenue)}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {formatCurrency(product.revenue / product.totalSold)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )
               )}
             </CardContent>
           </Card>
@@ -735,37 +785,45 @@ const Reports: React.FC = () => {
             </CardHeader>
             <CardContent>
               {isLoading ? <Skeleton className="h-40 w-full" /> : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Cliente</TableHead>
-                        <TableHead className="text-center">Total de Pedidos</TableHead>
-                        <TableHead className="text-right">Total Gasto</TableHead>
-                        <TableHead className="text-right">Ticket Médio</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {reportData?.topCustomers.map((customer, index) => (
-                        <TableRow key={index}>
-                          <TableCell className="font-medium">{customer.nome}</TableCell>
-                          <TableCell className="text-center">{customer.totalOrders}</TableCell>
-                          <TableCell className="text-right font-semibold text-green-600">
-                            {formatCurrency(customer.totalSpent)}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {formatCurrency(customer.totalSpent / customer.totalOrders)}
-                          </TableCell>
+                reportData?.topCustomers.length === 0 ? (
+                  <EmptyState
+                    icon={Users}
+                    title="Nenhum cliente ativo"
+                    description="Nenhum cliente realizou compras neste período."
+                  />
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Cliente</TableHead>
+                          <TableHead className="text-center">Total de Pedidos</TableHead>
+                          <TableHead className="text-right">Total Gasto</TableHead>
+                          <TableHead className="text-right">Ticket Médio</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                      </TableHeader>
+                      <TableBody>
+                        {reportData?.topCustomers.map((customer, index) => (
+                          <TableRow key={index}>
+                            <TableCell className="font-medium">{customer.nome}</TableCell>
+                            <TableCell className="text-center">{customer.totalOrders}</TableCell>
+                            <TableCell className="text-right font-semibold text-green-600">
+                              {formatCurrency(customer.totalSpent)}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {formatCurrency(customer.totalSpent / customer.totalOrders)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )
               )}
             </CardContent>
           </Card>
         </TabsContent>
-        
+
         <TabsContent value="recent" className="space-y-6">
           <Card>
             <CardHeader>
@@ -774,32 +832,40 @@ const Reports: React.FC = () => {
             </CardHeader>
             <CardContent>
               {isLoading ? <Skeleton className="h-40 w-full" /> : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>ID</TableHead>
-                        <TableHead>Cliente</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Valor</TableHead>
-                        <TableHead>Data</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {reportData?.recentOrders.map((order) => (
-                        <TableRow key={order.id}>
-                          <TableCell className="font-mono text-sm">#{order.id.slice(-8)}</TableCell>
-                          <TableCell>{order.cliente_nome}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline">{order.status}</Badge>
-                          </TableCell>
-                          <TableCell className="text-right">{formatCurrency(order.valor_total)}</TableCell>
-                          <TableCell>{formatDate(order.created_at)}</TableCell>
+                reportData?.recentOrders.length === 0 ? (
+                  <EmptyState
+                    icon={ShoppingCart}
+                    title="Nenhum pedido recente"
+                    description="Não há pedidos registrados recentemente."
+                  />
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>ID</TableHead>
+                          <TableHead>Cliente</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="text-right">Valor</TableHead>
+                          <TableHead>Data</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                      </TableHeader>
+                      <TableBody>
+                        {reportData?.recentOrders.map((order) => (
+                          <TableRow key={order.id}>
+                            <TableCell className="font-mono text-sm">#{order.id.slice(-8)}</TableCell>
+                            <TableCell>{order.cliente_nome}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{order.status}</Badge>
+                            </TableCell>
+                            <TableCell className="text-right">{formatCurrency(order.valor_total)}</TableCell>
+                            <TableCell>{formatDate(order.created_at)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )
               )}
             </CardContent>
           </Card>

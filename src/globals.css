@@ -99,3 +99,52 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Custom Scrollbar - Amarelo DIRECT AI */
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--background));
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #FFF200 0%, #FFD700 100%);
+  border-radius: 10px;
+  border: 2px solid hsl(var(--background));
+  transition: all 0.3s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #FFD700 0%, #FFC700 100%);
+  border: 2px solid #FFF200;
+  box-shadow: 0 0 10px rgba(255, 242, 0, 0.5);
+}
+
+::-webkit-scrollbar-thumb:active {
+  background: #FFF200;
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #FFF200 hsl(var(--background));
+}
+
+/* Dark mode scrollbar */
+.dark ::-webkit-scrollbar-track {
+  background: hsl(var(--background));
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #FFF200 0%, #E6DA00 100%);
+  border: 2px solid hsl(var(--background));
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #FFD700 0%, #FFF200 100%);
+  box-shadow: 0 0 15px rgba(255, 242, 0, 0.6);
+}

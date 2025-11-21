@@ -3,6 +3,7 @@ import { useSession } from "@/contexts/SessionProvider";
 import { PedidoStatus } from "@/types/pedido";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "@/integrations/supabase/client";
 
 export interface CommissionServiceItem {
   service_name: string;
@@ -32,40 +33,49 @@ export interface CommissionReport {
 }
 
 const fetchCommissionReport = async (
-  supabase: any, 
+  accessToken: string,
   startDate: string, 
   endDate: string,
   excludedNames: string[],
   requiredStatus: PedidoStatus[] | 'all'
 ): Promise<CommissionReport> => {
   
+  if (!accessToken) {
+    throw new Error("Sem token de acesso para fetch.");
+  }
+
+  const headers = {
+    'apikey': SUPABASE_ANON_KEY,
+    'Authorization': `Bearer ${accessToken}`,
+    'Content-Type': 'application/json'
+  };
+
   // 1. Buscar todos os serviços e os pedidos relacionados no período
-  let query = supabase
-    .from('pedido_servicos')
-    .select(`
-      id,
-      nome,
-      quantidade,
-      valor_unitario,
-      pedido_id,
-      pedidos!inner (
-        order_number,
-        created_at,
-        status,
-        clientes (nome)
-      )
-    `)
-    .gte('pedidos.created_at', startDate)
-    .lte('pedidos.created_at', endDate);
+  // PostgREST syntax para join: select=*,pedidos!inner(order_number,created_at,status,clientes(nome))
+  // Para filtros em tabelas relacionadas, usar a sintaxe: tabela_relacionada.campo=operador.valor
+  let queryParams = new URLSearchParams();
+  const selectParam = 'id,nome,quantidade,valor_unitario,pedido_id,pedidos!inner(order_number,created_at,status,clientes(nome))';
+  queryParams.append('select', selectParam);
+  
+  // Filtros na tabela relacionada pedidos
+  queryParams.append('pedidos.created_at', `gte.${startDate}`);
+  queryParams.append('pedidos.created_at', `lte.${endDate}`);
 
   // Aplicar filtro de status se não for 'all'
   if (requiredStatus !== 'all' && requiredStatus.length > 0) {
-    query = query.in('pedidos.status', requiredStatus);
+    // PostgREST usa in() para arrays: pedidos.status=in.(status1,status2)
+    queryParams.append('pedidos.status', `in.(${requiredStatus.join(',')})`);
   }
 
-  const { data: servicesData, error } = await query;
+  const url = `${SUPABASE_URL}/rest/v1/pedido_servicos?${queryParams.toString()}`;
+  const response = await fetch(url, { method: 'GET', headers });
 
-  if (error) throw error;
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Erro ao buscar serviços: ${response.statusText} - ${errorText}`);
+  }
+
+  const servicesData = await response.json();
 
   // 2. Filtrar serviços excluídos e agrupar/somar no cliente
   const filteredServices = servicesData.filter(service => 
@@ -138,16 +148,26 @@ export const useServiceCommissionReport = (
   requiredStatus: PedidoStatus[] | 'all', // Novo parâmetro
   excludedNames: string[] = ['Sedex']
 ) => {
-  const { supabase } = useSession();
+  const { session, isLoading: sessionLoading } = useSession();
+  const accessToken = session?.access_token;
 
   const startISO = startDate?.toISOString() || '';
   const endISO = endDate?.toISOString() || '';
   const statusKey = Array.isArray(requiredStatus) ? requiredStatus.join(',') : requiredStatus;
 
+  // Validação crítica: só executar se sessão não estiver carregando E token estiver disponível
+  const isEnabled = !sessionLoading && !!accessToken && !!startDate && !!endDate;
+
   return useQuery<CommissionReport>({
     queryKey: ["service-commission-report", startISO, endISO, statusKey, excludedNames],
-    queryFn: () => fetchCommissionReport(supabase, startISO, endISO, excludedNames, requiredStatus),
-    enabled: !!supabase && !!startDate && !!endDate,
-    staleTime: 5 * 60 * 1000,
+    queryFn: () => {
+      if (!accessToken) {
+        throw new Error("Sem token de acesso para fetch.");
+      }
+      return fetchCommissionReport(accessToken, startISO, endISO, excludedNames, requiredStatus);
+    },
+    enabled: isEnabled, // Aguardar sessão carregar antes de executar
+    staleTime: 0, // Sempre considerar stale para forçar refetch
+    refetchOnMount: true, // Sempre refetch quando o componente monta
   });
 };

@@ -3,6 +3,7 @@ import { useSession } from '@/contexts/SessionProvider';
 import { Pedido, StatusHistoryItem } from '@/types/pedido';
 import { Cliente } from '@/types/cliente';
 import { Produto } from '@/types/produto';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { 
   Dialog, 
@@ -83,24 +84,36 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
   const [isStatusHistoryOpen, setIsStatusHistoryOpen] = useState(false);
 
   const fetchPedidoDetails = async () => {
-    if (!session || !supabase || !pedidoId) return;
+    if (!session || !pedidoId) return;
+    
+    const accessToken = session.access_token;
+    if (!accessToken) {
+      showError("Sem token de acesso para buscar detalhes do pedido.");
+      setLoading(false);
+      return;
+    }
     
     setLoading(true);
     try {
-      // Consulta ÚNICA e completa para garantir que todas as relações sejam carregadas
-      const { data: pedidoData, error: pedidoError } = await supabase
-        .from('pedidos') // Usando 'pedidos' para leitura
-        .select(`
-          *,
-          clientes (id, nome, telefone, email, endereco),
-          pedido_items (*),
-          pedido_servicos (*),
-          pedido_status_history (*)
-        `)
-        .eq('id', pedidoId)
-        .single();
+      // Consulta ÚNICA e completa usando fetch direto
+      const headers = {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      };
 
-      if (pedidoError) throw pedidoError;
+      const selectParam = '*,clientes(id,nome,telefone,email,endereco),pedido_items(*),pedido_servicos(*),pedido_status_history(*)';
+      const url = `${SUPABASE_URL}/rest/v1/pedidos?select=${encodeURIComponent(selectParam)}&id=eq.${pedidoId}`;
+      
+      const response = await fetch(url, { method: 'GET', headers });
+      
+      if (!response.ok) {
+        throw new Error(`Erro ao buscar pedido: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      const pedidoData = Array.isArray(data) ? data[0] : data;
+
       if (!pedidoData) throw new Error("Pedido não encontrado.");
 
       // O Supabase retorna as relações aninhadas.
@@ -244,6 +257,9 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
     return (
       <Dialog open={isOpen} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Carregando Pedido...</DialogTitle>
+          </DialogHeader>
           <div className="flex justify-center items-center h-64">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
           </div>

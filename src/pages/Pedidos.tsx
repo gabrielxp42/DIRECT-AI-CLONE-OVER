@@ -6,9 +6,10 @@ import { Cliente } from '@/types/cliente';
 import { Produto } from '@/types/produto';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Plus, Search, Filter, Eye, Edit, Trash2, Loader2, CalendarIcon, DollarSign, FileText, Wrench, History, MessageSquare, MoreHorizontal, User, Clock, CheckCircle, XCircle, Package, X, Printer, Ruler } from 'lucide-react';
+import { Plus, Search, Filter, Eye, Edit, Trash2, Loader2, CalendarIcon, DollarSign, FileText, Wrench, History, MessageSquare, MoreHorizontal, User, Clock, CheckCircle, XCircle, Package, X, Printer, Ruler, PackageOpen } from 'lucide-react';
 import { PedidoForm } from '@/components/PedidoForm';
 import { PedidoDetails } from '@/components/PedidoDetails';
+import { EmptyState } from '@/components/EmptyState';
 import { showSuccess, showError } from '@/utils/toast';
 import {
   AlertDialog,
@@ -47,17 +48,49 @@ import { useDebounce } from '@/hooks/useDebounce';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PaginationControls } from '@/components/PaginationControls';
 import { DateRange } from 'react-day-picker'; // Importar DateRange
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/integrations/supabase/client';
 
 const ITEMS_PER_PAGE_OPTIONS = [10, 20, 50, 100];
 
 const PedidosPage: React.FC = () => {
-  const { supabase, session } = useSession();
+  const { session, isLoading: sessionLoading } = useSession();
   const queryClient = useQueryClient();
-  
+  const accessToken = session?.access_token;
+
+  // Verificação CRÍTICA no início do componente
+  if (sessionLoading) {
+    return (
+      <div className="container mx-auto p-4">
+        <div className="text-center py-8">
+          <div className="text-muted-foreground">Carregando...</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Verificação do token de acesso
+  if (!accessToken) {
+    return (
+      <div className="container mx-auto p-4">
+        <div className="text-center py-8 space-y-4">
+          <div className="text-red-600 dark:text-red-400 font-semibold text-lg">
+            Erro de Autenticação
+          </div>
+          <div className="text-muted-foreground">
+            Token de acesso não encontrado. Por favor, faça login novamente.
+          </div>
+          <Button onClick={() => window.location.reload()}>
+            Recarregar Página
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   // Estado de Paginação e Limite
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(ITEMS_PER_PAGE_OPTIONS[1]); // Default 20
-  
+
   // Filtros
   const [rawSearchTerm, setRawSearchTerm] = useState('');
   const searchTerm = useDebounce(rawSearchTerm, 300);
@@ -66,18 +99,20 @@ const PedidosPage: React.FC = () => {
   const [filterClientId, setFilterClientId] = useState<string | null>(null);
   const [filterClientName, setFilterClientName] = useState<string | null>(null);
 
+  // IMPORTANTE: Só chamar os hooks DEPOIS de garantir que o token está disponível
   // Fetch de dados paginados com filtros
   const { data: paginatedData, isLoading: isLoadingPaginated, error: paginatedError } = usePaginatedPedidos(
-    currentPage, 
-    itemsPerPage, 
-    filterStatus, 
-    filterDateRange, 
+    currentPage,
+    itemsPerPage,
+    filterStatus,
+    filterDateRange,
     filterClientId,
     searchTerm // PASSANDO O TERMO DE BUSCA PARA O BACKEND
   );
-  
-  const { data: clientes, isLoading: isLoadingClientes } = useClientes();
-  const { data: produtos, isLoading: isLoadingProdutos } = useProdutos();
+
+  // Garantir que os hooks só executem se o token estiver disponível
+  const { data: clientes, isLoading: isLoadingClientes, error: clientesError } = useClientes();
+  const { data: produtos, isLoading: isLoadingProdutos, error: produtosError } = useProdutos();
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
@@ -87,7 +122,7 @@ const PedidosPage: React.FC = () => {
   const [viewingPedidoId, setViewingPedidoId] = useState<string | null>(null);
   const [statusChangePedido, setStatusChangePedido] = useState<Pedido | null>(null);
   const [viewingStatusHistory, setViewingStatusHistory] = useState<Pedido | null>(null);
-  
+
   const isMobile = useIsMobile();
   const location = useLocation();
   const navigate = useNavigate();
@@ -98,20 +133,20 @@ const PedidosPage: React.FC = () => {
       setFilterStatus(location.state.filterStatus);
       navigate(location.pathname, { replace: true, state: {} });
     }
-    
+
     if (location.state?.filterClientId) {
       setFilterClientId(location.state.filterClientId);
       setFilterClientName(location.state.filterClientName || 'Cliente Filtrado');
       navigate(location.pathname, { replace: true, state: {} });
     }
-    
+
     if (location.state?.openForm) {
-      setEditingPedido(null); 
-      setIsFormOpen(true);    
+      setEditingPedido(null);
+      setIsFormOpen(true);
       navigate(location.pathname, { replace: true, state: {} });
     }
   }, [location.state, location.pathname, navigate]);
-  
+
   // Resetar página para 1 quando filtros mudam
   useEffect(() => {
     setCurrentPage(1);
@@ -146,7 +181,7 @@ const PedidosPage: React.FC = () => {
     setViewingStatusHistory(pedido);
     setIsStatusHistoryOpen(true);
   };
-  
+
   // --- Funções de PDF ---
   const handleDownloadPDF = async (pedido: Pedido) => {
     try {
@@ -179,28 +214,46 @@ const PedidosPage: React.FC = () => {
 
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, newStatus, observacao, statusAnterior }: { id: string, newStatus: string, observacao?: string, statusAnterior: string }) => {
-      if (!supabase) throw new Error("Supabase client is not available");
-      
-      const { error } = await supabase
-        .from('pedidos') 
-        .update({ status: newStatus })
-        .eq('id', id);
-      
-      if (error) throw error;
-      
+      if (!accessToken || !session) throw new Error("Token de acesso não encontrado");
+
+      const headers = {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      };
+
+      // Atualizar status do pedido
+      const updateUrl = `${SUPABASE_URL}/rest/v1/pedidos?id=eq.${id}`;
+      const updateResponse = await fetch(updateUrl, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ status: newStatus })
+      });
+
+      if (!updateResponse.ok) {
+        const errorText = await updateResponse.text();
+        throw new Error(`Erro ao atualizar status: ${updateResponse.status} ${updateResponse.statusText} - ${errorText}`);
+      }
+
+      // Inserir histórico se necessário
       if (newStatus !== statusAnterior || observacao) {
-        const { error: historyError } = await supabase
-          .from('pedido_status_history')
-          .insert({
+        const historyUrl = `${SUPABASE_URL}/rest/v1/pedido_status_history`;
+        const historyResponse = await fetch(historyUrl, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify([{
             pedido_id: id,
             status_anterior: statusAnterior,
             status_novo: newStatus,
             observacao: observacao?.trim() || null,
-            user_id: session?.user.id
-          });
+            user_id: session.user.id
+          }])
+        });
 
-        if (historyError) {
-          console.warn('Aviso: Erro ao salvar histórico:', historyError);
+        if (!historyResponse.ok) {
+          const errorText = await historyResponse.text();
+          console.warn('Aviso: Erro ao salvar histórico:', errorText);
         }
       }
     },
@@ -226,19 +279,38 @@ const PedidosPage: React.FC = () => {
 
   const deletePedidoMutation = useMutation({
     mutationFn: async (id: string) => {
-      if (!supabase) throw new Error("Supabase client is not available");
-      
-      // Excluir itens e serviços relacionados (RLS deve permitir)
-      await supabase.from('pedido_items').delete().eq('pedido_id', id);
-      await supabase.from('pedido_servicos').delete().eq('pedido_id', id);
-      await supabase.from('pedido_status_history').delete().eq('pedido_id', id);
+      if (!accessToken || !session) throw new Error("Token de acesso não encontrado");
 
-      const { error } = await supabase
-        .from('pedidos')
-        .delete()
-        .eq('id', id)
-        .eq('user_id', session?.user.id);
-      if (error) throw error;
+      const headers = {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      };
+
+      // Excluir itens e serviços relacionados
+      const deleteRelated = async (table: string) => {
+        const url = `${SUPABASE_URL}/rest/v1/${table}?pedido_id=eq.${id}`;
+        const response = await fetch(url, { method: 'DELETE', headers });
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.warn(`Aviso: Erro ao excluir ${table}:`, errorText);
+        }
+      };
+
+      await Promise.all([
+        deleteRelated('pedido_items'),
+        deleteRelated('pedido_servicos'),
+        deleteRelated('pedido_status_history')
+      ]);
+
+      // Excluir o pedido
+      const pedidoUrl = `${SUPABASE_URL}/rest/v1/pedidos?id=eq.${id}&user_id=eq.${session.user.id}`;
+      const response = await fetch(pedidoUrl, { method: 'DELETE', headers });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Erro ao excluir pedido: ${response.status} ${response.statusText} - ${errorText}`);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pedidos"] });
@@ -254,67 +326,123 @@ const PedidosPage: React.FC = () => {
 
   const handleSubmitPedidoMutation = useMutation({
     mutationFn: async ({ data, pedidoId }: { data: any, pedidoId?: string }) => {
-      if (!session || !supabase) throw new Error("Sessão não encontrada");
-      
+      if (!session || !accessToken) throw new Error("Sessão não encontrada");
+
       const { items, servicos, created_at, ...pedidoData } = data;
-      
+
+      const headers = {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      };
+
       if (pedidoId) {
         // Update existing pedido
-        const updateData = { 
-          ...pedidoData, 
+        const updateData = {
+          ...pedidoData,
           created_at,
           status: editingPedido?.status || 'pendente'
         };
 
-        const { error: pedidoError } = await supabase
-          .from('pedidos') 
-          .update(updateData)
-          .eq('id', pedidoId);
-        if (pedidoError) throw pedidoError;
+        const updateUrl = `${SUPABASE_URL}/rest/v1/pedidos?id=eq.${pedidoId}`;
+        const updateResponse = await fetch(updateUrl, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify(updateData)
+        });
+
+        if (!updateResponse.ok) {
+          const errorText = await updateResponse.text();
+          throw new Error(`Erro ao atualizar pedido: ${updateResponse.status} ${updateResponse.statusText} - ${errorText}`);
+        }
 
         // Handle items: delete old, insert new
-        await supabase.from('pedido_items').delete().eq('pedido_id', pedidoId);
+        const deleteItemsUrl = `${SUPABASE_URL}/rest/v1/pedido_items?pedido_id=eq.${pedidoId}`;
+        await fetch(deleteItemsUrl, { method: 'DELETE', headers });
+
         if (items && items.length > 0) {
           const itemsToInsert = items.map((item: any) => ({ ...item, pedido_id: pedidoId }));
-          const { error: itemsError } = await supabase.from('pedido_items').insert(itemsToInsert);
-          if (itemsError) throw itemsError;
+          const insertItemsUrl = `${SUPABASE_URL}/rest/v1/pedido_items`;
+          const itemsResponse = await fetch(insertItemsUrl, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(itemsToInsert)
+          });
+          if (!itemsResponse.ok) {
+            const errorText = await itemsResponse.text();
+            throw new Error(`Erro ao inserir itens: ${itemsResponse.status} ${itemsResponse.statusText} - ${errorText}`);
+          }
         }
 
         // Handle servicos: delete old, insert new
-        await supabase.from('pedido_servicos').delete().eq('pedido_id', pedidoId);
+        const deleteServicosUrl = `${SUPABASE_URL}/rest/v1/pedido_servicos?pedido_id=eq.${pedidoId}`;
+        await fetch(deleteServicosUrl, { method: 'DELETE', headers });
+
         if (servicos && servicos.length > 0) {
           const servicosToInsert = servicos.map((servico: any) => ({ ...servico, pedido_id: pedidoId }));
-          const { error: servicosError } = await supabase.from('pedido_servicos').insert(servicosToInsert);
-          if (servicosError) throw servicosError;
+          const insertServicosUrl = `${SUPABASE_URL}/rest/v1/pedido_servicos`;
+          const servicosResponse = await fetch(insertServicosUrl, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(servicosToInsert)
+          });
+          if (!servicosResponse.ok) {
+            const errorText = await servicosResponse.text();
+            throw new Error(`Erro ao inserir serviços: ${servicosResponse.status} ${servicosResponse.statusText} - ${errorText}`);
+          }
         }
         return { type: 'update' };
       } else {
         // Create new pedido
-        const newPedidoData = { 
-          ...pedidoData, 
-          user_id: session.user.id, 
+        const newPedidoData = {
+          ...pedidoData,
+          user_id: session.user.id,
           status: 'pendente',
           created_at: created_at
         };
 
-        const { data: newPedido, error: pedidoError } = await supabase
-          .from('pedidos') 
-          .insert([newPedidoData])
-          .select()
-          .single();
+        const createUrl = `${SUPABASE_URL}/rest/v1/pedidos`;
+        const createResponse = await fetch(createUrl, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify([newPedidoData])
+        });
 
-        if (pedidoError) throw pedidoError;
+        if (!createResponse.ok) {
+          const errorText = await createResponse.text();
+          throw new Error(`Erro ao criar pedido: ${createResponse.status} ${createResponse.statusText} - ${errorText}`);
+        }
+
+        const newPedidoArray = await createResponse.json();
+        const newPedido = Array.isArray(newPedidoArray) ? newPedidoArray[0] : newPedidoArray;
 
         if (items && items.length > 0) {
           const itemsToInsert = items.map((item: any) => ({ ...item, pedido_id: newPedido.id }));
-          const { error: itemsError } = await supabase.from('pedido_items').insert(itemsToInsert);
-          if (itemsError) throw itemsError;
+          const insertItemsUrl = `${SUPABASE_URL}/rest/v1/pedido_items`;
+          const itemsResponse = await fetch(insertItemsUrl, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(itemsToInsert)
+          });
+          if (!itemsResponse.ok) {
+            const errorText = await itemsResponse.text();
+            throw new Error(`Erro ao inserir itens: ${itemsResponse.status} ${itemsResponse.statusText} - ${errorText}`);
+          }
         }
 
         if (servicos && servicos.length > 0) {
           const servicosToInsert = servicos.map((servico: any) => ({ ...servico, pedido_id: newPedido.id }));
-          const { error: servicosError } = await supabase.from('pedido_servicos').insert(servicosToInsert);
-          if (servicosError) throw servicosError;
+          const insertServicosUrl = `${SUPABASE_URL}/rest/v1/pedido_servicos`;
+          const servicosResponse = await fetch(insertServicosUrl, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(servicosToInsert)
+          });
+          if (!servicosResponse.ok) {
+            const errorText = await servicosResponse.text();
+            throw new Error(`Erro ao inserir serviços: ${servicosResponse.status} ${servicosResponse.statusText} - ${errorText}`);
+          }
         }
         return { type: 'create' };
       }
@@ -346,8 +474,8 @@ const PedidosPage: React.FC = () => {
     switch (status) {
       case 'pendente':
         return (
-          <Badge 
-            variant="outline" 
+          <Badge
+            variant="outline"
             className={cn(baseClasses, "bg-yellow-100 text-yellow-800 border-yellow-300")}
             onClick={(e) => { e.stopPropagation(); handleStatusChange(pedido); }}
           >
@@ -356,8 +484,8 @@ const PedidosPage: React.FC = () => {
         );
       case 'processando':
         return (
-          <Badge 
-            variant="outline" 
+          <Badge
+            variant="outline"
             className={cn(baseClasses, "bg-blue-100 text-blue-800 border-blue-300")}
             onClick={(e) => { e.stopPropagation(); handleStatusChange(pedido); }}
           >
@@ -366,8 +494,8 @@ const PedidosPage: React.FC = () => {
         );
       case 'enviado':
         return (
-          <Badge 
-            variant="outline" 
+          <Badge
+            variant="outline"
             className={cn(baseClasses, "bg-purple-100 text-purple-800 border-purple-300")}
             onClick={(e) => { e.stopPropagation(); handleStatusChange(pedido); }}
           >
@@ -376,8 +504,8 @@ const PedidosPage: React.FC = () => {
         );
       case 'entregue':
         return (
-          <Badge 
-            variant="outline" 
+          <Badge
+            variant="outline"
             className={cn(baseClasses, "bg-green-100 text-green-800 border-green-300")}
             onClick={(e) => { e.stopPropagation(); handleStatusChange(pedido); }}
           >
@@ -386,8 +514,8 @@ const PedidosPage: React.FC = () => {
         );
       case 'cancelado':
         return (
-          <Badge 
-            variant="outline" 
+          <Badge
+            variant="outline"
             className={cn(baseClasses, "bg-red-100 text-red-800 border-red-300")}
             onClick={(e) => { e.stopPropagation(); handleStatusChange(pedido); }}
           >
@@ -396,8 +524,8 @@ const PedidosPage: React.FC = () => {
         );
       case 'pago':
         return (
-          <Badge 
-            variant="outline" 
+          <Badge
+            variant="outline"
             className={cn(baseClasses, "bg-green-500 text-white border-green-600")}
             onClick={(e) => { e.stopPropagation(); handleStatusChange(pedido); }}
           >
@@ -406,8 +534,8 @@ const PedidosPage: React.FC = () => {
         );
       case 'aguardando retirada':
         return (
-          <Badge 
-            variant="outline" 
+          <Badge
+            variant="outline"
             className={cn(baseClasses, "bg-orange-500 text-white border-orange-600")}
             onClick={(e) => { e.stopPropagation(); handleStatusChange(pedido); }}
           >
@@ -416,8 +544,8 @@ const PedidosPage: React.FC = () => {
         );
       default:
         return (
-          <Badge 
-            variant="secondary" 
+          <Badge
+            variant="secondary"
             className={cn(baseClasses)}
             onClick={(e) => { e.stopPropagation(); handleStatusChange(pedido); }}
           >
@@ -440,12 +568,51 @@ const PedidosPage: React.FC = () => {
   const totalPages = Math.ceil(totalPedidos / itemsPerPage);
 
   // Não precisamos mais de useMemo para filtrar, pois o backend já filtrou.
-  const filteredPedidos = pedidosDaPagina; 
+  const filteredPedidos = pedidosDaPagina;
 
   const isGlobalLoading = isLoadingPaginated || isLoadingClientes || isLoadingProdutos;
 
-  if (paginatedError) {
-    return <div className="text-center py-8 text-red-600">Erro ao carregar pedidos: {paginatedError.message}</div>;
+  // Verificar erros de todos os hooks
+  const hasError = paginatedError || clientesError || produtosError;
+  const errorMessage = paginatedError?.message || clientesError?.message || produtosError?.message || 'Erro desconhecido ao carregar pedidos';
+
+  if (hasError) {
+    // Log detalhado do erro para debug
+    console.error('[PedidosPage] Erro detectado:', {
+      paginatedError: paginatedError?.message,
+      paginatedErrorStack: paginatedError?.stack,
+      paginatedErrorFull: paginatedError,
+      clientesError: clientesError?.message,
+      produtosError: produtosError?.message,
+      accessToken: !!accessToken,
+      session: !!session,
+    });
+
+    return (
+      <div className="container mx-auto p-4">
+        <div className="text-center py-8 space-y-4">
+          <div className="text-red-600 dark:text-red-400 font-semibold text-lg">
+            Erro ao carregar pedidos
+          </div>
+          <div className="text-muted-foreground">
+            {errorMessage}
+          </div>
+          <div className="text-xs text-muted-foreground mt-2 space-y-1">
+            {errorMessage.includes('Cannot read properties of undefined') && (
+              <p>O cliente Supabase não está disponível. Verifique a conexão.</p>
+            )}
+            {errorMessage.includes('Supabase client') && (
+              <p>Problema na inicialização do cliente Supabase.</p>
+            )}
+          </div>
+          {(errorMessage.includes('Supabase client') || errorMessage.includes('undefined')) && (
+            <Button onClick={() => window.location.reload()}>
+              Recarregar Página
+            </Button>
+          )}
+        </div>
+      </div>
+    );
   }
 
   // Componente de Skeleton otimizado para a lista de pedidos
@@ -479,7 +646,7 @@ const PedidosPage: React.FC = () => {
           Novo Pedido
         </Button>
       </div>
-      
+
       {/* Filtro de Cliente Ativo */}
       {filterClientId && filterClientName && (
         <div className="mb-4 flex items-center gap-2 p-3 bg-primary/10 border border-primary/30 rounded-lg">
@@ -487,9 +654,9 @@ const PedidosPage: React.FC = () => {
           <span className="text-sm font-medium text-primary">
             Filtrando pedidos para: <strong>{filterClientName}</strong>
           </span>
-          <Button 
-            variant="ghost" 
-            size="icon" 
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={handleClearClientFilter}
             className="h-6 w-6 text-primary hover:bg-primary/20 ml-auto"
           >
@@ -505,7 +672,7 @@ const PedidosPage: React.FC = () => {
           onChange={(e) => setRawSearchTerm(e.target.value)}
           className="md:col-span-2 lg:col-span-2"
         />
-        
+
         {/* Filtro de Status - REATIVADO */}
         <Select value={filterStatus} onValueChange={setFilterStatus}>
           <SelectTrigger className="w-full">
@@ -523,7 +690,7 @@ const PedidosPage: React.FC = () => {
             <SelectItem value="aguardando retirada">Aguardando Retirada</SelectItem>
           </SelectContent>
         </Select>
-        
+
         {/* Filtro de Data - REATIVADO */}
         <Popover>
           <PopoverTrigger asChild>
@@ -566,13 +733,26 @@ const PedidosPage: React.FC = () => {
       {isGlobalLoading ? (
         <PedidoSkeleton />
       ) : filteredPedidos.length === 0 ? (
-        <p className="text-center text-gray-500 dark:text-gray-400">Nenhum pedido encontrado.</p>
+        <div className="col-span-full">
+          <EmptyState
+            title={searchTerm || filterStatus !== 'todos' || filterClientId ? "Nenhum pedido encontrado com esses filtros" : "Nenhum pedido cadastrado"}
+            description={searchTerm || filterStatus !== 'todos' || filterClientId ? "Tente ajustar seus filtros ou buscar por outro termo." : "Comece a vender agora mesmo! Crie seu primeiro pedido para gerenciar suas vendas."}
+            icon={PackageOpen}
+            actionLabel={searchTerm || filterStatus !== 'todos' || filterClientId ? "Limpar Filtros" : "Criar Primeiro Pedido"}
+            onAction={searchTerm || filterStatus !== 'todos' || filterClientId ? () => {
+              setRawSearchTerm('');
+              setFilterStatus('todos');
+              setFilterClientId(null);
+              setFilterDateRange(undefined);
+            } : handleCreatePedido}
+          />
+        </div>
       ) : (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filteredPedidos.map((pedido) => (
-              <Card 
-                key={pedido.id} 
+              <Card
+                key={pedido.id}
                 className="touch-manipulation cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-[1.02] hover:border-primary/50"
                 onClick={() => handleViewPedido(pedido.id)}
               >
@@ -595,8 +775,8 @@ const PedidosPage: React.FC = () => {
                       ) : (
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <div 
-                              className="cursor-pointer" 
+                            <div
+                              className="cursor-pointer"
                               onClick={(e) => { e.stopPropagation(); handleStatusChange(pedido); }}
                             >
                               <OrderStatusIndicator status={pedido.status} />
@@ -619,7 +799,7 @@ const PedidosPage: React.FC = () => {
                     <DollarSign className="h-4 w-4 mr-2 text-primary" />
                     <span>Total: {formatCurrency(pedido.valor_total)}</span>
                   </div>
-                  
+
                   {/* NOVO: Exibição do Total de Metros */}
                   {pedido.total_metros > 0 && (
                     <div className="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -638,12 +818,12 @@ const PedidosPage: React.FC = () => {
                   <div className="flex justify-end gap-2 pt-3 border-t mt-3">
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button 
-                          variant="outline" 
-                          size="icon" 
-                          onClick={(e) => { 
-                            e.stopPropagation(); 
-                            handleDownloadPDF(pedido); 
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDownloadPDF(pedido);
                           }}
                           className="h-9 w-9"
                         >
@@ -652,15 +832,15 @@ const PedidosPage: React.FC = () => {
                       </TooltipTrigger>
                       <TooltipContent>Baixar PDF</TooltipContent>
                     </Tooltip>
-                    
+
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button 
-                          variant="outline" 
-                          size="icon" 
-                          onClick={(e) => { 
-                            e.stopPropagation(); 
-                            handlePrintPDF(pedido); 
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePrintPDF(pedido);
                           }}
                           className="h-9 w-9"
                         >
@@ -669,12 +849,12 @@ const PedidosPage: React.FC = () => {
                       </TooltipTrigger>
                       <TooltipContent>Imprimir Nota</TooltipContent>
                     </Tooltip>
-                    
+
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button 
-                          variant="outline" 
-                          size="icon" 
+                        <Button
+                          variant="outline"
+                          size="icon"
                           onClick={(e) => { e.stopPropagation(); handleStatusChange(pedido); }}
                           className="h-9 w-9"
                         >
@@ -686,9 +866,9 @@ const PedidosPage: React.FC = () => {
 
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button 
-                          variant="outline" 
-                          size="icon" 
+                        <Button
+                          variant="outline"
+                          size="icon"
                           onClick={(e) => e.stopPropagation()}
                           className="h-9 w-9"
                         >
@@ -737,12 +917,12 @@ const PedidosPage: React.FC = () => {
               </Card>
             ))}
           </div>
-          
+
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-4">
             <div className="flex items-center space-x-2 text-sm text-muted-foreground">
               <span>Pedidos por página:</span>
-              <Select 
-                value={String(itemsPerPage)} 
+              <Select
+                value={String(itemsPerPage)}
                 onValueChange={(value) => setItemsPerPage(Number(value))}
                 disabled={isGlobalLoading}
               >
@@ -758,14 +938,14 @@ const PedidosPage: React.FC = () => {
                 </SelectContent>
               </Select>
             </div>
-            
+
             <PaginationControls
               currentPage={currentPage}
               totalPages={totalPages}
               onPageChange={setCurrentPage}
               isLoading={isLoadingPaginated}
             />
-            
+
             <div className="text-sm text-muted-foreground">
               Total de {totalPedidos} pedidos
             </div>

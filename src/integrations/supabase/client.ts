@@ -3,20 +3,34 @@ import { createClient } from '@supabase/supabase-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 // Credenciais fornecidas pelo usuário para o projeto zdbjzrpgliqicwvncfpc
-const SUPABASE_URL = "https://zdbjzrpgliqicwvncfpc.supabase.co";
+export const SUPABASE_URL = "https://zdbjzrpgliqicwvncfpc.supabase.co";
 // CHAVE PÚBLICA (ANON KEY) - Chave correta para uso no lado do cliente.
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpkYmp6cnBnbGlxaWN3dm5jZnBjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc2ODI3MzUsImV4cCI6MjA3MzI1ODczNX0.VOrT3YAVhCqkbSmV-POeb4sVTgmu756sivqT1_9vCr4";
+export const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpkYmp6cnBnbGlxaWN3dm5jZnBjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc2ODI3MzUsImV4cCI6MjA3MzI1ODczNX0.VOrT3YAVhCqkbSmV-POeb4sVTgmu756sivqT1_9vCr4";
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-let client: SupabaseClient | undefined;
+// Função helper para criar um mock que falha na verificação
+const createMockClient = (): SupabaseClient => {
+  return {
+    from: () => {
+      throw new Error("Supabase client failed to initialize. Please refresh the page.");
+    }
+  } as unknown as SupabaseClient;
+};
+
+let client: SupabaseClient;
 
 try {
+  // Validação das credenciais antes de criar o cliente
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    throw new Error("Supabase URL or ANON KEY is missing in environment variables.");
+  }
+
   client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: {
-      // Enable automatic token refresh
-      autoRefreshToken: true,
+      // Enable automatic token refresh - DESATIVADO TEMPORARIAMENTE PARA DEBUG
+      autoRefreshToken: false,
       // Persist session in localStorage by default
       persistSession: true,
       // Detect session from URL on redirect
@@ -24,33 +38,85 @@ try {
       // Storage configuration
       storage: {
         getItem: (key: string) => {
-          // Check if we should use sessionStorage (for non-persistent sessions)
-          const useSessionStorage = sessionStorage.getItem('supabase-use-session-storage');
-          if (useSessionStorage === 'true') {
-            return sessionStorage.getItem(key);
+          try {
+            // Check if we should use sessionStorage (for non-persistent sessions)
+            const useSessionStorage = sessionStorage.getItem('supabase-use-session-storage');
+            if (useSessionStorage === 'true') {
+              const value = sessionStorage.getItem(key);
+              // Log apenas para chaves importantes de auth
+              if (key.includes('auth-token') || key.includes('supabase.auth')) {
+                console.log(`🔑 [Supabase Storage] Reading ${key} from sessionStorage:`, value ? 'Found' : 'Not found');
+              }
+              return value;
+            }
+            const value = localStorage.getItem(key);
+            // Log apenas para chaves importantes de auth
+            if (key.includes('auth-token') || key.includes('supabase.auth')) {
+              console.log(`🔑 [Supabase Storage] Reading ${key} from localStorage:`, value ? 'Found' : 'Not found');
+            }
+            return value;
+          } catch (e) {
+            console.error('❌ [Supabase Storage] Error reading from storage:', e);
+            return null;
           }
-          return localStorage.getItem(key);
         },
         setItem: (key: string, value: string) => {
-          const useSessionStorage = sessionStorage.getItem('supabase-use-session-storage');
-          if (useSessionStorage === 'true') {
-            sessionStorage.setItem(key, value);
-          } else {
-            localStorage.setItem(key, value);
+          try {
+            const useSessionStorage = sessionStorage.getItem('supabase-use-session-storage');
+            if (useSessionStorage === 'true') {
+              sessionStorage.setItem(key, value);
+              // Log apenas para chaves importantes de auth
+              if (key.includes('auth-token') || key.includes('supabase.auth')) {
+                console.log(`💾 [Supabase Storage] Saved ${key} to sessionStorage`);
+              }
+            } else {
+              localStorage.setItem(key, value);
+              // Log apenas para chaves importantes de auth
+              if (key.includes('auth-token') || key.includes('supabase.auth')) {
+                console.log(`💾 [Supabase Storage] Saved ${key} to localStorage`);
+              }
+            }
+          } catch (e) {
+            console.error('❌ [Supabase Storage] Error writing to storage:', e);
           }
         },
         removeItem: (key: string) => {
-          localStorage.removeItem(key);
-          sessionStorage.removeItem(key);
+          try {
+            localStorage.removeItem(key);
+            sessionStorage.removeItem(key);
+            // Log apenas para chaves importantes de auth
+            if (key.includes('auth-token') || key.includes('supabase.auth')) {
+              console.log(`🗑️ [Supabase Storage] Removed ${key} from both storages`);
+            }
+          } catch (e) {
+            console.error('❌ [Supabase Storage] Error removing from storage:', e);
+          }
         },
       }
     }
   });
+
+  // Verificação crítica: garantir que o cliente foi criado corretamente
+  if (!client || typeof client.from !== 'function') {
+    console.error("Supabase client created but 'from' method is missing.");
+    client = createMockClient();
+  }
 } catch (e) {
   console.error("Failed to initialize Supabase client:", e);
   // Em caso de falha crítica, definimos um objeto mock para evitar 'undefined'
-  // e garantir que a verificação 'typeof supabase.from' falhe corretamente nos hooks.
-  client = { from: () => { throw new Error("Supabase client failed to initialize."); } } as unknown as SupabaseClient;
+  client = createMockClient();
 }
 
-export const supabase = client as SupabaseClient;
+// Garantir que sempre exportamos um cliente válido
+export const supabase = client;
+
+// Log de debug detalhado com parte da chave (seguro em dev)
+if (typeof window !== 'undefined') {
+  console.log('[Supabase Client] Initialized:', {
+    hasClient: !!client,
+    hasFromMethod: typeof client?.from === 'function',
+    url: SUPABASE_URL,
+    keyStart: SUPABASE_ANON_KEY ? SUPABASE_ANON_KEY.substring(0, 10) + '...' : 'MISSING',
+    isDev: import.meta.env.DEV
+  });
+}

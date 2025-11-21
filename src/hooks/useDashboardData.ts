@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "@/contexts/SessionProvider";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "@/integrations/supabase/client";
 
 export interface DashboardStats {
   totalSales: number;
@@ -10,153 +11,158 @@ export interface DashboardStats {
   customersGrowth: number;
   ordersGrowth: number;
   ticketGrowth: number;
-  pendingOrdersCount: number; // Novo
-  processingOrdersCount: number; // Novo
-  pendingPaymentOrdersCount: number; // Novo
-  awaitingPickupOrdersCount: number; // Novo
-  deliveredOrdersCount: number; // Novo
-  totalMeters: number; // NOVO
-  metersGrowth: number; // NOVO
+  pendingOrdersCount: number;
+  processingOrdersCount: number;
+  pendingPaymentOrdersCount: number;
+  awaitingPickupOrdersCount: number;
+  deliveredOrdersCount: number;
+  totalMeters: number;
+  metersGrowth: number;
 }
 
-// Tipo de retorno da função RPC get_total_meters_by_period
 interface MetersReportResult {
   total_meters: number;
   total_orders: number;
 }
 
+const fetchDashboardData = async (accessToken: string): Promise<DashboardStats> => {
+  if (!accessToken) {
+    throw new Error("Sem token de acesso para fetch.");
+  }
+
+  const headers = {
+    'apikey': SUPABASE_ANON_KEY,
+    'Authorization': `Bearer ${accessToken}`,
+    'Content-Type': 'application/json'
+  };
+
+  // Helper para fetch
+  const doFetch = async (endpoint: string, params: URLSearchParams) => {
+    const url = `${SUPABASE_URL}/rest/v1/${endpoint}?${params.toString()}`;
+    const res = await fetch(url, { method: 'GET', headers });
+    if (!res.ok) throw new Error(`Fetch error ${endpoint}: ${res.statusText}`);
+    return res.json();
+  };
+
+  // Helper para RPC
+  const doRpc = async (functionName: string, params: any) => {
+    const url = `${SUPABASE_URL}/rest/v1/rpc/${functionName}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(params)
+    });
+    if (!res.ok) throw new Error(`RPC error ${functionName}: ${res.statusText}`);
+    return res.json();
+  };
+
+  // Get current month data
+  const currentMonth = new Date();
+  const firstDayCurrentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
+  const lastDayCurrentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0, 23, 59, 59, 999);
+
+  // Get previous month data for comparison
+  const firstDayPreviousMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1);
+  const lastDayPreviousMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 0);
+
+  // Fetch current month orders
+  const currentOrders = await doFetch('pedidos', new URLSearchParams({
+    select: 'valor_total,created_at,status',
+    created_at: `gte.${firstDayCurrentMonth.toISOString()}`,
+  })).then(data => data.filter((d: any) => new Date(d.created_at) <= lastDayCurrentMonth));
+
+  // Fetch previous month orders
+  const previousOrders = await doFetch('pedidos', new URLSearchParams({
+    select: 'valor_total,created_at',
+    created_at: `gte.${firstDayPreviousMonth.toISOString()}`,
+  })).then(data => data.filter((d: any) => new Date(d.created_at) <= lastDayPreviousMonth));
+
+  // Fetch current month customers
+  const currentCustomers = await doFetch('clientes', new URLSearchParams({
+    select: 'id,created_at',
+    created_at: `gte.${firstDayCurrentMonth.toISOString()}`,
+  }));
+
+  // Fetch previous month customers
+  const previousCustomers = await doFetch('clientes', new URLSearchParams({
+    select: 'id,created_at',
+    created_at: `gte.${firstDayPreviousMonth.toISOString()}`,
+  })).then(data => data.filter((d: any) => new Date(d.created_at) <= lastDayPreviousMonth));
+
+  // Fetch all orders for status counts
+  const allOrders = await doFetch('pedidos', new URLSearchParams({
+    select: 'id,status'
+  }));
+
+  // Buscar total de metros via RPC
+  const currentMetersData = await doRpc('get_total_meters_by_period', {
+    p_start_date: firstDayCurrentMonth.toISOString(),
+    p_end_date: lastDayCurrentMonth.toISOString()
+  });
+
+  const previousMetersData = await doRpc('get_total_meters_by_period', {
+    p_start_date: firstDayPreviousMonth.toISOString(),
+    p_end_date: lastDayPreviousMonth.toISOString()
+  });
+
+  const totalMeters = (currentMetersData as any)?.total_meters || 0;
+  const previousTotalMeters = (previousMetersData as any)?.total_meters || 0;
+
+  // Calculate current month stats
+  const totalSales = currentOrders?.reduce((sum: number, order: any) => sum + order.valor_total, 0) || 0;
+  const newCustomers = currentCustomers?.length || 0;
+  const activeOrdersCount = allOrders?.filter((order: any) => order.status === 'pendente').length || 0;
+  const averageTicket = currentOrders?.length ? totalSales / currentOrders.length : 0;
+
+  // Calculate previous month stats for growth comparison
+  const previousTotalSales = previousOrders?.reduce((sum: number, order: any) => sum + order.valor_total, 0) || 0;
+  const previousNewCustomers = previousCustomers?.length || 0;
+  const previousAverageTicket = previousOrders?.length ? previousTotalSales / previousOrders.length : 0;
+
+  // Calculate growth percentages
+  const salesGrowth = previousTotalSales > 0 ? ((totalSales - previousTotalSales) / previousTotalSales) * 100 : 0;
+  const metersGrowth = previousTotalMeters > 0 ? ((totalMeters - previousTotalMeters) / previousTotalMeters) * 100 : 0;
+  const customersGrowth = previousNewCustomers > 0 ? ((newCustomers - previousNewCustomers) / previousNewCustomers) * 100 : 0;
+  const ticketGrowth = previousAverageTicket > 0 ? ((averageTicket - previousAverageTicket) / previousAverageTicket) * 100 : 0;
+
+  // Calculate specific status counts
+  const pendingOrdersCount = allOrders?.filter((order: any) => order.status === 'pendente').length || 0;
+  const processingOrdersCount = allOrders?.filter((order: any) => order.status === 'processando').length || 0;
+  const pendingPaymentOrdersCount = allOrders?.filter((order: any) =>
+    order.status !== 'pago' && order.status !== 'cancelado' && order.status !== 'entregue'
+  ).length || 0;
+  const awaitingPickupOrdersCount = allOrders?.filter((order: any) => order.status === 'aguardando retirada').length || 0;
+  const deliveredOrdersCount = allOrders?.filter((order: any) => order.status === 'entregue').length || 0;
+
+  return {
+    totalSales,
+    totalMeters,
+    metersGrowth,
+    newCustomers,
+    activeOrders: activeOrdersCount,
+    averageTicket,
+    salesGrowth,
+    customersGrowth,
+    ordersGrowth: 0,
+    ticketGrowth,
+    pendingOrdersCount,
+    processingOrdersCount,
+    pendingPaymentOrdersCount,
+    awaitingPickupOrdersCount,
+    deliveredOrdersCount,
+  };
+};
+
 export const useDashboardData = () => {
-  const { supabase } = useSession();
+  const { session, isLoading: sessionLoading } = useSession();
+  const accessToken = session?.access_token;
+  const isEnabled = !sessionLoading && !!accessToken;
 
   return useQuery<DashboardStats>({
     queryKey: ["dashboard-stats"],
-    queryFn: async () => {
-      if (!supabase) throw new Error("Supabase client is not available");
-
-      // Get current month data
-      const currentMonth = new Date();
-      const firstDayCurrentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
-      const lastDayCurrentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0, 23, 59, 59, 999);
-      
-      // Get previous month data for comparison
-      const firstDayPreviousMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1);
-      const lastDayPreviousMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 0);
-
-      // Fetch current month orders
-      const { data: currentOrders, error: currentOrdersError } = await supabase
-        .from("pedidos")
-        .select("valor_total, created_at, status")
-        .gte("created_at", firstDayCurrentMonth.toISOString())
-        .lte("created_at", lastDayCurrentMonth.toISOString());
-
-      if (currentOrdersError) throw new Error(currentOrdersError.message);
-
-      // Fetch previous month orders
-      const { data: previousOrders, error: previousOrdersError } = await supabase
-        .from("pedidos")
-        .select("valor_total, created_at")
-        .gte("created_at", firstDayPreviousMonth.toISOString())
-        .lte("created_at", lastDayPreviousMonth.toISOString());
-
-      if (previousOrdersError) throw new Error(previousOrdersError.message);
-
-      // Fetch current month customers
-      const { data: currentCustomers, error: currentCustomersError } = await supabase
-        .from("clientes")
-        .select("id, created_at")
-        .gte("created_at", firstDayCurrentMonth.toISOString());
-
-      if (currentCustomersError) throw new Error(currentCustomersError.message);
-
-      // Fetch previous month customers
-      const { data: previousCustomers, error: previousCustomersError } = await supabase
-        .from("clientes")
-        .select("id, created_at")
-        .gte("created_at", firstDayPreviousMonth.toISOString())
-        .lte("created_at", lastDayPreviousMonth.toISOString());
-
-      if (previousCustomersError) throw new Error(previousCustomersError.message);
-
-      // Fetch all orders for status counts (explicitly selecting columns)
-      const { data: allOrders, error: allOrdersError } = await supabase
-        .from("pedidos")
-        .select("id, status"); // Seleção explícita
-
-      if (allOrdersError) throw new Error(allOrdersError.message);
-      
-      // --- NOVO: Buscar total de metros separadamente via RPC ---
-      const { data: currentMetersData, error: currentMetersError } = await supabase.rpc('get_total_meters_by_period', {
-        p_start_date: firstDayCurrentMonth.toISOString(),
-        p_end_date: lastDayCurrentMonth.toISOString()
-      }).single();
-      
-      if (currentMetersError) {
-        console.error("Erro ao buscar metros atuais:", currentMetersError);
-        // Lançar o erro para que o useQuery falhe e o erro seja exibido
-        throw new Error(`Falha na RPC de metros atuais: ${currentMetersError.message}`);
-      }
-
-      const { data: previousMetersData, error: previousMetersError } = await supabase.rpc('get_total_meters_by_period', {
-        p_start_date: firstDayPreviousMonth.toISOString(),
-        p_end_date: lastDayPreviousMonth.toISOString()
-      }).single();
-      
-      if (previousMetersError) {
-        console.error("Erro ao buscar metros anteriores:", previousMetersError);
-        // Lançar o erro para que o useQuery falhe e o erro seja exibido
-        throw new Error(`Falha na RPC de metros anteriores: ${previousMetersError.message}`);
-      }
-      
-      const totalMeters = (currentMetersData as MetersReportResult)?.total_meters || 0;
-      const previousTotalMeters = (previousMetersData as MetersReportResult)?.total_meters || 0;
-      // ---------------------------------------------------------
-
-      // Calculate current month stats
-      const totalSales = currentOrders?.reduce((sum, order) => sum + order.valor_total, 0) || 0;
-      const newCustomers = currentCustomers?.length || 0;
-      const activeOrdersCount = allOrders?.filter(order => order.status === 'pendente').length || 0; // Usar allOrders para 'pendente'
-      const averageTicket = currentOrders?.length ? totalSales / currentOrders.length : 0;
-
-      // Calculate previous month stats for growth comparison
-      const previousTotalSales = previousOrders?.reduce((sum, order) => sum + order.valor_total, 0) || 0;
-      const previousNewCustomers = previousCustomers?.length || 0;
-      const previousAverageTicket = previousOrders?.length ? previousTotalSales / previousOrders.length : 0;
-
-      // Calculate growth percentages
-      const salesGrowth = previousTotalSales > 0 ? ((totalSales - previousTotalSales) / previousTotalSales) * 100 : 0;
-      const metersGrowth = previousTotalMeters > 0 ? ((totalMeters - previousTotalMeters) / previousTotalMeters) * 100 : 0; // USANDO RPC
-      const customersGrowth = previousNewCustomers > 0 ? ((newCustomers - previousNewCustomers) / previousNewCustomers) * 100 : 0;
-      const ticketGrowth = previousAverageTicket > 0 ? ((averageTicket - previousAverageTicket) / previousAverageTicket) * 100 : 0;
-
-      // Calculate specific status counts
-      const pendingOrdersCount = allOrders?.filter(order => order.status === 'pendente').length || 0;
-      const processingOrdersCount = allOrders?.filter(order => order.status === 'processando').length || 0;
-      const pendingPaymentOrdersCount = allOrders?.filter(order => 
-        order.status !== 'pago' && order.status !== 'cancelado' && order.status !== 'entregue'
-      ).length || 0;
-      const awaitingPickupOrdersCount = allOrders?.filter(order => order.status === 'aguardando retirada').length || 0;
-      const deliveredOrdersCount = allOrders?.filter(order => order.status === 'entregue').length || 0;
-
-
-      return {
-        totalSales,
-        totalMeters, // NOVO
-        metersGrowth, // NOVO
-        newCustomers,
-        activeOrders: activeOrdersCount,
-        averageTicket,
-        salesGrowth,
-        customersGrowth,
-        ordersGrowth: 0, // We don't have historical active orders data
-        ticketGrowth,
-        pendingOrdersCount,
-        processingOrdersCount,
-        pendingPaymentOrdersCount,
-        awaitingPickupOrdersCount,
-        deliveredOrdersCount,
-      };
-    },
-    enabled: !!supabase && typeof supabase.from === 'function', // Adicionado verificação de função
+    queryFn: () => fetchDashboardData(accessToken!),
+    enabled: isEnabled,
+    staleTime: 1000 * 60 * 5, // 5 minutos
     refetchInterval: 5 * 60 * 1000, // Refetch every 5 minutes
   });
 };
