@@ -27,46 +27,49 @@ export default defineConfig(() => ({
   plugins: [
     dyadComponentTagger(),
     react(),
-    VitePWA({
-      // ⚠️ Em desenvolvimento o SW estava servindo um bundle antigo (com a chave errada)
-      // Isso faz com que, após um F5, o app inteiro carregue arquivos com as credenciais desatualizadas.
-      // Desativamos o service worker no modo dev para garantir que sempre usamos o bundle em memória do Vite.
-      devOptions: {
-        enabled: false,
-      },
-      manifest: {
-        name: 'DIRECT AI',
-        short_name: 'DirectAI',
-        description: 'Seu assistente de vendas inteligente da DIRECT DTF.',
-        theme_color: '#ffffff',
-        background_color: '#000000',
-        display: 'standalone',
-        scope: '/',
-        start_url: '/',
-        icons: [
-          {
-            src: 'logo.png',
-            sizes: '192x192',
-            type: 'image/png',
-          },
-          {
-            src: 'logo.png',
-            sizes: '512x512',
-            type: 'image/png',
-          },
-          {
-            src: 'logo.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'any maskable',
-          },
-        ],
-      },
+    registerType: 'autoUpdate',
+    workbox: {
+      cleanupOutdatedCaches: true,
+      clientsClaim: true,
+      skipWaiting: true,
+      globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}']
+    },
+    devOptions: {
+      enabled: false,
+    },
+    manifest: {
+      name: 'DIRECT AI',
+      short_name: 'DirectAI',
+      description: 'Seu assistente de vendas inteligente da DIRECT DTF.',
+      theme_color: '#ffffff',
+      background_color: '#000000',
+      display: 'standalone',
+      scope: '/',
+      start_url: '/',
+      icons: [
+        {
+          src: 'logo.png',
+          sizes: '192x192',
+          type: 'image/png',
+        },
+        {
+          src: 'logo.png',
+          sizes: '512x512',
+          type: 'image/png',
+        },
+        {
+          src: 'logo.png',
+          sizes: '512x512',
+          type: 'image/png',
+          purpose: 'any maskable',
+        },
+      ],
+    },
     }),
   ],
   resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-    },
+  alias: {
+    "@": path.resolve(__dirname, "./src"),
   },
+},
 }));

@@ -37,7 +37,8 @@ import { NewPedido, Pedido } from "@/types/pedido";
 import { Cliente } from "@/types/cliente";
 import { Produto } from "@/types/produto";
 import { useEffect, useState, useRef } from "react";
-import { Trash2, Plus, Search, Edit3, X, User, Package, Wrench, Save, Zap, CalendarIcon, Ruler, ChevronDown, Loader2 } from "lucide-react";
+import { Trash2, Plus, Search, Edit3, X, User, Package, Wrench, Save, Zap, CalendarIcon, Ruler, ChevronDown, Loader2, FileText } from "lucide-react";
+import { toast } from "sonner";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { QuickClientForm } from './QuickClientForm';
@@ -59,6 +60,8 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+
+const DRAFT_STORAGE_KEY = "pedido_form_draft";
 
 const formSchema = z.object({
   cliente_id: z.string().min(1, { message: "Cliente é obrigatório." }),
@@ -133,6 +136,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
 
   const isEditing = !!initialData;
   const hasInitializedRef = useRef(false);
+  const isSubmitInProgress = useRef(false);
 
   // Efeito para filtrar clientes
   useEffect(() => {
@@ -184,29 +188,75 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
         setSelectedClienteName(selectedClient ? selectedClient.nome : '');
 
       } else {
-        form.reset({
-          cliente_id: "",
-          observacoes: "",
-          desconto_valor: 0,
-          desconto_percentual: 0,
-          created_at: new Date(),
-          items: [],
-          servicos: [],
-        });
-        setSelectedClienteName('');
+        // Tentar recuperar rascunho
+        const draft = localStorage.getItem(DRAFT_STORAGE_KEY);
+        let loadedFromDraft = false;
+
+        if (draft) {
+          try {
+            const parsed = JSON.parse(draft);
+            // Recuperar datas corretamente
+            if (parsed.created_at) parsed.created_at = new Date(parsed.created_at);
+
+            form.reset(parsed);
+
+            if (parsed.cliente_id) {
+              const selectedClient = clientes.find(c => c.id === parsed.cliente_id);
+              setSelectedClienteName(selectedClient ? selectedClient.nome : '');
+            }
+
+            toast.info("Rascunho recuperado automaticamente", {
+              description: "Seus dados não salvos foram restaurados.",
+              icon: <FileText className="h-4 w-4" />,
+            });
+            loadedFromDraft = true;
+          } catch (e) {
+            console.error("Erro ao recuperar rascunho:", e);
+          }
+        }
+
+        if (!loadedFromDraft) {
+          form.reset({
+            cliente_id: "",
+            observacoes: "",
+            desconto_valor: 0,
+            desconto_percentual: 0,
+            created_at: new Date(),
+            items: [],
+            servicos: [],
+          });
+          setSelectedClienteName('');
+        }
       }
 
       setClienteSearch('');
       setAccordionItemValue(undefined);
       setAccordionServiceValue(undefined);
 
+      setAccordionServiceValue(undefined);
+
       hasInitializedRef.current = true;
+      isSubmitInProgress.current = false; // Resetar flag de submit
     }
 
     if (!isOpen) {
       hasInitializedRef.current = false;
     }
   }, [isOpen, isEditing, initialData, form, clientes]);
+
+  // Auto-save do rascunho
+  const formValues = form.watch();
+  useEffect(() => {
+    if (isOpen && !isEditing && !isSubmitting) {
+      const timer = setTimeout(() => {
+        // Só salvar se não estiver submetendo
+        if (!isSubmitInProgress.current) {
+          localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(formValues));
+        }
+      }, 500); // Debounce de 500ms
+      return () => clearTimeout(timer);
+    }
+  }, [formValues, isOpen, isEditing, isSubmitting]);
 
   const handleValidSubmit = (data: PedidoFormValues) => {
     const items = data.items || [];
@@ -246,6 +296,12 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
         valor_unitario: Number(servico.valor_unitario),
       })),
     };
+
+    // Bloquear novos salvamentos automáticos
+    isSubmitInProgress.current = true;
+
+    // Limpar rascunho IMEDIATAMENTE antes de enviar
+    localStorage.removeItem(DRAFT_STORAGE_KEY);
 
     // Casting explícito para garantir que o TS saiba que os campos obrigatórios estão presentes
     onSubmit(formattedData as Omit<NewPedido, 'user_id' | 'status'>, initialData?.id);

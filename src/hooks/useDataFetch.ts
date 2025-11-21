@@ -322,21 +322,40 @@ const fetchPedidos = async (
           }
         }
 
-        const fetchUrl = `${baseUrl}?${queryParams.toString()}`;
-        console.log('[fetchPedidos] Usando fetch direto:', fetchUrl);
+        const makeFetch = async (token: string) => {
+          return fetch(`${baseUrl}?${queryParams.toString()}`, {
+            method: 'GET',
+            headers: {
+              'apikey': SUPABASE_ANON_KEY,
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'count=exact'
+            }
+          });
+        };
 
-        const response = await fetch(fetchUrl, {
-          method: 'GET',
-          headers: {
-            'apikey': SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-            'Prefer': 'count=exact'
+        let response = await makeFetch(accessToken);
+
+        // Se der 401, tentar renovar o token e tentar de novo
+        if (response.status === 401) {
+          console.warn('[fetchPedidos] Token expirado (401). Tentando obter nova sessão...');
+          const { data: { session: newSession }, error: sessionError } = await supabase.auth.getSession();
+
+          if (newSession?.access_token && !sessionError) {
+            console.log('[fetchPedidos] Novo token obtido. Retentando fetch...');
+            response = await makeFetch(newSession.access_token);
+          } else {
+            console.error('[fetchPedidos] Falha ao obter nova sessão:', sessionError);
           }
-        });
+        }
 
         if (!response.ok) {
-          throw new Error(`Erro no fetch direto: ${response.status} ${response.statusText}`);
+          const errorText = await response.text();
+          // Se ainda for 401, lançar erro específico para o React Query tentar de novo (se retry estiver ativado)
+          if (response.status === 401) {
+            throw new Error(`JWT_EXPIRED: ${errorText}`);
+          }
+          throw new Error(`Erro no fetch direto: ${response.status} ${response.statusText} - ${errorText}`);
         }
 
         const data = await response.json();
@@ -368,9 +387,13 @@ const fetchPedidos = async (
           totalCount: totalCount || 0,
         };
 
-      } catch (fetchError) {
-        console.error('[fetchPedidos] Erro no fetch direto, tentando fallback...', fetchError);
-        // Se falhar, cai pro código legado abaixo (que vai falhar também provavelmente, mas ok)
+      } catch (fetchError: any) {
+        console.error('[fetchPedidos] Erro no fetch direto:', fetchError);
+        // Se for erro de JWT, propagar para o React Query fazer retry
+        if (fetchError.message && fetchError.message.includes('JWT_EXPIRED')) {
+          throw fetchError;
+        }
+        // Caso contrário, apenas logar e deixar cair no fallback (embora o fallback provavelmente falhe também se for auth)
       }
     }
 
@@ -564,7 +587,8 @@ export const usePaginatedPedidos = (
     enabled: isEnabled, // Usar a validação pré-calculada
     staleTime: 0, // Sempre considerar stale para forçar refetch
     refetchOnMount: true, // Sempre refetch quando o componente monta
-    retry: false, // Não tentar novamente se falhar por problema de inicialização
+    retry: 3, // Tentar novamente 3 vezes se falhar (útil para expiração de token)
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
   });
 };
 

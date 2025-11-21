@@ -62,6 +62,10 @@ const CacheInvalidator = () => {
   return null;
 };
 
+import { PWAManager } from "./components/PWAManager";
+
+// ... (código existente)
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider defaultTheme="light" storageKey="direct-ai-theme">
@@ -71,6 +75,7 @@ const App = () => (
           <Sonner position="top-center" /> {/* Alterado para top-center */}
           <BrowserRouter>
             <SessionProvider>
+              <PWAManager />
               <CacheInvalidator />
               <Routes>
                 <Route path="/login" element={<Login />} />
