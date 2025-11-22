@@ -10,6 +10,7 @@ export interface PedidoItem {
   preco_unitario: number;
   observacao?: string;
   produtos?: Produto;
+  ordem?: number;
 }
 
 export interface Servico {
@@ -59,6 +60,7 @@ export interface NewPedidoItem {
   quantidade: number;
   preco_unitario: number;
   observacao?: string;
+  ordem?: number;
 }
 
 export interface NewServico {

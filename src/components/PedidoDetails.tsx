@@ -5,32 +5,32 @@ import { Cliente } from '@/types/cliente';
 import { Produto } from '@/types/produto';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle 
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle
 } from '@/components/ui/dialog';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { 
-  Calendar, 
-  User, 
-  Package, 
-  Wrench, 
-  DollarSign, 
-  Tag, 
-  Percent, 
+import {
+  Calendar,
+  User,
+  Package,
+  Wrench,
+  DollarSign,
+  Tag,
+  Percent,
   FileText,
   Edit,
   Trash2,
@@ -85,14 +85,14 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
 
   const fetchPedidoDetails = async () => {
     if (!session || !pedidoId) return;
-    
+
     const accessToken = session.access_token;
     if (!accessToken) {
       showError("Sem token de acesso para buscar detalhes do pedido.");
       setLoading(false);
       return;
     }
-    
+
     setLoading(true);
     try {
       // Consulta ÚNICA e completa usando fetch direto
@@ -104,13 +104,13 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
 
       const selectParam = '*,clientes(id,nome,telefone,email,endereco),pedido_items(*),pedido_servicos(*),pedido_status_history(*)';
       const url = `${SUPABASE_URL}/rest/v1/pedidos?select=${encodeURIComponent(selectParam)}&id=eq.${pedidoId}`;
-      
+
       const response = await fetch(url, { method: 'GET', headers });
-      
+
       if (!response.ok) {
         throw new Error(`Erro ao buscar pedido: ${response.statusText}`);
       }
-      
+
       const data = await response.json();
       const pedidoData = Array.isArray(data) ? data[0] : data;
 
@@ -118,21 +118,24 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
 
       // O Supabase retorna as relações aninhadas.
       // Precisamos apenas garantir que o histórico esteja ordenado.
-      const orderedHistory = (pedidoData.pedido_status_history || []).sort((a, b) => 
+      const orderedHistory = (pedidoData.pedido_status_history || []).sort((a, b) =>
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
+
+      // Ordenar itens por ordem
+      const orderedItems = (pedidoData.pedido_items || []).sort((a: any, b: any) => (a.ordem || 0) - (b.ordem || 0));
 
       // Mapear dados para o tipo Pedido (garantindo que servicos e items existam)
       const pedidoCompleto: Pedido = {
         ...pedidoData,
-        pedido_items: pedidoData.pedido_items || [],
+        pedido_items: orderedItems,
         servicos: pedidoData.pedido_servicos || [],
         status_history: orderedHistory,
       } as Pedido;
 
       setPedido(pedidoCompleto);
       setStatusHistory(orderedHistory);
-      
+
     } catch (error: any) {
       console.error('Erro ao carregar detalhes do pedido:', error);
       showError(`Erro ao carregar detalhes do pedido: ${error.message}`);
@@ -215,17 +218,17 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
 
   const handleSubmitStatusChange = async (newStatus: string, observacao?: string) => {
     if (!pedido || !supabase) return;
-    
+
     try {
       const statusAnterior = pedido.status;
-      
+
       const { error } = await supabase
-        .from('pedidos') 
+        .from('pedidos')
         .update({ status: newStatus }) // Usando a coluna 'status'
         .eq('id', pedido.id);
-      
+
       if (error) throw error;
-      
+
       // Se houver observação, adicionar ao histórico
       if (observacao && observacao.trim()) {
         const { error: historyError } = await supabase
@@ -242,7 +245,7 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
           console.warn('Erro ao salvar histórico:', historyError);
         }
       }
-      
+
       showSuccess("Status atualizado com sucesso!");
       // Atualizar o pedido localmente
       setPedido({ ...pedido, status: newStatus as any });
@@ -307,18 +310,18 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
                 Imprimir Nota
               </Button>
               {statusHistory.length > 0 && (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => setIsStatusHistoryOpen(true)}
                 >
                   <History className="h-4 w-4 mr-2" />
                   Histórico
                 </Button>
               )}
-              <Button 
-                variant="outline" 
-                size="sm" 
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => setIsStatusChangeOpen(true)}
               >
                 <Wrench className="h-4 w-4 mr-2" />
@@ -462,18 +465,18 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
                 <DollarSign className="h-5 w-5 mr-2 text-primary" />
                 <h3 className="text-lg font-semibold">Resumo do Pedido</h3>
               </div>
-              
+
               <div className="space-y-3">
                 <div className="flex justify-between">
                   <span>Subtotal Produtos:</span>
                   <span className="font-medium">{formatCurrency(pedido.subtotal_produtos || 0)}</span>
                 </div>
-                
+
                 <div className="flex justify-between">
                   <span>Subtotal Serviços:</span>
                   <span className="font-medium">{formatCurrency(pedido.subtotal_servicos || 0)}</span>
                 </div>
-                
+
                 {pedido.desconto_valor > 0 && (
                   <div className="flex justify-between text-red-600">
                     <div className="flex items-center">
@@ -483,7 +486,7 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
                     <span>-{formatCurrency(pedido.desconto_valor)}</span>
                   </div>
                 )}
-                
+
                 {pedido.desconto_percentual > 0 && (
                   <div className="flex justify-between text-red-600">
                     <div className="flex items-center">
@@ -493,7 +496,7 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
                     <span>-{formatCurrency((pedido.subtotal_produtos + pedido.subtotal_servicos) * (pedido.desconto_percentual / 100))}</span>
                   </div>
                 )}
-                
+
                 {/* NOVO: Total de Metros */}
                 {pedido.total_metros > 0 && (
                   <div className="flex justify-between border-t pt-3">

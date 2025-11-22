@@ -29,8 +29,8 @@ try {
 
   client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: {
-      // Enable automatic token refresh
-      autoRefreshToken: true,
+      // Disable automatic token refresh (vamos gerenciar manualmente)
+      autoRefreshToken: false,
       // Persist session in localStorage by default
       persistSession: true,
       // Detect session from URL on redirect

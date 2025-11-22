@@ -24,7 +24,7 @@ const getImageAsBase64 = (url: string): Promise<string> => {
 export const generateOrderPDF = async (pedido: Pedido, action: 'save' | 'print' = 'save') => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.width;
-  
+
   // Helper function to format currency
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -48,45 +48,45 @@ export const generateOrderPDF = async (pedido: Pedido, action: 'save' | 'print' 
   // Logo area (black background)
   doc.setFillColor(0, 0, 0);
   doc.rect(15, 15, 25, 25, 'F');
-  
+
   // Tentar carregar a logo real
   try {
     // Carregar a logo do projeto
     const logoBase64 = await getImageAsBase64('/logo.png');
-    
+
     // Inserir a logo real no PDF
     doc.addImage(logoBase64, 'PNG', 17, 17, 21, 21);
-    
+
   } catch (error) {
     console.log('Erro ao carregar logo, usando placeholder:', error);
-    
+
     // Fallback: Representação melhorada da sua logo
     // Fundo escuro (representando o "D" invertido ou a área ao redor)
     doc.setFillColor(0, 0, 0); // Preto
     doc.rect(17, 17, 21, 21, 'F');
-    
+
     // Área amarela interna (formato do "D")
     doc.setFillColor(255, 242, 0); // Amarelo #FFF200
     doc.ellipse(27.5, 27.5, 8, 8, 'F');
-    
+
     // Camiseta amarela no centro
     doc.setFillColor(255, 242, 0); // Amarelo #FFF200
     doc.rect(24, 24, 7, 7, 'F');
   }
-  
+
   // Company name
   doc.setTextColor(0, 0, 0);
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
   doc.text('DIRECT DTF', 45, 25);
-  
+
   // Company address - INFORMAÇÕES ATUALIZADAS
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
   doc.text('Rod. Washington Luiz, 3926 - Vila Sao Sebastiao', 45, 32);
   doc.text('Duque de Caxias - RJ, 25055-009 | CORREDOR F | LOJA 246', 45, 36);
   doc.text('TELEFONE: +55 21 99594-0055', 45, 40);
-  
+
   // Contact info (right side) - INFORMAÇÕES ATUALIZADAS
   doc.setFontSize(8);
   doc.text('PIX: +55 21 99594-0055', pageWidth - 60, 25);
@@ -124,7 +124,7 @@ export const generateOrderPDF = async (pedido: Pedido, action: 'save' | 'print' 
   doc.setDrawColor(0, 0, 0); // PRETO
   doc.rect(10, yPosition, pageWidth - 20, 8);
   doc.text(`Telefone: ${pedido.clientes?.telefone || 'N/A'}`, 15, yPosition + 6); // Usando o telefone do cliente
-  
+
   yPosition += 15;
 
   // Products section - BARRAS PRETAS
@@ -139,10 +139,13 @@ export const generateOrderPDF = async (pedido: Pedido, action: 'save' | 'print' 
     yPosition += 8;
 
     // Products table - TODAS AS LINHAS PRETAS
-    const productRows = pedido.pedido_items.map(item => {
+    // GARANTIA DE ORDENAÇÃO: Ordenar explicitamente antes de gerar o PDF
+    const sortedItems = [...pedido.pedido_items].sort((a: any, b: any) => (a.ordem || 0) - (b.ordem || 0));
+
+    const productRows = sortedItems.map(item => {
       const productName = item.produto_nome || item.produtos?.nome || 'Produto não encontrado';
       const itemDescription = item.observacao ? `\nObs: ${item.observacao}` : ''; // Adiciona quebra de linha e prefixo
-      
+
       // Combina nome e observação em uma única string
       const firstColumnContent = productName + itemDescription;
 
@@ -254,16 +257,16 @@ export const generateOrderPDF = async (pedido: Pedido, action: 'save' | 'print' 
     doc.text('Observações', 15, yPosition + 6);
 
     yPosition += 8;
-    
+
     const observationsHeight = Math.max(15, doc.splitTextToSize(pedido.observacoes, pageWidth - 30).length * 5); // Calculate height based on split text
     doc.setDrawColor(0, 0, 0); // PRETO
     doc.rect(10, yPosition, pageWidth - 20, observationsHeight);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
-    
+
     const splitText = doc.splitTextToSize(pedido.observacoes, pageWidth - 30);
     doc.text(splitText, 15, yPosition + 5);
-    
+
     yPosition += observationsHeight + 5;
   }
 
@@ -275,12 +278,12 @@ export const generateOrderPDF = async (pedido: Pedido, action: 'save' | 'print' 
 
   // Add discount row if there's a discount
   if (pedido.desconto_valor > 0) {
-    const discountLabel = pedido.desconto_percentual > 0 
+    const discountLabel = pedido.desconto_percentual > 0
       ? `Desconto (${pedido.desconto_percentual}%)`
       : 'Desconto';
     summaryData.push([discountLabel, `-${formatCurrency(pedido.desconto_valor)}`]);
   }
-  
+
   // NOVO: Adicionar Total Metros
   if (pedido.total_metros > 0) {
     summaryData.push(['Total Metros (ML)', `${pedido.total_metros.toFixed(2)} ML`]);
@@ -317,9 +320,9 @@ export const generateOrderPDF = async (pedido: Pedido, action: 'save' | 'print' 
     // Nova abordagem: gerar blob, criar URL e abrir para impressão
     const pdfBlob = doc.output('blob');
     const pdfUrl = URL.createObjectURL(pdfBlob);
-    
+
     const printWindow = window.open(pdfUrl, '_blank');
-    
+
     if (printWindow) {
       // Tenta acionar a impressão após o carregamento
       printWindow.onload = () => {
@@ -332,7 +335,7 @@ export const generateOrderPDF = async (pedido: Pedido, action: 'save' | 'print' 
       // Se o pop-up for bloqueado, tenta abrir diretamente
       window.location.href = pdfUrl;
     }
-    
+
   } else {
     // Default action: save
     doc.save(fileName);

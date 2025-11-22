@@ -375,7 +375,7 @@ const fetchPedidos = async (
 
           return {
             ...pedido,
-            pedido_items: pedido.pedido_items || [],
+            pedido_items: (pedido.pedido_items || []).sort((a: any, b: any) => (a.ordem || 0) - (b.ordem || 0)),
             servicos: pedido.pedido_servicos || [],
             status_history: orderedHistory,
             latest_status_observation: latestObservation,
@@ -489,7 +489,7 @@ const fetchPedidos = async (
 
       return {
         ...pedido,
-        pedido_items: pedido.pedido_items || [],
+        pedido_items: (pedido.pedido_items || []).sort((a: any, b: any) => (a.ordem || 0) - (b.ordem || 0)),
         servicos: pedido.pedido_servicos || [],
         status_history: orderedHistory,
         latest_status_observation: latestObservation,
@@ -633,7 +633,7 @@ export const usePedidos = () => {
 
       return {
         ...pedido,
-        pedido_items: pedido.pedido_items || [],
+        pedido_items: (pedido.pedido_items || []).sort((a: any, b: any) => (a.ordem || 0) - (b.ordem || 0)),
         servicos: pedido.pedido_servicos || [],
         status_history: orderedHistory,
         latest_status_observation: latestObservation,

@@ -37,7 +37,7 @@ import { NewPedido, Pedido } from "@/types/pedido";
 import { Cliente } from "@/types/cliente";
 import { Produto } from "@/types/produto";
 import { useEffect, useState, useRef } from "react";
-import { Trash2, Plus, Search, Edit3, X, User, Package, Wrench, Save, Zap, CalendarIcon, Ruler, ChevronDown, Loader2, FileText } from "lucide-react";
+import { Trash2, Plus, Search, Edit3, X, User, Package, Wrench, Save, Zap, CalendarIcon, Ruler, ChevronDown, Loader2, FileText, Copy, GripVertical } from "lucide-react";
 import { toast } from "sonner";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -72,6 +72,7 @@ const formSchema = z.object({
     required_error: "A data do pedido é obrigatória.",
   }),
   items: z.array(z.object({
+    tempId: z.string().optional(), // ID temporário para controle de UI (React keys)
     produto_id: z.string().optional().nullable(),
     produto_nome: z.string().min(1, { message: "Nome do produto é obrigatório." }),
     quantidade: z.coerce.number().min(0.01, { message: "Quantidade deve ser maior que 0." }),
@@ -283,12 +284,13 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
       total_metros: totalMetros, // NOVO CAMPO
       observacoes: data.observacoes,
       created_at: data.created_at.toISOString(),
-      items: items.map(item => ({
+      items: items.map((item, index) => ({
         produto_id: item.produto_id || null,
         produto_nome: item.produto_nome,
         quantidade: Number(item.quantidade),
         preco_unitario: Number(item.preco_unitario),
         observacao: item.observacao,
+        ordem: index, // Garantir a ordem correta
       })),
       servicos: servicos.map(servico => ({
         nome: servico.nome, // Garantir que o nome está presente
@@ -418,8 +420,9 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
   };
 
   const addItem = () => {
-    const currentItems = form.getValues('items') || [];
+    // SEMPRE criar um item VAZIO, sem copiar dados anteriores
     const newItem = {
+      tempId: Math.random().toString(36).substr(2, 9), // ID único
       produto_id: null,
       produto_nome: "",
       quantidade: 1,
@@ -427,19 +430,70 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
       observacao: ""
     };
 
-    form.setValue('items', [newItem, ...currentItems]);
+    const currentItems = form.getValues('items') || [];
+    // Adicionar ao FINAL da lista para evitar problemas de UI e ser mais intuitivo
+    const newItems = [...currentItems, newItem];
+    form.setValue('items', newItems);
 
     // Limpar snapshot anterior
     setItemSnapshot(null);
 
-    // Aguardar um tick para garantir que o formulário atualizou
+    // Abrir o novo item (que agora é o último)
     setTimeout(() => {
-      setAccordionItemValue(`item-0`);
+      setAccordionItemValue(`item-${newItems.length - 1}`);
+      // Scroll para o novo item
+      const newItemElement = document.getElementById(`item-card-${newItems.length - 1}`);
+      if (newItemElement) {
+        newItemElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 100);
+  };
+
+  const duplicateItem = (index: number) => {
+    const currentItems = form.getValues('items') || [];
+    const itemToDuplicate = currentItems[index];
+
+    // Criar cópia do item com NOVO ID
+    const duplicatedItem = {
+      ...itemToDuplicate,
+      tempId: Math.random().toString(36).substr(2, 9), // ID único
+      produto_id: itemToDuplicate.produto_id,
+      produto_nome: itemToDuplicate.produto_nome,
+      quantidade: itemToDuplicate.quantidade,
+      preco_unitario: itemToDuplicate.preco_unitario,
+      observacao: itemToDuplicate.observacao
+    };
+
+    // Inserir logo após o item original
+    const newItems = [
+      ...currentItems.slice(0, index + 1),
+      duplicatedItem,
+      ...currentItems.slice(index + 1)
+    ];
+
+    form.setValue('items', newItems);
+
+    // Abrir o item duplicado
+    setTimeout(() => {
+      setAccordionItemValue(`item-${index + 1}`);
     }, 0);
   };
 
+  const moveItem = (fromIndex: number, toIndex: number) => {
+    const currentItems = form.getValues('items') || [];
+    const newItems = [...currentItems];
+    const [movedItem] = newItems.splice(fromIndex, 1);
+    newItems.splice(toIndex, 0, movedItem);
+    form.setValue('items', newItems);
+
+    // Se o item movido estava aberto, atualizar o índice do accordion
+    if (accordionItemValue === `item-${fromIndex}`) {
+      setAccordionItemValue(`item-${toIndex}`);
+    }
+  };
+
   const removeItem = (index: number) => {
-    const currentItems = form.getValues('items');
+    const currentItems = form.getValues('items') || [];
     form.setValue('items', currentItems.filter((_, i) => i !== index));
     // Fecha o accordion se o item removido estava aberto
     if (accordionItemValue === `item-${index}`) {
@@ -702,9 +756,44 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                         <div className="space-y-3">
                           {form.watch('items')?.map((item, index) => {
                             const isOpen = accordionItemValue === `item-${index}`;
+                            // Usar tempId como key se existir, senão usar index (fallback)
+                            // Isso força o React a tratar cada item como único e previne bugs de estado
+                            const itemKey = item.tempId || `item-${index}`;
 
                             return (
-                              <Card key={index} className="overflow-hidden">
+                              <Card
+                                key={itemKey}
+                                id={`item-card-${index}`}
+                                className={`overflow-hidden transition-all duration-200 ${!isOpen ? 'cursor-grab active:cursor-grabbing' : ''}`}
+                                draggable={!isOpen}
+                                onDragStart={(e) => {
+                                  if (isOpen) {
+                                    e.preventDefault();
+                                    return;
+                                  }
+                                  e.dataTransfer.setData('text/plain', index.toString());
+                                  e.dataTransfer.effectAllowed = 'move';
+                                  // Adicionar classe visual
+                                  (e.target as HTMLElement).classList.add('opacity-50');
+                                }}
+                                onDragEnd={(e) => {
+                                  (e.target as HTMLElement).classList.remove('opacity-50');
+                                }}
+                                onDragOver={(e) => {
+                                  if (isOpen) return;
+                                  e.preventDefault(); // Necessário para permitir o drop
+                                  e.dataTransfer.dropEffect = 'move';
+                                }}
+                                onDrop={(e) => {
+                                  if (isOpen) return;
+                                  e.preventDefault();
+                                  const fromIndex = parseInt(e.dataTransfer.getData('text/plain'));
+                                  const toIndex = index;
+                                  if (fromIndex !== toIndex) {
+                                    moveItem(fromIndex, toIndex);
+                                  }
+                                }}
+                              >
                                 {/* Cabeçalho clicável */}
                                 <div
                                   className="flex items-center justify-between p-4 cursor-pointer hover:bg-accent/50 transition-colors"
@@ -720,27 +809,56 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                     }
                                   }}
                                 >
-                                  <div className="flex-1">
-                                    <div className="font-medium text-sm flex items-center gap-2">
-                                      <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-                                      {item.produto_nome || `Item #${index + 1} (Sem nome)`}
-                                    </div>
-                                    <div className="text-xs text-muted-foreground ml-6">
-                                      Qtd: {item.quantidade} | Total: {formatCurrency(Number(item.quantidade) * Number(item.preco_unitario))}
+                                  <div className="flex items-center gap-2 flex-1">
+                                    {/* Handle de Drag & Drop - SÓ MOSTRA SE ESTIVER FECHADO */}
+                                    {!isOpen && (
+                                      <div className="p-1 text-muted-foreground hover:text-foreground" title="Arraste para reordenar">
+                                        <GripVertical className="h-5 w-5" />
+                                      </div>
+                                    )}
+
+                                    <div className="flex-1">
+                                      <div className="font-medium text-sm flex items-center gap-2">
+                                        <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                                        {item.produto_nome || `Item #${index + 1} (Sem nome)`}
+                                      </div>
+                                      <div className="text-xs text-muted-foreground ml-6">
+                                        Qtd: {item.quantidade} | Total: {formatCurrency(Number(item.quantidade) * Number(item.preco_unitario))}
+                                      </div>
                                     </div>
                                   </div>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0 hover:text-destructive"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      removeItem(index);
-                                    }}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
+
+                                  <div className="flex items-center gap-1">
+                                    {/* Botão Duplicar */}
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-8 w-8 p-0 hover:text-primary"
+                                      title="Duplicar item"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        duplicateItem(index);
+                                      }}
+                                    >
+                                      <Copy className="h-4 w-4" />
+                                    </Button>
+
+                                    {/* Botão Remover */}
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-8 w-8 p-0 hover:text-destructive"
+                                      title="Remover item"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        removeItem(index);
+                                      }}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
                                 </div>
 
                                 {/* Conteúdo expansível */}

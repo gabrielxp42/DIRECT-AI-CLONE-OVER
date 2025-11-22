@@ -67,8 +67,8 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
     };
 
 
-    const getSession = async () => {
-      console.log('🔍 [SessionProvider] getSession() iniciado...');
+    const getSession = async (retryCount = 0) => {
+      console.log(`🔍 [SessionProvider] getSession() iniciado (tentativa ${retryCount + 1})...`);
 
       try {
         if (!supabaseClient || typeof supabaseClient.auth?.getSession !== 'function') {
@@ -77,9 +77,9 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
           return;
         }
 
-        // Timeout de 10 segundos para evitar loading infinito
+        // Timeout reduzido para 2 segundos. Se o Supabase não responder rápido, assumimos o controle.
         const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Session fetch timeout')), 10000)
+          setTimeout(() => reject(new Error('Session fetch timeout')), 2000)
         );
 
         console.log('🔍 [SessionProvider] Chamando supabaseClient.auth.getSession()...');
@@ -97,9 +97,10 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
           userId: currentSession?.user?.id
         });
 
+        // ... Lógica de sucesso normal ...
         if (error) {
           console.error('❌ [SessionProvider] Error getting session:', error);
-          // Se houver erro, limpar sessão
+          // Se houver erro real do Supabase (não timeout), limpar sessão
           await supabaseClient.auth.signOut();
           setSession(null);
           setOrganizationId(null);
@@ -120,11 +121,54 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
           console.log('✅ [SessionProvider] isLoading = false');
         }
       } catch (error: any) {
+        // SE DER TIMEOUT, TENTAMOS RECUPERAR MANUALMENTE DO STORAGE
+        if (error.message === 'Session fetch timeout') {
+          console.warn('⚠️ [SessionProvider] Timeout do Supabase Client! Tentando recuperação manual do LocalStorage...');
+
+          try {
+            // Tenta ler o token direto do LocalStorage (chave padrão do Supabase para este projeto)
+            const PROJECT_ID = 'zdbjzrpgliqicwvncfpc';
+            const storedSessionStr = localStorage.getItem(`sb-${PROJECT_ID}-auth-token`);
+
+            if (storedSessionStr) {
+              const storedSession = JSON.parse(storedSessionStr);
+              // Verifica se parece uma sessão válida
+              if (storedSession && storedSession.access_token && storedSession.user) {
+                console.log('✅ [SessionProvider] Sessão recuperada MANUALMENTE do LocalStorage! (Bypassing Supabase Client)');
+
+                setSession(storedSession);
+
+                // Tenta buscar perfil (sem bloquear se falhar)
+                if (storedSession.user) {
+                  fetchProfile(storedSession.user.id)
+                    .then(orgId => setOrganizationId(orgId))
+                    .catch(err => console.error('Erro ao buscar perfil no fallback:', err));
+                }
+
+                setIsLoading(false);
+
+                // Importante: Iniciar o refresh manual para validar este token em background
+                setupTokenRefresh();
+                return; // Sucesso! Não precisa tentar de novo.
+              }
+            }
+          } catch (storageError) {
+            console.error('❌ [SessionProvider] Falha na recuperação manual:', storageError);
+          }
+
+          // Se a recuperação manual falhar, aí sim tentamos o retry padrão ou desistimos
+          if (retryCount < 2) {
+            console.log(`⚠️ [SessionProvider] Recuperação falhou. Tentando getSession novamente (${retryCount + 1}/2)...`);
+            setTimeout(() => getSession(retryCount + 1), 1000);
+            return;
+          }
+        }
+
         console.error('❌ [SessionProvider] Exception in getSession:', error);
         setSession(null);
         setOrganizationId(null);
         setIsLoading(false);
-        console.log('✅ [SessionProvider] isLoading = false (após erro)');
+        console.log('✅ [SessionProvider] isLoading = false (após erro persistente)');
       }
     };
 
@@ -155,7 +199,7 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
           // Marcar que refresh está em andamento
           if (event === 'TOKEN_REFRESHED') {
             isRefreshing = true;
-            console.log('✅ [SessionProvider] Token refreshed, rescheduling next refresh');
+            console.log('✅ [SessionProvider] Token refreshed manually');
             setupTokenRefresh(); // Reagendar próximo refresh
 
             // Resetar flag após 2 segundos (tempo suficiente para estabilizar)
@@ -185,15 +229,15 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
 
           // Handle sign in - limpar cache quando novo login
           if (event === 'SIGNED_IN' && !isRefreshing) {
-            console.log('✅ [SessionProvider] User signed in, setting up token refresh');
-            setupTokenRefresh(); // Configurar refresh automático
+            console.log('✅ [SessionProvider] User signed in, setting up manual refresh');
+            setupTokenRefresh();
           }
 
           // Handle sign out
           if (event === 'SIGNED_OUT' && !isRefreshing) {
             console.log('👋 [SessionProvider] User signed out');
             setOrganizationId(null);
-            clearTokenRefresh(); // Limpar refresh ao fazer logout
+            clearTokenRefresh();
           }
         }
       );
