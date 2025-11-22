@@ -20,11 +20,6 @@ export interface DashboardStats {
   metersGrowth: number;
 }
 
-interface MetersReportResult {
-  total_meters: number;
-  total_orders: number;
-}
-
 const fetchDashboardData = async (accessToken: string): Promise<DashboardStats> => {
   if (!accessToken) {
     throw new Error("Sem token de acesso para fetch.");
@@ -44,18 +39,6 @@ const fetchDashboardData = async (accessToken: string): Promise<DashboardStats> 
     return res.json();
   };
 
-  // Helper para RPC
-  const doRpc = async (functionName: string, params: any) => {
-    const url = `${SUPABASE_URL}/rest/v1/rpc/${functionName}`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(params)
-    });
-    if (!res.ok) throw new Error(`RPC error ${functionName}: ${res.statusText}`);
-    return res.json();
-  };
-
   // Get current month data
   const currentMonth = new Date();
   const firstDayCurrentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
@@ -65,15 +48,15 @@ const fetchDashboardData = async (accessToken: string): Promise<DashboardStats> 
   const firstDayPreviousMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1);
   const lastDayPreviousMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 0);
 
-  // Fetch current month orders
+  // Fetch current month orders (incluindo total_metros)
   const currentOrders = await doFetch('pedidos', new URLSearchParams({
-    select: 'valor_total,created_at,status',
+    select: 'valor_total,created_at,status,total_metros',
     created_at: `gte.${firstDayCurrentMonth.toISOString()}`,
   })).then(data => data.filter((d: any) => new Date(d.created_at) <= lastDayCurrentMonth));
 
-  // Fetch previous month orders
+  // Fetch previous month orders (incluindo total_metros)
   const previousOrders = await doFetch('pedidos', new URLSearchParams({
-    select: 'valor_total,created_at',
+    select: 'valor_total,created_at,total_metros',
     created_at: `gte.${firstDayPreviousMonth.toISOString()}`,
   })).then(data => data.filter((d: any) => new Date(d.created_at) <= lastDayPreviousMonth));
 
@@ -94,19 +77,9 @@ const fetchDashboardData = async (accessToken: string): Promise<DashboardStats> 
     select: 'id,status'
   }));
 
-  // Buscar total de metros via RPC
-  const currentMetersData = await doRpc('get_total_meters_by_period', {
-    p_start_date: firstDayCurrentMonth.toISOString(),
-    p_end_date: lastDayCurrentMonth.toISOString()
-  });
-
-  const previousMetersData = await doRpc('get_total_meters_by_period', {
-    p_start_date: firstDayPreviousMonth.toISOString(),
-    p_end_date: lastDayPreviousMonth.toISOString()
-  });
-
-  const totalMeters = (currentMetersData as any)?.total_meters || 0;
-  const previousTotalMeters = (previousMetersData as any)?.total_meters || 0;
+  // Calculate total meters (same logic as Reports.tsx)
+  const totalMeters = currentOrders.reduce((sum: number, order: any) => sum + (order.total_metros || 0), 0);
+  const previousTotalMeters = previousOrders.reduce((sum: number, order: any) => sum + (order.total_metros || 0), 0);
 
   // Calculate current month stats
   const totalSales = currentOrders?.reduce((sum: number, order: any) => sum + order.valor_total, 0) || 0;
