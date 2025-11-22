@@ -5,16 +5,26 @@ import "./globals.css";
 // CRÍTICO: Forçar a remoção de quaisquer Service Workers ativos em desenvolvimento
 // para evitar que cache antigo interfira com as credenciais novas.
 if (import.meta.env.DEV && 'serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then(function(registrations) {
-    if(registrations.length > 0) {
+  navigator.serviceWorker.getRegistrations().then(function (registrations) {
+    if (registrations.length > 0) {
       console.log('[Dev] Removendo Service Workers ativos para garantir código fresco...');
-      for(let registration of registrations) {
+      let unregistered = 0;
+
+      registrations.forEach(registration => {
         registration.unregister().then(success => {
-          console.log('[Dev] Service Worker removido:', success);
-          // Se encontrou e removeu um SW, pode ser necessário recarregar a página
-          // mas vamos deixar o usuário fazer isso se necessário
+          if (success) {
+            unregistered++;
+            console.log('[Dev] Service Worker removido com sucesso');
+
+            // Se removeu algum SW, recarregar a página APENAS UMA VEZ
+            if (unregistered === registrations.length && !sessionStorage.getItem('sw_cleaned')) {
+              sessionStorage.setItem('sw_cleaned', 'true');
+              console.log('[Dev] Recarregando página para aplicar mudanças...');
+              window.location.reload();
+            }
+          }
         });
-      }
+      });
     }
   });
 }
@@ -33,7 +43,7 @@ window.addEventListener('error', (event) => {
 // Também capturar promessas rejeitadas não tratadas relacionadas a este erro
 window.addEventListener('unhandledrejection', (event) => {
   if (event.reason?.message?.includes('message channel closed before a response was received') ||
-      event.reason?.message?.includes('asynchronous response')) {
+    event.reason?.message?.includes('asynchronous response')) {
     event.preventDefault();
     // Não logar este erro específico pois é causado por extensões do navegador
     return false;

@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, useRef } from 'react';
 import type { Session, SupabaseClient } from '@supabase/supabase-js';
 import { supabase as supabaseClient } from '@/integrations/supabase/client';
+import { setupTokenRefresh, clearTokenRefresh } from '@/utils/tokenRefresh';
 
 type Profile = {
   organization_id: string | null;
@@ -65,7 +66,10 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
       }
     };
 
+
     const getSession = async () => {
+      console.log('🔍 [SessionProvider] getSession() iniciado...');
+
       try {
         if (!supabaseClient || typeof supabaseClient.auth?.getSession !== 'function') {
           console.error('❌ [SessionProvider] Supabase client is undefined or invalid during getSession.');
@@ -73,52 +77,54 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
           return;
         }
 
-        console.log('🔍 [SessionProvider] Getting session from storage...');
+        // Timeout de 10 segundos para evitar loading infinito
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Session fetch timeout')), 10000)
+        );
 
-        // FORÇAR verificação de usuário com getUser() para validar o token de verdade
-        // getSession() apenas lê do storage local e pode retornar um token inválido/expirado sem validar no servidor
-        const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+        console.log('🔍 [SessionProvider] Chamando supabaseClient.auth.getSession()...');
 
-        if (userError) {
-          console.error('❌ [SessionProvider] Token inválido ou expirado (getUser failed):', userError);
-          // Se o token for inválido, forçar logout para limpar o estado zumbi
+        // Buscar sessão do storage local com timeout
+        const sessionPromise = supabaseClient.auth.getSession();
+        const { data: { session: currentSession }, error } = await Promise.race([
+          sessionPromise,
+          timeoutPromise
+        ]) as any;
+
+        console.log('✅ [SessionProvider] getSession() retornou:', {
+          hasSession: !!currentSession,
+          hasError: !!error,
+          userId: currentSession?.user?.id
+        });
+
+        if (error) {
+          console.error('❌ [SessionProvider] Error getting session:', error);
+          // Se houver erro, limpar sessão
           await supabaseClient.auth.signOut();
           setSession(null);
           setOrganizationId(null);
           setIsLoading(false);
-          return;
-        }
-
-        // Se getUser passou, o token é válido. Agora pegamos a sessão completa.
-        const { data: { session: currentSession }, error } = await supabaseClient.auth.getSession();
-
-        if (error) {
-          console.error('❌ [SessionProvider] Error getting session:', error);
-          if (error.message?.includes('Invalid') || error.message?.includes('invalid')) {
-            console.error('⚠️ [SessionProvider] Possível problema com a chave do Supabase. Verifique as credenciais.');
-          }
-          setSession(null);
-          setOrganizationId(null);
-          setIsLoading(false);
         } else {
-          console.log('✅ [SessionProvider] Session retrieved and VALIDATED:', currentSession ? `User: ${currentSession.user?.email}` : 'No session found');
           setSession(currentSession);
 
           if (currentSession?.user) {
+            console.log('🔍 [SessionProvider] Buscando perfil do usuário...');
             const orgId = await fetchProfile(currentSession.user.id);
             setOrganizationId(orgId);
-            console.log('✅ [SessionProvider] Profile loaded, organizationId:', orgId);
+            console.log('✅ [SessionProvider] Perfil carregado:', orgId);
           } else {
             setOrganizationId(null);
-            console.log('ℹ️ [SessionProvider] No user in session');
+            console.log('ℹ️ [SessionProvider] Sem sessão ativa');
           }
           setIsLoading(false);
+          console.log('✅ [SessionProvider] isLoading = false');
         }
       } catch (error: any) {
         console.error('❌ [SessionProvider] Exception in getSession:', error);
         setSession(null);
         setOrganizationId(null);
         setIsLoading(false);
+        console.log('✅ [SessionProvider] isLoading = false (após erro)');
       }
     };
 
@@ -132,12 +138,31 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
     }
 
     let subscription: { unsubscribe: () => void } | null = null;
+    let isRefreshing = false; // Flag para detectar refresh em andamento
 
     try {
       // Configurar o listener PRIMEIRO para capturar a restauração da sessão
       const { data: { subscription: authSubscription } } = supabaseClient.auth.onAuthStateChange(
         async (event, session) => {
           console.log('🔐 [SessionProvider] Auth state changed:', event, session?.user?.email || 'no user');
+
+          // IGNORAR SIGNED_OUT se estiver no meio de um refresh
+          if (event === 'SIGNED_OUT' && isRefreshing) {
+            console.log('⚠️ [SessionProvider] Ignorando SIGNED_OUT durante refresh de token');
+            return;
+          }
+
+          // Marcar que refresh está em andamento
+          if (event === 'TOKEN_REFRESHED') {
+            isRefreshing = true;
+            console.log('✅ [SessionProvider] Token refreshed, rescheduling next refresh');
+            setupTokenRefresh(); // Reagendar próximo refresh
+
+            // Resetar flag após 2 segundos (tempo suficiente para estabilizar)
+            setTimeout(() => {
+              isRefreshing = false;
+            }, 2000);
+          }
 
           // Atualizar sessão
           setSession(session);
@@ -153,25 +178,22 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
           // Log do estado atual
           console.log('[SessionProvider] State:', { event, hasSession: !!session, organizationId });
 
-          // Handle session refresh
-          if (event === 'TOKEN_REFRESHED') {
-            console.log('✅ [SessionProvider] Token refreshed successfully');
-          }
-
           // Handle initial session load (após reload)
           if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
             console.log('✅ [SessionProvider] Session restored/loaded:', session ? 'User logged in' : 'No session');
           }
 
           // Handle sign in - limpar cache quando novo login
-          if (event === 'SIGNED_IN') {
-            console.log('✅ [SessionProvider] User signed in, cache will be cleared');
+          if (event === 'SIGNED_IN' && !isRefreshing) {
+            console.log('✅ [SessionProvider] User signed in, setting up token refresh');
+            setupTokenRefresh(); // Configurar refresh automático
           }
 
           // Handle sign out
-          if (event === 'SIGNED_OUT') {
+          if (event === 'SIGNED_OUT' && !isRefreshing) {
             console.log('👋 [SessionProvider] User signed out');
             setOrganizationId(null);
+            clearTokenRefresh(); // Limpar refresh ao fazer logout
           }
         }
       );

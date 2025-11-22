@@ -531,41 +531,44 @@ const Reports: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6 pb-safe">
       {/* HEADER E SELETOR DE PERÍODO */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b pb-4">
+      <div className="flex flex-col gap-3 border-b pb-3 md:pb-4">
         <div className="flex items-center gap-2">
-          <BarChart3 className="h-8 w-8 text-primary" />
-          <h1 className="text-3xl font-bold">Relatórios de Vendas</h1>
+          <BarChart3 className="h-6 w-6 md:h-8 md:w-8 text-primary" />
+          <h1 className="text-xl md:text-3xl font-bold">Relatórios</h1>
         </div>
       </div>
 
       {/* SELEÇÃO DE PERÍODO REIMAGINADA */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-        <ToggleGroup
-          type="single"
-          value={selectedPeriod}
-          onValueChange={(value) => {
-            if (value && value !== 'custom') {
-              setSelectedPeriod(value);
-              setCustomDateRange(undefined); // Limpa o range customizado
-            }
-          }}
-          className="flex-wrap justify-start"
-        >
-          <ToggleGroupItem value="today" aria-label="Hoje" className="h-9 px-3 text-sm">
-            Hoje
-          </ToggleGroupItem>
-          <ToggleGroupItem value="week" aria-label="Esta Semana" className="h-9 px-3 text-sm">
-            Esta Semana
-          </ToggleGroupItem>
-          <ToggleGroupItem value="month" aria-label="Este Mês" className="h-9 px-3 text-sm">
-            Este Mês
-          </ToggleGroupItem>
-          <ToggleGroupItem value="year" aria-label="Este Ano" className="h-9 px-3 text-sm">
-            Este Ano
-          </ToggleGroupItem>
-        </ToggleGroup>
+      <div className="flex flex-col gap-3">
+        {/* Botões de período com scroll horizontal no mobile */}
+        <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+          <ToggleGroup
+            type="single"
+            value={selectedPeriod}
+            onValueChange={(value) => {
+              if (value && value !== 'custom') {
+                setSelectedPeriod(value);
+                setCustomDateRange(undefined);
+              }
+            }}
+            className="flex gap-2 w-max md:w-auto md:flex-wrap"
+          >
+            <ToggleGroupItem value="today" aria-label="Hoje" className="h-9 px-3 text-sm whitespace-nowrap">
+              Hoje
+            </ToggleGroupItem>
+            <ToggleGroupItem value="week" aria-label="Esta Semana" className="h-9 px-3 text-sm whitespace-nowrap">
+              Semana
+            </ToggleGroupItem>
+            <ToggleGroupItem value="month" aria-label="Este Mês" className="h-9 px-3 text-sm whitespace-nowrap">
+              Mês
+            </ToggleGroupItem>
+            <ToggleGroupItem value="year" aria-label="Este Ano" className="h-9 px-3 text-sm whitespace-nowrap">
+              Ano
+            </ToggleGroupItem>
+          </ToggleGroup>
+        </div>
 
         {/* Seletor de Data Personalizado */}
         <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
@@ -573,7 +576,7 @@ const Reports: React.FC = () => {
             <Button
               variant={selectedPeriod === 'custom' ? 'default' : 'outline'}
               className={cn(
-                "w-full sm:w-auto justify-start text-left font-normal h-9 px-3 text-sm",
+                "w-full md:w-auto justify-start text-left font-normal h-9 px-3 text-sm",
                 selectedPeriod !== 'custom' && "text-muted-foreground"
               )}
               onClick={() => setSelectedPeriod('custom')}
@@ -582,8 +585,8 @@ const Reports: React.FC = () => {
               {selectedPeriod === 'custom' && customDateRange?.from ? (
                 customDateRange.to ? (
                   <>
-                    {format(customDateRange.from, "dd/MM/yyyy")} -{" "}
-                    {format(customDateRange.to, "dd/MM/yyyy")}
+                    {format(customDateRange.from, "dd/MM/yy")} -{" "}
+                    {format(customDateRange.to, "dd/MM/yy")}
                   </>
                 ) : (
                   format(customDateRange.from, "dd/MM/yyyy")
@@ -605,31 +608,32 @@ const Reports: React.FC = () => {
                   setIsDatePickerOpen(false);
                 }
               }}
-              numberOfMonths={2}
+              numberOfMonths={window.innerWidth < 768 ? 1 : 2}
               locale={ptBR}
             />
           </PopoverContent>
         </Popover>
       </div>
 
-      <h2 className="text-xl font-semibold flex items-center gap-2">
-        <Clock className="h-5 w-5 text-muted-foreground" />
-        Métricas para: <Badge variant="secondary" className="text-base font-bold">{getPeriodLabel(selectedPeriod)}</Badge>
+      <h2 className="text-base md:text-xl font-semibold flex items-center gap-2 flex-wrap">
+        <Clock className="h-4 w-4 md:h-5 md:w-5 text-muted-foreground" />
+        <span className="text-sm md:text-base">Métricas:</span>
+        <Badge variant="secondary" className="text-sm md:text-base font-bold">{getPeriodLabel(selectedPeriod)}</Badge>
       </h2>
 
       {/* Key Metrics - Visão Geral do Período */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 md:gap-4 grid-cols-2 lg:grid-cols-4">
 
         {/* Receita Total */}
         <Card className="hover:shadow-lg transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Receita Total</CardTitle>
-            <DollarSign className="h-4 w-4 text-green-600" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 md:p-6">
+            <CardTitle className="text-xs md:text-sm font-medium">Receita Total</CardTitle>
+            <DollarSign className="h-3 w-3 md:h-4 md:w-4 text-green-600" />
           </CardHeader>
-          <CardContent>
-            {isLoading ? <Skeleton className="h-8 w-3/4" /> : (
+          <CardContent className="p-4 pt-0 md:p-6 md:pt-0">
+            {isLoading ? <Skeleton className="h-6 md:h-8 w-3/4" /> : (
               <>
-                <div className="text-2xl font-bold">{formatCurrency(reportData?.totalRevenue || 0)}</div>
+                <div className="text-lg md:text-2xl font-bold">{formatCurrency(reportData?.totalRevenue || 0)}</div>
                 <div className={`text-xs flex items-center ${getGrowthColor(reportData?.monthlyGrowth.revenue || 0)}`}>
                   {React.createElement(getGrowthIcon(reportData?.monthlyGrowth.revenue || 0), { className: "h-3 w-3 mr-1" })}
                   {formatGrowth(reportData?.monthlyGrowth.revenue || 0)} este mês
@@ -641,14 +645,14 @@ const Reports: React.FC = () => {
 
         {/* Total de Pedidos */}
         <Card className="hover:shadow-lg transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total de Pedidos</CardTitle>
-            <ShoppingCart className="h-4 w-4 text-primary" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 md:p-6">
+            <CardTitle className="text-xs md:text-sm font-medium">Pedidos</CardTitle>
+            <ShoppingCart className="h-3 w-3 md:h-4 md:w-4 text-primary" />
           </CardHeader>
-          <CardContent>
-            {isLoading ? <Skeleton className="h-8 w-1/2" /> : (
+          <CardContent className="p-4 pt-0 md:p-6 md:pt-0">
+            {isLoading ? <Skeleton className="h-6 md:h-8 w-1/2" /> : (
               <>
-                <div className="text-2xl font-bold">{reportData?.totalOrders || 0}</div>
+                <div className="text-lg md:text-2xl font-bold">{reportData?.totalOrders || 0}</div>
                 <div className={`text-xs flex items-center ${getGrowthColor(reportData?.monthlyGrowth.orders || 0)}`}>
                   {React.createElement(getGrowthIcon(reportData?.monthlyGrowth.orders || 0), { className: "h-3 w-3 mr-1" })}
                   {formatGrowth(reportData?.monthlyGrowth.orders || 0)} este mês
@@ -660,18 +664,18 @@ const Reports: React.FC = () => {
 
         {/* Total de Metros */}
         <Card className="hover:shadow-lg transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total de Metros (ML)</CardTitle>
-            <Ruler className="h-4 w-4 text-blue-600" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 md:p-6">
+            <CardTitle className="text-xs md:text-sm font-medium">Metros (ML)</CardTitle>
+            <Ruler className="h-3 w-3 md:h-4 md:w-4 text-blue-600" />
           </CardHeader>
-          <CardContent>
-            {isLoading ? <Skeleton className="h-8 w-3/4" /> : (
+          <CardContent className="p-4 pt-0 md:p-6 md:pt-0">
+            {isLoading ? <Skeleton className="h-6 md:h-8 w-3/4" /> : (
               <>
-                <div className="text-2xl font-bold text-blue-600">
+                <div className="text-lg md:text-2xl font-bold text-blue-600">
                   {formatMeters(reportData?.metersReport.totalMeters || 0)}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Metragem impressa no período
+                  Impressos
                 </p>
               </>
             )}
@@ -680,14 +684,14 @@ const Reports: React.FC = () => {
 
         {/* Ticket Médio */}
         <Card className="hover:shadow-lg transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Ticket Médio</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 md:p-6">
+            <CardTitle className="text-xs md:text-sm font-medium">Ticket Médio</CardTitle>
+            <Package className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            {isLoading ? <Skeleton className="h-8 w-3/4" /> : (
+          <CardContent className="p-4 pt-0 md:p-6 md:pt-0">
+            {isLoading ? <Skeleton className="h-6 md:h-8 w-3/4" /> : (
               <>
-                <div className="text-2xl font-bold">{formatCurrency(reportData?.averageOrderValue || 0)}</div>
+                <div className="text-lg md:text-2xl font-bold">{formatCurrency(reportData?.averageOrderValue || 0)}</div>
                 <p className="text-xs text-muted-foreground">
                   Por pedido
                 </p>
@@ -719,12 +723,30 @@ const Reports: React.FC = () => {
 
       {/* Tabbed Content */}
       <Tabs defaultValue="commission" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4 lg:grid-cols-4 h-auto">
-          <TabsTrigger value="commission" className="py-2 flex items-center gap-2"><DollarSign className="h-4 w-4" /> Comissão</TabsTrigger>
-          <TabsTrigger value="products" className="py-2 flex items-center gap-2"><Package className="h-4 w-4" /> Produtos</TabsTrigger>
-          <TabsTrigger value="customers" className="py-2 flex items-center gap-2"><User className="h-4 w-4" /> Clientes</TabsTrigger>
-          <TabsTrigger value="recent" className="py-2 flex items-center gap-2"><Clock className="h-4 w-4" /> Recentes</TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+          <TabsList className="grid w-max md:w-full grid-cols-4 h-auto">
+            <TabsTrigger value="commission" className="py-2 px-3 md:px-4 flex items-center gap-1 md:gap-2 text-xs md:text-sm">
+              <DollarSign className="h-3 w-3 md:h-4 md:w-4" />
+              <span className="hidden sm:inline">Comissão</span>
+              <span className="sm:hidden">Com.</span>
+            </TabsTrigger>
+            <TabsTrigger value="products" className="py-2 px-3 md:px-4 flex items-center gap-1 md:gap-2 text-xs md:text-sm">
+              <Package className="h-3 w-3 md:h-4 md:w-4" />
+              <span className="hidden sm:inline">Produtos</span>
+              <span className="sm:hidden">Prod.</span>
+            </TabsTrigger>
+            <TabsTrigger value="customers" className="py-2 px-3 md:px-4 flex items-center gap-1 md:gap-2 text-xs md:text-sm">
+              <User className="h-3 w-3 md:h-4 md:w-4" />
+              <span className="hidden sm:inline">Clientes</span>
+              <span className="sm:hidden">Cli.</span>
+            </TabsTrigger>
+            <TabsTrigger value="recent" className="py-2 px-3 md:px-4 flex items-center gap-1 md:gap-2 text-xs md:text-sm">
+              <Clock className="h-3 w-3 md:h-4 md:w-4" />
+              <span className="hidden sm:inline">Recentes</span>
+              <span className="sm:hidden">Rec.</span>
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="commission" className="space-y-6">
           <ServiceCommissionReport />

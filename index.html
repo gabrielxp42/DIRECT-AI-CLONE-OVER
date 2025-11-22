@@ -1,25 +1,54 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    
-    <!-- PWA Meta Tags -->
-    <meta name="application-name" content="DIRECT AI" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="DIRECT AI" />
-    <meta name="description" content="Seu assistente de vendas inteligente da DIRECT DTF." />
-    <meta name="format-detection" content="telephone=no" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="theme-color" content="#000000" />
-    <link rel="apple-touch-icon" href="/logo.png" />
 
-    <title>DIRECT AI - POR GABRIEL LIMA</title>
-  </head>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+  <!-- PWA Meta Tags -->
+  <meta name="application-name" content="DIRECT AI" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="DIRECT AI" />
+  <meta name="description" content="Seu assistente de vendas inteligente da DIRECT DTF." />
+  <meta name="format-detection" content="telephone=no" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#000000" />
+  <link rel="apple-touch-icon" href="/logo.png" />
+
+  <title>DIRECT AI - POR GABRIEL LIMA</title>
+
+  <!-- Suprimir erros de extensões do Chrome (AdBlock, etc) -->
+  <script>
+    // Executar ANTES de qualquer outro código
+    window.addEventListener('error', function (e) {
+      if (e.message && (
+        e.message.includes('message channel closed') ||
+        e.message.includes('asynchronous response')
+      )) {
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      }
+    }, true);
+
+    window.addEventListener('unhandledrejection', function (e) {
+      if (e.reason && e.reason.message && (
+        e.reason.message.includes('message channel closed') ||
+        e.reason.message.includes('asynchronous response')
+      )) {
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      }
+    }, true);
+  </script>
+</head>
+
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+
 </html>

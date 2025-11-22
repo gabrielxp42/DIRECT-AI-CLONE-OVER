@@ -1,3 +1,4 @@
 {
-  "buildCommand": "pnpm install --ignore-scripts=false && pnpm run build"
+  "installCommand": "pnpm install --ignore-scripts=false",
+  "buildCommand": "pnpm run build"
 }

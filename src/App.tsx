@@ -18,25 +18,26 @@ import Insumos from "./pages/Insumos";
 import { AIAssistantProvider } from "./contexts/AIAssistantProvider";
 import { useEffect, useRef } from "react";
 import { useSession } from "./contexts/SessionProvider";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 // import { setupAuthRefreshInterceptor } from "./utils/authRefresh";
 
 // Configurar interceptor de renovação de token
 // setupAuthRefreshInterceptor();
 
-// Configurar QueryClient com opções para evitar problemas de cache
+// Configurar QueryClient com opções otimizadas
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // Não usar cache quando há erro
-      retry: 1,
-      // Refetch quando a janela ganha foco
-      refetchOnWindowFocus: true,
-      // Refetch quando reconecta
-      refetchOnReconnect: true,
-      // Não manter dados em cache por muito tempo
-      staleTime: 0, // Sempre considerar dados como stale
-      // Cache por apenas 2 minutos
-      gcTime: 2 * 60 * 1000, // 2 minutos (anteriormente cacheTime)
+      // Retry com backoff exponencial para falhas de rede temporárias
+      retry: 2,
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+      // Refetch apenas quando realmente necessário
+      refetchOnWindowFocus: false, // Desabilitado para evitar refetch excessivo
+      refetchOnReconnect: true, // Mantém para reconexão de rede
+      // Dados considerados frescos por 5 minutos
+      staleTime: 5 * 60 * 1000, // 5 minutos
+      // Cache mantido por 15 minutos
+      gcTime: 15 * 60 * 1000, // 15 minutos (anteriormente cacheTime)
     },
   },
 });
@@ -46,18 +47,39 @@ const CacheInvalidator = () => {
   const queryClient = useQueryClient();
   const { session } = useSession();
   const previousUserIdRef = useRef<string | undefined>(undefined);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const currentUserId = session?.user?.id;
     const previousUserId = previousUserIdRef.current;
 
-    // Se o usuário mudou (login/logout), limpar todo o cache
-    if (currentUserId !== previousUserId) {
-      console.log('[CacheInvalidator] User changed, clearing all queries');
-      queryClient.clear(); // Limpa todo o cache
-      previousUserIdRef.current = currentUserId;
+    // Limpar timer anterior
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
     }
-  }, [session?.user?.id, queryClient]);
+
+    // Se o usuário mudou, aguardar 1 segundo antes de limpar cache
+    // Isso evita limpar durante refresh de token (que causa SIGNED_OUT momentâneo)
+    if (currentUserId !== previousUserId) {
+      debounceTimerRef.current = setTimeout(() => {
+        // Verificar novamente após o debounce
+        const finalUserId = session?.user?.id;
+        const finalPreviousUserId = previousUserIdRef.current;
+
+        if (finalUserId !== finalPreviousUserId) {
+          console.log('[CacheInvalidator] User changed, clearing all queries');
+          queryClient.clear(); // Limpa todo o cache
+          previousUserIdRef.current = finalUserId;
+        }
+      }, 1000); // 1 segundo de debounce
+    }
+
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, [session?.user?.id, queryClient, session]);
 
   return null;
 };
@@ -77,21 +99,23 @@ const App = () => (
             <SessionProvider>
               <PWAManager />
               <CacheInvalidator />
-              <Routes>
-                <Route path="/login" element={<Login />} />
-                <Route element={<ProtectedRoute />}>
-                  <Route element={<Layout />}>
-                    <Route path="/" element={<Index />} />
-                    <Route path="/clientes" element={<Clientes />} />
-                    <Route path="/produtos" element={<Produtos />} />
-                    <Route path="/pedidos" element={<Pedidos />} />
-                    <Route path="/reports" element={<Reports />} />
-                    <Route path="/insumos" element={<Insumos />} />
-                    {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                    <Route path="*" element={<NotFound />} />
+              <ErrorBoundary>
+                <Routes>
+                  <Route path="/login" element={<Login />} />
+                  <Route element={<ProtectedRoute />}>
+                    <Route element={<Layout />}>
+                      <Route path="/" element={<Index />} />
+                      <Route path="/clientes" element={<Clientes />} />
+                      <Route path="/produtos" element={<Produtos />} />
+                      <Route path="/pedidos" element={<Pedidos />} />
+                      <Route path="/reports" element={<Reports />} />
+                      <Route path="/insumos" element={<Insumos />} />
+                      {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                      <Route path="*" element={<NotFound />} />
+                    </Route>
                   </Route>
-                </Route>
-              </Routes>
+                </Routes>
+              </ErrorBoundary>
             </SessionProvider>
           </BrowserRouter>
         </AIAssistantProvider>
