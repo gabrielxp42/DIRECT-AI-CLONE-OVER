@@ -191,6 +191,9 @@ importers:
       vite-plugin-pwa:
         specifier: ^1.0.3
         version: 1.0.3(vite@6.3.4(@types/node@22.14.1)(jiti@1.21.7)(terser@5.44.0)(yaml@2.7.1))(workbox-build@7.3.0)(workbox-window@7.3.0)
+      workbox-window:
+        specifier: ^7.3.0
+        version: 7.3.0
       zod:
         specifier: ^3.23.8
         version: 3.24.3

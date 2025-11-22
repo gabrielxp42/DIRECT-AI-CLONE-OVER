@@ -1,5 +1,5 @@
 {
-  "packageManager": "pnpm@9.0.0",
+  "packageManager": "pnpm@10.0.0",
   "name": "vite_react_shadcn_ts",
   "private": true,
   "version": "1.0.0",
@@ -73,6 +73,7 @@
     "tesseract.js": "^6.0.1",
     "vaul": "^0.9.3",
     "vite-plugin-pwa": "^1.0.3",
+    "workbox-window": "^7.3.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
