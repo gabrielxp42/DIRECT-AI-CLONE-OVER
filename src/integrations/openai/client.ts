@@ -9,7 +9,7 @@ if (!OPENAI_API_KEY) {
 
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system' | 'function';
-  content: string;
+  content: string | Array<{ type: string; text?: string; image_url?: { url: string } }>;
   name?: string;
   function_call?: {
     name: string;
@@ -58,7 +58,7 @@ export class OpenAIClient {
 
     const data = await response.json();
     const choice = data.choices[0];
-    
+
     if (choice.message.function_call) {
       return {
         function_call: {

@@ -53,7 +53,7 @@ import {
   CalendarIcon,
   Loader2
 } from "lucide-react";
-import { useViewportZoom } from '@/hooks/useViewportZoom';
+
 import { MetersBarChart } from '@/components/MetersBarChart';
 import { RevenueLineChart } from '@/components/RevenueLineChart';
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -455,7 +455,7 @@ const Reports: React.FC = () => {
   const [selectedService, setSelectedService] = useState("all");
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
 
-  useViewportZoom(true);
+
 
   // Validação crítica: só executar se sessão não estiver carregando E token estiver disponível
   const isEnabled = !sessionLoading && !!accessToken;

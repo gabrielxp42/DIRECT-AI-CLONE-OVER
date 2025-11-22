@@ -46,30 +46,35 @@ export const DailySummaryCard = () => {
                 </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-                <div className="grid grid-cols-3 gap-3">
-                    <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground flex items-center gap-1">
-                            <ShoppingCart className="h-3 w-3" />
-                            Pedidos
-                        </p>
-                        <p className="text-xl font-bold">{stats?.pendingOrdersCount || 0}</p>
-                        <p className="text-[10px] text-muted-foreground">Pendentes</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="space-y-1 flex flex-row sm:flex-col justify-between sm:justify-start items-center sm:items-start border-b sm:border-0 pb-2 sm:pb-0">
+                        <div className="flex items-center gap-1">
+                            <ShoppingCart className="h-3 w-3 text-muted-foreground" />
+                            <p className="text-xs text-muted-foreground">Pedidos Pendentes</p>
+                        </div>
+                        <div className="text-right sm:text-left">
+                            <p className="text-xl font-bold">{stats?.pendingOrdersCount || 0}</p>
+                        </div>
                     </div>
-                    <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground flex items-center gap-1">
-                            <DollarSign className="h-3 w-3" />
-                            Vendas
-                        </p>
-                        <p className="text-xl font-bold">{formatCurrency(stats?.totalSales || 0)}</p>
-                        <p className="text-[10px] text-muted-foreground">Total</p>
+
+                    <div className="space-y-1 flex flex-row sm:flex-col justify-between sm:justify-start items-center sm:items-start border-b sm:border-0 pb-2 sm:pb-0">
+                        <div className="flex items-center gap-1">
+                            <DollarSign className="h-3 w-3 text-muted-foreground" />
+                            <p className="text-xs text-muted-foreground">Vendas Totais</p>
+                        </div>
+                        <div className="text-right sm:text-left">
+                            <p className="text-xl font-bold text-primary">{formatCurrency(stats?.totalSales || 0)}</p>
+                        </div>
                     </div>
-                    <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Users className="h-3 w-3" />
-                            Clientes
-                        </p>
-                        <p className="text-xl font-bold">{stats?.newCustomers || 0}</p>
-                        <p className="text-[10px] text-muted-foreground">Novos</p>
+
+                    <div className="space-y-1 flex flex-row sm:flex-col justify-between sm:justify-start items-center sm:items-start">
+                        <div className="flex items-center gap-1">
+                            <Users className="h-3 w-3 text-muted-foreground" />
+                            <p className="text-xs text-muted-foreground">Novos Clientes</p>
+                        </div>
+                        <div className="text-right sm:text-left">
+                            <p className="text-xl font-bold">{stats?.newCustomers || 0}</p>
+                        </div>
                     </div>
                 </div>
 

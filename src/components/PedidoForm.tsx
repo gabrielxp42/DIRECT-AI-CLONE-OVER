@@ -37,7 +37,8 @@ import { NewPedido, Pedido } from "@/types/pedido";
 import { Cliente } from "@/types/cliente";
 import { Produto } from "@/types/produto";
 import { useEffect, useState, useRef } from "react";
-import { Trash2, Plus, Search, Edit3, X, User, Package, Wrench, Save, Zap, CalendarIcon, Ruler, ChevronDown, Loader2, FileText, Copy, GripVertical } from "lucide-react";
+import { Trash2, Plus, Search, Edit3, X, User, Package, Wrench, Save, Zap, CalendarIcon, Ruler, ChevronDown, Loader2, FileText, Copy, GripVertical, Sparkles } from "lucide-react";
+import { MagicPasteModal } from './MagicPasteModal';
 import { toast } from "sonner";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -114,6 +115,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
   const [selectedClienteName, setSelectedClienteName] = useState('');
   const [isQuickClientFormOpen, setIsQuickClientFormOpen] = useState(false);
   const [isCreatingClient, setIsCreatingClient] = useState(false);
+  const [isMagicModalOpen, setIsMagicModalOpen] = useState(false);
 
   const [accordionItemValue, setAccordionItemValue] = useState<string | undefined>(undefined);
   const [accordionServiceValue, setAccordionServiceValue] = useState<string | undefined>(undefined);
@@ -492,6 +494,23 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
     }
   };
 
+  const handleImportItems = (importedItems: any[]) => {
+    const currentItems = form.getValues('items') || [];
+
+    const newItems = importedItems.map(item => ({
+      tempId: item.tempId,
+      produto_id: "",
+      produto_nome: item.customName || "Produto Importado", // Nome temporário
+      quantidade: item.quantidade,
+      preco_unitario: 0,
+      observacao: item.observacao,
+    }));
+
+    form.setValue('items', [...currentItems, ...newItems]);
+
+    toast.success(`${importedItems.length} itens importados com sucesso!`);
+  };
+
   const removeItem = (index: number) => {
     const currentItems = form.getValues('items') || [];
     form.setValue('items', currentItems.filter((_, i) => i !== index));
@@ -726,15 +745,28 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                         <Package className="h-5 w-5" />
                         Produtos
                       </h3>
-                      <Button
-                        type="button"
-                        onClick={addItem}
-                        size="sm"
-                        className="transition-all duration-300 hover:scale-[1.05] shadow-md hover:shadow-lg"
-                      >
-                        <Plus className="mr-2 h-4 w-4" />
-                        Adicionar Item
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          onClick={addItem}
+                          size="sm"
+                          className="transition-all duration-300 hover:scale-[1.05] shadow-md hover:shadow-lg"
+                        >
+                          <Plus className="mr-2 h-4 w-4" />
+                          Adicionar Item
+                        </Button>
+
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setIsMagicModalOpen(true)}
+                          className="flex items-center gap-2 border-yellow-500 text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 transition-all duration-300 hover:scale-[1.05] shadow-md hover:shadow-lg"
+                        >
+                          <Sparkles className="h-4 w-4 mr-2" />
+                          Importar do Zap
+                        </Button>
+                      </div>
                     </div>
 
                     {totalMetros > 0 && (
@@ -823,7 +855,13 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                         {item.produto_nome || `Item #${index + 1} (Sem nome)`}
                                       </div>
                                       <div className="text-xs text-muted-foreground ml-6">
-                                        Qtd: {item.quantidade} | Total: {formatCurrency(Number(item.quantidade) * Number(item.preco_unitario))}
+                                        <span className="mr-2">Qtd: {item.quantidade}</span>
+                                        <span>Total: {formatCurrency(Number(item.quantidade) * Number(item.preco_unitario))}</span>
+                                        {item.observacao && (
+                                          <div className="mt-1 text-amber-600 dark:text-amber-400 font-medium border-l-2 border-amber-500 pl-2">
+                                            {item.observacao}
+                                          </div>
+                                        )}
                                       </div>
                                     </div>
                                   </div>
@@ -1213,6 +1251,11 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                   {isSubmitting ? "Salvando..." : isEditing ? "Salvar Alterações" : "Criar Pedido"}
                 </Button>
               </DialogFooter>
+              <MagicPasteModal
+                isOpen={isMagicModalOpen}
+                onOpenChange={setIsMagicModalOpen}
+                onImportItems={handleImportItems}
+              />
             </form>
           </Form>
         </DialogContent>
