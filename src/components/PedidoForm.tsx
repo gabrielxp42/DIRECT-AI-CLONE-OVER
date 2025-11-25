@@ -115,6 +115,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
   const [selectedClienteName, setSelectedClienteName] = useState('');
   const [isQuickClientFormOpen, setIsQuickClientFormOpen] = useState(false);
   const [isCreatingClient, setIsCreatingClient] = useState(false);
+  const [selectedClientValorMetro, setSelectedClientValorMetro] = useState<number | null>(null);
   const [isMagicModalOpen, setIsMagicModalOpen] = useState(false);
 
   const [accordionItemValue, setAccordionItemValue] = useState<string | undefined>(undefined);
@@ -428,7 +429,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
       produto_id: null,
       produto_nome: "",
       quantidade: 1,
-      preco_unitario: 0,
+      preco_unitario: selectedClientValorMetro || 0, // Usa o valor do metro do cliente se disponível
       observacao: ""
     };
 
@@ -502,7 +503,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
       produto_id: "",
       produto_nome: item.customName || "Produto Importado", // Nome temporário
       quantidade: item.quantidade,
-      preco_unitario: 0,
+      preco_unitario: selectedClientValorMetro || 0, // Usa o valor do metro do cliente se disponível
       observacao: item.observacao,
     }));
 
@@ -587,6 +588,29 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
     setSelectedClienteName(clienteNome);
     setClienteOpen(false);
     setClienteSearch('');
+
+    // Buscar o cliente completo para obter o valor do metro
+    const cliente = clientes.find(c => c.id === clienteId);
+    const valorMetro = cliente?.valor_metro || null;
+
+    setSelectedClientValorMetro(valorMetro);
+
+    if (valorMetro && valorMetro > 0) {
+      // Atualizar itens existentes que tenham preço 0
+      const currentItems = form.getValues('items') || [];
+      const updatedItems = currentItems.map(item => {
+        if (item.preco_unitario === 0) {
+          return { ...item, preco_unitario: valorMetro };
+        }
+        return item;
+      });
+
+      // Só atualiza se houver mudança
+      if (JSON.stringify(currentItems) !== JSON.stringify(updatedItems)) {
+        form.setValue('items', updatedItems);
+        toast.info(`Preços atualizados para R$ ${valorMetro.toFixed(2)} (Valor do Metro do Cliente)`);
+      }
+    }
   };
 
   const formatCurrency = (value: number) => {

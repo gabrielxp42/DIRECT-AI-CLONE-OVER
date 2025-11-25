@@ -7,6 +7,7 @@ import { Produto } from "@/types/produto";
 import { SupabaseClient } from "@supabase/supabase-js";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "@/integrations/supabase/client";
 import { removeAccents } from "@/utils/string";
+import { ensureValidToken } from "@/utils/tokenGuard";
 
 const buildHeaders = (token: string) => ({
   apikey: SUPABASE_ANON_KEY,
@@ -16,6 +17,9 @@ const buildHeaders = (token: string) => ({
 });
 
 const fetchTable = async <T>(token: string, endpoint: string, params: URLSearchParams): Promise<T[]> => {
+  // Garantir que o token está válido antes de fazer a requisição
+  await ensureValidToken();
+
   const url = `${SUPABASE_URL}/rest/v1/${endpoint}?${params.toString()}`;
   const res = await fetch(url, { headers: buildHeaders(token) });
   if (!res.ok) {

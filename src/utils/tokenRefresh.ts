@@ -31,6 +31,24 @@ export const setupTokenRefresh = () => {
             const now = Math.floor(Date.now() / 1000);
             const timeUntilExpiry = expiresAt - now;
 
+            // Se o token expira em menos de 10 minutos (600 segundos), fazer refresh IMEDIATO
+            if (timeUntilExpiry < 600) {
+                console.log(`[TokenRefresh] Token expires in ${Math.floor(timeUntilExpiry / 60)} minutes, refreshing NOW...`);
+
+                const { data, error: refreshError } = await supabase.auth.refreshSession();
+
+                if (refreshError) {
+                    console.error('[TokenRefresh] Error refreshing token:', refreshError);
+                    // Se falhar, tentar novamente em 1 minuto
+                    refreshTimer = setTimeout(refreshToken, 60 * 1000);
+                } else {
+                    console.log('[TokenRefresh] Token refreshed successfully');
+                    // Agendar próximo refresh
+                    setupTokenRefresh();
+                }
+                return;
+            }
+
             // Refresh 5 minutos antes de expirar (300 segundos)
             const refreshIn = Math.max(0, (timeUntilExpiry - 300) * 1000);
 

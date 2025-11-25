@@ -95,39 +95,58 @@ export const MagicPasteModal: React.FC<MagicPasteModalProps> = ({
                 let observacao = '';
                 let quantidade = 1;
 
-                // Split by " - " (hífen com espaços)
-                const parts = cleanLine.split(' - ');
-                const sizePart = parts[0]?.trim() ?? '';
-                const namePart = parts[1]?.trim() ?? '';
-                const colorPart = parts[2]?.trim() ?? '';
+                // 1. Tentar extrair quantidade do INÍCIO da linha (prioridade máxima)
+                // Suporta: "1M", "1.5M", "3,12M", "0,30", "34CM", "2x"
+                // Regex ajustada para capturar decimais com vírgula ou ponto obrigatoriamente
+                const startQtyMatch = cleanLine.match(/^(\d+(?:[.,]\d+)?)\s*(?:M|CM|X|UN|PC|MT|METROS|mts)?/i);
 
-                if (parts.length >= 3) {
-                    // Nome completo inclui tamanho, nome e cor
-                    produtoNome = `${sizePart} - ${namePart} - ${colorPart}`;
-                    observacao = parts.slice(3).join(' - ').trim();
-                } else if (parts.length === 2) {
-                    // Apenas tamanho e nome
-                    produtoNome = `${sizePart} - ${namePart}`;
+                if (startQtyMatch) {
+                    // Substitui vírgula por ponto para o parseFloat funcionar
+                    const rawQty = startQtyMatch[1].replace(',', '.');
+                    const parsed = parseFloat(rawQty);
+
+                    // Validação extra para garantir que é um número válido e maior que 0
+                    if (!isNaN(parsed) && parsed > 0) {
+                        quantidade = parsed;
+                    }
+                }
+
+                // 2. Separar por " - " para definir Nome vs Observação
+                const parts = cleanLine.split(/\s+[-–]\s+/); // Aceita hífen normal ou travessão com espaços
+
+                if (parts.length >= 4) {
+                    // Ex: "3M - NIKE - BRANCO - 25CM - NOME"
+                    // Nome: "3M - NIKE - BRANCO"
+                    // Obs: "25CM - NOME"
+                    produtoNome = parts.slice(0, 3).join(' - ');
+                    observacao = parts.slice(3).join(' - ');
+                } else if (parts.length === 3) {
+                    // Ex: "3M - NIKE - BRANCO"
+                    // Nome: Tudo
+                    produtoNome = parts.join(' - ');
                     observacao = '';
                 } else {
-                    // Linha sem separadores
+                    // 2 partes ou menos, tudo no nome
                     produtoNome = cleanLine;
                 }
 
-                // Detectar quantidade no final (ex.: "PRETO 03" ou "0,30")
-                const qtyMatch = cleanLine.match(/(\d+[\.,]?\d*)\s*$/);
-                if (qtyMatch) {
-                    const raw = qtyMatch[1].replace(',', '.');
-                    const parsed = parseFloat(raw);
-                    if (!isNaN(parsed)) {
-                        quantidade = parsed;
-                        // Remove a quantidade da observação se estiver lá
-                        observacao = observacao.replace(qtyMatch[0], '').trim();
+                // Fallback: Se não achou quantidade no início, tenta no final (padrão antigo)
+                // Mas só se não tiver achado no início
+                if (quantidade === 1 && !startQtyMatch) {
+                    const endQtyMatch = cleanLine.match(/(\d+[\.,]?\d*)\s*$/);
+                    if (endQtyMatch) {
+                        const raw = endQtyMatch[1].replace(',', '.');
+                        const parsed = parseFloat(raw);
+                        if (!isNaN(parsed)) {
+                            quantidade = parsed;
+                            // Nesse caso do final, talvez o usuário queira remover do nome?
+                            // Vamos manter o comportamento de remover se for no final, pois costuma ser "PRETO 03"
+                            // Mas se for no início (3M), ele quer manter.
+                            if (parts.length === 1) {
+                                produtoNome = produtoNome.replace(endQtyMatch[0], '').trim();
+                            }
+                        }
                     }
-                } else {
-                    // Caso o tamanho já contenha número (ex.: "1M")
-                    const leading = sizePart.match(/^(\d+)/);
-                    if (leading) quantidade = parseInt(leading[1]);
                 }
 
                 parsedItems.push({
