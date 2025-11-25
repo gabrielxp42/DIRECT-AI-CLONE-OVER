@@ -340,16 +340,31 @@ const fetchPedidos = async (
 
         let response = await makeFetch(accessToken);
 
-        // Se der 401, tentar renovar o token e tentar de novo
+        // Se der 401, tentar pegar novo token do localStorage e tentar de novo
         if (response.status === 401) {
-          console.warn('[fetchPedidos] Token expirado (401). Tentando obter nova sessão...');
-          const { data: { session: newSession }, error: sessionError } = await supabase.auth.getSession();
+          console.warn('[fetchPedidos] Token expirado (401). Tentando obter token do localStorage...');
 
-          if (newSession?.access_token && !sessionError) {
-            console.log('[fetchPedidos] Novo token obtido. Retentando fetch...');
-            response = await makeFetch(newSession.access_token);
+          // Pegar token diretamente do localStorage (sem usar supabase client)
+          const authKey = Object.keys(localStorage).find(key => key.includes('auth-token'));
+          let newToken = null;
+
+          if (authKey) {
+            try {
+              const authData = localStorage.getItem(authKey);
+              if (authData) {
+                const session = JSON.parse(authData);
+                newToken = session?.access_token;
+              }
+            } catch (e) {
+              console.error('[fetchPedidos] Erro ao ler token do localStorage:', e);
+            }
+          }
+
+          if (newToken) {
+            console.log('[fetchPedidos] Novo token obtido do localStorage. Retentando fetch...');
+            response = await makeFetch(newToken);
           } else {
-            console.error('[fetchPedidos] Falha ao obter nova sessão:', sessionError);
+            console.error('[fetchPedidos] Falha ao obter novo token do localStorage');
           }
         }
 

@@ -623,27 +623,27 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Package className="h-5 w-5 text-primary" />
-              {isEditing ? "Editar Pedido" : "Criar Novo Pedido"}
+        <DialogContent className="max-w-4xl w-[95vw] sm:w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto p-4 sm:p-6">
+          <DialogHeader className="space-y-2 sm:space-y-3">
+            <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl">
+              <Package className="h-4 w-4 sm:h-5 sm:w-5 text-primary flex-shrink-0" />
+              <span className="truncate">{isEditing ? "Editar Pedido" : "Criar Novo Pedido"}</span>
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-xs sm:text-sm">
               {isEditing ? "Atualize as informações do pedido." : "Preencha as informações do novo pedido."}
             </DialogDescription>
           </DialogHeader>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleValidSubmit, handleInvalidSubmit)} className="space-y-6">
+            <form onSubmit={form.handleSubmit(handleValidSubmit, handleInvalidSubmit)} className="space-y-4 sm:space-y-6">
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 gap-3 sm:gap-4">
                 <FormField
                   control={form.control}
                   name="cliente_id"
                   render={({ field }) => (
-                    <FormItem className="md:col-span-2">
-                      <FormLabel className="flex items-center gap-2">
-                        <User className="h-4 w-4" />
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-1.5 sm:gap-2 text-sm sm:text-base">
+                        <User className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
                         Cliente *
                       </FormLabel>
                       <Popover open={clienteOpen} onOpenChange={setClienteOpen}>
@@ -653,26 +653,28 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                               variant="outline"
                               role="combobox"
                               aria-expanded={clienteOpen}
-                              className="w-full justify-between transition-all duration-300 hover:bg-accent/50"
+                              className="w-full justify-between transition-all duration-300 hover:bg-accent/50 h-9 sm:h-10 text-sm"
                             >
-                              {selectedClienteName || "Selecione um cliente..."}
-                              <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                              <span className="truncate">{selectedClienteName || "Selecione um cliente..."}</span>
+                              <Search className="ml-2 h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0 opacity-50" />
                             </Button>
                           </FormControl>
                         </PopoverTrigger>
                         <PopoverContent
-                          className="w-full p-0"
+                          className="w-[90vw] sm:w-full p-0"
                           align="start"
+                          sideOffset={4}
                         >
                           <Command>
                             <CommandInput
                               placeholder="Buscar cliente..."
                               value={clienteSearch}
                               onValueChange={setClienteSearch}
+                              className="text-sm"
                             />
-                            <div className="max-h-[300px] overflow-y-auto" style={{ overscrollBehavior: 'contain' }}>
+                            <div className="max-h-[200px] sm:max-h-[300px] overflow-y-auto" style={{ overscrollBehavior: 'contain' }}>
                               <CommandList>
-                                <CommandEmpty>Nenhum cliente encontrado.</CommandEmpty>
+                                <CommandEmpty className="text-sm py-4">Nenhum cliente encontrado.</CommandEmpty>
                                 <CommandGroup>
                                   {filteredClientes.map((cliente) => (
                                     <CommandItem
@@ -681,14 +683,14 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                       onSelect={() => handleClienteSelect(cliente.id, cliente.nome)}
                                       className="cursor-pointer py-2 transition-all duration-200 hover:bg-accent/50"
                                     >
-                                      <User className="mr-2 h-4 w-4" />
-                                      <div className="flex flex-col">
-                                        <span className="font-medium">{cliente.nome}</span>
+                                      <User className="mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+                                      <div className="flex flex-col min-w-0 flex-1">
+                                        <span className="font-medium text-sm truncate">{cliente.nome}</span>
                                         {cliente.telefone && (
-                                          <span className="text-xs text-muted-foreground">{cliente.telefone}</span>
+                                          <span className="text-xs text-muted-foreground truncate">{cliente.telefone}</span>
                                         )}
                                         {cliente.endereco && (
-                                          <span className="text-xs text-muted-foreground truncate max-w-xs">{cliente.endereco}</span>
+                                          <span className="text-xs text-muted-foreground truncate">{cliente.endereco}</span>
                                         )}
                                       </div>
                                     </CommandItem>
@@ -700,20 +702,20 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                               <Button
                                 type="button"
                                 variant="ghost"
-                                className="w-full justify-start text-primary hover:text-primary hover:bg-primary/10 transition-all duration-200"
+                                className="w-full justify-start text-primary hover:text-primary hover:bg-primary/10 transition-all duration-200 h-9 text-sm"
                                 onClick={() => {
                                   setClienteOpen(false);
                                   setIsQuickClientFormOpen(true);
                                 }}
                               >
-                                <Plus className="mr-2 h-4 w-4" />
+                                <Plus className="mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
                                 Adicionar Novo Cliente
                               </Button>
                             </div>
                           </Command>
                         </PopoverContent>
                       </Popover>
-                      <FormMessage />
+                      <FormMessage className="text-xs" />
                     </FormItem>
                   )}
                 />
@@ -723,18 +725,21 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                   name="created_at"
                   render={({ field }) => (
                     <FormItem className="flex flex-col">
-                      <FormLabel>Data *</FormLabel>
+                      <FormLabel className="flex items-center gap-1.5 sm:gap-2 text-sm sm:text-base">
+                        <CalendarIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+                        Data *
+                      </FormLabel>
                       <Popover>
                         <PopoverTrigger asChild>
                           <FormControl>
                             <Button
                               variant={"outline"}
                               className={cn(
-                                "w-full justify-start text-left font-normal h-10 transition-all duration-300 hover:bg-accent/50",
+                                "w-full justify-start text-left font-normal h-9 sm:h-10 transition-all duration-300 hover:bg-accent/50 text-sm",
                                 !field.value && "text-muted-foreground"
                               )}
                             >
-                              <CalendarIcon className="mr-2 h-4 w-4" />
+                              <CalendarIcon className="mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
                               {field.value ? (
                                 format(field.value, "dd/MM/yyyy", { locale: ptBR })
                               ) : (
@@ -743,7 +748,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                             </Button>
                           </FormControl>
                         </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
+                        <PopoverContent className="w-auto p-0" align="start" sideOffset={4}>
                           <Calendar
                             mode="single"
                             selected={field.value}
@@ -764,17 +769,17 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                 name="items"
                 render={({ field }) => (
                   <FormItem id="section-items"> {/* Adicionado ID para scroll */}
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
                       <h3 className="text-lg font-medium flex items-center gap-2">
                         <Package className="h-5 w-5" />
                         Produtos
                       </h3>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 w-full sm:w-auto">
                         <Button
                           type="button"
                           onClick={addItem}
                           size="sm"
-                          className="transition-all duration-300 hover:scale-[1.05] shadow-md hover:shadow-lg"
+                          className="transition-all duration-300 hover:scale-[1.05] shadow-md hover:shadow-lg w-full sm:w-auto"
                         >
                           <Plus className="mr-2 h-4 w-4" />
                           Adicionar Item
@@ -785,7 +790,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                           variant="outline"
                           size="sm"
                           onClick={() => setIsMagicModalOpen(true)}
-                          className="flex items-center gap-2 border-yellow-500 text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 transition-all duration-300 hover:scale-[1.05] shadow-md hover:shadow-lg"
+                          className="flex items-center gap-2 border-yellow-500 text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 transition-all duration-300 hover:scale-[1.05] shadow-md hover:shadow-lg w-full sm:w-auto"
                         >
                           <Sparkles className="h-4 w-4 mr-2" />
                           Importar do Zap
@@ -1046,7 +1051,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
               <Separator className="my-6" />
 
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-2">
                   <h3 className="text-lg font-medium flex items-center gap-2">
                     <Wrench className="h-5 w-5" />
                     Serviços
@@ -1056,7 +1061,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                     onClick={addServico}
                     size="sm"
                     variant="outline"
-                    className="transition-all duration-300 hover:scale-[1.05] shadow-sm hover:shadow-md"
+                    className="transition-all duration-300 hover:scale-[1.05] shadow-sm hover:shadow-md w-full sm:w-auto"
                   >
                     <Plus className="mr-2 h-4 w-4" />
                     Adicionar Serviço
@@ -1255,23 +1260,38 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                 name="observacoes"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Observações Gerais do Pedido</FormLabel>
+                    <FormLabel className="text-sm sm:text-base">Observações Gerais do Pedido</FormLabel>
                     <FormControl>
-                      <Textarea {...field} placeholder="Observações gerais do pedido..." />
+                      <Textarea
+                        {...field}
+                        placeholder="Observações gerais do pedido..."
+                        className="min-h-[80px] sm:min-h-[100px] text-sm resize-none"
+                      />
                     </FormControl>
-                    <FormMessage />
+                    <FormMessage className="text-xs" />
                   </FormItem>
                 )}
               />
 
-              <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
-                <span className="text-lg font-medium">Total: {formatCurrency(valorTotal)}</span>
+              <div className="flex items-center justify-between p-3 sm:p-4 bg-muted rounded-lg">
+                <span className="text-base sm:text-lg font-medium">Total: {formatCurrency(valorTotal)}</span>
               </div>
 
-              <DialogFooter className="gap-2">
-                <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="transition-all duration-300 hover:scale-[1.02]">Cancelar</Button>
-                <Button type="submit" disabled={isSubmitting} className="transition-all duration-300 hover:scale-[1.02]">
-                  {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <DialogFooter className="gap-2 flex-col sm:flex-row">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => onOpenChange(false)}
+                  className="w-full sm:w-auto transition-all duration-300 hover:scale-[1.02] h-9 sm:h-10 text-sm"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full sm:w-auto transition-all duration-300 hover:scale-[1.02] h-9 sm:h-10 text-sm"
+                >
+                  {isSubmitting && <Loader2 className="mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" />}
                   {isSubmitting ? "Salvando..." : isEditing ? "Salvar Alterações" : "Criar Pedido"}
                 </Button>
               </DialogFooter>
@@ -1283,7 +1303,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
             </form>
           </Form>
         </DialogContent>
-      </Dialog>
+      </Dialog >
 
       <QuickClientForm
         isOpen={isQuickClientFormOpen}
