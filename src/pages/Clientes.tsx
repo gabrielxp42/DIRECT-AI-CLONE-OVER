@@ -30,6 +30,7 @@ import { showSuccess, showError } from "@/utils/toast";
 import { useDebounce } from "@/hooks/useDebounce"; // Importar useDebounce
 import { Skeleton } from "@/components/ui/skeleton"; // IMPORTAÇÃO ADICIONADA
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "@/integrations/supabase/client";
+import { getValidToken } from '@/utils/tokenGuard';
 import { removeAccents } from "@/utils/string"; // Importar função de normalização
 
 const Clientes = () => {
@@ -68,9 +69,12 @@ const Clientes = () => {
         status: data.status || 'ativo'
       };
 
+      const validToken = await getValidToken();
+      if (!validToken) throw new Error('Sessão expirada. Por favor, recarregue a página.');
+
       const headers = {
         'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${accessToken}`,
+        'Authorization': `Bearer ${validToken}`,
         'Content-Type': 'application/json',
         'Prefer': 'return=representation'
       };
@@ -121,11 +125,12 @@ const Clientes = () => {
 
   const deleteClienteMutation = useMutation({
     mutationFn: async (id: string) => {
-      if (!accessToken) throw new Error('Token de acesso não encontrado');
+      const validToken = await getValidToken();
+      if (!validToken) throw new Error('Sessão expirada. Por favor, recarregue a página.');
 
       const headers = {
         'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${accessToken}`,
+        'Authorization': `Bearer ${validToken}`,
         'Content-Type': 'application/json'
       };
 

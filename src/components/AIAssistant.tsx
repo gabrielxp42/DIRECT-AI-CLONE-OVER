@@ -11,6 +11,7 @@ import { AudioRecorder } from './AudioRecorder';
 import { AudioMessageDisplay } from './AudioMessageDisplay';
 import { useSession } from '@/contexts/SessionProvider';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/integrations/supabase/client';
+import { getValidToken } from '@/utils/tokenGuard';
 
 export const AIAssistant = () => {
   const { isOpen, close } = useAIAssistant();
@@ -216,10 +217,10 @@ REGRAS CRÍTICAS DE CONTEXTO E DATA:
   };
 
   const handleCreateOrder = async (draftData: any) => {
-    if (!accessToken || !draftData.data.client?.id) {
+    if (!draftData.data.client?.id) {
       toast({
         title: "Erro ao criar pedido",
-        description: "Cliente não identificado ou sessão inválida.",
+        description: "Cliente não identificado.",
         variant: "destructive"
       });
       return;
@@ -227,9 +228,23 @@ REGRAS CRÍTICAS DE CONTEXTO E DATA:
 
     try {
       setIsLoading(true);
+
+      // CRÍTICO: Obter token válido ANTES da requisição
+      const validToken = await getValidToken();
+      const effectiveToken = validToken || accessToken;
+
+      if (!effectiveToken) {
+        toast({
+          title: "Erro ao criar pedido",
+          description: "Sessão inválida. Por favor, faça login novamente.",
+          variant: "destructive"
+        });
+        return;
+      }
+
       const headers = {
         'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${accessToken}`,
+        'Authorization': `Bearer ${effectiveToken}`,
         'Content-Type': 'application/json',
         'Prefer': 'return=representation'
       };

@@ -5,9 +5,9 @@ import { Cliente } from "@/types/cliente";
 import { Pedido } from "@/types/pedido";
 import { Produto } from "@/types/produto";
 import { SupabaseClient } from "@supabase/supabase-js";
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "@/integrations/supabase/client";
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from "@/integrations/supabase/client";
+import { getValidToken } from '@/utils/tokenGuard';
 import { removeAccents } from "@/utils/string";
-import { ensureValidToken } from "@/utils/tokenGuard";
 
 const buildHeaders = (token: string) => ({
   apikey: SUPABASE_ANON_KEY,
@@ -18,10 +18,11 @@ const buildHeaders = (token: string) => ({
 
 const fetchTable = async <T>(token: string, endpoint: string, params: URLSearchParams): Promise<T[]> => {
   // Garantir que o token está válido antes de fazer a requisição
-  await ensureValidToken();
+  const validToken = await getValidToken();
+  const effectiveToken = validToken || token;
 
   const url = `${SUPABASE_URL}/rest/v1/${endpoint}?${params.toString()}`;
-  const res = await fetch(url, { headers: buildHeaders(token) });
+  const res = await fetch(url, { headers: buildHeaders(effectiveToken) });
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`Supabase fetch error (${endpoint}): ${res.status} ${res.statusText} - ${text}`);
@@ -214,9 +215,12 @@ const fetchPedidos = async (
       }
     }
 
-    // Verificação de segurança para fetch direto
-    if (!accessToken) {
-      console.warn('⚠️ [fetchPedidos] Sem token de acesso para fetch direto. Tentando método padrão (pode falhar).');
+    // CRÍTICO: Obter token válido ANTES de qualquer requisição
+    const validToken = await getValidToken();
+    const effectiveToken = validToken || accessToken;
+
+    if (!effectiveToken) {
+      console.warn('⚠️ [fetchPedidos] Sem token de acesso válido. Tentando método padrão (pode falhar).');
     } else {
       try {
         // Construir URL para fetch direto (PostgREST syntax)
@@ -266,7 +270,7 @@ const fetchPedidos = async (
                 method: 'GET',
                 headers: {
                   'apikey': SUPABASE_ANON_KEY,
-                  'Authorization': `Bearer ${accessToken}`,
+                  'Authorization': `Bearer ${effectiveToken}`,
                   'Content-Type': 'application/json'
                 }
               });
@@ -338,30 +342,16 @@ const fetchPedidos = async (
           });
         };
 
-        let response = await makeFetch(accessToken);
+        let response = await makeFetch(effectiveToken);
 
-        // Se der 401, tentar pegar novo token do localStorage e tentar de novo
+        // Se der 401, tentar pegar novo token válido (com refresh se necessário)
         if (response.status === 401) {
-          console.warn('[fetchPedidos] Token expirado (401). Tentando obter token do localStorage...');
+          console.warn('[fetchPedidos] Token expirado (401). Tentando obter token válido...');
 
-          // Pegar token diretamente do localStorage (sem usar supabase client)
-          const authKey = Object.keys(localStorage).find(key => key.includes('auth-token'));
-          let newToken = null;
-
-          if (authKey) {
-            try {
-              const authData = localStorage.getItem(authKey);
-              if (authData) {
-                const session = JSON.parse(authData);
-                newToken = session?.access_token;
-              }
-            } catch (e) {
-              console.error('[fetchPedidos] Erro ao ler token do localStorage:', e);
-            }
-          }
+          const newToken = await getValidToken();
 
           if (newToken) {
-            console.log('[fetchPedidos] Novo token obtido do localStorage. Retentando fetch...');
+            console.log('[fetchPedidos] Novo token obtido. Retentando fetch...');
             response = await makeFetch(newToken);
           } else {
             console.error('[fetchPedidos] Falha ao obter novo token do localStorage');

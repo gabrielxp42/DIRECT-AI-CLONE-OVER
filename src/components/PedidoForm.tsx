@@ -46,6 +46,7 @@ import { QuickClientForm } from './QuickClientForm';
 import { useSession } from '@/contexts/SessionProvider';
 import { showSuccess, showError } from '@/utils/toast';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/integrations/supabase/client';
+import { getValidToken } from '@/utils/tokenGuard';
 import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { CurrencyInput } from './CurrencyInput';
@@ -344,17 +345,25 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
   };
 
   const handleQuickClientSubmit = async (clientData: { nome: string; telefone?: string; email?: string; endereco?: string; valor_metro?: number }) => {
-    if (!session || !session.access_token) {
+    if (!session) {
       showError("Sessão não encontrada. Por favor, recarregue a página.");
       return;
     }
 
     setIsCreatingClient(true);
     try {
-      const accessToken = session.access_token;
+      // CRÍTICO: Obter token válido ANTES da requisição
+      const validToken = await getValidToken();
+      const effectiveToken = validToken || session.access_token;
+
+      if (!effectiveToken) {
+        showError("Sessão inválida. Por favor, faça login novamente.");
+        return;
+      }
+
       const headers = {
         'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${accessToken}`,
+        'Authorization': `Bearer ${effectiveToken}`,
         'Content-Type': 'application/json',
         'Prefer': 'return=representation'
       };

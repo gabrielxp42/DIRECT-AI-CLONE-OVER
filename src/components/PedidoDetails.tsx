@@ -4,6 +4,7 @@ import { Pedido, StatusHistoryItem } from '@/types/pedido';
 import { Cliente } from '@/types/cliente';
 import { Produto } from '@/types/produto';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/integrations/supabase/client';
+import { getValidToken } from '@/utils/tokenGuard';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -86,19 +87,22 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
   const fetchPedidoDetails = async () => {
     if (!session || !pedidoId) return;
 
-    const accessToken = session.access_token;
-    if (!accessToken) {
-      showError("Sem token de acesso para buscar detalhes do pedido.");
-      setLoading(false);
-      return;
-    }
-
     setLoading(true);
     try {
+      // CRÍTICO: Obter token válido ANTES da requisição
+      const validToken = await getValidToken();
+      const effectiveToken = validToken || session.access_token;
+
+      if (!effectiveToken) {
+        showError("Sem token de acesso válido. Por favor, faça login novamente.");
+        setLoading(false);
+        return;
+      }
+
       // Consulta ÚNICA e completa usando fetch direto
       const headers = {
         'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${accessToken}`,
+        'Authorization': `Bearer ${effectiveToken}`,
         'Content-Type': 'application/json'
       };
 

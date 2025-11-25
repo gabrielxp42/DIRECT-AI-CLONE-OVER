@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Plus, Package, AlertTriangle, Search } from 'lucide-react';
 import { useSession } from '@/contexts/SessionProvider';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/integrations/supabase/client';
+import { getValidToken } from '@/utils/tokenGuard';
 import { EmptyState } from '@/components/EmptyState';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
@@ -58,12 +59,14 @@ const Insumos = () => {
     }, [location.state, navigate, location.pathname]);
 
     const fetchInsumos = async () => {
-        if (!accessToken) return;
         try {
             setLoading(true);
+            const validToken = await getValidToken();
+            if (!validToken) return;
+
             const headers = {
                 'apikey': SUPABASE_ANON_KEY,
-                'Authorization': `Bearer ${accessToken}`,
+                'Authorization': `Bearer ${validToken}`,
                 'Content-Type': 'application/json'
             };
 
@@ -85,11 +88,16 @@ const Insumos = () => {
     }, [accessToken]);
 
     const handleSave = async () => {
-        if (!accessToken) return;
         try {
+            const validToken = await getValidToken();
+            if (!validToken) {
+                toast({ title: "Erro", description: "Sessão expirada.", variant: "destructive" });
+                return;
+            }
+
             const headers = {
                 'apikey': SUPABASE_ANON_KEY,
-                'Authorization': `Bearer ${accessToken}`,
+                'Authorization': `Bearer ${validToken}`,
                 'Content-Type': 'application/json',
                 'Prefer': 'return=representation'
             };

@@ -44,20 +44,21 @@ import { useProdutos } from "@/hooks/useDataFetch"; // Importar o novo hook
 import { useDebounce } from "@/hooks/useDebounce"; // Importar useDebounce
 import { Skeleton } from "@/components/ui/skeleton"; // Importar Skeleton
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "@/integrations/supabase/client";
+import { getValidToken } from '@/utils/tokenGuard';
 
 const Produtos = () => {
   const { session } = useSession();
   const queryClient = useQueryClient();
   const { data: produtos, isLoading, error } = useProdutos(); // Usando o hook centralizado
   const accessToken = session?.access_token;
-  
+
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedProduto, setSelectedProduto] = useState<Produto | null>(null);
-  
+
   const [rawSearchTerm, setRawSearchTerm] = useState("");
   const searchTerm = useDebounce(rawSearchTerm, 300); // Aplicar debounce
-  
+
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -71,12 +72,15 @@ const Produtos = () => {
   const addProdutoMutation = useMutation({
     mutationFn: async (newProduto: Omit<NewProduto, 'user_id'>) => {
       if (!session || !accessToken) throw new Error("Sessão não encontrada");
-      
+
       const productToInsert = { ...newProduto, user_id: session.user.id };
-      
+
+      const validToken = await getValidToken();
+      if (!validToken) throw new Error("Sessão expirada. Por favor, recarregue a página.");
+
       const headers = {
         'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${accessToken}`,
+        'Authorization': `Bearer ${validToken}`,
         'Content-Type': 'application/json',
         'Prefer': 'return=representation'
       };
@@ -105,11 +109,12 @@ const Produtos = () => {
 
   const updateProdutoMutation = useMutation({
     mutationFn: async ({ id, ...updateData }: { id: string } & Omit<NewProduto, 'user_id'>) => {
-      if (!accessToken) throw new Error("Token de acesso não encontrado");
+      const validToken = await getValidToken();
+      if (!validToken) throw new Error("Sessão expirada. Por favor, recarregue a página.");
 
       const headers = {
         'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${accessToken}`,
+        'Authorization': `Bearer ${validToken}`,
         'Content-Type': 'application/json',
         'Prefer': 'return=representation'
       };
@@ -139,11 +144,12 @@ const Produtos = () => {
 
   const deleteProdutoMutation = useMutation({
     mutationFn: async (id: string) => {
-      if (!accessToken) throw new Error("Token de acesso não encontrado");
+      const validToken = await getValidToken();
+      if (!validToken) throw new Error("Sessão expirada. Por favor, recarregue a página.");
 
       const headers = {
         'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${accessToken}`,
+        'Authorization': `Bearer ${validToken}`,
         'Content-Type': 'application/json'
       };
 
@@ -191,9 +197,9 @@ const Produtos = () => {
   const filteredProdutos = useMemo(() => {
     if (!produtos) return [];
     if (!searchTerm) return produtos; // Retorna todos se a busca estiver vazia
-    
+
     const lowerCaseSearchTerm = searchTerm.toLowerCase();
-    
+
     return produtos.filter(produto =>
       produto.nome.toLowerCase().includes(lowerCaseSearchTerm) ||
       produto.descricao?.toLowerCase().includes(lowerCaseSearchTerm)
@@ -217,7 +223,7 @@ const Produtos = () => {
       {/* Header Section - Responsivo */}
       <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
         <h1 className="text-2xl sm:text-3xl font-bold">Produtos</h1>
-        <Button 
+        <Button
           onClick={() => handleOpenForm()}
           className="w-full sm:w-auto min-h-[44px] touch-manipulation active:scale-95 transition-transform"
           size="default"
@@ -260,13 +266,13 @@ const Produtos = () => {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-2">
-            <AlertDialogCancel 
+            <AlertDialogCancel
               onClick={() => setSelectedProduto(null)}
               className="w-full sm:w-auto"
             >
               Cancelar
             </AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={() => selectedProduto && deleteProdutoMutation.mutate(selectedProduto.id)}
               className="w-full sm:w-auto"
             >
@@ -304,8 +310,8 @@ const Produtos = () => {
                       </div>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button 
-                            variant="ghost" 
+                          <Button
+                            variant="ghost"
                             className="h-8 w-8 p-0 ml-2 flex-shrink-0 touch-manipulation"
                           >
                             <span className="sr-only">Abrir menu</span>

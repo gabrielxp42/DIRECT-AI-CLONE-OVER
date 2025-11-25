@@ -4,6 +4,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Sparkles, X, ChevronDown } from 'lucide-react';
 import { useSession } from '@/contexts/SessionProvider';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/integrations/supabase/client';
+import { getValidToken } from '@/utils/tokenGuard';
 import {
     Accordion,
     AccordionContent,
@@ -23,13 +24,18 @@ export const AIMessagesWidget: React.FC = () => {
 
     useEffect(() => {
         const fetchInsightsData = async () => {
-            if (!session?.user?.id || !session?.access_token) return;
+            if (!session?.user?.id) return;
 
             try {
                 setLoading(true);
                 console.log('[AIMessagesWidget] Buscando dados para insights via FETCH DIRETO...');
 
-                const accessToken = session.access_token;
+                const accessToken = await getValidToken();
+                if (!accessToken) {
+                    console.warn('[AIMessagesWidget] Token inválido ou expirado');
+                    return;
+                }
+
                 const headers = {
                     'apikey': SUPABASE_ANON_KEY,
                     'Authorization': `Bearer ${accessToken}`,

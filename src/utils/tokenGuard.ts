@@ -1,69 +1,98 @@
-/**
- * VERSÃO SIMPLIFICADA - SEM SUPABASE CLIENT
- * Apenas verifica se há token no localStorage
- * NÃO faz refresh automático para evitar travamentos no PWA
- */
-
-let isRefreshing = false;
-let refreshPromise: Promise<void> | null = null;
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/integrations/supabase/client';
 
 /**
- * Verifica se o token existe no localStorage
- * NÃO faz refresh para evitar travamentos
+ * Obtém um token válido, fazendo refresh se necessário
+ * Usa APENAS fetch direto e localStorage
  */
-export const ensureValidToken = async (): Promise<void> => {
+export const getValidToken = async (): Promise<string | null> => {
     try {
-        // Verificar se há sessão no localStorage
-        const authData = localStorage.getItem('sb-yfxzjvkjqfxhqxqzxqxq-auth-token');
-
-        if (!authData) {
-            console.log('[TokenGuard] No session in localStorage');
-            return;
+        // 1. Pegar sessão do localStorage
+        const authKey = Object.keys(localStorage).find(key => key.includes('auth-token'));
+        if (!authKey) {
+            console.warn('[TokenGuard] No auth key found');
+            return null;
         }
 
-        // Parse da sessão
+        const authData = localStorage.getItem(authKey);
+        if (!authData) {
+            console.warn('[TokenGuard] No auth data found');
+            return null;
+        }
+
         let session;
         try {
-            const parsed = JSON.parse(authData);
-            session = parsed;
+            session = JSON.parse(authData);
         } catch (e) {
-            console.warn('[TokenGuard] Failed to parse session from localStorage');
-            return;
+            console.error('[TokenGuard] Failed to parse session');
+            return null;
         }
 
-        // Verificar se tem access_token
         if (!session?.access_token) {
-            console.log('[TokenGuard] No access token in session');
-            return;
+            console.warn('[TokenGuard] No access token');
+            return null;
         }
 
-        // Verificar expiração
-        const expiresAt = session.expires_at;
-        if (!expiresAt) {
-            console.warn('[TokenGuard] No expiration time found');
-            return;
-        }
-
+        // 2. Verificar expiração (com buffer de 2 minutos)
         const now = Math.floor(Date.now() / 1000);
-        const timeUntilExpiry = expiresAt - now;
+        const expiresAt = session.expires_at || 0;
 
-        // Se o token já expirou, apenas logar (não fazer refresh para evitar travamento)
-        if (timeUntilExpiry < 0) {
-            console.warn('[TokenGuard] Token expired. User needs to login again.');
-            return;
+        // Se ainda é válido por mais de 2 minutos, retorna o atual
+        if (expiresAt > now + 120) {
+            return session.access_token;
         }
 
-        // Se o token expira em menos de 5 minutos, apenas logar warning
-        if (timeUntilExpiry < 300) {
-            console.warn(`[TokenGuard] Token expires in ${Math.floor(timeUntilExpiry / 60)} minutes`);
+        console.log('[TokenGuard] Token expired or expiring soon. Refreshing via fetch...');
+
+        // 3. Fazer refresh se necessário
+        const refreshToken = session.refresh_token;
+        if (!refreshToken) {
+            console.warn('[TokenGuard] No refresh token available');
+            return null;
         }
 
-        // NÃO fazer refresh automático - deixar o usuário relogar se necessário
-        // Isso evita travamentos no PWA
+        const response = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+            method: 'POST',
+            headers: {
+                'apikey': SUPABASE_ANON_KEY,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                refresh_token: refreshToken
+            })
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('[TokenGuard] Refresh failed:', response.status, errorText);
+            return null;
+        }
+
+        const data = await response.json();
+
+        // 4. Atualizar localStorage
+        const newSession = {
+            ...session,
+            access_token: data.access_token,
+            refresh_token: data.refresh_token,
+            expires_at: now + data.expires_in,
+            expires_in: data.expires_in,
+            user: data.user || session.user
+        };
+
+        localStorage.setItem(authKey, JSON.stringify(newSession));
+        console.log('✅ [TokenGuard] Token refreshed successfully');
+
+        return data.access_token;
 
     } catch (error) {
-        console.error('[TokenGuard] Exception:', error);
-        isRefreshing = false;
-        refreshPromise = null;
+        console.error('[TokenGuard] Error getting valid token:', error);
+        return null;
     }
+};
+
+/**
+ * Mantido para compatibilidade, mas agora apenas chama getValidToken
+ */
+export const ensureValidToken = async (): Promise<void> => {
+    await getValidToken();
 };

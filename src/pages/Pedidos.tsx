@@ -49,6 +49,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { PaginationControls } from '@/components/PaginationControls';
 import { DateRange } from 'react-day-picker'; // Importar DateRange
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/integrations/supabase/client';
+import { getValidToken } from '@/utils/tokenGuard';
 
 const ITEMS_PER_PAGE_OPTIONS = [10, 20, 50, 100];
 
@@ -214,11 +215,12 @@ const PedidosPage: React.FC = () => {
 
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, newStatus, observacao, statusAnterior }: { id: string, newStatus: string, observacao?: string, statusAnterior: string }) => {
-      if (!accessToken || !session) throw new Error("Token de acesso não encontrado");
+      const validToken = await getValidToken();
+      if (!validToken || !session) throw new Error("Sessão expirada. Por favor, recarregue a página.");
 
       const headers = {
         'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${accessToken}`,
+        'Authorization': `Bearer ${validToken}`,
         'Content-Type': 'application/json',
         'Prefer': 'return=representation'
       };
@@ -279,11 +281,12 @@ const PedidosPage: React.FC = () => {
 
   const deletePedidoMutation = useMutation({
     mutationFn: async (id: string) => {
-      if (!accessToken || !session) throw new Error("Token de acesso não encontrado");
+      const validToken = await getValidToken();
+      if (!validToken || !session) throw new Error("Sessão expirada. Por favor, recarregue a página.");
 
       const headers = {
         'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${accessToken}`,
+        'Authorization': `Bearer ${validToken}`,
         'Content-Type': 'application/json'
       };
 
@@ -326,13 +329,14 @@ const PedidosPage: React.FC = () => {
 
   const handleSubmitPedidoMutation = useMutation({
     mutationFn: async ({ data, pedidoId }: { data: any, pedidoId?: string }) => {
-      if (!session || !accessToken) throw new Error("Sessão não encontrada");
+      const validToken = await getValidToken();
+      if (!validToken || !session) throw new Error("Sessão expirada. Por favor, recarregue a página.");
 
       const { items, servicos, created_at, ...pedidoData } = data;
 
       const headers = {
         'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${accessToken}`,
+        'Authorization': `Bearer ${validToken}`,
         'Content-Type': 'application/json',
         'Prefer': 'return=representation'
       };

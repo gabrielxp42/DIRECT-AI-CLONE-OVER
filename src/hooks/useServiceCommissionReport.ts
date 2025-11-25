@@ -4,6 +4,7 @@ import { PedidoStatus } from "@/types/pedido";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "@/integrations/supabase/client";
+import { getValidToken } from '@/utils/tokenGuard';
 
 export interface CommissionServiceItem {
   service_name: string;
@@ -33,13 +34,13 @@ export interface CommissionReport {
 }
 
 const fetchCommissionReport = async (
-  accessToken: string,
-  startDate: string, 
+  startDate: string,
   endDate: string,
   excludedNames: string[],
   requiredStatus: PedidoStatus[] | 'all'
 ): Promise<CommissionReport> => {
-  
+
+  const accessToken = await getValidToken();
   if (!accessToken) {
     throw new Error("Sem token de acesso para fetch.");
   }
@@ -56,7 +57,7 @@ const fetchCommissionReport = async (
   let queryParams = new URLSearchParams();
   const selectParam = 'id,nome,quantidade,valor_unitario,pedido_id,pedidos!inner(order_number,created_at,status,clientes(nome))';
   queryParams.append('select', selectParam);
-  
+
   // Filtros na tabela relacionada pedidos
   queryParams.append('pedidos.created_at', `gte.${startDate}`);
   queryParams.append('pedidos.created_at', `lte.${endDate}`);
@@ -78,7 +79,7 @@ const fetchCommissionReport = async (
   const servicesData = await response.json();
 
   // 2. Filtrar serviços excluídos e agrupar/somar no cliente
-  const filteredServices = servicesData.filter(service => 
+  const filteredServices = servicesData.filter(service =>
     !excludedNames.some(excludedName => service.nome.toLowerCase().includes(excludedName.toLowerCase()))
   );
 
@@ -143,8 +144,8 @@ const fetchCommissionReport = async (
 };
 
 export const useServiceCommissionReport = (
-  startDate: Date | null, 
-  endDate: Date | null, 
+  startDate: Date | null,
+  endDate: Date | null,
   requiredStatus: PedidoStatus[] | 'all', // Novo parâmetro
   excludedNames: string[] = ['Sedex']
 ) => {
@@ -161,10 +162,7 @@ export const useServiceCommissionReport = (
   return useQuery<CommissionReport>({
     queryKey: ["service-commission-report", startISO, endISO, statusKey, excludedNames],
     queryFn: () => {
-      if (!accessToken) {
-        throw new Error("Sem token de acesso para fetch.");
-      }
-      return fetchCommissionReport(accessToken, startISO, endISO, excludedNames, requiredStatus);
+      return fetchCommissionReport(startISO, endISO, excludedNames, requiredStatus);
     },
     enabled: isEnabled, // Aguardar sessão carregar antes de executar
     staleTime: 0, // Sempre considerar stale para forçar refetch

@@ -2,6 +2,7 @@ import React, { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "@/contexts/SessionProvider";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "@/integrations/supabase/client";
+import { getValidToken } from "@/utils/tokenGuard";
 import {
   Card,
   CardContent,
@@ -141,13 +142,17 @@ const fetchReportData = async (
   customRange?: DateRange,
   chartView: 'summary' | 'daily' = 'daily'
 ): Promise<SalesReport> => { // Usar DateRange
-  if (!accessToken) {
-    throw new Error("Sem token de acesso para fetch.");
+  // CRÍTICO: Obter token válido ANTES de qualquer requisição
+  const validToken = await getValidToken();
+  const effectiveToken = validToken || accessToken;
+
+  if (!effectiveToken) {
+    throw new Error("Sem token de acesso válido para fetch.");
   }
 
   const headers = {
     'apikey': SUPABASE_ANON_KEY,
-    'Authorization': `Bearer ${accessToken}`,
+    'Authorization': `Bearer ${effectiveToken}`,
     'Content-Type': 'application/json'
   };
 

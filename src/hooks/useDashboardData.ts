@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "@/contexts/SessionProvider";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "@/integrations/supabase/client";
-import { ensureValidToken } from "@/utils/tokenGuard";
+import { getValidToken } from "@/utils/tokenGuard";
 
 export interface DashboardStats {
   totalSales: number;
@@ -21,13 +21,11 @@ export interface DashboardStats {
   metersGrowth: number;
 }
 
-const fetchDashboardData = async (accessToken: string): Promise<DashboardStats> => {
+const fetchDashboardData = async (): Promise<DashboardStats> => {
+  const accessToken = await getValidToken();
   if (!accessToken) {
     throw new Error("Sem token de acesso para fetch.");
   }
-
-  // Garantir que o token está válido antes de fazer requisições
-  await ensureValidToken();
 
   const headers = {
     'apikey': SUPABASE_ANON_KEY,
@@ -137,7 +135,7 @@ export const useDashboardData = () => {
 
   return useQuery<DashboardStats>({
     queryKey: ["dashboard-stats"],
-    queryFn: () => fetchDashboardData(accessToken!),
+    queryFn: () => fetchDashboardData(),
     enabled: isEnabled,
     staleTime: 1000 * 60 * 5, // 5 minutos
     refetchInterval: 5 * 60 * 1000, // Refetch every 5 minutes
