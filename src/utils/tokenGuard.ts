@@ -1,28 +1,43 @@
-import { supabase } from '@/integrations/supabase/client';
+/**
+ * VERSÃO SIMPLIFICADA - SEM SUPABASE CLIENT
+ * Apenas verifica se há token no localStorage
+ * NÃO faz refresh automático para evitar travamentos no PWA
+ */
 
 let isRefreshing = false;
 let refreshPromise: Promise<void> | null = null;
 
 /**
- * Verifica se o token está próximo de expirar e faz refresh se necessário
- * Retorna uma Promise que resolve quando o token está válido
+ * Verifica se o token existe no localStorage
+ * NÃO faz refresh para evitar travamentos
  */
 export const ensureValidToken = async (): Promise<void> => {
     try {
-        // Se já está fazendo refresh, aguardar a Promise existente
-        if (isRefreshing && refreshPromise) {
-            console.log('[TokenGuard] Refresh já em andamento, aguardando...');
-            await refreshPromise;
+        // Verificar se há sessão no localStorage
+        const authData = localStorage.getItem('sb-yfxzjvkjqfxhqxqzxqxq-auth-token');
+
+        if (!authData) {
+            console.log('[TokenGuard] No session in localStorage');
             return;
         }
 
-        const { data: { session }, error } = await supabase.auth.getSession();
-
-        if (error || !session) {
-            console.log('[TokenGuard] No session found');
+        // Parse da sessão
+        let session;
+        try {
+            const parsed = JSON.parse(authData);
+            session = parsed;
+        } catch (e) {
+            console.warn('[TokenGuard] Failed to parse session from localStorage');
             return;
         }
 
+        // Verificar se tem access_token
+        if (!session?.access_token) {
+            console.log('[TokenGuard] No access token in session');
+            return;
+        }
+
+        // Verificar expiração
         const expiresAt = session.expires_at;
         if (!expiresAt) {
             console.warn('[TokenGuard] No expiration time found');
@@ -32,29 +47,20 @@ export const ensureValidToken = async (): Promise<void> => {
         const now = Math.floor(Date.now() / 1000);
         const timeUntilExpiry = expiresAt - now;
 
-        // Se o token expira em menos de 2 minutos (120 segundos), fazer refresh IMEDIATO
-        if (timeUntilExpiry < 120) {
-            console.log(`[TokenGuard] Token expires in ${timeUntilExpiry}s, refreshing NOW...`);
-
-            isRefreshing = true;
-            refreshPromise = (async () => {
-                try {
-                    const { data, error: refreshError } = await supabase.auth.refreshSession();
-
-                    if (refreshError) {
-                        console.error('[TokenGuard] Error refreshing token:', refreshError);
-                        throw refreshError;
-                    }
-
-                    console.log('[TokenGuard] Token refreshed successfully');
-                } finally {
-                    isRefreshing = false;
-                    refreshPromise = null;
-                }
-            })();
-
-            await refreshPromise;
+        // Se o token já expirou, apenas logar (não fazer refresh para evitar travamento)
+        if (timeUntilExpiry < 0) {
+            console.warn('[TokenGuard] Token expired. User needs to login again.');
+            return;
         }
+
+        // Se o token expira em menos de 5 minutos, apenas logar warning
+        if (timeUntilExpiry < 300) {
+            console.warn(`[TokenGuard] Token expires in ${Math.floor(timeUntilExpiry / 60)} minutes`);
+        }
+
+        // NÃO fazer refresh automático - deixar o usuário relogar se necessário
+        // Isso evita travamentos no PWA
+
     } catch (error) {
         console.error('[TokenGuard] Exception:', error);
         isRefreshing = false;

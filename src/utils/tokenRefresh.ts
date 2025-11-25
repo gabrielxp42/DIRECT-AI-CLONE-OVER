@@ -1,80 +1,25 @@
-import { supabase } from '@/integrations/supabase/client';
+/**
+ * DESABILITADO - NÃO USAR REFRESH AUTOMÁTICO
+ * Causa travamentos no PWA
+ */
 
 let refreshTimer: NodeJS.Timeout | null = null;
 
 /**
- * Configura refresh automático do token antes de expirar
- * Tokens do Supabase expiram em 1 hora por padrão
+ * DESABILITADO - Não configura refresh automático
+ * Para evitar travamentos no PWA
  */
 export const setupTokenRefresh = () => {
-    // Limpar timer anterior se existir
+    console.log('[TokenRefresh] DESABILITADO - Refresh automático não será executado para evitar travamentos no PWA');
+
+    // Limpar qualquer timer existente
     if (refreshTimer) {
         clearTimeout(refreshTimer);
+        refreshTimer = null;
     }
 
-    const refreshToken = async () => {
-        try {
-            const { data: { session }, error } = await supabase.auth.getSession();
-
-            if (error || !session) {
-                console.log('[TokenRefresh] No session found, skipping refresh');
-                return;
-            }
-
-            // Calcular tempo até expiração
-            const expiresAt = session.expires_at;
-            if (!expiresAt) {
-                console.warn('[TokenRefresh] No expiration time found');
-                return;
-            }
-
-            const now = Math.floor(Date.now() / 1000);
-            const timeUntilExpiry = expiresAt - now;
-
-            // Se o token expira em menos de 10 minutos (600 segundos), fazer refresh IMEDIATO
-            if (timeUntilExpiry < 600) {
-                console.log(`[TokenRefresh] Token expires in ${Math.floor(timeUntilExpiry / 60)} minutes, refreshing NOW...`);
-
-                const { data, error: refreshError } = await supabase.auth.refreshSession();
-
-                if (refreshError) {
-                    console.error('[TokenRefresh] Error refreshing token:', refreshError);
-                    // Se falhar, tentar novamente em 1 minuto
-                    refreshTimer = setTimeout(refreshToken, 60 * 1000);
-                } else {
-                    console.log('[TokenRefresh] Token refreshed successfully');
-                    // Agendar próximo refresh
-                    setupTokenRefresh();
-                }
-                return;
-            }
-
-            // Refresh 5 minutos antes de expirar (300 segundos)
-            const refreshIn = Math.max(0, (timeUntilExpiry - 300) * 1000);
-
-            console.log(`[TokenRefresh] Token will be refreshed in ${Math.floor(refreshIn / 1000 / 60)} minutes`);
-
-            // Agendar próximo refresh
-            refreshTimer = setTimeout(async () => {
-                console.log('[TokenRefresh] Refreshing token...');
-                const { data, error: refreshError } = await supabase.auth.refreshSession();
-
-                if (refreshError) {
-                    console.error('[TokenRefresh] Error refreshing token:', refreshError);
-                    // Se falhar, tentar novamente em 1 minuto
-                    refreshTimer = setTimeout(refreshToken, 60 * 1000);
-                } else {
-                    console.log('[TokenRefresh] Token refreshed successfully');
-                    // Agendar próximo refresh
-                    setupTokenRefresh();
-                }
-            }, refreshIn);
-        } catch (error) {
-            console.error('[TokenRefresh] Exception:', error);
-        }
-    };
-
-    refreshToken();
+    // NÃO fazer nada - deixar o token expirar naturalmente
+    // O usuário precisará fazer login novamente se o token expirar
 };
 
 /**

@@ -135,7 +135,12 @@ const calculatePeriodDates = (period: string, customRange?: DateRange) => { // U
   return { start: periodStart, end: periodEnd };
 };
 
-const fetchReportData = async (accessToken: string, selectedPeriod: string, customRange?: DateRange): Promise<SalesReport> => { // Usar DateRange
+const fetchReportData = async (
+  accessToken: string,
+  selectedPeriod: string,
+  customRange?: DateRange,
+  chartView: 'summary' | 'daily' = 'daily'
+): Promise<SalesReport> => { // Usar DateRange
   if (!accessToken) {
     throw new Error("Sem token de acesso para fetch.");
   }
@@ -346,24 +351,120 @@ const fetchReportData = async (accessToken: string, selectedPeriod: string, cust
   // Meters Report
   const totalMeters = periodOrders.reduce((sum, order) => sum + (order.total_metros || 0), 0);
 
-  // Meters by period (simplified for now)
+  // Meters by period and Revenue by period
   const metersByPeriod: Array<{ period: string; meters: number }> = [];
-
-  // Revenue by period (for line chart)
   const revenueByPeriod: Array<{ period: string; revenue: number }> = [];
 
-  // Lógica de agrupamento para o gráfico de linha (por dia se for semana, por semana se for mês, por mês se for ano)
-  if (selectedPeriod === "today" || selectedPeriod === "week") {
-    const daysOfWeek = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-    const startDay = new Date(periodStart);
-    const numDays = selectedPeriod === "today" ? 1 : 7;
+  // Calcular diferença em dias entre início e fim do período
+  const daysDiff = Math.ceil((periodEnd.getTime() - periodStart.getTime()) / (1000 * 60 * 60 * 24));
+
+  // Determinar o tipo de agrupamento baseado no período E na visualização escolhida
+  let groupingType: 'daily' | 'weekly' | 'monthly' = 'daily';
+
+  if (chartView === 'summary') {
+    // Visualização RESUMIDA (como estava antes)
+    if (selectedPeriod === 'today') {
+      groupingType = 'daily'; // Hoje sempre é diário
+    } else if (selectedPeriod === 'week') {
+      groupingType = 'daily'; // Semana sempre mostra os 7 dias
+    } else if (selectedPeriod === 'month') {
+      groupingType = 'weekly'; // Mês mostra 4-5 semanas
+    } else if (selectedPeriod === 'year') {
+      groupingType = 'monthly'; // Ano mostra 12 meses
+    } else if (selectedPeriod === 'custom') {
+      groupingType = daysDiff <= 31 ? 'daily' : 'weekly';
+    }
+  } else {
+    // Visualização DIÁRIA (detalhada)
+    if (selectedPeriod === 'today') {
+      groupingType = 'daily';
+    } else if (selectedPeriod === 'week') {
+      groupingType = 'daily'; // 7 dias
+    } else if (selectedPeriod === 'month') {
+      groupingType = 'daily'; // 30-31 dias
+    } else if (selectedPeriod === 'year') {
+      groupingType = 'monthly'; // Ano sempre mensal (muitos dias)
+    } else if (selectedPeriod === 'custom') {
+      groupingType = daysDiff <= 31 ? 'daily' : 'weekly';
+    }
+  }
+
+  // Gerar dados baseado no tipo de agrupamento
+  if (groupingType === 'daily') {
+    // Agrupamento diário
+    let numDays: number;
+
+    if (selectedPeriod === 'today') {
+      // Para "Hoje", mostrar períodos do dia em vez de um único ponto
+      const periods = [
+        { name: 'Madrugada', start: 0, end: 5 },
+        { name: 'Manhã', start: 6, end: 11 },
+        { name: 'Tarde', start: 12, end: 17 },
+        { name: 'Noite', start: 18, end: 23 }
+      ];
+
+      periods.forEach(period => {
+        const periodStartForRange = new Date(periodStart); // Use the overall periodStart (which is the start of today)
+        periodStartForRange.setHours(period.start, 0, 0, 0);
+        const periodEndForRange = new Date(periodStart); // Use the overall periodStart (which is the start of today)
+        periodEndForRange.setHours(period.end, 59, 59, 999);
+
+        const ordersInPeriod = periodOrders.filter(order => {
+          const orderDate = new Date(order.created_at);
+          return orderDate >= periodStartForRange && orderDate <= periodEndForRange;
+        });
+
+        const revenue = ordersInPeriod.reduce((sum, order) => sum + order.valor_total, 0);
+        const meters = ordersInPeriod.reduce((sum, order) => sum + (order.total_metros || 0), 0);
+
+        revenueByPeriod.push({ period: period.name, revenue });
+        metersByPeriod.push({ period: period.name, meters });
+      });
+
+      return {
+        totalRevenue,
+        totalOrders,
+        totalCustomers,
+        totalProducts,
+        averageOrderValue,
+        topProducts,
+        topCustomers,
+        recentOrders,
+        monthlyGrowth,
+        servicesReport: {
+          totalServicesRevenue,
+          totalServicesCount,
+          averageServiceValue,
+          servicesByPeriod,
+          topServices,
+          servicosDetalhados: allServices
+        },
+        metersReport: {
+          totalMeters,
+          metersByPeriod
+        },
+        revenueByPeriod
+      }; // Sair da função após processar "Hoje"
+    } else if (selectedPeriod === 'week') {
+      numDays = 7;
+    } else if (selectedPeriod === 'month') {
+      // Número de dias no mês
+      numDays = new Date(periodStart.getFullYear(), periodStart.getMonth() + 1, 0).getDate();
+    } else if (selectedPeriod === 'custom') {
+      numDays = daysDiff + 1;
+    } else {
+      numDays = daysDiff + 1;
+    }
 
     for (let i = 0; i < numDays; i++) {
-      const dayStart = new Date(startDay);
-      dayStart.setDate(startDay.getDate() + i);
+      const dayStart = new Date(periodStart);
+      dayStart.setDate(periodStart.getDate() + i);
       dayStart.setHours(0, 0, 0, 0);
       const dayEnd = new Date(dayStart);
       dayEnd.setHours(23, 59, 59, 999);
+
+      // Não processar dias futuros
+      if (dayStart > periodEnd) break;
 
       const dayOrders = periodOrders.filter(order => {
         const orderDate = new Date(order.created_at);
@@ -371,53 +472,86 @@ const fetchReportData = async (accessToken: string, selectedPeriod: string, cust
       });
 
       const revenue = dayOrders.reduce((sum, order) => sum + order.valor_total, 0);
+      const meters = dayOrders.reduce((sum, order) => sum + (order.total_metros || 0), 0);
 
-      revenueByPeriod.push({
-        period: selectedPeriod === "today" ? 'Hoje' : daysOfWeek[dayStart.getDay()],
-        revenue: revenue,
-      });
-
-      metersByPeriod.push({
-        period: selectedPeriod === "today" ? 'Hoje' : daysOfWeek[dayStart.getDay()],
-        meters: dayOrders.reduce((sum, order) => sum + (order.total_metros || 0), 0),
-      });
-    }
-  } else if (selectedPeriod === "month" || selectedPeriod === "year") {
-    // Agrupar por semana (mês) ou por mês (ano)
-    const isMonth = selectedPeriod === "month";
-    const numPeriods = isMonth ? 4 : 12; // 4 semanas ou 12 meses
-
-    for (let i = 0; i < numPeriods; i++) {
+      // Formatar label do dia
       let periodLabel: string;
-      let periodStartCalc: Date;
-      let periodEndCalc: Date;
-
-      if (isMonth) {
-        // Agrupamento por semana do mês
-        periodStartCalc = new Date(periodStart);
-        periodStartCalc.setDate(1 + (i * 7));
-        periodEndCalc = new Date(periodStartCalc);
-        periodEndCalc.setDate(periodStartCalc.getDate() + 6);
-        periodEndCalc.setHours(23, 59, 59, 999);
-        periodLabel = `Semana ${i + 1}`;
+      if (selectedPeriod === 'week') {
+        const daysOfWeek = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+        periodLabel = daysOfWeek[dayStart.getDay()];
       } else {
-        // Agrupamento por mês do ano
-        periodStartCalc = new Date(periodStart.getFullYear(), periodStart.getMonth() + i, 1);
-        periodEndCalc = new Date(periodStart.getFullYear(), periodStart.getMonth() + i + 1, 0, 23, 59, 59, 999);
-        periodLabel = periodStartCalc.toLocaleDateString('pt-BR', { month: 'short' });
+        // Para mês ou custom, mostrar dia do mês
+        periodLabel = dayStart.getDate().toString();
       }
 
-      const periodOrdersCalc = periodOrders.filter(order => {
+      revenueByPeriod.push({ period: periodLabel, revenue });
+      metersByPeriod.push({ period: periodLabel, meters });
+    }
+  } else if (groupingType === 'weekly') {
+    // Agrupamento semanal
+    let numWeeks: number;
+
+    if (selectedPeriod === 'month') {
+      // Para mês, calcular número de semanas
+      const firstDay = new Date(periodStart.getFullYear(), periodStart.getMonth(), 1);
+      const lastDay = new Date(periodStart.getFullYear(), periodStart.getMonth() + 1, 0);
+      numWeeks = Math.ceil((lastDay.getDate() - firstDay.getDate() + 1) / 7);
+    } else {
+      numWeeks = Math.ceil(daysDiff / 7);
+    }
+
+    for (let i = 0; i < numWeeks; i++) {
+      const weekStart = new Date(periodStart);
+      weekStart.setDate(periodStart.getDate() + (i * 7));
+      weekStart.setHours(0, 0, 0, 0);
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekStart.getDate() + 6);
+      weekEnd.setHours(23, 59, 59, 999);
+
+      // Ajustar último período para não ultrapassar periodEnd
+      if (weekEnd > periodEnd) {
+        weekEnd.setTime(periodEnd.getTime());
+      }
+
+      const weekOrders = periodOrders.filter(order => {
         const orderDate = new Date(order.created_at);
-        return orderDate >= periodStartCalc && orderDate <= periodEndCalc;
+        return orderDate >= weekStart && orderDate <= weekEnd;
       });
 
-      const revenue = periodOrdersCalc.reduce((sum, order) => sum + order.valor_total, 0);
+      const revenue = weekOrders.reduce((sum, order) => sum + order.valor_total, 0);
+      const meters = weekOrders.reduce((sum, order) => sum + (order.total_metros || 0), 0);
+
+      let periodLabel: string;
+      if (selectedPeriod === 'month') {
+        periodLabel = `Semana ${i + 1}`;
+      } else {
+        periodLabel = `${weekStart.getDate()}/${weekStart.getMonth() + 1} - ${weekEnd.getDate()}/${weekEnd.getMonth() + 1}`;
+      }
 
       revenueByPeriod.push({ period: periodLabel, revenue });
-      metersByPeriod.push({ period: periodLabel, meters: periodOrdersCalc.reduce((sum, order) => sum + (order.total_metros || 0), 0) });
+      metersByPeriod.push({ period: periodLabel, meters });
+    }
+  } else if (groupingType === 'monthly') {
+    // Agrupamento mensal (para ano)
+    for (let i = 0; i < 12; i++) {
+      const monthStart = new Date(periodStart.getFullYear(), i, 1);
+      const monthEnd = new Date(periodStart.getFullYear(), i + 1, 0, 23, 59, 59, 999);
+
+      const monthOrders = periodOrders.filter(order => {
+        const orderDate = new Date(order.created_at);
+        return orderDate >= monthStart && orderDate <= monthEnd;
+      });
+
+      const revenue = monthOrders.reduce((sum, order) => sum + order.valor_total, 0);
+      const meters = monthOrders.reduce((sum, order) => sum + (order.total_metros || 0), 0);
+
+      const periodLabel = monthStart.toLocaleDateString('pt-BR', { month: 'short' });
+
+      revenueByPeriod.push({ period: periodLabel, revenue });
+      metersByPeriod.push({ period: periodLabel, meters });
     }
   }
+
 
 
   return {
@@ -454,6 +588,7 @@ const Reports: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedService, setSelectedService] = useState("all");
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+  const [chartView, setChartView] = useState<'summary' | 'daily'>('daily'); // NOVO: Controle de visualização
 
 
 
@@ -461,12 +596,12 @@ const Reports: React.FC = () => {
   const isEnabled = !sessionLoading && !!accessToken;
 
   const { data: reportData, isLoading, error } = useQuery<SalesReport>({
-    queryKey: ["comprehensive-report", selectedPeriod, customDateRange],
+    queryKey: ["comprehensive-report", selectedPeriod, customDateRange, chartView],
     queryFn: () => {
       if (!accessToken) {
         throw new Error("Sem token de acesso para fetch.");
       }
-      return fetchReportData(accessToken, selectedPeriod, customDateRange);
+      return fetchReportData(accessToken, selectedPeriod, customDateRange, chartView);
     },
     enabled: isEnabled, // Aguardar sessão carregar antes de executar
     staleTime: 0, // Sempre considerar stale para forçar refetch
@@ -701,21 +836,59 @@ const Reports: React.FC = () => {
         </Card>
       </div>
 
-      {/* GRÁFICOS */}
-      <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
+      {/* Charts Section */}
+      <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-2">
         {isLoading ? (
-          <Skeleton className="h-80 w-full lg:col-span-2" />
+          <>
+            <Skeleton className="h-64 md:h-80 w-full" />
+            <Skeleton className="h-64 md:h-80 w-full" />
+          </>
         ) : (
           <>
+            {/* Toggle de Visualização acima dos gráficos */}
+            <div className="lg:col-span-2 flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-muted-foreground" />
+                <h3 className="text-lg font-semibold">Gráficos de Desempenho</h3>
+              </div>
+
+              {/* Toggle de Visualização */}
+              {(selectedPeriod === 'month' || selectedPeriod === 'year') && (
+                <ToggleGroup
+                  type="single"
+                  value={chartView}
+                  onValueChange={(value) => {
+                    if (value) setChartView(value as 'summary' | 'daily');
+                  }}
+                  className="flex gap-1"
+                >
+                  <ToggleGroupItem
+                    value="summary"
+                    aria-label="Visualização Resumida"
+                    className="h-9 px-3 text-sm data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+                  >
+                    📊 Resumida
+                  </ToggleGroupItem>
+                  <ToggleGroupItem
+                    value="daily"
+                    aria-label="Visualização Diária"
+                    className="h-9 px-3 text-sm data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+                  >
+                    📅 Diária
+                  </ToggleGroupItem>
+                </ToggleGroup>
+              )}
+            </div>
+
             <RevenueLineChart
               data={reportData?.revenueByPeriod || []}
               title="Tendência de Receita"
-              description={`Evolução da receita por ${selectedPeriod === 'week' || selectedPeriod === 'today' ? 'Dia' : 'Período'} em ${getPeriodLabel(selectedPeriod)}`}
+              description={`Evolução da receita por ${chartView === 'daily' ? 'Dia' : selectedPeriod === 'month' ? 'Semana' : 'Período'} em ${getPeriodLabel(selectedPeriod)}`}
             />
             <MetersBarChart
               data={reportData?.metersReport.metersByPeriod || []}
               title={`Distribuição da Metragem`}
-              description={`Metragem por ${selectedPeriod === 'week' || selectedPeriod === 'today' ? 'Dia' : 'Período'} em ${getPeriodLabel(selectedPeriod)}`}
+              description={`Metragem por ${chartView === 'daily' ? 'Dia' : selectedPeriod === 'month' ? 'Semana' : 'Período'} em ${getPeriodLabel(selectedPeriod)}`}
             />
           </>
         )}
