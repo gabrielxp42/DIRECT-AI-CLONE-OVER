@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/accordion";
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from '@/components/ui/button';
+import { motion } from 'framer-motion';
 
 // Interface para Insights Estruturados
 interface InsightAction {
@@ -207,7 +208,7 @@ export const AIMessagesWidget: React.FC = () => {
     };
 
     const SwipeableMessage = ({ item, onDismiss }: { item: InsightItem, onDismiss: () => void }) => {
-        const [isRemoved, setIsRemoved] = useState(false);
+        const [isRemoving, setIsRemoving] = useState(false);
 
         const getStyles = (type: string) => {
             switch (type) {
@@ -218,11 +219,69 @@ export const AIMessagesWidget: React.FC = () => {
             }
         };
 
-        if (isRemoved) return null;
+        const handleDismissClick = () => {
+            setIsRemoving(true);
+            setTimeout(onDismiss, 400);
+        };
+
+        const handleDragEnd = (event: any, info: any) => {
+            const threshold = 120;
+            const velocity = Math.abs(info.velocity.x);
+
+            // Se arrastou mais de 120px OU teve velocidade alta (swipe rápido)
+            if (Math.abs(info.offset.x) > threshold || velocity > 500) {
+                setIsRemoving(true);
+                setTimeout(onDismiss, 400);
+            }
+        };
+
+        if (isRemoving) {
+            return (
+                <motion.div
+                    initial={{ opacity: 1, scale: 1, height: 'auto' }}
+                    animate={{
+                        opacity: 0,
+                        scale: 0.8,
+                        height: 0,
+                        marginBottom: 0
+                    }}
+                    transition={{
+                        duration: 0.4,
+                        ease: [0.4, 0, 0.2, 1] // Cubic bezier para suavidade
+                    }}
+                >
+                    <Card className={`p-4 border-l-4 pr-8 relative ${getStyles(item.type)}`}>
+                        <div className="flex flex-col gap-3">
+                            <p className="text-sm select-none" dangerouslySetInnerHTML={{
+                                __html: item.text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                            }} />
+                        </div>
+                    </Card>
+                </motion.div>
+            );
+        }
 
         return (
-            <div className={`relative overflow-hidden transition-all duration-300 ${isRemoved ? 'opacity-0 h-0' : 'opacity-100'}`}>
-                <Card className={`p-4 border-l-4 pr-8 relative ${getStyles(item.type)}`}>
+            <motion.div
+                drag={isMobile ? "x" : false}
+                dragConstraints={{ left: 0, right: 0 }}
+                dragElastic={0.15}
+                onDragEnd={handleDragEnd}
+                initial={{ opacity: 0, x: -30, scale: 0.95 }}
+                animate={{ opacity: 1, x: 0, scale: 1 }}
+                transition={{
+                    type: "spring",
+                    stiffness: 300,
+                    damping: 30
+                }}
+                whileDrag={{
+                    scale: 1.02,
+                    rotate: 0,
+                    cursor: 'grabbing'
+                }}
+                className="relative mb-2"
+            >
+                <Card className={`p-4 border-l-4 pr-8 relative ${getStyles(item.type)} transition-shadow hover:shadow-md`}>
                     <div className="flex flex-col gap-3">
                         <p className="text-sm select-none" dangerouslySetInnerHTML={{
                             __html: item.text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
@@ -242,14 +301,16 @@ export const AIMessagesWidget: React.FC = () => {
                         )}
                     </div>
 
-                    <button
-                        onClick={() => { setIsRemoved(true); setTimeout(onDismiss, 300); }}
+                    <motion.button
+                        onClick={handleDismissClick}
                         className="absolute top-2 right-2 p-1 rounded-full hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
                     >
                         <X className="h-4 w-4 text-muted-foreground" />
-                    </button>
+                    </motion.button>
                 </Card>
-            </div>
+            </motion.div>
         );
     };
 
