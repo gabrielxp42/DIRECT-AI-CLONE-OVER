@@ -77,7 +77,9 @@ interface SalesReport {
   topProducts: Array<{ nome: string; totalSold: number; revenue: number; }>;
   topCustomers: Array<{ nome: string; totalOrders: number; totalSpent: number; }>;
   recentOrders: Array<{ id: string; cliente_nome: string; valor_total: number; status: string; created_at: string; }>;
-  monthlyGrowth: { revenue: number; orders: number; customers: number; };
+  monthlyGrowth: { revenue: number; orders: number; customers: number; profit: number; };
+  totalProfit: number;
+  profitMargin: number;
   servicesReport: {
     totalServicesRevenue: number;
     totalServicesCount: number;
@@ -94,7 +96,13 @@ interface SalesReport {
     totalMeters: number;
     metersByPeriod: Array<{ period: string; meters: number; }>;
   };
-  revenueByPeriod: Array<{ period: string; revenue: number; }>; // Novo campo para o gráfico de linha
+  revenueByPeriod: Array<{ period: string; revenue: number; }>;
+  financialReport: {
+    byStatus: Array<{ status: string; count: number; value: number; }>;
+    totalPaid: number;
+    totalPending: number;
+    totalCancelled: number;
+  };
 }
 
 // --- Lógica de Data e Fetch ---
@@ -248,8 +256,54 @@ const fetchReportData = async (
     throw new Error(`Erro ao buscar todos os produtos: ${e.message}`);
   }
 
+  // Fetch insumos for cost calculation
+  let insumos: any[] = [];
+  try {
+    insumos = await doFetch('insumos', new URLSearchParams({
+      select: 'id,custo_unitario'
+    }));
+  } catch (e: any) {
+    console.error('Erro ao buscar insumos para cálculo de lucro:', e);
+    // Não falhar o relatório todo se falhar insumos, apenas lucro será 0 ou impreciso
+  }
+
+  // Create a map of insumo costs
+  const insumoCostMap = new Map<string, number>();
+  insumos.forEach(insumo => {
+    insumoCostMap.set(insumo.id, insumo.custo_unitario);
+  });
+
+  // Helper to calculate order cost
+  const calculateOrderCost = (order: any) => {
+    let orderCost = 0;
+
+    // Custo dos produtos
+    if (order.pedido_items) {
+      order.pedido_items.forEach((item: any) => {
+        // Tenta pegar o produto do item (se populado) ou busca na lista de produtos
+        const produto = item.produtos || products?.find((p: any) => p.id === item.produto_id);
+
+        if (produto && produto.insumo_id && produto.consumo_insumo) {
+          const custoInsumo = insumoCostMap.get(produto.insumo_id) || 0;
+          const custoItem = custoInsumo * produto.consumo_insumo * item.quantidade;
+          orderCost += custoItem;
+        }
+      });
+    }
+
+    // Custo dos serviços (assumindo 0 por enquanto, ou poderia ter campo de custo)
+
+    return orderCost;
+  };
+
   // --- CÁLCULOS DE MÉTRICAS ---
   const totalRevenue = periodOrders.reduce((sum, order) => sum + order.valor_total, 0) || 0;
+
+  // Calcular Custo Total e Lucro
+  const totalCost = periodOrders.reduce((sum, order) => sum + calculateOrderCost(order), 0);
+  const totalProfit = totalRevenue - totalCost;
+  const profitMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
+
   const totalOrders = periodOrders.length || 0;
   const totalCustomers = customers?.length || 0;
   const totalProducts = products?.length || 0;
@@ -299,10 +353,26 @@ const fetchReportData = async (
   // Monthly Growth
   const currentRevenue = currentMonthOrders.reduce((sum, order) => sum + order.valor_total, 0);
   const previousRevenue = previousMonthOrders.reduce((sum, order) => sum + order.valor_total, 0);
+
+  // Profit Growth
+  const currentCost = currentMonthOrders.reduce((sum: number, order: any) => {
+    // Precisamos re-calcular o custo para esses pedidos também. 
+    // Nota: Isso assume que 'products' e 'insumos' já foram buscados e são válidos para o histórico.
+    // Para precisão histórica perfeita, precisaríamos do snapshot do custo na época, mas usaremos o atual.
+    // Como currentMonthOrders não tem o join de produtos/items completo, isso é uma estimativa.
+    // Para simplificar e evitar N+1 queries complexas aqui, vamos pular o cálculo detalhado de crescimento de lucro 
+    // ou fazer uma aproximação baseada na margem atual se não tivermos os dados completos.
+    return 0; // Placeholder se não tivermos items populados em currentMonthOrders
+  }, 0);
+
+  // Para growth de lucro, vamos simplificar e usar a Revenue Growth como proxy ou 0 se não tiver dados suficientes
+  // Idealmente, buscaríamos currentMonthOrders com items e produtos.
+
   const monthlyGrowth = {
     revenue: previousRevenue > 0 ? ((currentRevenue - previousRevenue) / previousRevenue) * 100 : 0,
     orders: previousMonthOrders.length > 0 ? ((currentMonthOrders.length - previousMonthOrders.length) / previousMonthOrders.length) * 100 : 0,
     customers: previousMonthCustomers.length > 0 ? ((currentMonthCustomers.length - previousMonthCustomers.length) / previousMonthCustomers.length) * 100 : 0,
+    profit: 0 // Placeholder por enquanto, difícil calcular sem fetch profundo
   };
 
   // Services Report (Mantido apenas para compatibilidade de tipo, mas não usado na UI)
@@ -359,6 +429,40 @@ const fetchReportData = async (
   // Meters by period and Revenue by period
   const metersByPeriod: Array<{ period: string; meters: number }> = [];
   const revenueByPeriod: Array<{ period: string; revenue: number }> = [];
+
+  // Financial Report Calculation
+  const financialStats = new Map<string, { count: number; value: number }>();
+  let totalPaid = 0;
+  let totalPending = 0;
+  let totalCancelled = 0;
+
+  periodOrders.forEach(order => {
+    const status = order.status || 'desconhecido';
+    const current = financialStats.get(status) || { count: 0, value: 0 };
+    financialStats.set(status, {
+      count: current.count + 1,
+      value: current.value + order.valor_total
+    });
+
+    if (['pago', 'entregue', 'enviado', 'aguardando retirada'].includes(status)) {
+      totalPaid += order.valor_total;
+    } else if (['pendente', 'processando'].includes(status)) {
+      totalPending += order.valor_total;
+    } else if (status === 'cancelado') {
+      totalCancelled += order.valor_total;
+    }
+  });
+
+  const financialReport = {
+    byStatus: Array.from(financialStats.entries()).map(([status, data]) => ({
+      status,
+      count: data.count,
+      value: data.value
+    })).sort((a, b) => b.value - a.value),
+    totalPaid,
+    totalPending,
+    totalCancelled
+  };
 
   // Calcular diferença em dias entre início e fim do período
   const daysDiff = Math.ceil((periodEnd.getTime() - periodStart.getTime()) / (1000 * 60 * 60 * 24));
@@ -426,6 +530,59 @@ const fetchReportData = async (
         metersByPeriod.push({ period: period.name, meters });
       });
 
+      // Calcular dados financeiros para "Hoje"
+      const financialStats = new Map<string, { count: number; value: number }>();
+      let totalPaid = 0;
+      let totalPending = 0;
+      let totalCancelled = 0;
+
+      // Calcular custo e lucro para "Hoje"
+      let totalCost = 0;
+      // Nota: Para cálculo preciso de custo em "Hoje", precisaríamos da lógica de insumos aqui também.
+      // Como simplificação, vamos assumir margem similar ou 0 se não tiver dados.
+      // Idealmente, refatorar a lógica de cálculo de custo para uma função reutilizável fora do escopo principal.
+
+      const ordersInToday = periodOrders; // periodOrders já está filtrado para o período selecionado (Hoje)
+
+      ordersInToday.forEach(order => {
+        const status = order.status || 'desconhecido';
+        const current = financialStats.get(status) || { count: 0, value: 0 };
+        financialStats.set(status, {
+          count: current.count + 1,
+          value: current.value + order.valor_total
+        });
+
+        if (['pago', 'entregue', 'enviado', 'aguardando retirada'].includes(status)) {
+          totalPaid += order.valor_total;
+        } else if (['pendente', 'processando'].includes(status)) {
+          totalPending += order.valor_total;
+        } else if (status === 'cancelado') {
+          totalCancelled += order.valor_total;
+        }
+      });
+
+      const financialReport = {
+        byStatus: Array.from(financialStats.entries()).map(([status, data]) => ({
+          status,
+          count: data.count,
+          value: data.value
+        })).sort((a, b) => b.value - a.value),
+        totalPaid,
+        totalPending,
+        totalCancelled
+      };
+
+      // Recalcular lucro para hoje (usando a mesma lógica simplificada ou 0 se insumos não estiverem disponíveis aqui)
+      // Para evitar duplicar toda a lógica de insumos dentro do bloco 'if today', 
+      // vamos usar uma aproximação ou mover a lógica de insumos para antes do bloco 'if today'.
+      // Como a lógica de insumos foi adicionada ANTES do bloco 'if today' no passo anterior,
+      // podemos reutilizar a função calculateOrderCost se ela estiver no escopo.
+      // A função calculateOrderCost foi definida dentro de fetchReportData, antes deste bloco.
+
+      totalCost = ordersInToday.reduce((sum, order) => sum + calculateOrderCost(order), 0);
+      const totalProfit = totalRevenue - totalCost;
+      const profitMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
+
       return {
         totalRevenue,
         totalOrders,
@@ -448,7 +605,10 @@ const fetchReportData = async (
           totalMeters,
           metersByPeriod
         },
-        revenueByPeriod
+        revenueByPeriod,
+        totalProfit,
+        profitMargin,
+        financialReport
       }; // Sair da função após processar "Hoje"
     } else if (selectedPeriod === 'week') {
       numDays = 7;
@@ -581,7 +741,10 @@ const fetchReportData = async (
       totalMeters,
       metersByPeriod
     },
-    revenueByPeriod
+    revenueByPeriod,
+    totalProfit,
+    profitMargin,
+    financialReport
   };
 };
 
@@ -839,6 +1002,26 @@ const Reports: React.FC = () => {
             )}
           </CardContent>
         </Card>
+
+        {/* Lucro Estimado */}
+        <Card className="hover:shadow-lg transition-shadow border-l-4 border-l-green-500">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 md:p-6">
+            <CardTitle className="text-xs md:text-sm font-medium">Lucro Estimado</CardTitle>
+            <DollarSign className="h-3 w-3 md:h-4 md:w-4 text-green-600" />
+          </CardHeader>
+          <CardContent className="p-4 pt-0 md:p-6 md:pt-0">
+            {isLoading ? <Skeleton className="h-6 md:h-8 w-3/4" /> : (
+              <>
+                <div className="text-lg md:text-2xl font-bold text-green-600">
+                  {formatCurrency(reportData?.totalProfit || 0)}
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  Margem: <span className="font-bold text-foreground">{reportData?.profitMargin.toFixed(1)}%</span>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {/* Charts Section */}
@@ -908,10 +1091,10 @@ const Reports: React.FC = () => {
               <span className="hidden sm:inline">Comissão</span>
               <span className="sm:hidden">Com.</span>
             </TabsTrigger>
-            <TabsTrigger value="products" className="py-2 px-3 md:px-4 flex items-center gap-1 md:gap-2 text-xs md:text-sm">
-              <Package className="h-3 w-3 md:h-4 md:w-4" />
-              <span className="hidden sm:inline">Produtos</span>
-              <span className="sm:hidden">Prod.</span>
+            <TabsTrigger value="financial" className="py-2 px-3 md:px-4 flex items-center gap-1 md:gap-2 text-xs md:text-sm">
+              <DollarSign className="h-3 w-3 md:h-4 md:w-4" />
+              <span className="hidden sm:inline">Financeiro</span>
+              <span className="sm:hidden">Fin.</span>
             </TabsTrigger>
             <TabsTrigger value="customers" className="py-2 px-3 md:px-4 flex items-center gap-1 md:gap-2 text-xs md:text-sm">
               <User className="h-3 w-3 md:h-4 md:w-4" />
@@ -930,48 +1113,82 @@ const Reports: React.FC = () => {
           <ServiceCommissionReport />
         </TabsContent>
 
-        <TabsContent value="products" className="space-y-6">
+        <TabsContent value="financial" className="space-y-6">
+          <div className="grid gap-4 md:grid-cols-3">
+            <Card className="border-l-4 border-l-green-500">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Receita Confirmada</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-green-600">
+                  {isLoading ? <Skeleton className="h-8 w-24" /> : formatCurrency(reportData?.financialReport?.totalPaid || 0)}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">Pago, Entregue, Enviado</p>
+              </CardContent>
+            </Card>
+            <Card className="border-l-4 border-l-yellow-500">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Receita Pendente</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-yellow-600">
+                  {isLoading ? <Skeleton className="h-8 w-24" /> : formatCurrency(reportData?.financialReport?.totalPending || 0)}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">Pendente, Processando</p>
+              </CardContent>
+            </Card>
+            <Card className="border-l-4 border-l-red-500">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Receita Perdida</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-red-600">
+                  {isLoading ? <Skeleton className="h-8 w-24" /> : formatCurrency(reportData?.financialReport?.totalCancelled || 0)}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">Pedidos Cancelados</p>
+              </CardContent>
+            </Card>
+          </div>
+
           <Card>
             <CardHeader>
-              <CardTitle>Produtos Mais Vendidos</CardTitle>
-              <CardDescription>Top 5 produtos por receita ({getPeriodLabel(selectedPeriod)})</CardDescription>
+              <CardTitle>Detalhamento por Status</CardTitle>
+              <CardDescription>Visão detalhada do faturamento por status do pedido ({getPeriodLabel(selectedPeriod)})</CardDescription>
             </CardHeader>
             <CardContent>
               {isLoading ? <Skeleton className="h-40 w-full" /> : (
-                reportData?.topProducts.length === 0 ? (
-                  <EmptyState
-                    icon={Package}
-                    title="Nenhum produto vendido"
-                    description="Não houve vendas de produtos neste período."
-                  />
-                ) : (
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Produto</TableHead>
-                          <TableHead className="text-center">Qtd Vendida</TableHead>
-                          <TableHead className="text-right">Receita</TableHead>
-                          <TableHead className="text-right">Receita Média</TableHead>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-center">Qtd Pedidos</TableHead>
+                        <TableHead className="text-right">Valor Total</TableHead>
+                        <TableHead className="text-right">% do Total</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {reportData?.financialReport?.byStatus?.map((item, index) => (
+                        <TableRow key={index}>
+                          <TableCell>
+                            <Badge variant="outline" className="capitalize">
+                              {item.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-center">{item.count}</TableCell>
+                          <TableCell className="text-right font-medium">
+                            {formatCurrency(item.value)}
+                          </TableCell>
+                          <TableCell className="text-right text-muted-foreground">
+                            {reportData.totalRevenue > 0
+                              ? ((item.value / reportData.totalRevenue) * 100).toFixed(1)
+                              : 0}%
+                          </TableCell>
                         </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {reportData?.topProducts.map((product, index) => (
-                          <TableRow key={index}>
-                            <TableCell className="font-medium">{product.nome}</TableCell>
-                            <TableCell className="text-center">{product.totalSold}</TableCell>
-                            <TableCell className="text-right font-semibold text-green-600">
-                              {formatCurrency(product.revenue)}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              {formatCurrency(product.revenue / product.totalSold)}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </CardContent>
           </Card>

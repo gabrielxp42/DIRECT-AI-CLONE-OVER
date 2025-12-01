@@ -92,6 +92,7 @@ const formSchema = z.object({
   }),
   items: z.array(z.object({
     tempId: z.string().optional(), // ID temporário para controle de UI (React keys)
+    tempDisplayNumber: z.number().optional(), // Número sequencial para exibição (ex: #1, #2)
     produto_id: z.string().optional().nullable(),
     produto_nome: z.string().min(1, { message: "Nome do produto é obrigatório." }),
     quantidade: z.coerce.number().min(0.01, { message: "Quantidade deve ser maior que 0." }),
@@ -455,29 +456,35 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
 
   const addItem = () => {
     hapticTap(); // Feedback ao adicionar
+    const currentItems = form.getValues('items') || [];
+
+    // Calcular o próximo número sequencial baseado no maior número existente
+    const maxNumber = currentItems.reduce((max, item) => {
+      return Math.max(max, item.tempDisplayNumber || 0);
+    }, currentItems.length); // Fallback para length se não tiver tempDisplayNumber
+
     // SEMPRE criar um item VAZIO, sem copiar dados anteriores
     const newItem = {
       tempId: Math.random().toString(36).substr(2, 9), // ID único
+      tempDisplayNumber: maxNumber + 1, // Próximo número sequencial
       produto_id: null,
       produto_nome: "",
       quantidade: 1,
       preco_unitario: selectedClientValorMetro || 0, // Usa o valor do metro do cliente se disponível
       observacao: ""
     };
-
-    const currentItems = form.getValues('items') || [];
-    // Adicionar ao FINAL da lista para evitar problemas de UI e ser mais intuitivo
-    const newItems = [...currentItems, newItem];
+    // Adicionar ao INÍCIO da lista (topo) para facilitar pedidos longos
+    const newItems = [newItem, ...currentItems];
     form.setValue('items', newItems);
 
     // Limpar snapshot anterior
     setItemSnapshot(null);
 
-    // Abrir o novo item (que agora é o último)
+    // Abrir o novo item (que agora é o primeiro, índice 0)
     setTimeout(() => {
-      setAccordionItemValue(`item-${newItems.length - 1}`);
+      setAccordionItemValue(`item-0`);
       // Scroll para o novo item
-      const newItemElement = document.getElementById(`item-card-${newItems.length - 1}`);
+      const newItemElement = document.getElementById(`item-card-0`);
       if (newItemElement) {
         newItemElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
@@ -734,32 +741,30 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                               onValueChange={setClienteSearch}
                               className="text-sm"
                             />
-                            <div className="max-h-[200px] sm:max-h-[300px] overflow-y-auto" style={{ overscrollBehavior: 'contain' }}>
-                              <CommandList>
-                                <CommandEmpty className="text-sm py-4">Nenhum cliente encontrado.</CommandEmpty>
-                                <CommandGroup>
-                                  {filteredClientes.map((cliente) => (
-                                    <CommandItem
-                                      key={cliente.id}
-                                      value={cliente.nome}
-                                      onSelect={() => handleClienteSelect(cliente.id, cliente.nome)}
-                                      className="cursor-pointer py-2 transition-all duration-200 hover:bg-accent/50"
-                                    >
-                                      <User className="mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-                                      <div className="flex flex-col min-w-0 flex-1">
-                                        <span className="font-medium text-sm truncate">{cliente.nome}</span>
-                                        {cliente.telefone && (
-                                          <span className="text-xs text-muted-foreground truncate">{cliente.telefone}</span>
-                                        )}
-                                        {cliente.endereco && (
-                                          <span className="text-xs text-muted-foreground truncate">{cliente.endereco}</span>
-                                        )}
-                                      </div>
-                                    </CommandItem>
-                                  ))}
-                                </CommandGroup>
-                              </CommandList>
-                            </div>
+                            <CommandList className="max-h-[200px] sm:max-h-[300px]">
+                              <CommandEmpty className="text-sm py-4">Nenhum cliente encontrado.</CommandEmpty>
+                              <CommandGroup>
+                                {filteredClientes.map((cliente) => (
+                                  <CommandItem
+                                    key={cliente.id}
+                                    value={cliente.nome}
+                                    onSelect={() => handleClienteSelect(cliente.id, cliente.nome)}
+                                    className="cursor-pointer py-2 transition-all duration-200 hover:bg-accent/50"
+                                  >
+                                    <User className="mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+                                    <div className="flex flex-col min-w-0 flex-1">
+                                      <span className="font-medium text-sm truncate">{cliente.nome}</span>
+                                      {cliente.telefone && (
+                                        <span className="text-xs text-muted-foreground truncate">{cliente.telefone}</span>
+                                      )}
+                                      {cliente.endereco && (
+                                        <span className="text-xs text-muted-foreground truncate">{cliente.endereco}</span>
+                                      )}
+                                    </div>
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
                             <div className="border-t p-2">
                               <Button
                                 type="button"
@@ -926,7 +931,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                           <div className="flex-1">
                                             <div className="font-medium text-sm flex items-center gap-2">
                                               <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-                                              {item.produto_nome || <span className="text-muted-foreground italic">Novo Item</span>}
+                                              {item.produto_nome || <span className="text-muted-foreground italic">Novo Item #{item.tempDisplayNumber || (items.length - index)}</span>}
                                             </div>
                                             <div className="text-xs text-muted-foreground ml-6 mt-1 flex flex-wrap gap-x-4 gap-y-1">
                                               <span className="flex items-center gap-1">

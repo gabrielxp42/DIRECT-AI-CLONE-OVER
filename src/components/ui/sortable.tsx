@@ -40,7 +40,6 @@ export function SortableItem({ id, children, className }: SortableItemProps) {
         opacity: isDragging ? 0.4 : 1,
         zIndex: isDragging ? 50 : "auto",
         position: "relative" as const,
-        touchAction: "none", // Critical for mobile
     };
 
     return (
