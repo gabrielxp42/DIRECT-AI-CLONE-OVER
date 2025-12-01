@@ -1,4 +1,5 @@
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/integrations/supabase/client';
+import { getValidToken } from '@/utils/tokenGuard';
 import { generateOrderPDF } from '@/utils/pdfGenerator';
 import { removeAccents } from '@/utils/string';
 
@@ -82,7 +83,7 @@ export const getCurrentDateTime = () => {
   // 0=Dom, 1=Seg, 2=Ter, 3=Qua, 4=Qui, 5=Sex, 6=Sáb
   const WORK_WEEK_START_DAY_INDEX = 2; // Terça
   const WORK_WEEK_END_DAY_INDEX = 6; // Sábado
-  const dayOfWeekIndex = rioLocalTime.getDay(); 
+  const dayOfWeekIndex = rioLocalTime.getDay();
 
   let daysToStartOfWeek;
   if (dayOfWeekIndex >= WORK_WEEK_START_DAY_INDEX && dayOfWeekIndex <= WORK_WEEK_END_DAY_INDEX) {
@@ -101,7 +102,7 @@ export const getCurrentDateTime = () => {
   const endOfWorkWeek = new Date(startOfWorkWeek);
   endOfWorkWeek.setDate(startOfWorkWeek.getDate() + (WORK_WEEK_END_DAY_INDEX - WORK_WEEK_START_DAY_INDEX));
   endOfWorkWeek.setHours(23, 59, 59, 999);
-  
+
   // --- CÁLCULO DE OUTROS RANGES ---
   const startOfRioDay = new Date(rioLocalTime);
   startOfRioDay.setHours(0, 0, 0, 0);
@@ -153,7 +154,7 @@ const perform_calculation = (args: { expression: string }) => {
     // Nota: Isso é seguro em um ambiente de Edge Function ou em um contexto controlado como este.
     // Em um ambiente de navegador, é importante garantir que a expressão seja apenas matemática.
     const result = new Function('return ' + args.expression)();
-    
+
     if (typeof result !== 'number' || isNaN(result)) {
       throw new Error("Resultado não é um número válido.");
     }
@@ -178,21 +179,29 @@ const perform_calculation = (args: { expression: string }) => {
 
 // Função para obter o ranking dos clientes
 export const get_top_clients = async (args: { top_n?: number }) => {
-  if (!supabase || typeof supabase.rpc !== 'function') {
-    throw new Error("❌ Cliente Supabase não está disponível para buscar ranking de clientes.");
-  }
-  
   const { top_n = 5 } = args;
   const TIME_ZONE = 'America/Sao_Paulo';
 
   try {
-    // Chamada RPC para a função do banco de dados
-    const { data: topClients, error } = await supabase.rpc('get_top_clients', {
-      top_n: top_n
-      // organization_id_filter é tratado pela RLS ou pela função RPC se necessário
+    const token = await getValidToken();
+    if (!token) throw new Error("Token inválido");
+
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_top_clients`, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ top_n: top_n })
     });
 
-    if (error) throw error;
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Erro HTTP: ${response.status} ${errorText}`);
+    }
+
+    const topClients = await response.json();
 
     if (!topClients || topClients.length === 0) {
       return { message: "❌ Não foi possível encontrar dados de ranking de clientes. Verifique se há pedidos registrados." };
@@ -207,7 +216,7 @@ export const get_top_clients = async (args: { top_n?: number }) => {
     }));
 
     const message = `🏆 **Top ${formattedClients.length} Clientes por Pedidos:**\n\n` +
-      formattedClients.map(c => 
+      formattedClients.map(c =>
         `#${c.rank}: **${c.client_name}** - ${c.total_orders} pedidos, total de ${c.total_spent_formatted}`
       ).join('\n');
 
@@ -233,10 +242,6 @@ export const get_total_meters_by_period = async (args: {
   endDate?: string;
   allTime?: boolean;
 }) => {
-  if (!supabase || typeof supabase.rpc !== 'function') {
-    throw new Error("❌ Cliente Supabase não está disponível para buscar total de metros.");
-  }
-  
   let { startDate, endDate, allTime } = args;
   const TIME_ZONE = 'America/Sao_Paulo';
   const dateInfo = getCurrentDateTime();
@@ -275,15 +280,34 @@ export const get_total_meters_by_period = async (args: {
   }
 
   try {
-    // Usando a função RPC corrigida que usa a tabela 'pedidos'
-    const { data, error } = await supabase.rpc('get_total_meters_by_period', {
-      p_start_date: startDate,
-      p_end_date: endDate
-    }).single();
+    const token = await getValidToken();
+    if (!token) throw new Error("Token inválido");
 
-    if (error) throw error;
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_total_meters_by_period`, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation' // Ensure we get the result back
+      },
+      body: JSON.stringify({
+        p_start_date: startDate,
+        p_end_date: endDate
+      })
+    });
 
-    const result = data as MetersReportResult;
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Erro HTTP: ${response.status} ${errorText}`);
+    }
+
+    const data = await response.json();
+
+    // RPC returns a single object if it returns a composite type, or a scalar
+    // Assuming it returns a single row with total_meters and total_orders
+    const result = (Array.isArray(data) ? data[0] : data) as MetersReportResult;
+
     const totalMeters = result?.total_meters || 0;
     const totalOrders = result?.total_orders || 0;
 
@@ -424,16 +448,16 @@ export const openAIFunctions = [
           description: "Uma lista de status para INCLUIR nos resultados."
         },
         exclude_statuses: {
-            type: "array",
-            items: {
-              type: "string",
-              enum: ["pendente", "processando", "enviado", "entregue", "cancelado", "pago", "aguardando retirada"]
-            },
-            description: "Uma lista de status para EXCLUIR dos resultados. Use para perguntas como 'pedidos que não estão pagos'."
+          type: "array",
+          items: {
+            type: "string",
+            enum: ["pendente", "processando", "enviado", "entregue", "cancelado", "pago", "aguardando retirada"]
+          },
+          description: "Uma lista de status para EXCLUIR dos resultados. Use para perguntas como 'pedidos que não estão pagos'."
         },
         limit: {
-            type: "number",
-            description: "Número máximo de pedidos a retornar. Padrão é 20."
+          type: "number",
+          description: "Número máximo de pedidos a retornar. Padrão é 20."
         },
         includeTotalCount: { // Novo parâmetro
           type: "boolean",
@@ -504,12 +528,12 @@ export const openAIFunctions = [
           description: "Uma lista de status de pedido para INCLUIR nos resultados."
         },
         exclude_statuses: {
-            type: "array",
-            items: {
-              type: "string",
-              enum: ["pendente", "processando", "enviado", "entregue", "cancelado", "pago", "aguardando retirada"]
-            },
-            description: "Uma lista de status de pedido para EXCLUIR dos resultados."
+          type: "array",
+          items: {
+            type: "string",
+            enum: ["pendente", "processando", "enviado", "entregue", "cancelado", "pago", "aguardando retirada"]
+          },
+          description: "Uma lista de status de pedido para EXCLUIR dos resultados."
         },
         limit: {
           type: "number",
@@ -590,31 +614,33 @@ export const openAIFunctions = [
 
 // Helper function to find order by number with multiple strategies
 const findOrderByNumber = async (orderNumber: number) => {
-  if (!supabase || typeof supabase.from !== 'function') {
-    throw new Error("❌ Cliente Supabase não está disponível para buscar pedido.");
-  }
-  
   console.log(`🔍 [findOrderByNumber] Buscando pedido #${orderNumber}...`);
-  
-  // Strategy: Direct query using 'pedidos' table
+
   try {
-    console.log('📍 [findOrderByNumber] Busca direta na tabela pedidos');
-    const { data: orders, error: directError } = await supabase
-      .from('pedidos') // USANDO 'pedidos' para leitura
-      .select('id')
-      .eq('order_number', orderNumber)
-      .limit(1)
-      .single();
+    const token = await getValidToken();
+    if (!token) throw new Error("Token inválido");
 
-    if (directError && directError.code !== 'PGRST116') { // PGRST116 = No rows found
-      throw directError;
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?select=id&order_number=eq.${orderNumber}&limit=1`, {
+      method: 'GET',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      console.log(`❌ [findOrderByNumber] Erro HTTP: ${response.status}`);
+      return null;
     }
 
-    if (orders) {
-      console.log(`✅ [findOrderByNumber] Busca direta encontrou UUID: ${orders.id}`);
-      return orders.id;
+    const data = await response.json();
+
+    if (data && data.length > 0) {
+      console.log(`✅ [findOrderByNumber] Busca direta encontrou UUID: ${data[0].id}`);
+      return data[0].id;
     }
-    
+
     console.log('❌ [findOrderByNumber] Busca direta não encontrou o pedido');
     return null;
   } catch (error) {
@@ -625,159 +651,160 @@ const findOrderByNumber = async (orderNumber: number) => {
 
 // Helper function to perform multiple search strategies for clients
 const findClientWithMultipleStrategies = async (clientName: string) => {
-  if (!supabase || typeof supabase.from !== 'function') {
-    throw new Error("❌ Cliente Supabase não está disponível para buscar cliente.");
-  }
-  
   console.log(`🔍 [findClient] Buscando cliente: "${clientName}"`);
-  
+
   const originalName = clientName.trim();
   const normalizedClientName = removeAccents(clientName.toLowerCase().trim());
 
-  // Strategy 1: Try fuzzy search function (most flexible if working correctly)
   try {
-    console.log('📍 [findClient] Tentativa 1: Busca fuzzy com função do banco (normalized)');
-    const { data: fuzzyClients, error: fuzzyError } = await supabase
-      .rpc('find_client_by_fuzzy_name', { 
-        partial_name: normalizedClientName,
-        similarity_threshold: 0.05 
+    const token = await getValidToken();
+    if (!token) throw new Error("Token inválido");
+
+    const headers = {
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    };
+
+    // Strategy 1: Try fuzzy search function (most flexible if working correctly)
+    try {
+      console.log('📍 [findClient] Tentativa 1: Busca fuzzy com função do banco (normalized)');
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/find_client_by_fuzzy_name`, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({
+          partial_name: normalizedClientName,
+          similarity_threshold: 0.05
+        })
       });
 
-    if (!fuzzyError && fuzzyClients && fuzzyClients.length > 0) {
-      console.log(`✅ [findClient] Busca fuzzy encontrou ${fuzzyClients.length} cliente(s):`, fuzzyClients.map((c: any) => c.nome));
-      return fuzzyClients;
-    }
-    if (fuzzyError) {
-      console.log(`⚠️ [findClient] Erro na busca fuzzy para "${normalizedClientName}":`, fuzzyError.message);
-    }
-  } catch (error) {
-    console.log(`❌ [findClient] Erro ao chamar RPC find_client_by_fuzzy_name:`, error);
-  }
-
-  // Strategy 2: Direct ILIKE search with normalized name (accent-insensitive if DB collation supports, or as a fallback)
-  try {
-    console.log('📍 [findClient] Tentativa 2: Busca ILIKE com nome normalizado');
-    const { data: ilikeNormalizedClients, error: ilikeNormalizedError } = await supabase
-      .from('clientes')
-      .select('id, nome')
-      .ilike('nome', `%${normalizedClientName}%`) 
-      .limit(10);
-
-    if (!ilikeNormalizedError && ilikeNormalizedClients && ilikeNormalizedClients.length > 0) {
-      console.log(`✅ [findClient] ILIKE normalizado encontrou ${ilikeNormalizedClients.length} cliente(s):`, ilikeNormalizedClients.map((c: any) => c.nome));
-      return ilikeNormalizedClients;
-    }
-  } catch (error) {
-    console.log('❌ [findClient] Erro na busca ILIKE normalizada:', error);
-  }
-
-  // Strategy 3: Broad search and client-side filtering (guaranteed accent-insensitive)
-  // This will be the most reliable for accent issues.
-  try {
-    console.log(`📍 [findClient] Tentativa 3: Busca ampla e filtragem client-side (garantido sem acentos)`);
-    // Fetch a larger set of clients to ensure we get potential matches
-    const { data: allClients, error: allClientsError } = await supabase
-      .from('clientes')
-      .select('id, nome')
-      .limit(100); // Fetch up to 100 clients for client-side filtering
-
-    if (!allClientsError && allClients && allClients.length > 0) {
-      const filteredClients = (allClients as any[]).filter(client => 
-        removeAccents(client.nome.toLowerCase()).includes(normalizedClientName)
-      );
-      if (filteredClients.length > 0) {
-        console.log(`✅ [findClient] Busca ampla + client-side encontrou ${filteredClients.length} cliente(s):`, filteredClients.map((c: any) => c.nome));
-        return filteredClients;
-      }
-    }
-  } catch (error) {
-    console.log('❌ [findClient] Erro na busca ampla + client-side:', error);
-  }
-
-  // Strategy 4: Original ILIKE search (if normalized didn't work, maybe original has a specific match)
-  const nameParts = [
-    ...originalName.split(' ').filter(part => part.length > 1),
-    ...normalizedClientName.split(' ').filter(part => part.length > 1)
-  ];
-  const uniqueParts = [...new Set(nameParts)];
-  
-  if (uniqueParts.length > 0) {
-    for (const part of uniqueParts) {
-      try {
-        console.log(`📍 [findClient] Tentativa por parte do nome: "${part}"`);
-        const { data: clients, error: clientError } = await supabase
-          .from('clientes')
-          .select('id, nome')
-          .ilike('nome', `%${part}%`)
-          .limit(10);
-
-        if (!clientError && clients && clients.length > 0) {
-          console.log(`✅ [findClient] Busca por parte encontrou ${clients.length} cliente(s):`, clients.map((c: any) => c.nome));
-          return clients;
+      if (response.ok) {
+        const fuzzyClients = await response.json();
+        if (fuzzyClients && fuzzyClients.length > 0) {
+          console.log(`✅ [findClient] Busca fuzzy encontrou ${fuzzyClients.length} cliente(s):`, fuzzyClients.map((c: any) => c.nome));
+          return fuzzyClients;
         }
-      } catch (error) {
-        console.log('❌ [findClient] Erro na busca por parte "${part}":', error);
+      }
+    } catch (error) {
+      console.log(`❌ [findClient] Erro ao chamar RPC find_client_by_fuzzy_name:`, error);
+    }
+
+    // Strategy 2: Direct ILIKE search with normalized name
+    try {
+      console.log('📍 [findClient] Tentativa 2: Busca ILIKE com nome normalizado');
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=id,nome&nome=ilike.*${encodeURIComponent(normalizedClientName)}*&limit=10`, {
+        method: 'GET',
+        headers: headers
+      });
+
+      if (response.ok) {
+        const ilikeNormalizedClients = await response.json();
+        if (ilikeNormalizedClients && ilikeNormalizedClients.length > 0) {
+          console.log(`✅ [findClient] ILIKE normalizado encontrou ${ilikeNormalizedClients.length} cliente(s):`, ilikeNormalizedClients.map((c: any) => c.nome));
+          return ilikeNormalizedClients;
+        }
+      }
+    } catch (error) {
+      console.log('❌ [findClient] Erro na busca ILIKE normalizada:', error);
+    }
+
+    // Strategy 3: Broad search and client-side filtering
+    try {
+      console.log(`📍 [findClient] Tentativa 3: Busca ampla e filtragem client-side`);
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=id,nome&limit=100`, {
+        method: 'GET',
+        headers: headers
+      });
+
+      if (response.ok) {
+        const allClients = await response.json();
+        if (allClients && allClients.length > 0) {
+          const filteredClients = (allClients as any[]).filter(client =>
+            removeAccents(client.nome.toLowerCase()).includes(normalizedClientName)
+          );
+          if (filteredClients.length > 0) {
+            console.log(`✅ [findClient] Busca ampla + client-side encontrou ${filteredClients.length} cliente(s):`, filteredClients.map((c: any) => c.nome));
+            return filteredClients;
+          }
+        }
+      }
+    } catch (error) {
+      console.log('❌ [findClient] Erro na busca ampla + client-side:', error);
+    }
+
+    // Strategy 4: Original ILIKE search
+    const nameParts = [
+      ...originalName.split(' ').filter(part => part.length > 1),
+      ...normalizedClientName.split(' ').filter(part => part.length > 1)
+    ];
+    const uniqueParts = [...new Set(nameParts)];
+
+    if (uniqueParts.length > 0) {
+      for (const part of uniqueParts) {
+        try {
+          console.log(`📍 [findClient] Tentativa por parte do nome: "${part}"`);
+          const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=id,nome&nome=ilike.*${encodeURIComponent(part)}*&limit=10`, {
+            method: 'GET',
+            headers: headers
+          });
+
+          if (response.ok) {
+            const clients = await response.json();
+            if (clients && clients.length > 0) {
+              console.log(`✅ [findClient] Busca por parte encontrou ${clients.length} cliente(s):`, clients.map((c: any) => c.nome));
+              return clients;
+            }
+          }
+        } catch (error) {
+          console.log(`❌ [findClient] Erro na busca por parte "${part}":`, error);
+        }
       }
     }
-  }
 
-  console.log('❌ [findClient] Nenhuma estratégia de busca encontrou resultados');
-  return null;
+    console.log('❌ [findClient] Nenhuma estratégia de busca encontrou resultados');
+    return null;
+
+  } catch (error) {
+    console.log('❌ [findClient] Erro geral:', error);
+    return null;
+  }
 };
 
 // Helper function to fetch complete order data for PDF generation
 const fetchCompleteOrderData = async (fullOrderId: string) => {
-  if (!supabase || typeof supabase.from !== 'function') {
-    throw new Error("❌ Cliente Supabase não está disponível para buscar dados do pedido.");
-  }
-  
   console.log(`📋 [fetchCompleteOrderData] Buscando dados completos do pedido: ${fullOrderId}`);
-  
-  try {
-    const { data: orderData, error: fetchError } = await supabase
-      .from('pedidos') // USANDO 'pedidos' para leitura
-      .select(`
-        *,
-        clientes (
-          id,
-          nome,
-          email,
-          telefone,
-          endereco
-        ),
-        pedido_items (
-          id,
-          produto_nome,
-          quantidade,
-          preco_unitario,
-          observacao,
-          produtos (
-            id,
-            nome
-          )
-        ),
-        pedido_servicos (
-          id,
-          nome,
-          quantidade,
-          valor_unitario
-        )
-      `)
-      .eq('id', fullOrderId)
-      .single();
 
-    if (fetchError) {
-      console.error('❌ [fetchCompleteOrderData] Erro ao buscar dados:', fetchError);
-      throw fetchError;
+  try {
+    const token = await getValidToken();
+    if (!token) throw new Error("Token inválido");
+
+    const selectQuery = `*,clientes(id,nome,email,telefone,endereco),pedido_items(id,produto_nome,quantidade,preco_unitario,observacao,produtos(id,nome)),pedido_servicos(id,nome,quantidade,valor_unitario)`;
+
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?select=${selectQuery}&id=eq.${fullOrderId}`, {
+      method: 'GET',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Erro HTTP: ${response.status} ${errorText}`);
     }
 
-    if (!orderData) {
+    const data = await response.json();
+
+    if (!data || data.length === 0) {
       console.error('❌ [fetchCompleteOrderData] Nenhum dado encontrado');
       throw new Error('Pedido não encontrado');
     }
 
+    const orderData = data[0];
+
     console.log('✅ [fetchCompleteOrderData] Dados completos obtidos com sucesso');
-    
+
     // Transform the data to match the expected format
     const transformedOrder = {
       ...orderData,
@@ -800,10 +827,6 @@ export const list_orders = async (args: {
   includeTotalCount?: boolean;
   allTime?: boolean; // NEW
 }) => {
-  if (!supabase || typeof supabase.from !== 'function') {
-    throw new Error("❌ Cliente Supabase não está disponível para listar pedidos.");
-  }
-  
   let { startDate, endDate, limit = 10, orderBy = 'created_at_desc', includeTotalCount, allTime } = args;
   const TIME_ZONE = 'America/Sao_Paulo';
   const dateInfo = getCurrentDateTime();
@@ -845,99 +868,126 @@ export const list_orders = async (args: {
 
   console.log(`📊 [list_orders] Datas finais para consulta:`, { startDate, endDate }); // Log final dates
 
-  let query = supabase
-    .from('pedidos') // USANDO 'pedidos'
-    .select(`
-      id,
-      order_number,
-      status,
-      valor_total,
-      total_metros,
-      created_at,
-      clientes (nome)
-    `, { count: includeTotalCount ? 'exact' : null });
+  try {
+    console.log('🔄 [list_orders] Obtendo token...');
+    const token = await getValidToken();
+    console.log('✅ [list_orders] Token obtido:', token ? 'Sim' : 'Não');
+    if (!token) {
+      throw new Error("Não foi possível obter um token de autenticação válido.");
+    }
 
-  if (startDate) {
-    query = query.gte('created_at', startDate);
-  }
-  if (endDate) {
-    query = query.lte('created_at', endDate);
-  }
+    const queryParams = new URLSearchParams();
+    queryParams.append('select', 'id,order_number,status,valor_total,total_metros,created_at,clientes(nome)');
 
-  let orderField: string;
-  let ascending: boolean;
+    if (startDate) {
+      queryParams.append('created_at', `gte.${startDate}`);
+    }
+    if (endDate) {
+      queryParams.append('created_at', `lte.${endDate}`);
+    }
 
-  switch (orderBy) {
-    case 'created_at_asc':
-      orderField = 'created_at';
-      ascending = true;
-      break;
-    case 'created_at_desc':
-      orderField = 'created_at';
-      ascending = false;
-      break;
-    case 'valor_total_desc':
-      orderField = 'valor_total';
-      ascending = false;
-      break;
-    default: // Default to created_at_desc
-      orderField = 'created_at';
-      ascending = false;
-      break;
-  }
+    let orderField: string = 'created_at';
+    let ascending: boolean = false;
 
-  query = query.order(orderField, { ascending: ascending });
-  
-  if (!includeTotalCount && limit && limit > 0) {
-    query = query.limit(limit);
-  }
+    switch (orderBy) {
+      case 'created_at_asc': orderField = 'created_at'; ascending = true; break;
+      case 'created_at_desc': orderField = 'created_at'; ascending = false; break;
+      case 'valor_total_desc': orderField = 'valor_total'; ascending = false; break;
+      default: orderField = 'created_at'; ascending = false; break;
+    }
 
-  const { data: orders, error, count } = await query;
+    queryParams.append('order', `${orderField}.${ascending ? 'asc' : 'desc'}`);
 
-  if (error) {
+    if (!includeTotalCount && limit && limit > 0) {
+      queryParams.append('limit', limit.toString());
+    }
+
+    const headers: HeadersInit = {
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    };
+
+    if (includeTotalCount) {
+      headers['Prefer'] = 'count=exact';
+    }
+
+    console.log('🌐 [list_orders] Fazendo requisição fetch para:', `${SUPABASE_URL}/rest/v1/pedidos?${queryParams.toString()}`);
+    console.log('🔑 [list_orders] Headers:', headers);
+
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?${queryParams.toString()}`, {
+      method: 'GET',
+      headers: headers
+    });
+
+    console.log('📡 [list_orders] Resposta recebida. Status:', response.status, 'OK:', response.ok);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Erro na requisição: ${response.status} ${errorText}`);
+    }
+
+    console.log('📦 [list_orders] Parseando JSON da resposta...');
+    const orders = await response.json();
+    console.log('✅ [list_orders] JSON parseado. Pedidos encontrados:', orders?.length || 0);
+
+    let count = orders.length;
+    const contentRange = response.headers.get('Content-Range');
+    if (contentRange && contentRange.includes('/')) {
+      const total = contentRange.split('/')[1];
+      if (total !== '*') {
+        count = parseInt(total, 10);
+      }
+    }
+
+    const totalCountMessage = includeTotalCount ? ` (Total de ${count} pedidos encontrados)` : '';
+
+    if (!orders || orders.length === 0) {
+      return { message: `❌ Nenhum pedido encontrado ${periodDescription}.${totalCountMessage}` };
+    }
+
+    // FIX 1: Casting para OrderWithClient[]
+    const formattedOrders = (orders as unknown as OrderWithClient[]).map((order, index) => ({
+      index: index + 1,
+      order_number: order.order_number,
+      status: order.status,
+      valor_total: order.valor_total,
+      total_metros: order.total_metros,
+      created_at: new Date(order.created_at).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }),
+      cliente: order.clientes?.nome
+    }));
+
+    // FIX 2, 3: Casting para OrderWithClient[]
+    const totalValue = (orders as unknown as OrderWithClient[]).reduce((sum, order) => sum + order.valor_total, 0);
+    const totalMetros = (orders as unknown as OrderWithClient[]).reduce((sum, order) => sum + (order.total_metros || 0), 0);
+    const totalValueFormatted = new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(totalValue);
+
+    console.log('🎉 [list_orders] Preparando retorno com', orders.length, 'pedidos');
+
+    const result = {
+      orders: formattedOrders,
+      summary: {
+        count: orders.length,
+        totalValue: totalValue,
+        totalMetros: totalMetros,
+        period: {
+          start: startDate ? new Date(startDate).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }) : 'início',
+          end: endDate ? new Date(endDate).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }) : 'fim'
+        },
+        totalMatchingOrders: count
+      },
+      message: `📊 Encontrados **${orders.length} pedidos** ${periodDescription}.${totalCountMessage}\n💰 Receita total: **${totalValueFormatted}**\n📏 Total de Metros: **${totalMetros.toFixed(2)} ML**`
+    };
+
+    console.log('✨ [list_orders] Retornando resultado:', result);
+    return result;
+  } catch (error: any) {
     console.error("Erro ao listar pedidos por data:", error);
     throw new Error(`Erro ao listar pedidos por data: ${error.message}`);
   }
-
-  const totalCountMessage = includeTotalCount ? ` (Total de ${count} pedidos encontrados)` : '';
-
-  if (!orders || orders.length === 0) {
-    return { message: `❌ Nenhum pedido encontrado ${periodDescription}.${totalCountMessage}` };
-  }
-
-  // FIX 1: Casting para OrderWithClient[]
-  const formattedOrders = (orders as unknown as OrderWithClient[]).map((order, index) => ({
-    index: index + 1,
-    order_number: order.order_number,
-    status: order.status,
-    valor_total: order.valor_total,
-    total_metros: order.total_metros,
-    created_at: new Date(order.created_at).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }),
-    cliente: order.clientes?.nome
-  }));
-
-  // FIX 2, 3: Casting para OrderWithClient[]
-  const totalValue = (orders as unknown as OrderWithClient[]).reduce((sum, order) => sum + order.valor_total, 0);
-  const totalMetros = (orders as unknown as OrderWithClient[]).reduce((sum, order) => sum + (order.total_metros || 0), 0);
-  const totalValueFormatted = new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL'
-  }).format(totalValue);
-  
-  return { 
-    orders: formattedOrders, 
-    summary: {
-      count: orders.length,
-      totalValue: totalValue,
-      totalMetros: totalMetros,
-      period: {
-        start: startDate ? new Date(startDate).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }) : 'início',
-        end: endDate ? new Date(endDate).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }) : 'fim'
-      },
-      totalMatchingOrders: count
-    },
-    message: `📊 Encontrados **${orders.length} pedidos** ${periodDescription}.${totalCountMessage}\n💰 Receita total: **${totalValueFormatted}**\n📏 Total de Metros: **${totalMetros.toFixed(2)} ML**` 
-  };
 };
 
 // New list_services function with multiple strategies
@@ -951,10 +1001,7 @@ export const list_services = async (args: {
   includeTotalCount?: boolean;
   allTime?: boolean;
 }) => {
-  if (!supabase || typeof supabase.from !== 'function') {
-    throw new Error("❌ Cliente Supabase não está disponível para listar serviços.");
-  }
-  
+
   let { startDate, endDate, statuses, exclude_statuses, limit = 10, orderBy = 'created_at_desc', includeTotalCount, allTime } = args;
   const TIME_ZONE = 'America/Sao_Paulo';
   const dateInfo = getCurrentDateTime();
@@ -1018,208 +1065,94 @@ export const list_services = async (args: {
       break;
   }
 
-  // Strategy 1: Try pedido_servicos table with JOIN
+  // Strategy 1: Try pedido_servicos table with JOIN via Fetch
   try {
-    console.log('📍 [list_services] Tentativa 1: Tabela pedido_servicos com JOIN');
-    
-    let query = supabase
-      .from('pedido_servicos')
-      .select(`
-        id,
-        nome,
-        quantidade,
-        valor_unitario,
-        pedido_id,
-        pedidos!inner (
-          id,
-          order_number,
-          status,
-          created_at,
-          clientes (nome)
-        )
-      `, { count: includeTotalCount ? 'exact' : null });
+    console.log('📍 [list_services] Tentativa 1: Tabela pedido_servicos com JOIN (via Fetch)');
+
+    const token = await getValidToken();
+    if (!token) {
+      throw new Error("Não foi possível obter um token de autenticação válido.");
+    }
+
+    const queryParams = new URLSearchParams();
+    queryParams.append('select', 'id,nome,quantidade,valor_unitario,pedido_id,pedidos!inner(id,order_number,status,created_at,clientes(nome))');
 
     if (startDate) {
-      query = query.gte('pedidos.created_at', startDate);
+      queryParams.append('pedidos.created_at', `gte.${startDate}`);
     }
     if (endDate) {
-      query = query.lte('pedidos.created_at', endDate);
+      queryParams.append('pedidos.created_at', `lte.${endDate}`);
     }
-    
-    // NEW: Apply status filters
+
     if (statuses && statuses.length > 0) {
-        query = query.in('pedidos.status', statuses);
+      const statusList = statuses.map(s => `"${s}"`).join(',');
+      queryParams.append('pedidos.status', `in.(${statusList})`);
     }
     if (exclude_statuses && exclude_statuses.length > 0) {
-        query = query.not('pedidos.status', 'in', `(${exclude_statuses.map(s => `"${s}"`).join(',')})`);
+      const statusList = exclude_statuses.map(s => `"${s}"`).join(',');
+      queryParams.append('pedidos.status', `not.in.(${statusList})`);
     }
 
-    // Removed direct ordering on joined table to avoid 400 error.
-    // Ordering will be handled client-side or by Strategy 2.
-    
     if (!includeTotalCount && limit && limit > 0) {
-      query = query.limit(limit);
+      queryParams.append('limit', limit.toString());
     }
 
-    const { data: services, error, count } = await query;
+    const headers: HeadersInit = {
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    };
 
-    if (!error && services) {
-      console.log(`✅ [list_services] Estratégia 1 funcionou: ${services.length} serviços encontrados`);
-      
-      const totalCountMessage = includeTotalCount ? ` (Total de ${count} serviços encontrados)` : '';
+    if (includeTotalCount) {
+      headers['Prefer'] = 'count=exact';
+    }
 
-      if (services.length === 0) {
-        return { message: `❌ Nenhum serviço encontrado ${periodDescription}.${totalCountMessage}` };
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/pedido_servicos?${queryParams.toString()}`, {
+      method: 'GET',
+      headers: headers
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Erro na requisição: ${response.status} ${errorText}`);
+    }
+
+    const services = await response.json();
+
+    let count = services.length;
+    const contentRange = response.headers.get('Content-Range');
+    if (contentRange && contentRange.includes('/')) {
+      const total = contentRange.split('/')[1];
+      if (total !== '*') {
+        count = parseInt(total, 10);
       }
-
-      // FIX 4: Casting para ServiceWithOrder[]
-      let formattedServices = (services as unknown as ServiceWithOrder[]).map((service, index) => ({
-        index: index + 1,
-        service_name: service.nome,
-        quantity: Number(service.quantidade), // ADDED COERCION
-        unit_value: Number(service.valor_unitario), // ADDED COERCION
-        total_value: Number(service.quantidade) * Number(service.valor_unitario), // ADDED COERCION
-        order_number: service.pedidos?.order_number,
-        order_status: service.pedidos?.status,
-        order_date: service.pedidos ? new Date(service.pedidos.created_at).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }) : 'N/A',
-        client_name: service.pedidos?.clientes?.nome
-      }));
-
-      // Apply client-side sorting for Strategy 1
-      if (orderField === 'created_at') {
-        formattedServices.sort((a, b) => {
-          const dateA = new Date(a.order_date.split('/').reverse().join('-')).getTime(); // Convert dd/MM/yyyy to yyyy-MM-dd for Date object
-          const dateB = new Date(b.order_date.split('/').reverse().join('-')).getTime();
-          return ascending ? dateA - dateB : dateB - dateA;
-        });
-      } else if (orderField === 'valor_total') {
-        formattedServices.sort((a, b) => ascending ? a.total_value - b.total_value : b.total_value - a.total_value);
-      }
-
-      const totalRevenue = formattedServices.reduce((sum, service) => sum + service.total_value, 0);
-      const totalRevenueFormatted = new Intl.NumberFormat('pt-BR', {
-        style: 'currency',
-        currency: 'BRL'
-      }).format(totalRevenue);
-
-      return { 
-        services: formattedServices, 
-        summary: {
-          count: services.length,
-          totalRevenue: totalRevenue,
-          period: {
-            start: startDate ? new Date(startDate).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }) : 'início',
-            end: endDate ? new Date(endDate).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }) : 'fim'
-          },
-          totalMatchingServices: count
-        },
-        message: `🛠️ Encontrados **${services.length} serviços** ${periodDescription}.\n💰 Receita total: **${totalRevenueFormatted}**` 
-      };
-    }
-    
-    console.log('⚠️ [list_services] Estratégia 1 falhou:', error?.message);
-  } catch (error) {
-    console.log('❌ [list_services] Erro na estratégia 1:', error);
-  }
-
-  // Strategy 2: Try alternative approach - get all orders first, then filter services
-  try {
-    console.log('📍 [list_services] Tentativa 2: Buscar pedidos primeiro, depois serviços');
-    
-    let ordersQuery = supabase
-      .from('pedidos') // USANDO 'pedidos'
-      .select(`
-        id,
-        order_number,
-        status,
-        valor_total,
-        total_metros,
-        created_at,
-        clientes (nome)
-      `);
-
-    if (startDate) {
-      ordersQuery = ordersQuery.gte('created_at', startDate);
-    }
-    if (endDate) {
-      ordersQuery = ordersQuery.lte('created_at', endDate);
-    }
-    
-    // NEW: Apply status filters to orders query
-    if (statuses && statuses.length > 0) {
-        ordersQuery = ordersQuery.in('status', statuses);
-    }
-    if (exclude_statuses && exclude_statuses.length > 0) {
-        ordersQuery = ordersQuery.not('status', 'in', `(${exclude_statuses.map(s => `"${s}"`).join(',')})`);
     }
 
-    // Apply order to ordersQuery if orderBy is related to order creation date
-    if (orderField === 'created_at') {
-      ordersQuery = ordersQuery.order('created_at', { ascending: ascending });
-    }
-    // No limit on ordersQuery if includeTotalCount is true for services, as we need all orders to find all services.
-    // If includeTotalCount is false, we might still need all orders to find services, then apply limit later.
+    console.log(`✅ [list_services] Estratégia 1 funcionou: ${services.length} serviços encontrados`);
 
-    const { data: orders, error: ordersError, count: ordersCount } = await ordersQuery; // Get count for orders
+    const totalCountMessage = includeTotalCount ? ` (Total de ${count} serviços encontrados)` : '';
 
-    if (ordersError) {
-      console.log('❌ [list_services] Erro ao buscar pedidos:', ordersError.message);
-      throw new Error(`Erro ao buscar pedidos: ${ordersError.message}`);
-    }
-
-    if (!orders || orders.length === 0) {
-      const totalCountMessage = includeTotalCount ? ` (Total de 0 serviços encontrados)` : ''; // Define here
-      return { message: `❌ Nenhum pedido encontrado ${periodDescription}, portanto nenhum serviço.${totalCountMessage}` };
-    }
-
-    const orderIds = orders.map(order => order.id);
-    
-    // Try to get services from pedido_servicos table
-    let servicesQuery = supabase
-      .from('pedido_servicos')
-      .select('*', { count: includeTotalCount ? 'exact' : null }) // Get count for services
-      .in('pedido_id', orderIds);
-
-    // Apply limit to servicesQuery if not including total count
-    if (!includeTotalCount && limit && limit > 0) {
-      servicesQuery = servicesQuery.limit(limit);
-    }
-
-    const { data: services, error: servicesError, count: servicesCount } = await servicesQuery;
-
-    if (servicesError) {
-      console.log('⚠️ [list_services] Erro na tabela pedido_servicos:', servicesError.message);
-      throw new Error(`Erro ao buscar serviços: ${servicesError.message}`);
-    }
-
-    if (!services || services.length === 0) {
-      const totalCountMessage = includeTotalCount ? ` (Total de ${servicesCount} serviços encontrados)` : ''; // Define here
+    if (services.length === 0) {
       return { message: `❌ Nenhum serviço encontrado ${periodDescription}.${totalCountMessage}` };
     }
 
-    console.log(`✅ [list_services] Estratégia 2 funcionou: ${services.length} serviços encontrados`);
+    // FIX 4: Casting para ServiceWithOrder[]
+    let formattedServices = (services as any[]).map((service, index) => ({
+      index: index + 1,
+      service_name: service.nome,
+      quantity: Number(service.quantidade), // ADDED COERCION
+      unit_value: Number(service.valor_unitario), // ADDED COERCION
+      total_value: Number(service.quantidade) * Number(service.valor_unitario), // ADDED COERCION
+      order_number: service.pedidos?.order_number,
+      order_status: service.pedidos?.status,
+      order_date: service.pedidos ? new Date(service.pedidos.created_at).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }) : 'N/A',
+      client_name: service.pedidos?.clientes?.nome
+    }));
 
-    // Map services with order information
-    let formattedServices = (services as any[]).map((service, index) => {
-      // FIX 5: Casting para OrderWithClient[]
-      const relatedOrder = (orders as unknown as OrderWithClient[]).find(order => order.id === service.pedido_id);
-      return {
-        index: index + 1,
-        service_name: service.nome,
-        quantity: Number(service.quantidade), // ADDED COERCION
-        unit_value: Number(service.valor_unitario), // ADDED COERCION
-        total_value: Number(service.quantidade) * Number(service.valor_unitario), // ADDED COERCION
-        order_number: relatedOrder?.order_number,
-        order_status: relatedOrder?.status,
-        order_date: relatedOrder ? new Date(relatedOrder.created_at).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }) : 'N/A',
-        client_name: relatedOrder?.clientes?.nome
-      };
-    });
-
-    // Apply client-side sorting for services if orderBy is provided
+    // Apply client-side sorting for Strategy 1
     if (orderField === 'created_at') {
       formattedServices.sort((a, b) => {
-        const dateA = new Date(a.order_date.split('/').reverse().join('-')).getTime();
+        const dateA = new Date(a.order_date.split('/').reverse().join('-')).getTime(); // Convert dd/MM/yyyy to yyyy-MM-dd for Date object
         const dateB = new Date(b.order_date.split('/').reverse().join('-')).getTime();
         return ascending ? dateA - dateB : dateB - dateA;
       });
@@ -1233,10 +1166,8 @@ export const list_services = async (args: {
       currency: 'BRL'
     }).format(totalRevenue);
 
-    const totalCountMessage = includeTotalCount ? ` (Total de ${servicesCount} serviços encontrados)` : ''; // Define here
-
-    return { 
-      services: formattedServices, 
+    return {
+      services: formattedServices,
       summary: {
         count: services.length,
         totalRevenue: totalRevenue,
@@ -1244,13 +1175,13 @@ export const list_services = async (args: {
           start: startDate ? new Date(startDate).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }) : 'início',
           end: endDate ? new Date(endDate).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }) : 'fim'
         },
-        totalMatchingServices: servicesCount // Use servicesCount for total matching services
+        totalMatchingServices: count
       },
-      message: `🛠️ Encontrados **${services.length} serviços** ${periodDescription}.\n💰 Receita total: **${totalRevenueFormatted}**` 
+      message: `🛠️ Encontrados **${services.length} serviços** ${periodDescription}.\n💰 Receita total: **${totalRevenueFormatted}**`
     };
 
   } catch (error: any) {
-    console.error('❌ [list_services] Todas as estratégias falharam:', error);
+    console.log('❌ [list_services] Erro na estratégia 1:', error);
     throw new Error(`Erro ao buscar serviços: ${error.message}`);
   }
 };
@@ -1259,11 +1190,9 @@ export const list_services = async (args: {
 // ... (fetchCompleteOrderData is defined above)
 
 export const callOpenAIFunction = async (functionCall: { name: string; arguments: any }) => {
-  // Adiciona verificação de segurança para o cliente Supabase no início
-  if (!supabase || typeof supabase.from !== 'function') {
-    throw new Error("❌ Cliente Supabase não está disponível. O assistente não pode acessar o banco de dados.");
-  }
-  
+  console.log(`🎯 [callOpenAIFunction] INÍCIO - Função chamada:`, functionCall.name);
+  console.log(`📋 [callOpenAIFunction] Argumentos recebidos:`, functionCall.arguments);
+
   const { name, arguments: args } = functionCall;
   console.log(`🚀 [callOpenAIFunction] Executando: ${name}`, args);
 
@@ -1277,7 +1206,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       ranges: dateInfo.ranges
     };
   }
-  
+
   if (name === "perform_calculation") {
     return perform_calculation(args);
   }
@@ -1285,7 +1214,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
   if (name === "get_top_clients") {
     return get_top_clients(args);
   }
-  
+
   if (name === "get_total_meters_by_period") { // Handle the new tool
     return get_total_meters_by_period(args);
   }
@@ -1293,21 +1222,26 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
   if (name === "get_client_orders") {
     const { clientName } = args;
     console.log(`🔍 [get_client_orders] Buscando pedidos para cliente: "${clientName}"`);
-    
+
     const foundClients = await findClientWithMultipleStrategies(clientName);
-    
+
     if (!foundClients || foundClients.length === 0) {
       console.log(`❌ [get_client_orders] Nenhum cliente encontrado para: "${clientName}"`);
-      
+
       // Buscar alguns clientes para sugerir
       try {
-        const { data: allClients, error } = await supabase
-          .from('clientes')
-          .select('nome')
-          .limit(10);
-        
-        const clientList = (allClients as ClientName[]).map(c => c.nome).join(', ');
-        throw new Error(`❌ Não encontrei nenhum cliente com o nome "${clientName}".\n\n📋 Alguns clientes disponíveis no sistema:\n${clientList}\n\n💡 Dica: Tente usar o nome completo ou verifique a grafia.`);
+        const token = await getValidToken();
+        if (token) {
+          const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=nome&limit=10`, {
+            headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${token}` }
+          });
+          if (response.ok) {
+            const allClients = await response.json();
+            const clientList = (allClients as ClientName[]).map(c => c.nome).join(', ');
+            throw new Error(`❌ Não encontrei nenhum cliente com o nome "${clientName}".\n\n📋 Alguns clientes disponíveis no sistema:\n${clientList}\n\n💡 Dica: Tente usar o nome completo ou verifique a grafia.`);
+          }
+        }
+        throw new Error(`❌ Não encontrei nenhum cliente com o nome "${clientName}".`);
       } catch (error: any) {
         console.error(`❌ [get_client_orders] Erro ao buscar lista de clientes:`, error);
         throw new Error(`❌ Não encontrei nenhum cliente com o nome "${clientName}". Verifique se o nome está correto ou tente usar apenas parte do nome.`);
@@ -1317,81 +1251,94 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
     console.log(`✅ [get_client_orders] Cliente(s) encontrado(s):`, foundClients.map((c: any) => c.nome));
 
     const clientIds = foundClients.map((c: any) => c.id);
-    const { data: orders, error: orderError } = await supabase
-      .from('pedidos') // USANDO 'pedidos'
-      .select(`
-        id,
-        order_number,
-        status,
-        valor_total,
-        total_metros,
-        created_at,
-        clientes (nome)
-      `)
-      .in('cliente_id', clientIds)
-      .order('created_at', { ascending: false });
+    const clientIdsString = clientIds.map((id: string) => `"${id}"`).join(',');
 
-    if (orderError) {
+    try {
+      const token = await getValidToken();
+      if (!token) throw new Error("Token inválido");
+
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?select=id,order_number,status,valor_total,total_metros,created_at,clientes(nome)&cliente_id=in.(${clientIdsString})&order=created_at.desc`, {
+        method: 'GET',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Erro HTTP: ${response.status} ${errorText}`);
+      }
+
+      const orders = await response.json();
+
+      if (!orders || orders.length === 0) {
+        const clientNames = foundClients.map((c: any) => c.nome).join(', ');
+        console.log(`❌ [get_client_orders] Nenhum pedido encontrado para: ${clientNames}`);
+        return {
+          message: `✅ Cliente encontrado: **${clientNames}**\n\n❌ Porém, este cliente ainda não possui nenhum pedido registrado no sistema.`
+        };
+      }
+
+      console.log(`✅ [get_client_orders] Encontrados ${orders.length} pedidos`);
+
+      // FIX 6: Casting para OrderWithClient[]
+      const formattedOrders = (orders as unknown as OrderWithClient[]).map((order, index) => ({
+        index: index + 1,
+        order_number: order.order_number,
+        status: order.status,
+        valor_total: order.valor_total,
+        total_metros: order.total_metros,
+        created_at: new Date(order.created_at).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }),
+        cliente: order.clientes?.nome
+      }));
+
+      // FIX 7, 8: Casting para OrderWithClient[]
+      const totalValue = (orders as unknown as OrderWithClient[]).reduce((sum, order) => sum + order.valor_total, 0);
+      const totalMetros = (orders as unknown as OrderWithClient[]).reduce((sum, order) => sum + (order.total_metros || 0), 0);
+      const clientNames = foundClients.map((c: any) => c.nome).join(', ');
+
+      return {
+        orders: formattedOrders,
+        summary: {
+          clientName: clientNames,
+          totalOrders: orders.length,
+          totalValue: totalValue,
+          totalMetros: totalMetros,
+          foundMultipleClients: foundClients.length > 1
+        },
+        message: `✅ Encontrei **${orders.length} pedido(s)** para o cliente: **${clientNames}**${foundClients.length > 1 ? ' (encontrei múltiplos clientes similares)' : ''}\n\n💰 Valor total: **R$ ${totalValue.toFixed(2)}**\n📏 Total de Metros: **${totalMetros.toFixed(2)} ML**`
+      };
+
+    } catch (orderError: any) {
       console.error("❌ [get_client_orders] Erro ao buscar pedidos do cliente:", orderError);
       throw new Error(orderError.message);
     }
-
-    if (!orders || orders.length === 0) {
-      const clientNames = foundClients.map((c: any) => c.nome).join(', ');
-      console.log(`❌ [get_client_orders] Nenhum pedido encontrado para: ${clientNames}`);
-      return { 
-        message: `✅ Cliente encontrado: **${clientNames}**\n\n❌ Porém, este cliente ainda não possui nenhum pedido registrado no sistema.` 
-      };
-    }
-
-    console.log(`✅ [get_client_orders] Encontrados ${orders.length} pedidos`);
-
-    // FIX 6: Casting para OrderWithClient[]
-    const formattedOrders = (orders as unknown as OrderWithClient[]).map((order, index) => ({
-      index: index + 1,
-      order_number: order.order_number,
-      status: order.status,
-      valor_total: order.valor_total,
-      total_metros: order.total_metros,
-      created_at: new Date(order.created_at).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }),
-      cliente: order.clientes?.nome
-    }));
-    
-    // FIX 7, 8: Casting para OrderWithClient[]
-    const totalValue = (orders as unknown as OrderWithClient[]).reduce((sum, order) => sum + order.valor_total, 0);
-    const totalMetros = (orders as unknown as OrderWithClient[]).reduce((sum, order) => sum + (order.total_metros || 0), 0);
-    const clientNames = foundClients.map((c: any) => c.nome).join(', ');
-    
-    return { 
-      orders: formattedOrders, 
-      summary: {
-        clientName: clientNames,
-        totalOrders: orders.length,
-        totalValue: totalValue,
-        totalMetros: totalMetros,
-        foundMultipleClients: foundClients.length > 1
-      },
-      message: `✅ Encontrei **${orders.length} pedido(s)** para o cliente: **${clientNames}**${foundClients.length > 1 ? ' (encontrei múltiplos clientes similares)' : ''}\n\n💰 Valor total: **R$ ${totalValue.toFixed(2)}**\n📏 Total de Metros: **${totalMetros.toFixed(2)} ML**`
-    };
   }
 
   if (name === "get_client_details") {
     const { clientName } = args;
     console.log(`🔍 [get_client_details] Buscando detalhes para cliente: "${clientName}"`);
-    
+
     const foundClients = await findClientWithMultipleStrategies(clientName);
-    
+
     if (!foundClients || foundClients.length === 0) {
       console.log(`❌ [get_client_details] Nenhum cliente encontrado para: "${clientName}"`);
-      
+
       try {
-        const { data: allClients, error } = await supabase
-          .from('clientes')
-          .select('nome')
-          .limit(10);
-        
-        const clientList = (allClients as ClientName[]).map(c => c.nome).join(', ');
-        throw new Error(`❌ Não encontrei nenhum cliente com o nome "${clientName}".\n\n📋 Alguns clientes disponíveis:\n${clientList}`);
+        const token = await getValidToken();
+        if (token) {
+          const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=nome&limit=10`, {
+            headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${token}` }
+          });
+          if (response.ok) {
+            const allClients = await response.json();
+            const clientList = (allClients as ClientName[]).map(c => c.nome).join(', ');
+            throw new Error(`❌ Não encontrei nenhum cliente com o nome "${clientName}".\n\n📋 Alguns clientes disponíveis:\n${clientList}`);
+          }
+        }
+        throw new Error(`❌ Não encontrei nenhum cliente com o nome "${clientName}".`);
       } catch (error: any) {
         console.error(`❌ [get_client_details] Erro ao buscar lista de clientes:`, error);
         throw new Error(`❌ Não encontrei nenhum cliente com o nome "${clientName}". Verifique se o nome está correto.`);
@@ -1401,50 +1348,64 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
     console.log(`✅ [get_client_details] Cliente(s) encontrado(s):`, foundClients.map((c: any) => c.nome));
 
     const clientId = (foundClients as any[])[0].id;
-    const { data, error } = await supabase
-      .from('clientes')
-      .select('*')
-      .eq('id', clientId)
-      .single();
 
-    if (error) {
+    try {
+      const token = await getValidToken();
+      if (!token) throw new Error("Token inválido");
+
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=*&id=eq.${clientId}&limit=1`, {
+        method: 'GET',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/vnd.pgrst.object+json' // Request single object
+        }
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Erro HTTP: ${response.status} ${errorText}`);
+      }
+
+      const client = await response.json();
+
+      let message = `👤 **Detalhes do cliente: ${client.nome}**`;
+
+      if (foundClients.length > 1) {
+        const otherClients = foundClients.slice(1).map((c: any) => c.nome).join(', ');
+        message += `\n\n🔍 Também encontrei clientes similares: ${otherClients}`;
+      }
+
+      return {
+        message,
+        client: {
+          nome: client.nome,
+          email: client.email || 'Não informado',
+          telefone: client.telefone || 'Não informado',
+          endereco: client.endereco || 'Não informado',
+          status: client.status,
+          valor_metro: client.valor_metro ? `R$ ${client.valor_metro.toFixed(2)}` : 'Não informado'
+        }
+      };
+    } catch (error: any) {
       console.error("❌ [get_client_details] Erro ao buscar detalhes completos do cliente:", error);
       throw new Error(error.message);
     }
-
-    const client = data as any;
-    let message = `👤 **Detalhes do cliente: ${client.nome}**`;
-    
-    if (foundClients.length > 1) {
-      const otherClients = foundClients.slice(1).map((c: any) => c.nome).join(', ');
-      message += `\n\n🔍 Também encontrei clientes similares: ${otherClients}`;
-    }
-
-    return {
-      message,
-      client: {
-        nome: client.nome,
-        email: client.email || 'Não informado',
-        telefone: client.telefone || 'Não informado',
-        endereco: client.endereco || 'Não informado',
-        status: client.status,
-        valor_metro: client.valor_metro ? `R$ ${client.valor_metro.toFixed(2)}` : 'Não informado'
-      }
-    };
   }
 
   if (name === "get_order_details") {
     const { orderNumber } = args;
-    
+
     const fullOrderId = await findOrderByNumber(orderNumber);
-    
+
     if (!fullOrderId) {
       throw new Error(`❌ Pedido #${orderNumber} não encontrado. Por favor, verifique o número do pedido.`);
     }
 
     try {
       const orderData = await fetchCompleteOrderData(fullOrderId);
-      
+
       const formattedItems = (orderData as any).pedido_items.map((item: any) => ({
         nome: item.produto_nome,
         quantidade: item.quantidade,
@@ -1452,7 +1413,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
         total: item.quantidade * item.preco_unitario,
         observacao: item.observacao || ''
       }));
-      
+
       const formattedServices = (orderData as any).pedido_servicos.map((service: any) => ({
         nome: service.nome,
         quantidade: service.quantidade,
@@ -1484,51 +1445,71 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
     const { statuses, exclude_statuses, limit = 20, includeTotalCount } = args;
 
     if ((!statuses || statuses.length === 0) && (!exclude_statuses || exclude_statuses.length === 0) && !includeTotalCount) {
-        throw new Error("❌ É necessário especificar quais status incluir ou excluir, ou pedir a contagem total.");
+      throw new Error("❌ É necessário especificar quais status incluir ou excluir, ou pedir a contagem total.");
     }
 
-    let query = supabase
-      .from('pedidos') // USANDO 'pedidos'
-      .select(`
-        id,
-        order_number,
-        status,
-        valor_total,
-        total_metros,
-        created_at,
-        clientes (nome)
-      `, { count: includeTotalCount ? 'exact' : null }); // Adiciona contagem exata se solicitado
+    try {
+      const token = await getValidToken();
+      if (!token) throw new Error("Token inválido");
 
-    if (statuses && statuses.length > 0) {
-        query = query.in('status', statuses);
-    }
+      const queryParams = new URLSearchParams();
+      queryParams.append('select', 'id,order_number,status,valor_total,total_metros,created_at,clientes(nome)');
 
-    if (exclude_statuses && exclude_statuses.length > 0) {
-        query = query.not('status', 'in', `(${exclude_statuses.map(s => `"${s}"`).join(',')})`);
-    }
+      if (statuses && statuses.length > 0) {
+        const statusList = statuses.map(s => `"${s}"`).join(',');
+        queryParams.append('status', `in.(${statusList})`);
+      }
 
-    query = query.order('created_at', { ascending: false });
-    
-    // Aplica limite apenas se NÃO for para contar o total E se houver um limite definido e maior que 0
-    if (!includeTotalCount && limit && limit > 0) {
-      query = query.limit(limit);
-    }
+      if (exclude_statuses && exclude_statuses.length > 0) {
+        const statusList = exclude_statuses.map(s => `"${s}"`).join(',');
+        queryParams.append('status', `not.in.(${statusList})`);
+      }
 
-    const { data: orders, error, count } = await query;
+      queryParams.append('order', 'created_at.desc');
 
-    if (error) {
-        console.error("Erro ao buscar pedidos por status:", error);
-        throw new Error(`Erro ao buscar pedidos por status: ${error.message}`);
-    }
+      if (!includeTotalCount && limit && limit > 0) {
+        queryParams.append('limit', limit.toString());
+      }
 
-    const totalCountMessage = includeTotalCount ? ` (Total de ${count} pedidos encontrados)` : '';
+      const headers: HeadersInit = {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      };
 
-    if (!orders || orders.length === 0) {
+      if (includeTotalCount) {
+        headers['Prefer'] = 'count=exact';
+      }
+
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?${queryParams.toString()}`, {
+        method: 'GET',
+        headers: headers
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Erro na requisição: ${response.status} ${errorText}`);
+      }
+
+      const orders = await response.json();
+
+      let count = orders.length;
+      const contentRange = response.headers.get('Content-Range');
+      if (contentRange && contentRange.includes('/')) {
+        const total = contentRange.split('/')[1];
+        if (total !== '*') {
+          count = parseInt(total, 10);
+        }
+      }
+
+      const totalCountMessage = includeTotalCount ? ` (Total de ${count} pedidos encontrados)` : '';
+
+      if (!orders || orders.length === 0) {
         return { message: `✅ Nenhum pedido encontrado com os filtros especificados.${totalCountMessage}` };
-    }
+      }
 
-    // FIX 9: Casting para OrderWithClient[]
-    const formattedOrders = (orders as unknown as OrderWithClient[]).map((order, index) => ({
+      // FIX 9: Casting para OrderWithClient[]
+      const formattedOrders = (orders as unknown as OrderWithClient[]).map((order, index) => ({
         index: index + 1,
         order_number: order.order_number,
         status: order.status,
@@ -1536,22 +1517,26 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
         total_metros: order.total_metros,
         created_at: new Date(order.created_at).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }),
         cliente: order.clientes?.nome
-    }));
+      }));
 
-    // FIX 10, 11: Casting para OrderWithClient[]
-    const totalValue = (orders as unknown as OrderWithClient[]).reduce((sum, order) => sum + order.valor_total, 0);
-    const totalMetros = (orders as unknown as OrderWithClient[]).reduce((sum, order) => sum + (order.total_metros || 0), 0);
+      // FIX 10, 11: Casting para OrderWithClient[]
+      const totalValue = (orders as unknown as OrderWithClient[]).reduce((sum, order) => sum + order.valor_total, 0);
+      const totalMetros = (orders as unknown as OrderWithClient[]).reduce((sum, order) => sum + (order.total_metros || 0), 0);
 
-    return {
+      return {
         orders: formattedOrders,
         summary: {
-            count: orders.length,
-            totalValue: totalValue,
-            totalMetros: totalMetros,
-            totalMatchingOrders: count // Retorna a contagem total de correspondências
+          count: orders.length,
+          totalValue: totalValue,
+          totalMetros: totalMetros,
+          totalMatchingOrders: count // Retorna a contagem total de correspondências
         },
         message: `📊 Encontrados **${orders.length} pedidos** com os filtros especificados.${totalCountMessage}`
-    };
+      };
+    } catch (error: any) {
+      console.error("Erro ao buscar pedidos por status:", error);
+      throw new Error(`Erro ao buscar pedidos por status: ${error.message}`);
+    }
   }
 
   if (name === "list_orders") {
@@ -1564,61 +1549,88 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
 
   if (name === "update_order_status") {
     const { orderNumber, newStatus, observacao } = args; // Adicionado observacao
-    
+
     console.log(`🔄 [update_order_status] Atualizando pedido ${orderNumber} para "${newStatus}" com observação: "${observacao}"`);
 
     try {
       const fullOrderId = await findOrderByNumber(orderNumber);
-      
+
       if (!fullOrderId) {
         throw new Error(`❌ Pedido #${orderNumber} não encontrado. Por favor, verifique o número do pedido.`);
       }
 
       console.log(`✅ [update_order_status] UUID encontrado: ${fullOrderId}`);
 
-      // Fetch current status to record in history
-      const { data: currentOrder, error: fetchError } = await supabase
-        .from('pedidos') // USANDO 'pedidos'
-        .select('status')
-        .eq('id', fullOrderId)
-        .single();
+      const token = await getValidToken();
+      if (!token) throw new Error("Token inválido");
 
-      if (fetchError) {
-        console.error("❌ [update_order_status] Erro ao buscar status atual do pedido:", fetchError);
-        throw new Error(`❌ Erro ao buscar status atual do pedido #${orderNumber}: ${fetchError.message}.`);
+      const headers = {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      };
+
+      // Fetch current status to record in history
+      const responseStatus = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?select=status&id=eq.${fullOrderId}`, {
+        method: 'GET',
+        headers: { ...headers, 'Accept': 'application/vnd.pgrst.object+json' }
+      });
+
+      if (!responseStatus.ok) {
+        const errorText = await responseStatus.text();
+        console.error("❌ [update_order_status] Erro ao buscar status atual do pedido:", errorText);
+        throw new Error(`❌ Erro ao buscar status atual do pedido #${orderNumber}: ${responseStatus.status}.`);
       }
 
+      const currentOrder = await responseStatus.json();
       const statusAnterior = currentOrder?.status || 'desconhecido';
 
-      const { error: updateError } = await supabase
-        .from('pedidos') // USANDO 'pedidos' para UPDATE
-        .update({ status: newStatus }) // USANDO A COLUNA CORRETA 'status'
-        .eq('id', fullOrderId);
+      // Update status
+      const responseUpdate = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?id=eq.${fullOrderId}`, {
+        method: 'PATCH',
+        headers: headers,
+        body: JSON.stringify({ status: newStatus })
+      });
 
-      if (updateError) {
-        console.error("❌ [update_order_status] Erro ao atualizar:", updateError);
-        throw new Error(`❌ Erro ao atualizar status do pedido #${orderNumber} para "${newStatus}": ${updateError.message}.`);
+      if (!responseUpdate.ok) {
+        const errorText = await responseUpdate.text();
+        console.error("❌ [update_order_status] Erro ao atualizar:", errorText);
+        throw new Error(`❌ Erro ao atualizar status do pedido #${orderNumber} para "${newStatus}": ${responseUpdate.status}.`);
       }
 
       // Insert into status history if status changed or observation provided
       if (newStatus !== statusAnterior || observacao) {
-        const { error: historyError } = await supabase
-          .from('pedido_status_history')
-          .insert({
+        // Get user ID (optional, might fail if session issue, but we try)
+        let userId = null;
+        try {
+          const userResponse = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+            headers: headers
+          });
+          if (userResponse.ok) {
+            const userData = await userResponse.json();
+            userId = userData.id;
+          }
+        } catch (e) { console.warn('Could not get user ID for history'); }
+
+        const responseHistory = await fetch(`${SUPABASE_URL}/rest/v1/pedido_status_history`, {
+          method: 'POST',
+          headers: headers,
+          body: JSON.stringify({
             pedido_id: fullOrderId,
             status_anterior: statusAnterior,
             status_novo: newStatus,
-            observacao: observacao || null, // Store observation
-            user_id: (await supabase.auth.getUser()).data.user?.id || null // Get current user ID
-          });
+            observacao: observacao || null,
+            user_id: userId
+          })
+        });
 
-        if (historyError) {
-          console.warn('⚠️ [update_order_status] Erro ao salvar histórico de status:', historyError);
+        if (!responseHistory.ok) {
+          console.warn('⚠️ [update_order_status] Erro ao salvar histórico de status:', await responseHistory.text());
         }
       }
 
       console.log(`✅ [update_order_status] Status atualizado com sucesso!`);
-      return { 
+      return {
         message: `✅ Pedido #${orderNumber} atualizado para **"${newStatus}"** com sucesso!${observacao ? `\n\n📝 Observação: "${observacao}"` : ''}`,
         update: {
           orderNumber: orderNumber,
@@ -1636,28 +1648,28 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
 
   if (name === "generate_order_pdf") {
     const { orderNumber } = args;
-    
+
     console.log(`📄 [generate_order_pdf] Gerando PDF para pedido #${orderNumber}`);
 
     try {
       const fullOrderId = await findOrderByNumber(orderNumber);
-      
+
       if (!fullOrderId) {
         throw new Error(`❌ Pedido #${orderNumber} não encontrado.`);
       }
 
       console.log(`✅ [generate_order_pdf] Pedido encontrado, buscando dados completos...`);
-      
+
       const orderData = await fetchCompleteOrderData(fullOrderId);
-      
+
       console.log(`📋 [generate_order_pdf] Dados obtidos, gerando PDF...`);
-      
+
       // Ação padrão para a IA é 'save' (download)
       await generateOrderPDF(orderData as any, 'save');
-      
+
       console.log(`✅ [generate_order_pdf] PDF gerado com sucesso!`);
-      
-      return { 
+
+      return {
         message: `✅ PDF do pedido #${orderNumber} gerado com sucesso! 📄\n\nO arquivo foi baixado automaticamente para seu dispositivo.`,
         pdf: {
           orderNumber: orderNumber,
@@ -1681,7 +1693,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
     for (const orderNumber of orderNumbers) {
       try {
         console.log(`📄 [generate_multiple_pdfs] Processando pedido #${orderNumber}...`);
-        
+
         const fullOrderId = await findOrderByNumber(orderNumber);
 
         if (!fullOrderId) {
@@ -1692,7 +1704,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
         const orderData = await fetchCompleteOrderData(fullOrderId);
         // Ação padrão para a IA é 'save' (download)
         await generateOrderPDF(orderData as any, 'save');
-        
+
         results.push(`✅ Pedido #${orderNumber}: PDF gerado`);
         console.log(`✅ [generate_multiple_pdfs] PDF do pedido #${orderNumber} gerado com sucesso`);
 
@@ -1707,10 +1719,10 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
 
     const successCount = results.length;
     const errorCount = errors.length;
-    
+
     console.log(`📊 [generate_multiple_pdfs] Concluído: ${successCount} sucessos, ${errorCount} erros`);
-    
-    return { 
+
+    return {
       message: `📊 **Geração de PDFs concluída:** ${successCount} sucesso(s), ${errorCount} erro(s)}\n\n${results.length > 0 ? `✅ **Sucessos:**\n${results.join('\n')}\n\n` : ''}${errors.length > 0 ? `❌ **Erros:**\n${errors.join('\n')}` : ''}`,
       summary: {
         successCount,

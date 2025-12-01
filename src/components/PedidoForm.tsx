@@ -192,6 +192,10 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
         const selectedClient = clientes.find(c => c.id === initialData.cliente_id);
         setSelectedClienteName(selectedClient ? selectedClient.nome : '');
 
+        // CORREÇÃO: Carregar o valor_metro do cliente ao editar
+        const valorMetro = selectedClient?.valor_metro || null;
+        setSelectedClientValorMetro(valorMetro);
+
       } else {
         // Tentar recuperar rascunho
         const draft = localStorage.getItem(DRAFT_STORAGE_KEY);

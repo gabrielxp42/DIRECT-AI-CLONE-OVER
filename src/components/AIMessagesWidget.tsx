@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Sparkles, X, ChevronDown } from 'lucide-react';
+import { Sparkles, X, ChevronRight, MessageCircle, ExternalLink } from 'lucide-react';
 import { useSession } from '@/contexts/SessionProvider';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/integrations/supabase/client';
 import { getValidToken } from '@/utils/tokenGuard';
@@ -12,14 +12,27 @@ import {
     AccordionTrigger,
 } from "@/components/ui/accordion";
 import { useIsMobile } from '@/hooks/use-mobile';
+import { Button } from '@/components/ui/button';
+
+// Interface para Insights Estruturados
+interface InsightAction {
+    label: string;
+    url?: string;
+    type: 'whatsapp' | 'link' | 'action';
+}
+
+interface InsightItem {
+    id: string;
+    text: string;
+    type: 'alert' | 'success' | 'info' | 'warning';
+    action?: InsightAction;
+}
 
 export const AIMessagesWidget: React.FC = () => {
     const { session } = useSession();
     const isMobile = useIsMobile();
     const [loading, setLoading] = useState(true);
-    const [insights, setInsights] = useState<string[]>([]);
-
-    // Estado local para mensagens dispensadas
+    const [insights, setInsights] = useState<InsightItem[]>([]);
     const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
 
     useEffect(() => {
@@ -28,13 +41,8 @@ export const AIMessagesWidget: React.FC = () => {
 
             try {
                 setLoading(true);
-                console.log('[AIMessagesWidget] Buscando dados para insights via FETCH DIRETO...');
-
                 const accessToken = await getValidToken();
-                if (!accessToken) {
-                    console.warn('[AIMessagesWidget] Token inválido ou expirado');
-                    return;
-                }
+                if (!accessToken) return;
 
                 const headers = {
                     'apikey': SUPABASE_ANON_KEY,
@@ -42,193 +50,201 @@ export const AIMessagesWidget: React.FC = () => {
                     'Content-Type': 'application/json'
                 };
 
-                // Buscar clientes (apenas campos necessários) via fetch direto
-                const clientesUrl = `${SUPABASE_URL}/rest/v1/clientes?select=id,nome,created_at&order=created_at.desc`;
-                const clientesResponse = await fetch(clientesUrl, { method: 'GET', headers });
+                // Buscar dados necessários
+                const [clientesRes, pedidosRes, pedidosStatusRes] = await Promise.all([
+                    fetch(`${SUPABASE_URL}/rest/v1/clientes?select=id,nome,telefone,created_at&order=created_at.desc`, { headers }),
+                    fetch(`${SUPABASE_URL}/rest/v1/pedidos?select=id,cliente_id,created_at,valor_total&order=created_at.desc&limit=1000`, { headers }),
+                    fetch(`${SUPABASE_URL}/rest/v1/pedidos?select=id,cliente_id,created_at,valor_total,status,order_number,clientes(nome,telefone)&order=created_at.desc&limit=1000`, { headers })
+                ]);
 
-                if (!clientesResponse.ok) {
-                    const errorText = await clientesResponse.text();
-                    throw new Error(`Erro ao buscar clientes: ${clientesResponse.status} ${clientesResponse.statusText} - ${errorText}`);
-                }
+                if (!clientesRes.ok || !pedidosRes.ok || !pedidosStatusRes.ok) throw new Error('Erro ao buscar dados');
 
-                const clientes = await clientesResponse.json();
-                if (!Array.isArray(clientes)) {
-                    throw new Error('Resposta inválida ao buscar clientes.');
-                }
+                const clientes = await clientesRes.json();
+                const pedidos = await pedidosRes.json();
+                const pedidosComStatus = await pedidosStatusRes.json();
 
-                // Buscar pedidos recentes (últimos 1000 pedidos para análise) via fetch direto
-                const pedidosUrl = `${SUPABASE_URL}/rest/v1/pedidos?select=id,cliente_id,created_at,valor_total&order=created_at.desc&limit=1000`;
-                const pedidosResponse = await fetch(pedidosUrl, { method: 'GET', headers });
-
-                if (!pedidosResponse.ok) {
-                    const errorText = await pedidosResponse.text();
-                    throw new Error(`Erro ao buscar pedidos: ${pedidosResponse.status} ${pedidosResponse.statusText} - ${errorText}`);
-                }
-
-                const pedidos = await pedidosResponse.json();
-                if (!Array.isArray(pedidos)) {
-                    throw new Error('Resposta inválida ao buscar pedidos.');
-                }
-
-                if (!clientes || !pedidos) {
-                    setLoading(false);
-                    return;
-                }
-
-                // Gerar Insights
-                const newInsights: string[] = [];
+                const newInsights: InsightItem[] = [];
                 const now = new Date();
 
-                // 1. Clientes Inativos (> 30 dias)
-                const inactiveClients = clientes.filter(cliente => {
-                    const clienteOrders = pedidos.filter(p => p.cliente_id === cliente.id);
-                    if (clienteOrders.length === 0) return false; // Nunca comprou não é inativo, é lead
+                // 🚨 1. ALERTAS DE COBRANÇA
+                const pedidosPendentes = pedidosComStatus.filter((p: any) =>
+                    p.status === 'pendente' || p.status === 'processando'
+                );
 
-                    const lastOrder = clienteOrders[0]; // Já está ordenado por data desc
-                    const daysSince = Math.floor((now.getTime() - new Date(lastOrder.created_at).getTime()) / (86400000));
-                    return daysSince > 30;
+                const clientesComPendencias: Record<string, any> = {};
+                pedidosPendentes.forEach((p: any) => {
+                    if (!p.cliente_id || !p.clientes?.nome) return;
+                    const diasPendente = Math.floor((now.getTime() - new Date(p.created_at).getTime()) / 86400000);
+
+                    if (!clientesComPendencias[p.cliente_id] || diasPendente > clientesComPendencias[p.cliente_id].dias) {
+                        clientesComPendencias[p.cliente_id] = {
+                            ...p.clientes,
+                            dias: diasPendente,
+                            valor: p.valor_total,
+                            orderNumber: p.order_number
+                        };
+                    }
                 });
 
-                if (inactiveClients.length > 0) {
-                    newInsights.push(`Opa! Percebi que **${inactiveClients[0].nome}** não compra há mais de 30 dias. Que tal entrar em contato? 📞`);
-                }
+                Object.values(clientesComPendencias)
+                    .sort((a: any, b: any) => b.dias - a.dias)
+                    .slice(0, 2)
+                    .forEach((cliente: any, idx) => {
+                        if (cliente.dias >= 3) {
+                            const isUrgent = cliente.dias >= 7;
+                            const phone = cliente.telefone?.replace(/\D/g, '');
+                            const message = `Olá ${cliente.nome}, tudo bem? Vi que o pedido #${cliente.orderNumber} (R$ ${cliente.valor.toFixed(2)}) ainda está pendente. Podemos ajudar com algo?`;
+                            const whatsappLink = phone ? `https://wa.me/55${phone}?text=${encodeURIComponent(message)}` : undefined;
 
-                // 2. Dia de menor movimento
-                const ordersByDay = Array(7).fill(0);
-                pedidos.forEach(p => ordersByDay[new Date(p.created_at).getDay()]++);
-                const slowestDay = ordersByDay.indexOf(Math.min(...ordersByDay));
-                const days = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+                            newInsights.push({
+                                id: `billing-${idx}`,
+                                type: isUrgent ? 'alert' : 'warning',
+                                text: isUrgent
+                                    ? `🚨 **${cliente.nome}** está há **${cliente.dias} dias** sem pagar o pedido #${cliente.orderNumber} (R$ ${cliente.valor.toFixed(2)})!`
+                                    : `⚠️ **${cliente.nome}** tem pedido #${cliente.orderNumber} pendente há ${cliente.dias} dias.`,
+                                action: whatsappLink ? {
+                                    label: 'Cobrar no WhatsApp',
+                                    url: whatsappLink,
+                                    type: 'whatsapp'
+                                } : undefined
+                            });
+                        }
+                    });
 
-                if (slowestDay !== -1) {
-                    newInsights.push(`${days[slowestDay]}s costumam ter menos movimento. Considere uma promoção! 💡`);
-                }
+                // 💰 2. OPORTUNIDADES DE VENDA
+                const clientesVIP = clientes.filter((c: any) =>
+                    pedidos.filter((p: any) => p.cliente_id === c.id).length >= 5
+                );
 
-                // 3. Cliente VIP
-                const clientCounts: Record<string, number> = {};
-                pedidos.forEach(p => {
-                    if (p.cliente_id) clientCounts[p.cliente_id] = (clientCounts[p.cliente_id] || 0) + 1;
+                const vipsInativos = clientesVIP.filter((c: any) => {
+                    const orders = pedidos.filter((p: any) => p.cliente_id === c.id);
+                    if (!orders.length) return false;
+                    const daysSince = Math.floor((now.getTime() - new Date(orders[0].created_at).getTime()) / 86400000);
+                    return daysSince >= 15 && daysSince <= 45;
                 });
 
-                const topClientId = Object.keys(clientCounts).sort((a, b) => clientCounts[b] - clientCounts[a])[0];
-                if (topClientId) {
-                    const topClient = clientes.find(c => c.id === topClientId);
-                    const count = clientCounts[topClientId];
-                    if (topClient && count > 5) {
-                        newInsights.push(`${topClient.nome} é cliente VIP com ${count} pedidos! 💎`);
+                if (vipsInativos.length > 0) {
+                    const vip = vipsInativos[0];
+                    const phone = vip.telefone?.replace(/\D/g, '');
+                    const message = `Olá ${vip.nome}! Sentimos sua falta. Que tal aproveitar nossas ofertas da semana?`;
+
+                    newInsights.push({
+                        id: 'vip-inactive',
+                        type: 'info',
+                        text: `💎 **${vip.nome}** é cliente VIP mas não compra há dias. Ofereça um desconto!`,
+                        action: phone ? {
+                            label: 'Enviar Oferta',
+                            url: `https://wa.me/55${phone}?text=${encodeURIComponent(message)}`,
+                            type: 'whatsapp'
+                        } : undefined
+                    });
+                }
+
+                // 📈 3. TENDÊNCIAS
+                const last7Days = pedidos.filter((p: any) => (now.getTime() - new Date(p.created_at).getTime()) / 86400000 <= 7);
+                const prev7Days = pedidos.filter((p: any) => {
+                    const days = (now.getTime() - new Date(p.created_at).getTime()) / 86400000;
+                    return days > 7 && days <= 14;
+                });
+
+                if (last7Days.length > 0 && prev7Days.length > 0) {
+                    const currTotal = last7Days.reduce((s: number, p: any) => s + (p.valor_total || 0), 0);
+                    const prevTotal = prev7Days.reduce((s: number, p: any) => s + (p.valor_total || 0), 0);
+                    const growth = ((currTotal - prevTotal) / prevTotal) * 100;
+
+                    if (Math.abs(growth) > 20) {
+                        newInsights.push({
+                            id: 'trend',
+                            type: growth > 0 ? 'success' : 'warning',
+                            text: growth > 0
+                                ? `📈 Vendas **cresceram ${growth.toFixed(0)}%** essa semana! Continue assim! 🚀`
+                                : `📉 Vendas **caíram ${Math.abs(growth).toFixed(0)}%** essa semana. Hora de uma promoção?`
+                        });
                     }
                 }
 
-                // 4. Resumo de Vendas (Sempre útil - Fallback 1)
-                const today = new Date().toISOString().split('T')[0];
-                const todaysOrders = pedidos.filter(p => p.created_at.startsWith(today));
+                // 📊 4. RESUMO DO DIA
+                const todayStr = now.toISOString().split('T')[0];
+                const todaysOrders = pedidos.filter((p: any) => p.created_at.startsWith(todayStr));
 
                 if (todaysOrders.length > 0) {
-                    const totalHoje = todaysOrders.reduce((acc, curr) => acc + (curr.valor_total || 0), 0);
-                    newInsights.push(`Hoje já tivemos **${todaysOrders.length} pedidos** totalizando **R$ ${totalHoje.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}**. 🚀`);
-                } else {
-                    // Se não vendeu nada hoje, sugere ação
-                    newInsights.push(`Ainda não tivemos pedidos hoje. Que tal enviar uma oferta para seus clientes VIP? 🎯`);
+                    const total = todaysOrders.reduce((s: number, p: any) => s + (p.valor_total || 0), 0);
+                    newInsights.push({
+                        id: 'daily-summary',
+                        type: 'success',
+                        text: `📊 Hoje: **${todaysOrders.length} pedidos** totalizando **R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}**! 🎉`
+                    });
+                } else if (now.getHours() >= 14 && now.getDay() >= 1 && now.getDay() <= 5) {
+                    newInsights.push({
+                        id: 'no-sales',
+                        type: 'alert',
+                        text: `⚠️ Ainda **não tivemos vendas hoje**. Envie uma oferta relâmpago! ⚡`
+                    });
                 }
 
-                // 5. Dicas Aleatórias (Fallback 2 - Garante que sempre tem pelo menos 2 cards se os outros falharem)
-                if (newInsights.length < 2) {
-                    const dicas = [
-                        "💡 Dica: Manter o cadastro dos clientes atualizado ajuda na fidelização.",
-                        "📊 Você sabia? Analisar os relatórios semanais pode revelar tendências de venda.",
-                        "⭐ Clientes satisfeitos tendem a comprar 3x mais. Que tal pedir um feedback?",
-                        "📦 Verifique se há produtos com estoque baixo para repor a tempo."
-                    ];
-                    // Adiciona uma dica aleatória que ainda não esteja na lista (improvável repetir, mas boa prática)
-                    const dica = dicas[Math.floor(Math.random() * dicas.length)];
-                    newInsights.push(dica);
+                // Fallback
+                if (newInsights.length === 0) {
+                    newInsights.push({
+                        id: 'fallback',
+                        type: 'info',
+                        text: "✨ Tudo tranquilo! Aproveite para organizar o estoque ou planejar a semana."
+                    });
                 }
 
                 setInsights(newInsights);
             } catch (error) {
-                console.error('[AIMessagesWidget] Erro ao gerar insights:', error);
-                // Fallback final em caso de erro
-                setInsights(["Olá! Estou pronto para ajudar você a vender mais hoje. 🚀"]);
+                console.error('Erro ao gerar insights:', error);
             } finally {
                 setLoading(false);
             }
         };
 
         fetchInsightsData();
-    }, [session?.user?.id, session?.access_token]);
+    }, [session?.user?.id]);
 
     const handleDismiss = (id: string) => {
-        setDismissedIds(prev => {
-            const newSet = new Set(prev);
-            newSet.add(id);
-            return newSet;
-        });
+        setDismissedIds(prev => new Set(prev).add(id));
     };
 
-    // Componente interno SwipeableMessage
-    const SwipeableMessage = ({ insight, index, onDismiss }: { insight: string, index: number, onDismiss: () => void }) => {
-        const [touchStart, setTouchStart] = React.useState<number | null>(null);
-        const [touchEnd, setTouchEnd] = React.useState<number | null>(null);
-        const [isRemoved, setIsRemoved] = React.useState(false);
-        const [translateX, setTranslateX] = React.useState(0);
-        const minSwipeDistance = 50;
+    const SwipeableMessage = ({ item, onDismiss }: { item: InsightItem, onDismiss: () => void }) => {
+        const [isRemoved, setIsRemoved] = useState(false);
 
-        const onTouchStart = (e: React.TouchEvent) => {
-            setTouchEnd(null);
-            setTouchStart(e.targetTouches[0].clientX);
-        };
-
-        const onTouchMove = (e: React.TouchEvent) => {
-            setTouchEnd(e.targetTouches[0].clientX);
-            if (touchStart !== null) {
-                setTranslateX(e.targetTouches[0].clientX - touchStart);
-            }
-        };
-
-        const onTouchEnd = () => {
-            if (!touchStart || !touchEnd) {
-                setTranslateX(0);
-                return;
-            }
-            const distance = touchStart - touchEnd;
-            const isLeftSwipe = distance > minSwipeDistance;
-            const isRightSwipe = distance < -minSwipeDistance;
-
-            if (isLeftSwipe || isRightSwipe) {
-                setIsRemoved(true);
-                setTranslateX(isLeftSwipe ? -500 : 500);
-                setTimeout(onDismiss, 300);
-            } else {
-                setTranslateX(0);
+        const getStyles = (type: string) => {
+            switch (type) {
+                case 'alert': return 'border-l-red-500 bg-red-50/50 dark:bg-red-950/20';
+                case 'warning': return 'border-l-orange-500 bg-orange-50/50 dark:bg-orange-950/20';
+                case 'success': return 'border-l-green-500 bg-green-50/50 dark:bg-green-950/20';
+                default: return 'border-l-purple-500 bg-purple-50/50 dark:bg-purple-950/20';
             }
         };
 
         if (isRemoved) return null;
 
         return (
-            <div
-                className="relative overflow-hidden touch-pan-y group"
-                onTouchStart={onTouchStart}
-                onTouchMove={onTouchMove}
-                onTouchEnd={onTouchEnd}
-                style={{
-                    transform: `translateX(${translateX}px)`,
-                    transition: touchEnd ? 'none' : 'transform 0.3s ease-out',
-                    opacity: Math.max(0, 1 - Math.abs(translateX) / 300)
-                }}
-            >
-                <Card className="p-4 border-l-4 border-l-purple-500 bg-purple-50/50 dark:bg-purple-950/20 pr-10 relative">
-                    <p
-                        className="text-sm select-none"
-                        dangerouslySetInnerHTML={{
-                            __html: insight.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                        }}
-                    />
+            <div className={`relative overflow-hidden transition-all duration-300 ${isRemoved ? 'opacity-0 h-0' : 'opacity-100'}`}>
+                <Card className={`p-4 border-l-4 pr-8 relative ${getStyles(item.type)}`}>
+                    <div className="flex flex-col gap-3">
+                        <p className="text-sm select-none" dangerouslySetInnerHTML={{
+                            __html: item.text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                        }} />
+
+                        {item.action && (
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                className="w-fit h-8 text-xs gap-2 bg-background/50 hover:bg-background"
+                                onClick={() => window.open(item.action?.url, '_blank')}
+                            >
+                                {item.action.type === 'whatsapp' && <MessageCircle className="h-3 w-3 text-green-500" />}
+                                {item.action.label}
+                                <ExternalLink className="h-3 w-3 opacity-50" />
+                            </Button>
+                        )}
+                    </div>
+
                     <button
-                        onClick={() => {
-                            setIsRemoved(true);
-                            setTimeout(onDismiss, 300);
-                        }}
-                        className="absolute top-2 right-2 p-1 rounded-full hover:bg-black/10 dark:hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer hidden sm:block"
+                        onClick={() => { setIsRemoved(true); setTimeout(onDismiss, 300); }}
+                        className="absolute top-2 right-2 p-1 rounded-full hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
                     >
                         <X className="h-4 w-4 text-muted-foreground" />
                     </button>
@@ -237,45 +253,28 @@ export const AIMessagesWidget: React.FC = () => {
         );
     };
 
-    if (loading) {
-        return (
-            <div className="space-y-3 animate-pulse">
-                <div className="flex items-center gap-2">
-                    <div className="h-8 w-8 rounded-full bg-muted" />
-                    <div className="flex-1 space-y-2">
-                        <div className="h-3 w-24 bg-muted rounded" />
-                        <div className="h-2 w-48 bg-muted rounded" />
-                    </div>
-                </div>
-                <div className="h-20 bg-muted rounded-lg" />
-            </div>
-        );
-    }
+    if (loading) return <div className="h-20 bg-muted rounded-lg animate-pulse" />;
 
-    const visibleInsights = insights.map((text, idx) => ({ text, id: `insight-${idx}` }))
-        .filter(item => !dismissedIds.has(item.id));
+    const visibleInsights = insights.filter(item => !dismissedIds.has(item.id));
 
-    // Conteúdo das mensagens (reutilizável)
-    const MessagesContent = () => (
+    const Content = () => (
         <div className="space-y-2">
             {visibleInsights.length > 0 ? (
-                visibleInsights.map((item, index) => (
+                visibleInsights.map((item) => (
                     <SwipeableMessage
                         key={item.id}
-                        index={index}
-                        insight={item.text}
+                        item={item}
                         onDismiss={() => handleDismiss(item.id)}
                     />
                 ))
             ) : (
-                <Card className="p-4 border-dashed text-center text-muted-foreground text-sm animate-in fade-in duration-500">
-                    Nenhuma nova sugestão. Bom trabalho! 👍
+                <Card className="p-4 border-dashed text-center text-muted-foreground text-sm">
+                    Tudo limpo! Bom trabalho! 👍
                 </Card>
             )}
         </div>
     );
 
-    // Mobile: Accordion colapsado
     if (isMobile) {
         return (
             <Accordion type="single" collapsible className="w-full">
@@ -290,24 +289,21 @@ export const AIMessagesWidget: React.FC = () => {
                             <div className="flex-1 text-left">
                                 <p className="text-sm font-semibold">Assistente IA</p>
                                 <p className="text-xs text-muted-foreground">
-                                    {visibleInsights.length > 0
-                                        ? `${visibleInsights.length} ${visibleInsights.length === 1 ? 'alerta' : 'alertas'}`
-                                        : "Tudo limpo! ✨"}
+                                    {visibleInsights.length > 0 ? `${visibleInsights.length} alertas` : "Tudo limpo! ✨"}
                                 </p>
                             </div>
                         </div>
                     </AccordionTrigger>
                     <AccordionContent className="px-4 pb-4">
-                        <MessagesContent />
+                        <Content />
                     </AccordionContent>
                 </AccordionItem>
             </Accordion>
         );
     }
 
-    // Desktop: Layout normal expandido
     return (
-        <div className="space-y-3 overflow-hidden">
+        <div className="space-y-3">
             <div className="flex items-center gap-2">
                 <Avatar className="h-8 w-8 border-2 border-primary shadow-sm">
                     <AvatarFallback className="bg-gradient-to-br from-purple-500 to-blue-500 text-white">
@@ -317,11 +313,11 @@ export const AIMessagesWidget: React.FC = () => {
                 <div>
                     <p className="text-sm font-semibold">Assistente IA</p>
                     <p className="text-xs text-muted-foreground">
-                        {visibleInsights.length > 0 ? "Algumas coisas que notei por aqui..." : "Tudo limpo! Você está em dia. ✨"}
+                        {visibleInsights.length > 0 ? "Algumas coisas que notei..." : "Tudo limpo! ✨"}
                     </p>
                 </div>
             </div>
-            <MessagesContent />
+            <Content />
         </div>
     );
 };

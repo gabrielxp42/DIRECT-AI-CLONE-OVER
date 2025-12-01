@@ -12,6 +12,8 @@ import { AudioMessageDisplay } from './AudioMessageDisplay';
 import { useSession } from '@/contexts/SessionProvider';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/integrations/supabase/client';
 import { getValidToken } from '@/utils/tokenGuard';
+import { AgentMemoryManager } from '@/utils/agentMemory';
+import { generateReActSystemPrompt } from '@/utils/agentPrompts';
 
 export const AIAssistant = () => {
   const { isOpen, close } = useAIAssistant();
@@ -23,6 +25,22 @@ export const AIAssistant = () => {
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+
+  // Initialize Memory Manager
+  const memoryManager = useRef<AgentMemoryManager | null>(null);
+
+  // Initialize memory manager when user is available
+  useEffect(() => {
+    if (userId && !memoryManager.current) {
+      console.log('🧠 [AIAssistant] Inicializando Memory Manager para usuário:', userId);
+      memoryManager.current = new AgentMemoryManager(userId);
+
+      // Carrega ou cria conversa ativa
+      memoryManager.current.getOrCreateActiveConversation().catch(err => {
+        console.error('❌ [AIAssistant] Erro ao inicializar conversa:', err);
+      });
+    }
+  }, [userId]);
 
   // Initialize OpenAI client
   const openAIClient = useRef(getOpenAIClient()).current;
@@ -54,65 +72,34 @@ export const AIAssistant = () => {
     try {
       console.log('🚀 [AIAssistant] Enviando mensagem para OpenAI:', userMessage.content);
 
+      // Salva mensagem do usuário na memória
+      if (memoryManager.current) {
+        await memoryManager.current.addMessage('user', userMessage.content);
+      }
+
+      // Carrega memórias e insights relevantes
+      let memories: any[] = [];
+      let insights: any[] = [];
+
+      if (memoryManager.current) {
+        console.log('🧠 [AIAssistant] Carregando memórias relevantes...');
+        [memories, insights] = await Promise.all([
+          memoryManager.current.getRelevantMemories(10, 0.3),
+          memoryManager.current.getActiveInsights()
+        ]);
+        console.log('✅ [AIAssistant] Memórias carregadas:', memories.length, '| Insights:', insights.length);
+      }
+
+      // Gera system prompt com ReAct Pattern e memórias
+      const systemPrompt = generateReActSystemPrompt(memories, insights);
+
+      console.log('📝 [AIAssistant] System prompt gerado com', systemPrompt.length, 'caracteres');
+
       // Prepare conversation history with improved system prompt
       const conversationMessages: ChatMessage[] = [
         {
           role: 'system',
-          content: `Você é um assistente de IA especializado para a empresa DIRECT DTF. Você é amigável, prestativo e sempre responde em português brasileiro.
-
-SUAS PRINCIPAIS FUNÇÕES:
-1. 🔢 **Cálculos Precisos:** Use a ferramenta perform_calculation para qualquer operação matemática (soma, porcentagem, divisão, etc.).
-2. 🔍 Buscar pedidos de clientes (use get_client_orders)
-3. 👤 Buscar detalhes de clientes (use get_client_details) 
-4. 📋 Buscar detalhes de pedidos específicos (use get_order_details)
-5. 🔄 Atualizar status de pedidos (use update_order_status) - **IMPORTANTE:** Se o usuário mencionar apenas o nome do cliente (ex: "joão pagou"), primeiro use get_client_orders para buscar os pedidos desse cliente, depois atualize o pedido mais recente ou pergunte qual atualizar. NUNCA invente números de pedido.
-6. 📄 Gerar PDFs de pedidos (use generate_order_pdf ou generate_multiple_pdfs)
-7. 📊 Listar pedidos por data ou status (use list_orders ou get_orders_by_status)
-8. 🛠️ Listar serviços por data e status (use list_services).
-
-REGRAS CRÍTICAS DE CONTEXTO E DATA:
-- NUNCA invente informações ou datas.
-- SEMPRE use as ferramentas disponíveis para obter dados reais.
-- **IMPORTANTE - DATAS:** Para QUALQUER pergunta sobre datas, horas ou períodos (ex: 'que dia é hoje', 'essa semana', 'esse mês', 'hoje', 'ontem', 'último pedido de hoje'), **SEMPRE use a ferramenta get_current_date PRIMEIRO para obter a data/hora atual correta e os intervalos de data (ranges.today, ranges.thisMonth, etc.). NUNCA tente gerar ou adivinhar datas por conta própria.**
-- **PERGUNTAS SOBRE "HOJE":** Quando o usuário perguntar sobre "hoje", "pedidos de hoje", "último pedido de hoje", etc., você DEVE:
-  1. Chamar get_current_date para obter ranges.today (start e end)
-  2. Usar esses valores EXATOS em list_orders ou list_services com startDate=ranges.today.start e endDate=ranges.today.end
-- **MANUTENÇÃO DE CONTEXTO:** Se o usuário perguntar sobre um período relativo (ex: "essa semana") e depois fizer uma pergunta de acompanhamento que depende desse período (ex: "e os pagos?"), você DEVE incluir a chamada à ferramenta get_current_date no início da segunda chamada de função (list_services ou list_orders) para garantir que as datas corretas sejam usadas.
-- **FILTRO DE STATUS:** A palavra "pagos" deve ser traduzida para o filtro de status de pedido: \`statuses: ["pago"]\`.
-- **PERGUNTAS SOBRE TOTAIS/SOMAS/VALORES:** Quando o usuário perguntar sobre "quanto", "total", "soma", "quantos", "valor a pagar", "comissão", "receita total", ou qualquer pergunta que requer um valor total ou contagem completa, você DEVE:
-  1. **SEMPRE usar um limite alto** (ex: \`limit: 1000\`) ou **omitir o parâmetro limit** para buscar TODOS os registros
-  2. Use \`includeTotalCount: true\` para obter a contagem total exata
-  3. **NUNCA confie apenas nos primeiros 10-20 registros** para calcular totais - sempre busque todos
-- **PERGUNTAS SOBRE PAGAMENTO/COMISSÃO:** Quando o usuário perguntar sobre "quanto vou pagar", "valor a pagar", "comissão", "serviços pagos", ou qualquer pergunta relacionada a pagamento de serviços, você DEVE:
-  1. Filtrar por status "pago" usando \`statuses: ["pago"]\` em list_services
-  2. **NUNCA usar limite** - use \`limit: 1000\` ou omita o parâmetro limit para buscar TODOS os serviços (o painel busca todos, então você também deve buscar todos para dar o valor correto)
-  3. Use \`includeTotalCount: true\` para obter a contagem total
-  4. Excluir serviços com nome "Sedex" (filtro manual após receber os dados, pois não há parâmetro para excluir nomes)
-- Para perguntas sobre quantidades de pedidos ou serviços, use list_orders ou list_services com includeTotalCount=true e limite alto ou sem limite.
-- **PRECISÃO NUMÉRICA:** Para relatar valores totais (totalValue/totalRevenue), SEMPRE use o valor exato retornado no objeto 'summary' da ferramenta. NUNCA tente somar ou recalcular os valores da lista de pedidos. Se precisar fazer uma operação (ex: 10% do total), use perform_calculation.
-- Quando uma ferramenta retornar um erro ou não encontrar dados, informe o usuário de forma clara e sugira reformular a pergunta ou fornecer mais detalhes.
-- Quando não souber algo, admita que não tem a informação.
-- Seja específico e útil nas suas respostas.
-- Use emojis para tornar as respostas mais amigáveis.
-
-🧠 **SEJA PROATIVO E INTELIGENTE:**
-- Quando o usuário perguntar "como estão as coisas?" ou algo genérico, mostre um resumo útil
-- Ao mencionar um cliente, sugira ações: "Quer ver os pedidos? Gerar PDF?"
-- Após atualizar status, confirme e sugira próximos passos
-- Identifique padrões e ofereça insights valiosos
-- Antecipe necessidades antes do usuário pedir
-
-💡 **EXEMPLOS DE PROATIVIDADE:**
-❌ Ruim: "Encontrei 3 pedidos pendentes"
-✅ Bom: "Você tem **3 pedidos pendentes** (R$ 1.500 total). Quer que eu gere os PDFs?"
-
-❌ Ruim: "Cliente João tem 5 pedidos"
-✅ Bom: "João é cliente ativo com **5 pedidos** (R$ 3.200). Último pedido há 2 dias ✅"
-
-❌ Ruim: "Não tenho essa informação"
-✅ Bom: "Não encontrei isso. Posso mostrar: pedidos de hoje, clientes inativos ou receita do mês?"
-
-🚀 Você não é apenas um buscador de dados - você é um parceiro estratégico que ajuda a tomar decisões!`
+          content: systemPrompt // Usando o novo prompt com ReAct + Memórias
         },
         ...messages,
         userMessage
@@ -125,7 +112,7 @@ REGRAS CRÍTICAS DE CONTEXTO E DATA:
         console.log('🔧 [AIAssistant] Chamada de função detectada:', response.function_call.name, response.function_call.arguments);
 
         try {
-          const functionResult = await callOpenAIFunction(response.function_call, accessToken, userId);
+          const functionResult = await callOpenAIFunction(response.function_call);
           console.log('✅ [AIAssistant] Resultado da ferramenta:', functionResult);
 
           // Add function call and result to conversation
@@ -172,6 +159,17 @@ REGRAS CRÍTICAS DE CONTEXTO E DATA:
       const finalResponseText = response.content || 'Desculpe, não consegui gerar uma resposta adequada.';
       const aiMessage: ChatMessage = { role: 'assistant', content: finalResponseText };
       setMessages((prev) => [...prev, aiMessage]);
+
+      // Salva resposta da agente na memória
+      if (memoryManager.current) {
+        await memoryManager.current.addMessage('assistant', finalResponseText);
+
+        // Extrai e salva memórias automaticamente da conversa
+        await memoryManager.current.extractMemoriesFromConversation(
+          userMessage.content,
+          finalResponseText
+        );
+      }
 
     } catch (error: any) {
       console.error('❌ [AIAssistant] Erro completo:', error);
