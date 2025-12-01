@@ -25,8 +25,12 @@ const formatRawDigitsToDisplay = (rawDigits: string): string => {
   return formatNumberToDisplay(num / 100);
 };
 
+import { cn } from "@/lib/utils";
+
+// ... imports
+
 export const CurrencyInput = forwardRef<HTMLInputElement, CurrencyInputProps>(
-  ({ value, onChange, ...props }, ref) => {
+  ({ value, onChange, className, ...props }, ref) => {
     // Estado interno para o valor exibido no campo de input
     const [displayValue, setDisplayValue] = useState<string>(() => formatNumberToDisplay(value));
 
@@ -58,13 +62,13 @@ export const CurrencyInput = forwardRef<HTMLInputElement, CurrencyInputProps>(
 
     return (
       <div className="relative">
-        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">R$</span>
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none">R$</span>
         <Input
           ref={ref}
           value={displayValue}
           onChange={handleChange}
           onBlur={handleBlur}
-          className="pl-9"
+          className={cn("pl-9", className)}
           {...props}
         />
       </div>

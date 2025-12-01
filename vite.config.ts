@@ -39,18 +39,50 @@ export default defineConfig(() => ({
         enabled: false,
       },
       manifest: {
-        name: 'DIRECT AI',
-        short_name: 'DirectAI',
-        description: 'Seu assistente de vendas inteligente da DIRECT DTF.',
-        theme_color: '#ffffff',
-        background_color: '#000000',
+        name: 'DIRECT AI - Gestão de Vendas',
+        short_name: 'DIRECT AI',
+        description: 'Seu assistente de vendas inteligente da DIRECT DTF. Gerencie pedidos, clientes e produtos com IA.',
+        theme_color: '#FFF200',
+        background_color: '#0a0a0a',
         display: 'standalone',
+        orientation: 'portrait',
         scope: '/',
         start_url: '/',
+        categories: ['business', 'productivity', 'sales'],
         icons: [
           {
             src: 'logo.png',
+            sizes: '72x72',
+            type: 'image/png',
+          },
+          {
+            src: 'logo.png',
+            sizes: '96x96',
+            type: 'image/png',
+          },
+          {
+            src: 'logo.png',
+            sizes: '128x128',
+            type: 'image/png',
+          },
+          {
+            src: 'logo.png',
+            sizes: '144x144',
+            type: 'image/png',
+          },
+          {
+            src: 'logo.png',
+            sizes: '152x152',
+            type: 'image/png',
+          },
+          {
+            src: 'logo.png',
             sizes: '192x192',
+            type: 'image/png',
+          },
+          {
+            src: 'logo.png',
+            sizes: '384x384',
             type: 'image/png',
           },
           {

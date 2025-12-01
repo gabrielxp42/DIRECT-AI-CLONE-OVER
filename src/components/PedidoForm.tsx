@@ -36,8 +36,24 @@ import { Textarea } from "@/components/ui/textarea";
 import { NewPedido, Pedido } from "@/types/pedido";
 import { Cliente } from "@/types/cliente";
 import { Produto } from "@/types/produto";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { Trash2, Plus, Search, Edit3, X, User, Package, Wrench, Save, Zap, CalendarIcon, Ruler, ChevronDown, Loader2, FileText, Copy, GripVertical, Sparkles } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { SortableItem, SortableDragHandle } from '@/components/ui/sortable';
 import { MagicPasteModal } from './MagicPasteModal';
 import { toast } from "sonner";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
@@ -62,6 +78,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { hapticTap, hapticImpact, hapticSelect } from "@/utils/haptic";
 
 const DRAFT_STORAGE_KEY = "pedido_form_draft";
 
@@ -167,6 +184,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
     if (isOpen && !hasInitializedRef.current) {
       if (isEditing && initialData) {
         const itemsData = initialData.pedido_items?.map((item: any) => ({
+          tempId: Math.random().toString(36).substr(2, 9),
           produto_id: item.produto_id,
           produto_nome: item.produto_nome || item.produtos?.nome || '',
           quantidade: item.quantidade,
@@ -436,6 +454,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
   };
 
   const addItem = () => {
+    hapticTap(); // Feedback ao adicionar
     // SEMPRE criar um item VAZIO, sem copiar dados anteriores
     const newItem = {
       tempId: Math.random().toString(36).substr(2, 9), // ID único
@@ -466,6 +485,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
   };
 
   const duplicateItem = (index: number) => {
+    hapticTap(); // Feedback ao duplicar
     const currentItems = form.getValues('items') || [];
     const itemToDuplicate = currentItems[index];
 
@@ -526,6 +546,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
   };
 
   const removeItem = (index: number) => {
+    hapticImpact(); // Feedback forte ao remover
     const currentItems = form.getValues('items') || [];
     form.setValue('items', currentItems.filter((_, i) => i !== index));
     // Fecha o accordion se o item removido estava aberto
@@ -632,6 +653,34 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
       currency: 'BRL'
     }).format(value);
   };
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      const currentItems = form.getValues('items') || [];
+      const oldIndex = currentItems.findIndex((item) => (item.tempId) === active.id);
+      const newIndex = currentItems.findIndex((item) => (item.tempId) === over.id);
+
+      if (oldIndex !== -1 && newIndex !== -1) {
+        hapticSelect(); // Feedback ao reordenar
+        const newItems = arrayMove(currentItems, oldIndex, newIndex);
+        form.setValue('items', newItems);
+        // Fechar accordion para evitar confusão visual
+        setAccordionItemValue(undefined);
+      }
+    }
+  };
+
+  const items = form.watch('items') || [];
+  const itemIds = useMemo(() => items.map((item) => item.tempId || ''), [items]);
 
   return (
     <>
@@ -828,226 +877,223 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                         </p>
                       ) : (
                         <div className="space-y-3">
-                          {form.watch('items')?.map((item, index) => {
-                            const isOpen = accordionItemValue === `item-${index}`;
-                            // Usar tempId como key se existir, senão usar index (fallback)
-                            // Isso força o React a tratar cada item como único e previne bugs de estado
-                            const itemKey = item.tempId || `item-${index}`;
+                          <DndContext
+                            sensors={sensors}
+                            collisionDetection={closestCenter}
+                            onDragEnd={handleDragEnd}
+                          >
+                            <SortableContext
+                              items={itemIds}
+                              strategy={verticalListSortingStrategy}
+                            >
+                              {items.map((item, index) => {
+                                const isOpen = accordionItemValue === `item-${index}`;
+                                // Garantir que tempId existe
+                                if (!item.tempId) {
+                                  item.tempId = Math.random().toString(36).substr(2, 9);
+                                }
+                                const itemKey = item.tempId;
 
-                            return (
-                              <Card
-                                key={itemKey}
-                                id={`item-card-${index}`}
-                                className={`overflow-hidden transition-all duration-200 ${!isOpen ? 'cursor-grab active:cursor-grabbing' : ''}`}
-                                draggable={!isOpen}
-                                onDragStart={(e) => {
-                                  if (isOpen) {
-                                    e.preventDefault();
-                                    return;
-                                  }
-                                  e.dataTransfer.setData('text/plain', index.toString());
-                                  e.dataTransfer.effectAllowed = 'move';
-                                  // Adicionar classe visual
-                                  (e.target as HTMLElement).classList.add('opacity-50');
-                                }}
-                                onDragEnd={(e) => {
-                                  (e.target as HTMLElement).classList.remove('opacity-50');
-                                }}
-                                onDragOver={(e) => {
-                                  if (isOpen) return;
-                                  e.preventDefault(); // Necessário para permitir o drop
-                                  e.dataTransfer.dropEffect = 'move';
-                                }}
-                                onDrop={(e) => {
-                                  if (isOpen) return;
-                                  e.preventDefault();
-                                  const fromIndex = parseInt(e.dataTransfer.getData('text/plain'));
-                                  const toIndex = index;
-                                  if (fromIndex !== toIndex) {
-                                    moveItem(fromIndex, toIndex);
-                                  }
-                                }}
-                              >
-                                {/* Cabeçalho clicável */}
-                                <div
-                                  className="flex items-center justify-between p-4 cursor-pointer hover:bg-accent/50 transition-colors"
-                                  onClick={() => {
-                                    if (isOpen) {
-                                      setAccordionItemValue(undefined);
-                                      setItemSnapshot(null);
-                                    } else {
-                                      // Salvar snapshot dos valores atuais
-                                      const currentItem = form.getValues(`items.${index}`);
-                                      setItemSnapshot({ index, data: { ...currentItem } });
-                                      setAccordionItemValue(`item-${index}`);
-                                    }
-                                  }}
-                                >
-                                  <div className="flex items-center gap-2 flex-1">
-                                    {/* Handle de Drag & Drop - SÓ MOSTRA SE ESTIVER FECHADO */}
-                                    {!isOpen && (
-                                      <div className="p-1 text-muted-foreground hover:text-foreground" title="Arraste para reordenar">
-                                        <GripVertical className="h-5 w-5" />
-                                      </div>
-                                    )}
+                                return (
+                                  <SortableItem key={itemKey} id={itemKey}>
+                                    <Card
+                                      id={`item-card-${index}`}
+                                      className={`overflow-hidden transition-all duration-200 ${isOpen ? 'ring-2 ring-primary/20' : 'hover:border-primary/50'}`}
+                                    >
+                                      {/* Cabeçalho clicável */}
+                                      <div
+                                        className="flex items-center justify-between p-4 cursor-pointer hover:bg-accent/50 transition-colors"
+                                        onClick={() => {
+                                          if (isOpen) {
+                                            setAccordionItemValue(undefined);
+                                            setItemSnapshot(null);
+                                          } else {
+                                            // Salvar snapshot dos valores atuais
+                                            const currentItem = form.getValues(`items.${index}`);
+                                            setItemSnapshot({ index, data: { ...currentItem } });
+                                            setAccordionItemValue(`item-${index}`);
+                                          }
+                                        }}
+                                      >
+                                        <div className="flex items-center gap-3 flex-1">
+                                          {/* Handle de Drag & Drop */}
+                                          {!isOpen && (
+                                            <SortableDragHandle className="p-1 text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing">
+                                              <GripVertical className="h-5 w-5" />
+                                            </SortableDragHandle>
+                                          )}
 
-                                    <div className="flex-1">
-                                      <div className="font-medium text-sm flex items-center gap-2">
-                                        <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-                                        {item.produto_nome || `Item #${index + 1} (Sem nome)`}
-                                      </div>
-                                      <div className="text-xs text-muted-foreground ml-6">
-                                        <span className="mr-2">Qtd: {item.quantidade}</span>
-                                        <span>Total: {formatCurrency(Number(item.quantidade) * Number(item.preco_unitario))}</span>
-                                        {item.observacao && (
-                                          <div className="mt-1 text-amber-600 dark:text-amber-400 font-medium border-l-2 border-amber-500 pl-2">
-                                            {item.observacao}
+                                          <div className="flex-1">
+                                            <div className="font-medium text-sm flex items-center gap-2">
+                                              <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                                              {item.produto_nome || <span className="text-muted-foreground italic">Novo Item</span>}
+                                            </div>
+                                            <div className="text-xs text-muted-foreground ml-6 mt-1 flex flex-wrap gap-x-4 gap-y-1">
+                                              <span className="flex items-center gap-1">
+                                                <Ruler className="h-3 w-3" />
+                                                {Number(item.quantidade).toFixed(2)} ML
+                                              </span>
+                                              <span className="font-medium text-foreground">
+                                                {formatCurrency(Number(item.quantidade) * Number(item.preco_unitario))}
+                                              </span>
+                                            </div>
+                                            {item.observacao && (
+                                              <div className="mt-2 text-xs text-amber-600 dark:text-amber-400 font-medium border-l-2 border-amber-500 pl-2 bg-amber-50 dark:bg-amber-900/10 py-1 rounded-r">
+                                                {item.observacao}
+                                              </div>
+                                            )}
                                           </div>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
+                                        </div>
 
-                                  <div className="flex items-center gap-1">
-                                    {/* Botão Duplicar */}
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-8 w-8 p-0 hover:text-primary"
-                                      title="Duplicar item"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        duplicateItem(index);
-                                      }}
-                                    >
-                                      <Copy className="h-4 w-4" />
-                                    </Button>
+                                        <div className="flex items-center gap-1">
+                                          {/* Botão Duplicar */}
+                                          <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-8 w-8 p-0 hover:text-primary hover:bg-primary/10"
+                                            title="Duplicar item"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              duplicateItem(index);
+                                            }}
+                                          >
+                                            <Copy className="h-4 w-4" />
+                                          </Button>
 
-                                    {/* Botão Remover */}
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-8 w-8 p-0 hover:text-destructive"
-                                      title="Remover item"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        removeItem(index);
-                                      }}
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  </div>
-                                </div>
-
-                                {/* Conteúdo expansível */}
-                                <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}>
-                                  <div className="px-4 pb-4 pt-2 border-t">
-                                    <div className="space-y-4">
-                                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <FormField
-                                          control={form.control}
-                                          name={`items.${index}.produto_nome`}
-                                          render={({ field }) => (
-                                            <FormItem className="md:col-span-3">
-                                              <FormLabel>Produto</FormLabel>
-                                              <FormControl>
-                                                <Input {...field} placeholder="Nome do produto" />
-                                              </FormControl>
-                                              <FormMessage />
-                                            </FormItem>
-                                          )}
-                                        />
-
-                                        <FormField
-                                          control={form.control}
-                                          name={`items.${index}.quantidade`}
-                                          render={({ field }) => (
-                                            <FormItem>
-                                              <FormLabel>Quantidade (ML)</FormLabel>
-                                              <FormControl>
-                                                <Input
-                                                  type="number"
-                                                  step="0.01"
-                                                  placeholder="1.00"
-                                                  {...field}
-                                                />
-                                              </FormControl>
-                                              <FormMessage />
-                                            </FormItem>
-                                          )}
-                                        />
-
-                                        <FormField
-                                          control={form.control}
-                                          name={`items.${index}.preco_unitario`}
-                                          render={({ field }) => (
-                                            <FormItem>
-                                              <FormLabel>Preço Unitário</FormLabel>
-                                              <FormControl>
-                                                <CurrencyInput
-                                                  value={field.value}
-                                                  onChange={(value) => field.onChange(value)}
-                                                  placeholder="0,00"
-                                                />
-                                              </FormControl>
-                                              <FormMessage />
-                                            </FormItem>
-                                          )}
-                                        />
-
-                                        <FormField
-                                          control={form.control}
-                                          name={`items.${index}.observacao`}
-                                          render={({ field }) => (
-                                            <FormItem className="md:col-span-3">
-                                              <FormLabel>Observação do Item</FormLabel>
-                                              <FormControl>
-                                                <Textarea {...field} placeholder="Detalhes específicos deste item..." />
-                                              </FormControl>
-                                              <FormMessage />
-                                            </FormItem>
-                                          )}
-                                        />
+                                          {/* Botão Remover */}
+                                          <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-8 w-8 p-0 hover:text-destructive hover:bg-destructive/10"
+                                            title="Remover item"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              removeItem(index);
+                                            }}
+                                          >
+                                            <Trash2 className="h-4 w-4" />
+                                          </Button>
+                                        </div>
                                       </div>
 
-                                      {/* Botões Salvar e Cancelar */}
-                                      <div className="flex justify-end gap-2 pt-2 border-t">
-                                        <Button
-                                          type="button"
-                                          variant="outline"
-                                          size="sm"
-                                          onClick={() => {
-                                            // Restaurar valores do snapshot
-                                            if (itemSnapshot && itemSnapshot.index === index) {
-                                              form.setValue(`items.${index}`, itemSnapshot.data);
-                                            }
-                                            setAccordionItemValue(undefined);
-                                            setItemSnapshot(null);
-                                          }}
-                                        >
-                                          <X className="h-4 w-4 mr-2" />
-                                          Cancelar
-                                        </Button>
-                                        <Button
-                                          type="button"
-                                          size="sm"
-                                          onClick={() => {
-                                            setAccordionItemValue(undefined);
-                                            setItemSnapshot(null);
-                                          }}
-                                        >
-                                          <Save className="h-4 w-4 mr-2" />
-                                          Salvar
-                                        </Button>
+                                      {/* Conteúdo expansível */}
+                                      <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                                        <div className="px-4 pb-4 pt-2 border-t bg-muted/30">
+                                          <div className="space-y-4">
+                                            <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                                              <FormField
+                                                control={form.control}
+                                                name={`items.${index}.produto_nome`}
+                                                render={({ field }) => (
+                                                  <FormItem className="md:col-span-6">
+                                                    <FormLabel>Produto</FormLabel>
+                                                    <FormControl>
+                                                      <Input {...field} placeholder="Nome do produto" className="bg-background" />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                  </FormItem>
+                                                )}
+                                              />
+
+                                              <FormField
+                                                control={form.control}
+                                                name={`items.${index}.quantidade`}
+                                                render={({ field }) => (
+                                                  <FormItem className="md:col-span-3">
+                                                    <FormLabel>Qtd (ML)</FormLabel>
+                                                    <FormControl>
+                                                      <Input
+                                                        type="number"
+                                                        step="0.01"
+                                                        placeholder="1.00"
+                                                        {...field}
+                                                        className="bg-background"
+                                                      />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                  </FormItem>
+                                                )}
+                                              />
+
+                                              <FormField
+                                                control={form.control}
+                                                name={`items.${index}.preco_unitario`}
+                                                render={({ field }) => (
+                                                  <FormItem className="md:col-span-3">
+                                                    <FormLabel>Preço Unit.</FormLabel>
+                                                    <FormControl>
+                                                      <CurrencyInput
+                                                        value={field.value}
+                                                        onChange={(value) => field.onChange(value)}
+                                                        placeholder="0,00"
+                                                        className="bg-background"
+                                                      />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                  </FormItem>
+                                                )}
+                                              />
+
+                                              <FormField
+                                                control={form.control}
+                                                name={`items.${index}.observacao`}
+                                                render={({ field }) => (
+                                                  <FormItem className="md:col-span-12">
+                                                    <FormLabel>Observação</FormLabel>
+                                                    <FormControl>
+                                                      <Textarea
+                                                        {...field}
+                                                        placeholder="Detalhes específicos deste item..."
+                                                        className="bg-background min-h-[80px]"
+                                                      />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                  </FormItem>
+                                                )}
+                                              />
+                                            </div>
+
+                                            {/* Botões Salvar e Cancelar */}
+                                            <div className="flex justify-end gap-2 pt-2 border-t">
+                                              <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => {
+                                                  // Restaurar valores do snapshot
+                                                  if (itemSnapshot && itemSnapshot.index === index) {
+                                                    form.setValue(`items.${index}`, itemSnapshot.data);
+                                                  }
+                                                  setAccordionItemValue(undefined);
+                                                  setItemSnapshot(null);
+                                                }}
+                                              >
+                                                <X className="h-4 w-4 mr-2" />
+                                                Cancelar
+                                              </Button>
+                                              <Button
+                                                type="button"
+                                                size="sm"
+                                                onClick={() => {
+                                                  setAccordionItemValue(undefined);
+                                                  setItemSnapshot(null);
+                                                }}
+                                              >
+                                                <Save className="h-4 w-4 mr-2" />
+                                                Confirmar
+                                              </Button>
+                                            </div>
+                                          </div>
+                                        </div>
                                       </div>
-                                    </div>
-                                  </div>
-                                </div>
-                              </Card>
-                            );
-                          })}
+                                    </Card>
+                                  </SortableItem>
+                                );
+                              })}
+                            </SortableContext>
+                          </DndContext>
                         </div>
                       )}
                     </div>

@@ -108,11 +108,18 @@
     touch-action: manipulation;
     -webkit-text-size-adjust: 100%;
     -ms-text-size-adjust: 100%;
+    /* Prevenir pull-to-refresh no iOS */
+    overscroll-behavior-y: none;
   }
 
   body {
     touch-action: manipulation;
     overscroll-behavior: none;
+    /* Safe Area para iOS (notch, dynamic island) */
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
   }
 
   /* Prevenir zoom em inputs */
@@ -121,6 +128,16 @@
   textarea {
     font-size: 16px !important;
     /* Previne zoom automático no iOS */
+  }
+
+  /* Remover highlight de tap no iOS */
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Melhorar scroll no iOS */
+  * {
+    -webkit-overflow-scrolling: touch;
   }
 }
 

@@ -85,6 +85,7 @@ const CacheInvalidator = () => {
 };
 
 import { PWAManager } from "./components/PWAManager";
+import { InstallPrompt } from "./components/InstallPrompt";
 
 // ... (código existente)
 
@@ -98,6 +99,7 @@ const App = () => (
           <BrowserRouter>
             <SessionProvider>
               <PWAManager />
+              <InstallPrompt />
               <CacheInvalidator />
               <ErrorBoundary>
                 <Routes>
