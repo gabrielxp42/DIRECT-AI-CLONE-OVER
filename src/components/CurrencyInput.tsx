@@ -37,11 +37,14 @@ export const CurrencyInput = forwardRef<HTMLInputElement, CurrencyInputProps>(
     useEffect(() => {
       // Atualiza displayValue se a prop 'value' externa mudar
       // Isso garante que o input reflita o valor real do formulário
+      // IMPORTANTE: Só atualiza se o usuário não estiver digitando ativamente
       const currentNumericValueInDisplay = parseFloat(displayValue.replace(/\./g, '').replace(',', '.')) || 0;
-      if (currentNumericValueInDisplay !== value) {
+      // Usa uma tolerância pequena para evitar loops de atualização por arredondamento
+      const tolerance = 0.001;
+      if (Math.abs(currentNumericValueInDisplay - value) > tolerance) {
         setDisplayValue(formatNumberToDisplay(value));
       }
-    }, [value]); // Re-executa apenas se 'value' mudar
+    }, [value, displayValue]); // Inclui displayValue para evitar stale closures
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const rawInput = e.target.value; // Ex: "7", "70", "700", "70000"
