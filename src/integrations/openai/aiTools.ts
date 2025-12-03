@@ -1238,13 +1238,43 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
           if (response.ok) {
             const allClients = await response.json();
             const clientList = (allClients as ClientName[]).map(c => c.nome).join(', ');
-            throw new Error(`❌ Não encontrei nenhum cliente com o nome "${clientName}".\n\n📋 Alguns clientes disponíveis no sistema:\n${clientList}\n\n💡 Dica: Tente usar o nome completo ou verifique a grafia.`);
+            return {
+              orders: [],
+              summary: {
+                clientName: clientName,
+                totalOrders: 0,
+                totalValue: 0,
+                totalMetros: 0,
+                foundMultipleClients: false
+              },
+              message: `❌ Não encontrei nenhum cliente com o nome "${clientName}".\n\n📋 Alguns clientes disponíveis no sistema:\n${clientList}\n\n💡 Dica: Tente usar o nome completo ou verifique a grafia.`
+            };
           }
         }
-        throw new Error(`❌ Não encontrei nenhum cliente com o nome "${clientName}".`);
+        return {
+          orders: [],
+          summary: {
+            clientName: clientName,
+            totalOrders: 0,
+            totalValue: 0,
+            totalMetros: 0,
+            foundMultipleClients: false
+          },
+          message: `❌ Não encontrei nenhum cliente com o nome "${clientName}".`
+        };
       } catch (error: any) {
         console.error(`❌ [get_client_orders] Erro ao buscar lista de clientes:`, error);
-        throw new Error(`❌ Não encontrei nenhum cliente com o nome "${clientName}". Verifique se o nome está correto ou tente usar apenas parte do nome.`);
+        return {
+          orders: [],
+          summary: {
+            clientName: clientName,
+            totalOrders: 0,
+            totalValue: 0,
+            totalMetros: 0,
+            foundMultipleClients: false
+          },
+          message: `❌ Não encontrei nenhum cliente com o nome "${clientName}". Verifique se o nome está correto ou tente usar apenas parte do nome.`
+        };
       }
     }
 

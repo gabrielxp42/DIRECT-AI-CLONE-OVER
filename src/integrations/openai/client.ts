@@ -95,6 +95,32 @@ export class OpenAIClient {
     const data = await response.json();
     return data.text || null;
   }
+
+  async generateEmbedding(text: string): Promise<number[]> {
+    // Remove newlines to improve performance as per OpenAI recommendation
+    const cleanText = text.replace(/\n/g, ' ');
+
+    const response = await fetch(`${this.baseURL}/embeddings`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'text-embedding-3-small',
+        input: cleanText,
+        dimensions: 1536
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(`OpenAI Embeddings API Error: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
+    }
+
+    const data = await response.json();
+    return data.data[0].embedding;
+  }
 }
 
 export const getOpenAIClient = () => {

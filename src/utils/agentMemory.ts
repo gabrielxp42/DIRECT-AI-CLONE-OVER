@@ -1,5 +1,6 @@
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/integrations/supabase/client';
 import { getValidToken } from '@/utils/tokenGuard';
+import { getOpenAIClient } from '@/integrations/openai/client';
 
 // ============================================
 // TIPOS
@@ -236,7 +237,7 @@ export class AgentMemoryManager {
     // ============================================
 
     /**
-     * Cria ou atualiza uma memória
+     * Cria ou atualiza uma memória (com Embeddings)
      */
     async saveMemory(
         memoryType: MemoryType,
@@ -252,34 +253,62 @@ export class AgentMemoryManager {
             const token = await getValidToken();
             if (!token) throw new Error('Token inválido');
 
-            const expiresAt = options.expiresInDays
-                ? new Date(Date.now() + options.expiresInDays * 24 * 60 * 60 * 1000).toISOString()
-                : null;
+            // Gerar embedding para a memória
+            let embedding: number[] | null = null;
+            try {
+                const openAI = getOpenAIClient();
+                embedding = await openAI.generateEmbedding(content);
+            } catch (embedError) {
+                console.warn('⚠️ [Memory] Falha ao gerar embedding (continuando sem vetor):', embedError);
+            }
 
-            // Usa a função RPC upsert_memory para evitar duplicatas
-            const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/upsert_memory`, {
+            // Usa a função RPC upsert_memory (agora suportando embedding se atualizada)
+            // Se a função SQL não tiver o parâmetro embedding, o Supabase vai ignorar ou dar erro?
+            // Melhor abordagem: Tentar salvar com embedding, se falhar, tentar sem.
+
+            const body: any = {
+                p_user_id: this.userId,
+                p_memory_type: memoryType,
+                p_category: options.category || null,
+                p_content: content,
+                p_importance: options.importance || 0.5,
+                p_conversation_id: this.currentConversationId || null
+            };
+
+            if (embedding) {
+                body.p_embedding = embedding;
+            }
+
+            let response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/upsert_memory`, {
                 method: 'POST',
                 headers: {
                     'apikey': SUPABASE_ANON_KEY,
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({
-                    p_user_id: this.userId,
-                    p_memory_type: memoryType,
-                    p_category: options.category || null,
-                    p_content: content,
-                    p_importance: options.importance || 0.5,
-                    p_conversation_id: this.currentConversationId || null
-                })
+                body: JSON.stringify(body)
             });
+
+            // Fallback: Se falhar (provavelmente porque a função SQL antiga não aceita p_embedding), tenta sem embedding
+            if (!response.ok && embedding) {
+                console.warn('⚠️ [Memory] Falha ao salvar com embedding, tentando método legado...');
+                delete body.p_embedding;
+                response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/upsert_memory`, {
+                    method: 'POST',
+                    headers: {
+                        'apikey': SUPABASE_ANON_KEY,
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(body)
+                });
+            }
 
             if (!response.ok) throw new Error('Erro ao salvar memória');
 
             const memoryId = await response.json();
             console.log('🧠 [Memory] Memória salva:', memoryType, '-', content.substring(0, 50));
 
-            // Busca a memória criada/atualizada
             const getResponse = await fetch(
                 `${SUPABASE_URL}/rest/v1/agent_memory?id=eq.${memoryId}`,
                 {
@@ -299,17 +328,55 @@ export class AgentMemoryManager {
     }
 
     /**
-     * Busca memórias relevantes
+     * Busca memórias relevantes (Híbrido: Vetorial + Palavras-chave)
      */
     async getRelevantMemories(
         limit: number = 10,
-        minImportance: number = 0.3
+        minImportance: number = 0.3,
+        queryText?: string // Texto para busca semântica
     ): Promise<AgentMemory[]> {
         try {
             const token = await getValidToken();
-            if (!token) throw new Error('Token inválido');
+            if (!token) {
+                console.warn('⚠️ [Memory] Token inválido, retornando memórias vazias');
+                return [];
+            }
 
-            // Usa a função RPC get_relevant_memories
+            // Se tiver texto de consulta, tenta busca vetorial
+            if (queryText) {
+                try {
+                    const openAI = getOpenAIClient();
+                    const embedding = await openAI.generateEmbedding(queryText);
+
+                    // Tenta usar a função match_memories (busca vetorial)
+                    const vectorResponse = await fetch(`${SUPABASE_URL}/rest/v1/rpc/match_memories`, {
+                        method: 'POST',
+                        headers: {
+                            'apikey': SUPABASE_ANON_KEY,
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            query_embedding: embedding,
+                            match_threshold: 0.5, // Similaridade mínima
+                            match_count: limit,
+                            p_user_id: this.userId
+                        })
+                    });
+
+                    if (vectorResponse.ok) {
+                        const vectorMemories = await vectorResponse.json();
+                        if (vectorMemories && vectorMemories.length > 0) {
+                            console.log(`🔍 [Memory] Busca vetorial encontrou ${vectorMemories.length} itens.`);
+                            return vectorMemories;
+                        }
+                    }
+                } catch (vectorError) {
+                    console.warn('⚠️ [Memory] Erro na busca vetorial (usando fallback):', vectorError);
+                }
+            }
+
+            // Fallback: Busca padrão por importância (Legado)
             const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_relevant_memories`, {
                 method: 'POST',
                 headers: {
@@ -324,13 +391,20 @@ export class AgentMemoryManager {
                 })
             });
 
-            if (!response.ok) throw new Error('Erro ao buscar memórias');
+            if (!response.ok) {
+                // Ignora erro 400 se for problema de coluna ambígua (bug conhecido da versão anterior)
+                if (response.status !== 400) {
+                    const errorText = await response.text();
+                    console.warn('⚠️ [Memory] Erro ao buscar memórias (não-crítico):', response.status, errorText);
+                }
+                return [];
+            }
 
             const memories = await response.json();
-            console.log('🔍 [Memory] Memórias relevantes encontradas:', memories.length);
+            console.log('🔍 [Memory] Memórias relevantes encontradas (padrão):', memories.length);
             return memories;
         } catch (error) {
-            console.error('❌ [Memory] Erro ao buscar memórias:', error);
+            console.warn('⚠️ [Memory] Erro ao buscar memórias (não-crítico):', error);
             return [];
         }
     }

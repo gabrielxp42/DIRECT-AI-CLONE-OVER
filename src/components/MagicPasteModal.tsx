@@ -55,7 +55,7 @@ export const MagicPasteModal: React.FC<MagicPasteModalProps> = ({
                     content: [
                         {
                             type: 'text',
-                            text: "Analise a imagem do pedido (manuscrito ou impresso). Extraia os itens no formato exato: 'QUANTIDADE - NOME DO PRODUTO - OBSERVAÇÕES'. Se não houver quantidade explícita, assuma 1. Se não houver observação, deixe vazio. Responda APENAS com a lista, uma linha por item, sem introdução ou conclusão.",
+                            text: "Analise a imagem do pedido. Extraia os itens linha por linha.\n\nRegras de Formatação:\n1. Converta quantidades por extenso para números (ex: 'MEIO METRO' -> '0.5M', 'UM METRO' -> '1M').\n2. Formato de saída: 'QUANTIDADE - PRODUTO | OBSERVAÇÕES'.\n3. Use ' | ' (barra vertical) para separar o Produto das Observações.\n4. Se a linha começar com um número que parece ser quantidade, use-o.\n5. Se houver 'MEIO METRO', a quantidade é 0.5M.\n6. Exemplo: '0.5M - NUMERO FLA 25 - BRANCO | 0 - ANA FLAVIA'.\n\nResponda APENAS com a lista formatada.",
                         },
                         { type: 'image_url', image_url: { url: selectedImage } },
                     ],
@@ -90,62 +90,47 @@ export const MagicPasteModal: React.FC<MagicPasteModalProps> = ({
             const parsedItems: any[] = [];
 
             lines.forEach(line => {
-                const cleanLine = line.trim();
+                let cleanLine = line.trim();
                 let produtoNome = '';
                 let observacao = '';
                 let quantidade = 1;
 
-                // 1. Tentar extrair quantidade do INÍCIO da linha (prioridade máxima)
-                // Suporta: "1M", "1.5M", "3,12M", "0,30", "34CM", "2x"
-                // Regex ajustada para capturar decimais com vírgula ou ponto obrigatoriamente
-                const startQtyMatch = cleanLine.match(/^(\d+(?:[.,]\d+)?)\s*(?:M|CM|X|UN|PC|MT|METROS|mts)?/i);
+                // 1. Tentar extrair quantidade do INÍCIO da linha
+                // Suporta: "1M", "1.5M", "0.5M", "34CM", "2x", "1 - "
+                const startQtyMatch = cleanLine.match(/^(\d+(?:[.,]\d+)?)\s*(?:M|CM|X|UN|PC|MT|METROS|mts)?\s*[-–]?\s*/i);
 
                 if (startQtyMatch) {
-                    // Substitui vírgula por ponto para o parseFloat funcionar
                     const rawQty = startQtyMatch[1].replace(',', '.');
                     const parsed = parseFloat(rawQty);
 
-                    // Validação extra para garantir que é um número válido e maior que 0
                     if (!isNaN(parsed) && parsed > 0) {
                         quantidade = parsed;
+                        // Remove a quantidade da linha para não duplicar no nome
+                        cleanLine = cleanLine.substring(startQtyMatch[0].length).trim();
+                        // Remove hífen inicial se sobrou
+                        cleanLine = cleanLine.replace(/^[-–]\s*/, '');
                     }
                 }
 
-                // 2. Separar por " - " para definir Nome vs Observação
-                const parts = cleanLine.split(/\s+[-–]\s+/); // Aceita hífen normal ou travessão com espaços
-
-                if (parts.length >= 4) {
-                    // Ex: "3M - NIKE - BRANCO - 25CM - NOME"
-                    // Nome: "3M - NIKE - BRANCO"
-                    // Obs: "25CM - NOME"
-                    produtoNome = parts.slice(0, 3).join(' - ');
-                    observacao = parts.slice(3).join(' - ');
-                } else if (parts.length === 3) {
-                    // Ex: "3M - NIKE - BRANCO"
-                    // Nome: Tudo
-                    produtoNome = parts.join(' - ');
-                    observacao = '';
+                // 2. Separar por "|" para definir Nome vs Observação (Novo padrão LLM)
+                if (cleanLine.includes('|')) {
+                    const parts = cleanLine.split('|');
+                    produtoNome = parts[0].trim();
+                    observacao = parts.slice(1).join('|').trim();
                 } else {
-                    // 2 partes ou menos, tudo no nome
-                    produtoNome = cleanLine;
-                }
+                    // Fallback para o padrão antigo com hífens
+                    const parts = cleanLine.split(/\s+[-–]\s+/);
 
-                // Fallback: Se não achou quantidade no início, tenta no final (padrão antigo)
-                // Mas só se não tiver achado no início
-                if (quantidade === 1 && !startQtyMatch) {
-                    const endQtyMatch = cleanLine.match(/(\d+[\.,]?\d*)\s*$/);
-                    if (endQtyMatch) {
-                        const raw = endQtyMatch[1].replace(',', '.');
-                        const parsed = parseFloat(raw);
-                        if (!isNaN(parsed)) {
-                            quantidade = parsed;
-                            // Nesse caso do final, talvez o usuário queira remover do nome?
-                            // Vamos manter o comportamento de remover se for no final, pois costuma ser "PRETO 03"
-                            // Mas se for no início (3M), ele quer manter.
-                            if (parts.length === 1) {
-                                produtoNome = produtoNome.replace(endQtyMatch[0], '').trim();
-                            }
-                        }
+                    if (parts.length >= 3) {
+                        // Ex: "NIKE - BRANCO - 25CM" -> Nome: "NIKE - BRANCO", Obs: "25CM"
+                        produtoNome = parts.slice(0, parts.length - 1).join(' - ');
+                        observacao = parts[parts.length - 1];
+                    } else if (parts.length === 2) {
+                        // Ex: "NIKE - BRANCO" -> Nome: "NIKE", Obs: "BRANCO"
+                        produtoNome = parts[0];
+                        observacao = parts[1];
+                    } else {
+                        produtoNome = cleanLine;
                     }
                 }
 
@@ -189,7 +174,7 @@ export const MagicPasteModal: React.FC<MagicPasteModalProps> = ({
                     </DialogDescription>
                 </DialogHeader>
 
-                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'text' | 'image')} className="w-full">
                     <TabsList className="grid w-full grid-cols-2">
                         <TabsTrigger value="text">
                             <FileText className="h-4 w-4 mr-2" /> Texto

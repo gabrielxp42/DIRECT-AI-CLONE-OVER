@@ -910,10 +910,11 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                         className="flex items-center justify-between p-4 cursor-pointer hover:bg-accent/50 transition-colors"
                                         onClick={() => {
                                           if (isOpen) {
+                                            // Ao fechar clicando no header, apenas fecha SEM restaurar snapshot
                                             setAccordionItemValue(undefined);
                                             setItemSnapshot(null);
                                           } else {
-                                            // Salvar snapshot dos valores atuais
+                                            // Ao abrir, salvar snapshot dos valores atuais para permitir cancelamento
                                             const currentItem = form.getValues(`items.${index}`);
                                             setItemSnapshot({ index, data: { ...currentItem } });
                                             setAccordionItemValue(`item-${index}`);
@@ -995,7 +996,12 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                                   <FormItem className="md:col-span-6">
                                                     <FormLabel>Produto</FormLabel>
                                                     <FormControl>
-                                                      <Input {...field} placeholder="Nome do produto" className="bg-background" />
+                                                      <Input
+                                                        {...field}
+                                                        value={field.value || ''}
+                                                        placeholder="Nome do produto"
+                                                        className="bg-background"
+                                                      />
                                                     </FormControl>
                                                     <FormMessage />
                                                   </FormItem>
@@ -1014,6 +1020,8 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                                         step="0.01"
                                                         placeholder="1.00"
                                                         {...field}
+                                                        value={field.value ?? ''}
+                                                        onChange={(e) => field.onChange(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
                                                         className="bg-background"
                                                       />
                                                     </FormControl>
@@ -1050,6 +1058,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                                     <FormControl>
                                                       <Textarea
                                                         {...field}
+                                                        value={field.value || ''}
                                                         placeholder="Detalhes específicos deste item..."
                                                         className="bg-background min-h-[80px]"
                                                       />
@@ -1210,7 +1219,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                         <FormItem>
                                           <FormLabel>Serviço</FormLabel>
                                           <FormControl>
-                                            <Input {...field} placeholder="Ex: Montagem de Arq" />
+                                            <Input {...field} value={field.value || ''} placeholder="Ex: Montagem de Arq" />
                                           </FormControl>
                                         </FormItem>
                                       )}
@@ -1222,7 +1231,12 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                         <FormItem>
                                           <FormLabel>Quantidade</FormLabel>
                                           <FormControl>
-                                            <Input type="number" {...field} />
+                                            <Input
+                                              type="number"
+                                              {...field}
+                                              value={field.value ?? ''}
+                                              onChange={(e) => field.onChange(e.target.value === '' ? '' : parseInt(e.target.value) || 1)}
+                                            />
                                           </FormControl>
                                         </FormItem>
                                       )}

@@ -194,6 +194,16 @@ export const generateOrderPDF = async (pedido: Pedido, action: 'save' | 'print' 
 
   // Services section - BARRAS PRETAS
   if (pedido.servicos && pedido.servicos.length > 0) {
+    // After services table, add total metros line if applicable
+    if (pedido.total_metros && pedido.total_metros > 0) {
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Total Metros (ML): ${pedido.total_metros.toFixed(2)} ML`, 15, yPosition + 6);
+      yPosition += 8;
+    }
+    // Continue with observations below
+    // (Observations section follows after this block)
+
     doc.setDrawColor(0, 0, 0); // PRETO
     doc.rect(10, yPosition, pageWidth - 20, 8);
     doc.setFillColor(240, 240, 240);
@@ -246,6 +256,14 @@ export const generateOrderPDF = async (pedido: Pedido, action: 'save' | 'print' 
     yPosition = (doc as any).lastAutoTable.finalY + 5;
   }
 
+  // NOVO: Adicionar Total Metros ANTES das observações
+  if (pedido.total_metros && pedido.total_metros > 0) {
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Total Metros (ML): ${pedido.total_metros.toFixed(2)} ML`, 15, yPosition + 6);
+    yPosition += 12; // Espaço extra após a linha de metros
+  }
+
   // Observations section - BARRAS PRETAS
   if (pedido.observacoes) {
     doc.setDrawColor(0, 0, 0); // PRETO
@@ -284,11 +302,7 @@ export const generateOrderPDF = async (pedido: Pedido, action: 'save' | 'print' 
     summaryData.push([discountLabel, `-${formatCurrency(pedido.desconto_valor)}`]);
   }
 
-  // NOVO: Adicionar Total Metros
-  if (pedido.total_metros > 0) {
-    summaryData.push(['Total Metros (ML)', `${pedido.total_metros.toFixed(2)} ML`]);
-  }
-
+  // REMOVED total metros from financial summary (will be added separately)
   summaryData.push(['Total Final', formatCurrency(pedido.valor_total)]);
 
   autoTable(doc, {

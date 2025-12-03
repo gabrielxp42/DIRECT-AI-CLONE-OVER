@@ -1,0 +1,600 @@
+/* ============================================
+   LOADING SCREEN - DIRECT AI
+   Premium loading screen com animações neon
+   ============================================ */
+
+.loading-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+    opacity: 1;
+    transition: opacity 300ms ease-out;
+}
+
+.loading-screen--visible {
+    opacity: 1;
+    pointer-events: all;
+}
+
+.loading-screen--hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* ============================================
+   BACKGROUND & PARTICLES
+   ============================================ */
+
+.loading-screen__background {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+}
+
+.loading-screen__particle {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(60px);
+    opacity: 0.1;
+    will-change: transform, opacity;
+}
+
+.loading-screen__particle--1 {
+    top: 20%;
+    left: 20%;
+    width: min(400px, 40vw);
+    height: min(400px, 40vw);
+    background: radial-gradient(circle, #facc15 0%, transparent 70%);
+    animation: particle-float-1 8s ease-in-out infinite;
+}
+
+.loading-screen__particle--2 {
+    bottom: 20%;
+    right: 20%;
+    width: min(350px, 35vw);
+    height: min(350px, 35vw);
+    background: radial-gradient(circle, #fbbf24 0%, transparent 70%);
+    animation: particle-float-2 10s ease-in-out infinite;
+}
+
+.loading-screen__particle--3 {
+    top: 50%;
+    left: 50%;
+    width: min(300px, 30vw);
+    height: min(300px, 30vw);
+    background: radial-gradient(circle, #f59e0b 0%, transparent 70%);
+    animation: particle-float-3 12s ease-in-out infinite;
+    transform: translate(-50%, -50%);
+}
+
+/* ============================================
+   MAIN CONTENT
+   ============================================ */
+
+.loading-screen__content {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: clamp(1.5rem, 4vw, 3rem);
+    padding: 1rem;
+}
+
+/* ============================================
+   LOGO CONTAINER & EFFECTS
+   ============================================ */
+
+.loading-screen__logo-container {
+    position: relative;
+    width: clamp(120px, 20vw, 180px);
+    height: clamp(120px, 20vw, 180px);
+}
+
+/* Anéis de pulso */
+.loading-screen__ring {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 2px solid;
+    will-change: transform, opacity;
+}
+
+.loading-screen__ring--outer {
+    border-color: rgba(250, 204, 21, 0.2);
+    animation: ring-pulse-outer 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.loading-screen__ring--middle {
+    border-color: rgba(250, 204, 21, 0.15);
+    animation: ring-pulse-middle 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Logo wrapper com animação de escala */
+.loading-screen__logo-wrapper {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: logo-breathe 3s ease-in-out infinite;
+    will-change: transform;
+}
+
+/* Glow effects */
+.loading-screen__glow {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    will-change: opacity;
+}
+
+.loading-screen__glow--primary {
+    background: radial-gradient(circle, rgba(250, 204, 21, 0.3) 0%, transparent 70%);
+    filter: blur(30px);
+    animation: glow-pulse-primary 2s ease-in-out infinite;
+}
+
+.loading-screen__glow--secondary {
+    background: radial-gradient(circle, rgba(251, 191, 36, 0.2) 0%, transparent 70%);
+    filter: blur(40px);
+    animation: glow-pulse-secondary 2.5s ease-in-out infinite 0.5s;
+}
+
+/* Logo image */
+.loading-screen__logo {
+    position: relative;
+    width: 70%;
+    height: 70%;
+    object-fit: contain;
+    filter: drop-shadow(0 0 20px rgba(250, 204, 21, 0.6)) drop-shadow(0 0 40px rgba(250, 204, 21, 0.3));
+    animation: logo-float 4s ease-in-out infinite;
+    will-change: transform;
+}
+
+/* ============================================
+   TEXT CONTENT
+   ============================================ */
+
+.loading-screen__text {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    text-align: center;
+}
+
+.loading-screen__title {
+    font-size: clamp(1.5rem, 4vw, 2rem);
+    font-weight: 700;
+    color: #ffffff;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin: 0;
+    text-shadow: 0 0 20px rgba(250, 204, 21, 0.3);
+}
+
+.loading-screen__subtitle {
+    font-size: clamp(0.875rem, 2vw, 1rem);
+    font-weight: 500;
+    color: rgba(250, 204, 21, 0.9);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.loading-screen__dots::after {
+    content: '';
+    animation: dots-animation 1.5s steps(4, end) infinite;
+}
+
+.loading-screen__tip {
+    font-size: clamp(0.75rem, 1.5vw, 0.875rem);
+    color: rgba(148, 163, 184, 0.8);
+    margin: 0;
+    animation: tip-fade 3s ease-in-out infinite;
+}
+
+/* ============================================
+   PROGRESS BAR
+   ============================================ */
+
+.loading-screen__progress-container {
+    width: min(280px, 80vw);
+    height: 3px;
+    background: rgba(30, 41, 59, 0.8);
+    border-radius: 999px;
+    overflow: hidden;
+    position: relative;
+}
+
+.loading-screen__progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg,
+            transparent 0%,
+            #facc15 25%,
+            #fbbf24 50%,
+            #facc15 75%,
+            transparent 100%);
+    background-size: 200% 100%;
+    border-radius: 999px;
+    box-shadow: 0 0 15px rgba(250, 204, 21, 0.6),
+        0 0 30px rgba(250, 204, 21, 0.3);
+    animation: progress-bar-slide 1.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    will-change: transform;
+}
+
+/* ============================================
+   KEYFRAME ANIMATIONS
+   ============================================ */
+
+@keyframes particle-float-1 {
+
+    0%,
+    100% {
+        transform: translate(0, 0) scale(1);
+        opacity: 0.08;
+    }
+
+    33% {
+        transform: translate(30px, -30px) scale(1.1);
+        opacity: 0.12;
+    }
+
+    66% {
+        transform: translate(-20px, 20px) scale(0.9);
+        opacity: 0.1;
+    }
+}
+
+@keyframes particle-float-2 {
+
+    0%,
+    100% {
+        transform: translate(0, 0) scale(1);
+        opacity: 0.08;
+    }
+
+    33% {
+        transform: translate(-40px, 30px) scale(1.15);
+        opacity: 0.11;
+    }
+
+    66% {
+        transform: translate(25px, -25px) scale(0.95);
+        opacity: 0.09;
+    }
+}
+
+@keyframes particle-float-3 {
+
+    0%,
+    100% {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 0.06;
+    }
+
+    50% {
+        transform: translate(-50%, -50%) scale(1.2);
+        opacity: 0.1;
+    }
+}
+
+@keyframes ring-pulse-outer {
+
+    0%,
+    100% {
+        transform: scale(1);
+        opacity: 0.3;
+    }
+
+    50% {
+        transform: scale(1.4);
+        opacity: 0;
+    }
+}
+
+@keyframes ring-pulse-middle {
+
+    0%,
+    100% {
+        transform: scale(1);
+        opacity: 0.2;
+    }
+
+    50% {
+        transform: scale(1.6);
+        opacity: 0;
+    }
+}
+
+@keyframes logo-breathe {
+
+    0%,
+    100% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.08);
+    }
+}
+
+@keyframes logo-float {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-12px);
+    }
+}
+
+@keyframes glow-pulse-primary {
+
+    0%,
+    100% {
+        opacity: 0.5;
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: 1;
+        transform: scale(1.1);
+    }
+}
+
+@keyframes glow-pulse-secondary {
+
+    0%,
+    100% {
+        opacity: 0.3;
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: 0.7;
+        transform: scale(1.15);
+    }
+}
+
+@keyframes dots-animation {
+    0% {
+        content: '';
+    }
+
+    25% {
+        content: '.';
+    }
+
+    50% {
+        content: '..';
+    }
+
+    75% {
+        content: '...';
+    }
+
+    100% {
+        content: '';
+    }
+}
+
+@keyframes tip-fade {
+
+    0%,
+    100% {
+        opacity: 0.6;
+    }
+
+    50% {
+        opacity: 1;
+    }
+}
+
+@keyframes progress-bar-slide {
+    0% {
+        transform: translateX(-100%);
+    }
+
+    100% {
+        transform: translateX(100%);
+    }
+}
+
+/* ============================================
+   ACCESSIBILITY - REDUCED MOTION
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+
+    .loading-screen__particle,
+    .loading-screen__ring,
+    .loading-screen__logo-wrapper,
+    .loading-screen__logo,
+    .loading-screen__glow,
+    .loading-screen__progress-bar {
+        animation: none !important;
+    }
+
+    .loading-screen__logo {
+        filter: drop-shadow(0 0 10px rgba(250, 204, 21, 0.4));
+    }
+
+    .loading-screen__progress-bar {
+        background: linear-gradient(90deg, #facc15 0%, #fbbf24 100%);
+        animation: progress-bar-simple 2s linear infinite;
+    }
+
+    @keyframes progress-bar-simple {
+        0% {
+            opacity: 0.5;
+        }
+
+        50% {
+            opacity: 1;
+        }
+
+        100% {
+            opacity: 0.5;
+        }
+    }
+}
+
+/* ============================================
+   RESPONSIVE ADJUSTMENTS
+   ============================================ */
+
+@media (max-width: 640px) {
+    .loading-screen__content {
+        gap: 2rem;
+    }
+
+    .loading-screen__logo-container {
+        width: 140px;
+        height: 140px;
+    }
+
+    .loading-screen__particle {
+        filter: blur(40px);
+    }
+}
+
+@media (max-width: 400px) {
+    .loading-screen__logo-container {
+        width: 120px;
+        height: 120px;
+    }
+}
+
+/* ============================================
+   PERFORMANCE OPTIMIZATIONS
+   ============================================ */
+
+.loading-screen,
+.loading-screen * {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Force GPU acceleration for animated elements */
+.loading-screen__particle,
+.loading-screen__ring,
+.loading-screen__logo-wrapper,
+.loading-screen__logo,
+.loading-screen__glow,
+.loading-screen__progress-bar {
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    perspective: 1000px;
+}
+
+/* ============================================
+   LIGHT THEME SUPPORT
+   ============================================ */
+
+/* Light theme background */
+:root:not(.dark) .loading-screen,
+.light .loading-screen {
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #f8fafc 100%);
+}
+
+/* Light theme particles - mais visíveis mas suaves */
+:root:not(.dark) .loading-screen__particle--1,
+.light .loading-screen__particle--1 {
+    background: radial-gradient(circle, #facc15 0%, transparent 60%);
+    opacity: 0.15;
+}
+
+:root:not(.dark) .loading-screen__particle--2,
+.light .loading-screen__particle--2 {
+    background: radial-gradient(circle, #fbbf24 0%, transparent 60%);
+    opacity: 0.15;
+}
+
+:root:not(.dark) .loading-screen__particle--3,
+.light .loading-screen__particle--3 {
+    background: radial-gradient(circle, #f59e0b 0%, transparent 60%);
+    opacity: 0.12;
+}
+
+/* Light theme rings - mais visíveis */
+:root:not(.dark) .loading-screen__ring--outer,
+.light .loading-screen__ring--outer {
+    border-color: rgba(250, 204, 21, 0.4);
+}
+
+:root:not(.dark) .loading-screen__ring--middle,
+.light .loading-screen__ring--middle {
+    border-color: rgba(250, 204, 21, 0.3);
+}
+
+/* Light theme glow - mais intenso para contrastar */
+:root:not(.dark) .loading-screen__glow--primary,
+.light .loading-screen__glow--primary {
+    background: radial-gradient(circle, rgba(250, 204, 21, 0.5) 0%, transparent 70%);
+}
+
+:root:not(.dark) .loading-screen__glow--secondary,
+.light .loading-screen__glow--secondary {
+    background: radial-gradient(circle, rgba(251, 191, 36, 0.35) 0%, transparent 70%);
+}
+
+/* Light theme logo - sombra mais forte */
+:root:not(.dark) .loading-screen__logo,
+.light .loading-screen__logo {
+    filter: drop-shadow(0 0 25px rgba(250, 204, 21, 0.8)) drop-shadow(0 0 50px rgba(250, 204, 21, 0.4)) drop-shadow(0 2px 8px rgba(0, 0, 0, 0.1));
+}
+
+/* Light theme title - texto escuro com sombra amarela */
+:root:not(.dark) .loading-screen__title,
+.light .loading-screen__title {
+    color: #0f172a;
+    text-shadow: 0 0 30px rgba(250, 204, 21, 0.5),
+        0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Light theme subtitle - amarelo mais escuro */
+:root:not(.dark) .loading-screen__subtitle,
+.light .loading-screen__subtitle {
+    color: #ca8a04;
+    font-weight: 600;
+}
+
+/* Light theme tip - cinza escuro */
+:root:not(.dark) .loading-screen__tip,
+.light .loading-screen__tip {
+    color: rgba(71, 85, 105, 0.8);
+}
+
+/* Light theme progress container - fundo mais escuro */
+:root:not(.dark) .loading-screen__progress-container,
+.light .loading-screen__progress-container {
+    background: rgba(226, 232, 240, 0.8);
+}
+
+/* Light theme progress bar - sombra mais intensa */
+:root:not(.dark) .loading-screen__progress-bar,
+.light .loading-screen__progress-bar {
+    box-shadow: 0 0 20px rgba(250, 204, 21, 0.8),
+        0 0 40px rgba(250, 204, 21, 0.4),
+        0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Light theme - reduced motion adjustments */
+@media (prefers-reduced-motion: reduce) {
+
+    :root:not(.dark) .loading-screen__logo,
+    .light .loading-screen__logo {
+        filter: drop-shadow(0 0 15px rgba(250, 204, 21, 0.6)) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+    }
+}

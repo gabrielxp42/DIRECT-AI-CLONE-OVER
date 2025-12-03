@@ -229,23 +229,28 @@ ALTER TABLE agent_memory ENABLE ROW LEVEL SECURITY;
 ALTER TABLE agent_insights ENABLE ROW LEVEL SECURITY;
 
 -- Políticas para agent_conversations
+DROP POLICY IF EXISTS "Users can view their own conversations" ON agent_conversations;
 CREATE POLICY "Users can view their own conversations"
   ON agent_conversations FOR SELECT
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can insert their own conversations" ON agent_conversations;
 CREATE POLICY "Users can insert their own conversations"
   ON agent_conversations FOR INSERT
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update their own conversations" ON agent_conversations;
 CREATE POLICY "Users can update their own conversations"
   ON agent_conversations FOR UPDATE
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can delete their own conversations" ON agent_conversations;
 CREATE POLICY "Users can delete their own conversations"
   ON agent_conversations FOR DELETE
   USING (auth.uid() = user_id);
 
 -- Políticas para agent_messages
+DROP POLICY IF EXISTS "Users can view messages from their conversations" ON agent_messages;
 CREATE POLICY "Users can view messages from their conversations"
   ON agent_messages FOR SELECT
   USING (
@@ -256,6 +261,7 @@ CREATE POLICY "Users can view messages from their conversations"
     )
   );
 
+DROP POLICY IF EXISTS "Users can insert messages to their conversations" ON agent_messages;
 CREATE POLICY "Users can insert messages to their conversations"
   ON agent_messages FOR INSERT
   WITH CHECK (
@@ -267,27 +273,33 @@ CREATE POLICY "Users can insert messages to their conversations"
   );
 
 -- Políticas para agent_memory
+DROP POLICY IF EXISTS "Users can view their own memories" ON agent_memory;
 CREATE POLICY "Users can view their own memories"
   ON agent_memory FOR SELECT
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can insert their own memories" ON agent_memory;
 CREATE POLICY "Users can insert their own memories"
   ON agent_memory FOR INSERT
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update their own memories" ON agent_memory;
 CREATE POLICY "Users can update their own memories"
   ON agent_memory FOR UPDATE
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can delete their own memories" ON agent_memory;
 CREATE POLICY "Users can delete their own memories"
   ON agent_memory FOR DELETE
   USING (auth.uid() = user_id);
 
 -- Políticas para agent_insights
+DROP POLICY IF EXISTS "Users can view their own insights" ON agent_insights;
 CREATE POLICY "Users can view their own insights"
   ON agent_insights FOR SELECT
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update their own insights" ON agent_insights;
 CREATE POLICY "Users can update their own insights"
   ON agent_insights FOR UPDATE
   USING (auth.uid() = user_id);
@@ -310,6 +322,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trigger_update_conversation_last_message ON agent_messages;
 CREATE TRIGGER trigger_update_conversation_last_message
   AFTER INSERT ON agent_messages
   FOR EACH ROW

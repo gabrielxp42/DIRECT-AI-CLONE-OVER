@@ -84,7 +84,7 @@ export const AIAssistant = () => {
       if (memoryManager.current) {
         console.log('🧠 [AIAssistant] Carregando memórias relevantes...');
         [memories, insights] = await Promise.all([
-          memoryManager.current.getRelevantMemories(10, 0.3),
+          memoryManager.current.getRelevantMemories(10, 0.3, userMessage.content),
           memoryManager.current.getActiveInsights()
         ]);
         console.log('✅ [AIAssistant] Memórias carregadas:', memories.length, '| Insights:', insights.length);
