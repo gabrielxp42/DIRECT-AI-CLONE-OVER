@@ -158,7 +158,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
     },
   });
 
-  const { fields: itemFields, append: appendItem, remove: removeItemField, move: moveItemField, update: updateItem, replace: replaceItems } = useFieldArray({
+  const { fields: itemFields, append: appendItem, remove: removeItemField, move: moveItemField, update: updateItem, replace: replaceItems, insert: insertItem } = useFieldArray({
     control: form.control,
     name: "items",
     keyName: "fieldId" // Importante para evitar conflito com id do objeto
@@ -288,23 +288,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
     }
   }, [isOpen, initialData, form, clientes, isEditing]);
 
-  // Salvar rascunho automaticamente quando o formulário mudar
-  useEffect(() => {
-    if (!isOpen || isEditing) return; // Não salvar rascunho se estiver editando um pedido existente
 
-    const subscription = form.watch((value) => {
-      // Debounce simples para não salvar a cada tecla
-      const timeoutId = setTimeout(() => {
-        if ((value.items && value.items.length > 0) || value.cliente_id) {
-          localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(value));
-        }
-      }, 1000);
-
-      return () => clearTimeout(timeoutId);
-    });
-
-    return () => subscription.unsubscribe();
-  }, [form, isOpen, isEditing]);
 
 
 
