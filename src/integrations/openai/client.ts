@@ -29,7 +29,7 @@ export interface FunctionCall {
 export class OpenAIClient {
   private apiKey: string;
   private baseURL = 'https://api.openai.com/v1';
-  private proxyURL = `${SUPABASE_URL}/functions/v1/openai-proxy`;
+  private proxyURL = `${SUPABASE_URL}/functions/v1/openai-proxy`.replace(/([^:]\/)\/+/g, "$1"); // Evita barras duplas
 
   constructor(apiKey: string) {
     this.apiKey = apiKey;
@@ -51,6 +51,7 @@ export class OpenAIClient {
           'apikey': SUPABASE_ANON_KEY,
           'Content-Type': 'application/json',
         },
+        mode: 'cors', // Garantir CORS mode
         body: JSON.stringify({
           type: 'chat',
           model: 'gpt-4o-mini',
@@ -65,7 +66,7 @@ export class OpenAIClient {
         const data = await response.json();
 
         if (data.error) {
-          throw new Error(`Proxy Error: ${data.error}`);
+          throw new Error(`Proxy Internal Error: ${JSON.stringify(data.error)}`);
         }
 
         const choice = data.choices[0];
@@ -84,15 +85,14 @@ export class OpenAIClient {
         };
       } else {
         const errorData = await response.json().catch(() => ({}));
-        console.error('❌ [OpenAIClient] Erro no Proxy:', response.status, errorData);
+        console.error('❌ [OpenAIClient] Resposta de erro do Proxy:', response.status, errorData);
       }
-
-      console.warn(`⚠️ [OpenAIClient] Falha no Proxy (${response.status}), tentando fallback direto...`);
     } catch (proxyError) {
-      console.warn('⚠️ [OpenAIClient] Erro no Proxy, tentando fallback direto:', proxyError);
+      console.warn('⚠️ [OpenAIClient] Falha na rede do Proxy, tentando fallback direto:', proxyError);
     }
 
     // Fallback Direto (pode falhar por CORS em produção)
+    console.log('⚠️ [OpenAIClient] Iniciando fallback direto para OpenAI API...');
     const response = await fetch(`${this.baseURL}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -160,6 +160,7 @@ export class OpenAIClient {
 
     // Tentativa via Proxy
     try {
+      console.log('🌐 [OpenAIClient] Gerando Embedding via Proxy...');
       const response = await fetch(this.proxyURL, {
         method: 'POST',
         headers: {
@@ -167,6 +168,7 @@ export class OpenAIClient {
           'apikey': SUPABASE_ANON_KEY,
           'Content-Type': 'application/json',
         },
+        mode: 'cors',
         body: JSON.stringify({
           type: 'embeddings',
           input: cleanText,
@@ -179,11 +181,15 @@ export class OpenAIClient {
         if (data.data && data.data[0]) {
           return data.data[0].embedding;
         }
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('❌ [OpenAIClient] Resposta de erro do Proxy (Embeddings):', response.status, errorData);
       }
     } catch (e) {
-      console.warn('⚠️ [OpenAIClient] Erro no Proxy Embeddings, tentando fallback direto...', e);
+      console.warn('⚠️ [OpenAIClient] Falha na rede do Proxy (Embeddings), tentando fallback direto...', e);
     }
 
+    console.log('⚠️ [OpenAIClient] Iniciando fallback direto para OpenAI Embeddings API...');
     const response = await fetch(`${this.baseURL}/embeddings`, {
       method: 'POST',
       headers: {
