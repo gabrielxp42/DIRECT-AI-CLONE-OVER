@@ -333,7 +333,8 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
       observacoes: data.observacoes,
       created_at: data.created_at.toISOString(),
       items: items.map((item, index) => ({
-        produto_id: item.produto_id || null,
+        // GARANTIA: Se produto_id for string vazia ou undefined, envia null
+        produto_id: (item.produto_id && item.produto_id.trim() !== "") ? item.produto_id : null,
         produto_nome: item.produto_nome,
         quantidade: Number(item.quantidade),
         preco_unitario: Number(item.preco_unitario),
@@ -574,7 +575,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
 
     const newItems = importedItems.map(item => ({
       tempId: item.tempId,
-      produto_id: "",
+      produto_id: null, // Garantir que seja null para itens importados (que não tem ID de produto)
       produto_nome: item.customName || "Produto Importado", // Nome temporário
       quantidade: item.quantidade,
       preco_unitario: selectedClientValorMetro || 0, // Usa o valor do metro do cliente se disponível

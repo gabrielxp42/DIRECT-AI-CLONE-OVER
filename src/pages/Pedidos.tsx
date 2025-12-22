@@ -292,14 +292,25 @@ const PedidosPage: React.FC = () => {
 
       // Excluir itens e serviços relacionados
       const deleteRelated = async (table: string) => {
-        const url = `${SUPABASE_URL}/rest/v1/${table}?pedido_id=eq.${id}`;
-        const response = await fetch(url, { method: 'DELETE', headers });
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.warn(`Aviso: Erro ao excluir ${table}:`, errorText);
+        try {
+          const url = `${SUPABASE_URL}/rest/v1/${table}?pedido_id=eq.${id}`;
+          const response = await fetch(url, { method: 'DELETE', headers });
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            // Logar aviso mas não interromper imediatamente (tenta excluir o pedido mesmo assim, 
+            // caso as relações já tenham sido removidas ou não existam)
+            console.warn(`Aviso: Erro ao excluir ${table}: ${response.status} - ${errorText}`);
+
+            // Se for erro de permissão (RLS) ou erro severo, talvez devêssemos parar?
+            // Mas vamos tentar seguir para o delete principal.
+          }
+        } catch (e) {
+          console.error(`Exceção ao excluir ${table}:`, e);
         }
       };
 
+      // Tentar excluir dependências em paralelo, mas tratar erros individualmente
       await Promise.all([
         deleteRelated('pedido_items'),
         deleteRelated('pedido_servicos'),
@@ -312,6 +323,7 @@ const PedidosPage: React.FC = () => {
 
       if (!response.ok) {
         const errorText = await response.text();
+        console.error("Erro ao excluir pedido principal:", errorText);
         throw new Error(`Erro ao excluir pedido: ${response.status} ${response.statusText} - ${errorText}`);
       }
     },
@@ -323,6 +335,7 @@ const PedidosPage: React.FC = () => {
       setViewingPedidoId(null);
     },
     onError: (error: any) => {
+      console.error("Erro na mutação de exclusão:", error);
       showError(`Erro ao excluir pedido: ${error.message}`);
     }
   });

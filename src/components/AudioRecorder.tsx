@@ -18,7 +18,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
   const [audioPermission, setAudioPermission] = useState<boolean | null>(null);
   const [pressStartTime, setPressStartTime] = useState<number | null>(null);
   const [isLongPress, setIsLongPress] = useState(false);
-  
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const audioStreamRef = useRef<MediaStream | null>(null);
@@ -34,6 +34,12 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
   // Verificar permissão de microfone
   useEffect(() => {
     const checkAudioPermission = async () => {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        console.warn("[AudioRecorder] MediaDevices API não disponível (provavelmente contexto não seguro/HTTP).");
+        setAudioPermission(false);
+        return;
+      }
+
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         stream.getTracks().forEach(track => track.stop());
@@ -44,7 +50,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
         setAudioPermission(false);
       }
     };
-    
+
     checkAudioPermission();
   }, []);
 
@@ -52,17 +58,17 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
     if (disabled || recordingStatus !== 'idle' || audioPermission === false) return;
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
+      const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
           sampleRate: 44100
-        } 
+        }
       });
-      
+
       audioStreamRef.current = stream;
-      
+
       const mimeTypes = [
         'audio/webm;codecs=opus',
         'audio/webm',
@@ -70,16 +76,16 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
         'audio/aac',
         'audio/ogg;codecs=opus'
       ];
-      
+
       const supportedType = mimeTypes.find(type => MediaRecorder.isTypeSupported(type)) || 'audio/webm';
-      
-      const options = { 
+
+      const options = {
         mimeType: supportedType,
-        audioBitsPerSecond: 128000 
+        audioBitsPerSecond: 128000
       };
-      
+
       mediaRecorderRef.current = new MediaRecorder(stream, options);
-      
+
       audioChunksRef.current = [];
       setRecordingDuration(0);
       setRecordingStatus('recording');
@@ -108,12 +114,12 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
       mediaRecorderRef.current.onstop = async () => {
         setRecordingStatus('processing');
         console.log("[AudioRecorder] Gravação parada. Processando...");
-        
+
         if (intervalRef.current) {
           clearInterval(intervalRef.current);
           intervalRef.current = null;
         }
-        
+
         audioStreamRef.current?.getTracks().forEach(track => track.stop());
         audioStreamRef.current = null;
 
@@ -127,22 +133,22 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
           console.log("[AudioRecorder] Nenhuma chunk de áudio capturada. Resetando.");
           return;
         }
-        
+
         // Usar a duração real para a verificação
-        if (actualDuration < MIN_AUDIO_DURATION_MS) { 
+        if (actualDuration < MIN_AUDIO_DURATION_MS) {
           showError("Áudio muito curto. Mantenha pressionado por mais tempo.");
           setRecordingStatus('idle');
           console.log("[AudioRecorder] Duração mínima não atingida. Resetando.");
           return;
         }
 
-        const audioBlob = new Blob(audioChunksRef.current, { 
-          type: mediaRecorderRef.current?.mimeType || 'audio/webm' 
+        const audioBlob = new Blob(audioChunksRef.current, {
+          type: mediaRecorderRef.current?.mimeType || 'audio/webm'
         });
-        
+
         try {
           const transcription = await openAIClient.transcribeAudio(audioBlob);
-          
+
           if (transcription && transcription.trim()) {
             onAudioRecorded(transcription, audioBlob);
             console.log("[AudioRecorder] Áudio transcrito e enviado.");
@@ -161,7 +167,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
 
       mediaRecorderRef.current.start(100);
       recordingStartTimeRef.current = Date.now(); // Registrar o tempo de início real
-      
+
     } catch (err: any) {
       console.error("[AudioRecorder] Erro ao acessar o microfone:", err);
       showError("Não foi possível acessar o microfone. Verifique as permissões.");
@@ -173,7 +179,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
     if (mediaRecorderRef.current && recordingStatus === 'recording') {
       mediaRecorderRef.current.stop();
       console.log(`[AudioRecorder] Chamando stop() no MediaRecorder. AutoStop: ${autoStop}`);
-      
+
       if (autoStop) {
         showSuccess("Tempo máximo atingido. Processando áudio...");
       }
@@ -196,7 +202,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
 
   const handlePressEnd = (e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
-    
+
     if (longPressTimeoutRef.current) {
       clearTimeout(longPressTimeoutRef.current);
       longPressTimeoutRef.current = null;
@@ -252,8 +258,8 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
 
   if (audioPermission === false) {
     return (
-      <Button 
-        variant="destructive" 
+      <Button
+        variant="destructive"
         size="icon"
         className="h-10 w-10 rounded-full"
         onClick={() => showError("Permissão de microfone negada. Verifique as configurações do navegador.")}
@@ -287,7 +293,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioRecorded, d
         onTouchCancel={handlePressCancel}
         onContextMenu={(e) => e.preventDefault()}
         disabled={recordingStatus === 'processing' || disabled}
-        style={{ 
+        style={{
           WebkitTouchCallout: 'none',
           WebkitUserSelect: 'none',
           userSelect: 'none'
