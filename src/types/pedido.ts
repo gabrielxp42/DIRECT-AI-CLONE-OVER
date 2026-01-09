@@ -9,6 +9,7 @@ export interface PedidoItem {
   quantidade: number;
   preco_unitario: number;
   observacao?: string;
+  tipo?: 'dtf' | 'vinil';
   produtos?: Produto;
   ordem?: number;
 }
@@ -60,6 +61,7 @@ export interface NewPedidoItem {
   quantidade: number;
   preco_unitario: number;
   observacao?: string;
+  tipo?: 'dtf' | 'vinil';
   ordem?: number;
 }
 

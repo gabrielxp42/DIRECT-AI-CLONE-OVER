@@ -37,7 +37,7 @@ import { NewPedido, Pedido } from "@/types/pedido";
 import { Cliente } from "@/types/cliente";
 import { Produto } from "@/types/produto";
 import { useEffect, useState, useRef, useMemo } from "react";
-import { Trash2, Plus, Search, Edit3, X, User, Package, Wrench, Save, Zap, CalendarIcon, Ruler, ChevronDown, Loader2, FileText, Copy, GripVertical, Sparkles } from "lucide-react";
+import { Trash2, Plus, Search, Edit3, X, User, Package, Wrench, Save, Zap, CalendarIcon, Ruler, ChevronDown, Loader2, FileText, Copy, GripVertical, Sparkles, Printer, Scissors } from "lucide-react";
 import {
   DndContext,
   closestCenter,
@@ -97,6 +97,7 @@ const formSchema = z.object({
     quantidade: z.coerce.number().min(0.01, { message: "Quantidade deve ser maior que 0." }),
     preco_unitario: z.coerce.number().min(0, { message: "Preço deve ser maior ou igual a 0." }),
     observacao: z.string().optional(),
+    tipo: z.enum(['dtf', 'vinil']).default('dtf'),
   })).min(1, { message: "Pelo menos um item é obrigatório para o pedido." }),
   servicos: z.array(z.object({
     nome: z.string().min(1, { message: "Nome do serviço é obrigatório." }),
@@ -197,14 +198,26 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
   useEffect(() => {
     if (isOpen && !hasInitializedRef.current) {
       if (isEditing && initialData) {
-        const itemsData = initialData.pedido_items?.map((item: any) => ({
-          tempId: Math.random().toString(36).substr(2, 9),
-          produto_id: item.produto_id,
-          produto_nome: item.produto_nome || item.produtos?.nome || '',
-          quantidade: item.quantidade,
-          preco_unitario: item.preco_unitario,
-          observacao: item.observacao || '',
-        })) || [];
+        const itemsData = initialData.pedido_items?.map((item: any) => {
+          // Extrair tipo da observação (hack para evitar migration)
+          let tipo: 'dtf' | 'vinil' = 'dtf';
+          let observacao = item.observacao || '';
+
+          if (observacao.includes('__TYPE:VINIL__') || item.produto_nome?.toLowerCase().includes('vinil')) {
+            tipo = 'vinil';
+            observacao = observacao.replace('__TYPE:VINIL__', '').trim();
+          }
+
+          return {
+            tempId: Math.random().toString(36).substr(2, 9),
+            produto_id: item.produto_id,
+            produto_nome: item.produto_nome || item.produtos?.nome || '',
+            quantidade: item.quantidade,
+            preco_unitario: item.preco_unitario,
+            observacao: observacao,
+            tipo: tipo
+          };
+        }) || [];
 
         const servicosData = initialData.servicos?.map((servico: any) => ({
           nome: servico.nome,
@@ -332,15 +345,24 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
       total_metros: totalMetros, // NOVO CAMPO
       observacoes: data.observacoes,
       created_at: data.created_at.toISOString(),
-      items: items.map((item, index) => ({
-        // GARANTIA: Se produto_id for string vazia ou undefined, envia null
-        produto_id: (item.produto_id && item.produto_id.trim() !== "") ? item.produto_id : null,
-        produto_nome: item.produto_nome,
-        quantidade: Number(item.quantidade),
-        preco_unitario: Number(item.preco_unitario),
-        observacao: item.observacao,
-        ordem: index, // Garantir a ordem correta
-      })),
+      items: items.map((item, index) => {
+        // Injetar tag de tipo na observação se for vinil
+        let finalObs = item.observacao || '';
+        if (item.tipo === 'vinil') {
+          finalObs = `${finalObs} __TYPE:VINIL__`.trim();
+        }
+
+        return {
+          // GARANTIA: Se produto_id for string vazia ou undefined, envia null
+          produto_id: (item.produto_id && item.produto_id.trim() !== "") ? item.produto_id : null,
+          produto_nome: item.produto_nome,
+          quantidade: Number(item.quantidade),
+          preco_unitario: Number(item.preco_unitario),
+          observacao: finalObs,
+          type_helper: item.tipo, // Campo auxiliar não salvo no banco, mas útil para debug/cache
+          ordem: index, // Garantir a ordem correta
+        };
+      }),
       servicos: servicos.map(servico => ({
         nome: servico.nome, // Garantir que o nome está presente
         quantidade: Number(servico.quantidade),
@@ -1030,9 +1052,50 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                             <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
                                               <FormField
                                                 control={form.control}
+                                                name={`items.${index}.tipo`}
+                                                render={({ field }) => (
+                                                  <FormItem className="md:col-span-4">
+                                                    <FormLabel>Tipo de Produção</FormLabel>
+                                                    <FormControl>
+                                                      <div className="flex gap-2">
+                                                        <Button
+                                                          type="button"
+                                                          size="sm"
+                                                          variant={field.value === 'dtf' ? 'default' : 'outline'}
+                                                          className={cn(
+                                                            "flex-1 transition-all",
+                                                            field.value === 'dtf' ? "bg-primary text-primary-foreground font-semibold shadow-md" : "hover:bg-accent hover:text-accent-foreground"
+                                                          )}
+                                                          onClick={() => field.onChange('dtf')}
+                                                        >
+                                                          <Printer className="w-3.5 h-3.5 mr-1.5" />
+                                                          DTF
+                                                        </Button>
+                                                        <Button
+                                                          type="button"
+                                                          size="sm"
+                                                          variant={field.value === 'vinil' ? 'default' : 'outline'}
+                                                          className={cn(
+                                                            "flex-1 transition-all",
+                                                            field.value === 'vinil' ? "bg-orange-500 hover:bg-orange-600 text-white font-semibold shadow-md border-orange-200" : "hover:bg-accent hover:text-accent-foreground"
+                                                          )}
+                                                          onClick={() => field.onChange('vinil')}
+                                                        >
+                                                          <Scissors className="w-3.5 h-3.5 mr-1.5" />
+                                                          Vinil
+                                                        </Button>
+                                                      </div>
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                  </FormItem>
+                                                )}
+                                              />
+
+                                              <FormField
+                                                control={form.control}
                                                 name={`items.${index}.produto_nome`}
                                                 render={({ field }) => (
-                                                  <FormItem className="md:col-span-6">
+                                                  <FormItem className="md:col-span-8">
                                                     <FormLabel>Produto</FormLabel>
                                                     <FormControl>
                                                       <Input

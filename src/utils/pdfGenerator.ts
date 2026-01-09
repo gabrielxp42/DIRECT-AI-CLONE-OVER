@@ -135,7 +135,11 @@ export const generateOrderPDF = async (pedido: Pedido, action: 'save' | 'print' 
 
     const productRows = sortedItems.map(item => {
       const productName = item.produto_nome || item.produtos?.nome || 'Produto não encontrado';
-      const itemDescription = item.observacao ? `\nObs: ${item.observacao}` : '';
+
+      // Limpar tag interna da observação para não sair no PDF
+      const cleanObs = (item.observacao || '').replace('__TYPE:VINIL__', '').trim();
+      const itemDescription = cleanObs ? `\nObs: ${cleanObs}` : '';
+
       const firstColumnContent = productName + itemDescription;
 
       return [
@@ -239,16 +243,47 @@ export const generateOrderPDF = async (pedido: Pedido, action: 'save' | 'print' 
     yPosition = (doc as any).lastAutoTable.finalY + 3;
   }
 
-  // Total Metros - POSIÇÃO FIXA E ÚNICA (removido duplicação)
-  if (pedido.total_metros && pedido.total_metros > 0) {
+  // CÁLCULO SEPARADO DE TOTAIS (DTF vs VINIL)
+  let totalDTF = 0;
+  let totalVinil = 0;
+
+  pedido.pedido_items.forEach(item => {
+    const isVinil = (item.observacao || '').includes('__TYPE:VINIL__') ||
+      (item.produto_nome || '').toLowerCase().includes('vinil');
+    if (isVinil) {
+      totalVinil += Number(item.quantidade || 0);
+    } else {
+      totalDTF += Number(item.quantidade || 0);
+    }
+  });
+
+  // Exibir totais separados
+  if (totalDTF > 0 || totalVinil > 0) {
+    // Layout mais inteligente para totais
+    const hasBoth = totalDTF > 0 && totalVinil > 0;
+    const boxHeight = hasBoth ? 12 : 7;
+
     doc.setDrawColor(0, 0, 0);
-    doc.rect(10, yPosition, pageWidth - 20, 7);
+    doc.rect(10, yPosition, pageWidth - 20, boxHeight);
     doc.setFillColor(240, 240, 240);
-    doc.rect(10, yPosition, pageWidth - 20, 7, 'F');
+    doc.rect(10, yPosition, pageWidth - 20, boxHeight, 'F');
     doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');
-    doc.text(`Total Metros (ML): ${pedido.total_metros.toFixed(2)} ML`, 15, yPosition + 5);
-    yPosition += 10;
+
+    if (hasBoth) {
+      doc.text(`Total DTF: ${totalDTF.toFixed(2)} m`, 15, yPosition + 5);
+      doc.text(`Total VINIL/RECORTE: ${totalVinil.toFixed(2)} m`, pageWidth / 2, yPosition + 5);
+      doc.setFontSize(7);
+      doc.setTextColor(100, 100, 100);
+      doc.text(`Total Geral: ${(totalDTF + totalVinil).toFixed(2)} m`, 15, yPosition + 9);
+      doc.setTextColor(0, 0, 0);
+    } else if (totalVinil > 0) {
+      doc.text(`Total VINIL/RECORTE: ${totalVinil.toFixed(2)} m`, 15, yPosition + 5);
+    } else {
+      doc.text(`Total DTF: ${totalDTF.toFixed(2)} m`, 15, yPosition + 5);
+    }
+
+    yPosition += boxHeight + 3;
   }
 
   // Observations section - MAIS COMPACTO
