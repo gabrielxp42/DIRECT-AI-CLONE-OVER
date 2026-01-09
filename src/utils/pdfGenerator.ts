@@ -136,8 +136,8 @@ export const generateOrderPDF = async (pedido: Pedido, action: 'save' | 'print' 
     const productRows = sortedItems.map(item => {
       const productName = item.produto_nome || item.produtos?.nome || 'Produto não encontrado';
 
-      // Limpar tag interna da observação para não sair no PDF
-      const cleanObs = (item.observacao || '').replace('__TYPE:VINIL__', '').trim();
+      // Observação limpa (agora nativa)
+      const cleanObs = (item.observacao || '').trim();
       const itemDescription = cleanObs ? `\nObs: ${cleanObs}` : '';
 
       const firstColumnContent = productName + itemDescription;
@@ -248,8 +248,7 @@ export const generateOrderPDF = async (pedido: Pedido, action: 'save' | 'print' 
   let totalVinil = 0;
 
   pedido.pedido_items.forEach(item => {
-    const isVinil = (item.observacao || '').includes('__TYPE:VINIL__') ||
-      (item.produto_nome || '').toLowerCase().includes('vinil');
+    const isVinil = item.tipo === 'vinil';
     if (isVinil) {
       totalVinil += Number(item.quantidade || 0);
     } else {

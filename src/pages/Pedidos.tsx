@@ -6,7 +6,7 @@ import { Cliente } from '@/types/cliente';
 import { Produto } from '@/types/produto';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Plus, Search, Filter, Eye, Edit, Trash2, Loader2, CalendarIcon, DollarSign, FileText, Wrench, History, MessageSquare, MoreHorizontal, User, Clock, CheckCircle, XCircle, Package, X, Printer, Ruler, PackageOpen } from 'lucide-react';
+import { Plus, Search, Filter, Eye, Edit, Trash2, Loader2, CalendarIcon, DollarSign, FileText, Scissors, History, MessageSquare, MoreHorizontal, User, Clock, CheckCircle, XCircle, Package, X, Printer, Ruler, PackageOpen, Wrench, Users, Activity, CheckSquare, ChevronDown } from 'lucide-react';
 import { PedidoForm } from '@/components/PedidoForm';
 import { PedidoDetails } from '@/components/PedidoDetails';
 import { EmptyState } from '@/components/EmptyState';
@@ -817,11 +817,27 @@ const PedidosPage: React.FC = () => {
                     <span>Total: {formatCurrency(pedido.valor_total)}</span>
                   </div>
 
-                  {/* NOVO: Exibição do Total de Metros */}
+                  {/* Exibição Detalhada da Produção (DTF vs Vinil) */}
                   {pedido.total_metros > 0 && (
-                    <div className="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300">
-                      <Ruler className="h-4 w-4 mr-2 text-blue-500" />
-                      <span>Metros: {pedido.total_metros.toFixed(2)} ML</span>
+                    <div className="flex flex-wrap items-center gap-2 mt-1">
+                      {pedido.total_metros_dtf > 0 && (
+                        <div className="flex items-center text-[0.65rem] font-bold text-blue-600 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded border border-blue-100 dark:border-blue-800">
+                          <Printer className="h-3 w-3 mr-1" />
+                          DTF: {pedido.total_metros_dtf.toFixed(2)}m
+                        </div>
+                      )}
+                      {pedido.total_metros_vinil > 0 && (
+                        <div className="flex items-center text-[0.65rem] font-bold text-orange-600 bg-orange-50 dark:bg-orange-900/20 px-2 py-0.5 rounded border border-orange-100 dark:border-orange-800">
+                          <Scissors className="h-3 w-3 mr-1" />
+                          VINIL: {pedido.total_metros_vinil.toFixed(2)}m
+                        </div>
+                      )}
+                      {!pedido.total_metros_dtf && !pedido.total_metros_vinil && pedido.total_metros > 0 && (
+                        <div className="flex items-center text-xs font-medium text-gray-600 dark:text-gray-400">
+                          <Ruler className="h-4 w-4 mr-1 text-blue-500" />
+                          Metros: {pedido.total_metros.toFixed(2)}m
+                        </div>
+                      )}
                     </div>
                   )}
 

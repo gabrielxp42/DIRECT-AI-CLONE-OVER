@@ -44,6 +44,8 @@ export interface Pedido {
   desconto_valor: number;
   desconto_percentual: number;
   total_metros: number; // Total de metros lineares
+  total_metros_dtf: number;
+  total_metros_vinil: number;
   status: PedidoStatus; // Tipos de status atualizados
   observacoes: string | null;
   created_at: string;
@@ -56,13 +58,11 @@ export interface Pedido {
 }
 
 export interface NewPedidoItem {
-  produto_id: string | null;
   produto_nome: string;
   quantidade: number;
   preco_unitario: number;
   observacao?: string;
-  tipo?: 'dtf' | 'vinil';
-  ordem?: number;
+  tipo: 'dtf' | 'vinil';
 }
 
 export interface NewServico {
@@ -80,6 +80,8 @@ export interface NewPedido {
   desconto_valor?: number;
   desconto_percentual?: number;
   total_metros: number; // Total de metros lineares
+  total_metros_dtf: number;
+  total_metros_vinil: number;
   status: PedidoStatus; // Status de pagamento/geral
   observacoes?: string;
   items: NewPedidoItem[];

@@ -14,6 +14,8 @@ interface OrderWithClient {
   status: string;
   valor_total: number;
   total_metros: number;
+  total_metros_dtf: number;
+  total_metros_vinil: number;
   created_at: string;
   clientes: ClientName | null;
 }
@@ -35,6 +37,8 @@ interface ServiceWithOrder {
 
 interface MetersReportResult {
   total_meters: number;
+  total_meters_dtf: number;
+  total_meters_vinil: number;
   total_orders: number;
 }
 
@@ -309,6 +313,8 @@ export const get_total_meters_by_period = async (args: {
     const result = (Array.isArray(data) ? data[0] : data) as MetersReportResult;
 
     const totalMeters = result?.total_meters || 0;
+    const totalMetersDTF = result?.total_meters_dtf || 0;
+    const totalMetersVinil = result?.total_meters_vinil || 0;
     const totalOrders = result?.total_orders || 0;
 
     if (totalOrders === 0) {
@@ -317,8 +323,10 @@ export const get_total_meters_by_period = async (args: {
 
     return {
       total_meters: totalMeters,
+      total_meters_dtf: totalMetersDTF,
+      total_meters_vinil: totalMetersVinil,
       total_orders: totalOrders,
-      message: `📏 **Total de Metros Lineares** ${periodDescription}:\n\nEncontrados **${totalMeters.toFixed(2)} ML** em ${totalOrders} pedidos.`
+      message: `📏 **Total de Metros Lineares** ${periodDescription}:\n\n- Total: **${totalMeters.toFixed(2)} ML**\n- 🖨️ DTF: **${totalMetersDTF.toFixed(2)} ML**\n- ✂️ Vinil: **${totalMetersVinil.toFixed(2)} ML**\n\n(Encontrados em ${totalOrders} pedidos)`
     };
 
   } catch (error: any) {
@@ -368,8 +376,8 @@ export const openAIFunctions = [
     }
   },
   {
-    name: "get_total_meters_by_period", // NOVO TOOL
-    description: "Calcula o total de metros lineares (ML) vendidos em um período específico. Use para perguntas como 'quantos metros rodamos hoje?', 'total de ML deste mês', 'metragem total desde o início'.",
+    name: "get_total_meters_by_period",
+    description: "Calcula o total de metros lineares (ML) vendidos em um período específico, com divisão entre DTF e Vinil. Use para perguntas como 'quantos metros rodamos hoje?', 'total de ML deste mês', 'quanto foi DTF hoje?'.",
     parameters: {
       type: "object",
       properties: {
@@ -393,7 +401,7 @@ export const openAIFunctions = [
   },
   {
     name: "get_client_orders",
-    description: "Obtém TODOS os pedidos de um cliente específico, independente da data. Use esta função quando o usuário pedir 'pedidos do cliente X', 'todos os pedidos do Detto', 'pedidos do cliente Y desse mês', etc. Retorna o NÚMERO do pedido, status, valor total, total de metros, data de criação e nome do cliente. Usa busca inteligente que encontra clientes mesmo com nomes parciais ou pequenos erros de digitação.",
+    description: "Obtém TODOS os pedidos de um cliente específico, independente da data. Use esta função quando o usuário pedir 'pedidos do cliente X', 'todos os pedidos do Detto', 'pedidos do cliente Y desse mês', etc. Retorna o NÚMERO do pedido, status, valor total, total de metros (geral, DTF e Vinil), data de criação e nome do cliente. Usa busca inteligente que encontra clientes mesmo com nomes parciais ou pequenos erros de digitação.",
     parameters: {
       type: "object",
       properties: {
@@ -435,7 +443,7 @@ export const openAIFunctions = [
   },
   {
     name: "get_orders_by_status",
-    description: "Obtém pedidos filtrando por um ou mais status. Use para perguntas como 'quantos pedidos pendentes?', 'liste os pedidos cancelados', 'quais pedidos não estão pagos?'. Retorna o NÚMERO do pedido, status, valor total, total de metros, data de criação e nome do cliente.",
+    description: "Obtém pedidos filtrando por um ou mais status. Use para perguntas como 'quantos pedidos pendentes?', 'liste os pedidos cancelados', 'quais pedidos não estão pagos?'. Retorna o NÚMERO do pedido, status, valor total, total de metros (geral, DTF e Vinil), data de criação e nome do cliente.",
     parameters: {
       type: "object",
       properties: {
@@ -468,7 +476,7 @@ export const openAIFunctions = [
   },
   {
     name: "list_orders",
-    description: "Lista pedidos por filtros de data, sem especificar cliente. Use esta função SOMENTE quando o usuário pedir pedidos por período sem mencionar cliente específico (ex: 'pedidos de hoje', 'pedidos desta semana', 'último pedido', 'quantos pedidos esta semana', 'pedido mais caro'). NÃO use esta função quando o usuário mencionar um cliente específico. Retorna o NÚMERO do pedido, status, valor total, total de metros, data de criação e nome do cliente.",
+    description: "Lista pedidos por filtros de data, sem especificar cliente. Use esta função SOMENTE quando o usuário pedir pedidos por período sem mencionar cliente específico (ex: 'pedidos de hoje', 'pedidos desta semana', 'último pedido', 'quantos pedidos esta semana', 'pedido mais caro'). NÃO use esta função quando o usuário mencionar um cliente específico. Retorna o NÚMERO do pedido, status, valor total, total de metros (geral, DTF e Vinil), data de criação e nome do cliente.",
     parameters: {
       type: "object",
       properties: {
@@ -877,7 +885,7 @@ export const list_orders = async (args: {
     }
 
     const queryParams = new URLSearchParams();
-    queryParams.append('select', 'id,order_number,status,valor_total,total_metros,created_at,clientes(nome)');
+    queryParams.append('select', 'id,order_number,status,valor_total,total_metros,total_metros_dtf,total_metros_vinil,created_at,clientes(nome)');
 
     if (startDate) {
       queryParams.append('created_at', `gte.${startDate}`);
@@ -953,6 +961,8 @@ export const list_orders = async (args: {
       status: order.status,
       valor_total: order.valor_total,
       total_metros: order.total_metros,
+      total_metros_dtf: order.total_metros_dtf,
+      total_metros_vinil: order.total_metros_vinil,
       created_at: new Date(order.created_at).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }),
       cliente: order.clientes?.nome
     }));
@@ -960,6 +970,8 @@ export const list_orders = async (args: {
     // FIX 2, 3: Casting para OrderWithClient[]
     const totalValue = (orders as unknown as OrderWithClient[]).reduce((sum, order) => sum + order.valor_total, 0);
     const totalMetros = (orders as unknown as OrderWithClient[]).reduce((sum, order) => sum + (order.total_metros || 0), 0);
+    const totalMetrosDTF = (orders as unknown as OrderWithClient[]).reduce((sum, order) => sum + (order.total_metros_dtf || 0), 0);
+    const totalMetrosVinil = (orders as unknown as OrderWithClient[]).reduce((sum, order) => sum + (order.total_metros_vinil || 0), 0);
     const totalValueFormatted = new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL'
@@ -973,13 +985,15 @@ export const list_orders = async (args: {
         count: orders.length,
         totalValue: totalValue,
         totalMetros: totalMetros,
+        totalMetrosDTF: totalMetrosDTF,
+        totalMetrosVinil: totalMetrosVinil,
         period: {
           start: startDate ? new Date(startDate).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }) : 'início',
           end: endDate ? new Date(endDate).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }) : 'fim'
         },
         totalMatchingOrders: count
       },
-      message: `📊 Encontrados **${orders.length} pedidos** ${periodDescription}.${totalCountMessage}\n💰 Receita total: **${totalValueFormatted}**\n📏 Total de Metros: **${totalMetros.toFixed(2)} ML**`
+      message: `📊 Encontrados **${orders.length} pedidos** ${periodDescription}.${totalCountMessage}\n💰 Receita total: **${totalValueFormatted}**\n📏 Total de Metros: **${totalMetros.toFixed(2)} ML** (🖨️ ${totalMetrosDTF.toFixed(2)}m DTF | ✂️ ${totalMetrosVinil.toFixed(2)}m Vinil)`
     };
 
     console.log('✨ [list_orders] Retornando resultado:', result);
@@ -1287,7 +1301,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       const token = await getValidToken();
       if (!token) throw new Error("Token inválido");
 
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?select=id,order_number,status,valor_total,total_metros,created_at,clientes(nome)&cliente_id=in.(${clientIdsString})&order=created_at.desc`, {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?select=id,order_number,status,valor_total,total_metros,total_metros_dtf,total_metros_vinil,created_at,clientes(nome)&cliente_id=in.(${clientIdsString})&order=created_at.desc`, {
         method: 'GET',
         headers: {
           'apikey': SUPABASE_ANON_KEY,
@@ -1320,6 +1334,8 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
         status: order.status,
         valor_total: order.valor_total,
         total_metros: order.total_metros,
+        total_metros_dtf: order.total_metros_dtf,
+        total_metros_vinil: order.total_metros_vinil,
         created_at: new Date(order.created_at).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }),
         cliente: order.clientes?.nome
       }));
@@ -1327,6 +1343,8 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       // FIX 7, 8: Casting para OrderWithClient[]
       const totalValue = (orders as unknown as OrderWithClient[]).reduce((sum, order) => sum + order.valor_total, 0);
       const totalMetros = (orders as unknown as OrderWithClient[]).reduce((sum, order) => sum + (order.total_metros || 0), 0);
+      const totalMetrosDTF = (orders as unknown as OrderWithClient[]).reduce((sum, order) => sum + (order.total_metros_dtf || 0), 0);
+      const totalMetrosVinil = (orders as unknown as OrderWithClient[]).reduce((sum, order) => sum + (order.total_metros_vinil || 0), 0);
       const clientNames = foundClients.map((c: any) => c.nome).join(', ');
 
       return {
@@ -1336,9 +1354,11 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
           totalOrders: orders.length,
           totalValue: totalValue,
           totalMetros: totalMetros,
+          totalMetrosDTF: totalMetrosDTF,
+          totalMetrosVinil: totalMetrosVinil,
           foundMultipleClients: foundClients.length > 1
         },
-        message: `✅ Encontrei **${orders.length} pedido(s)** para o cliente: **${clientNames}**${foundClients.length > 1 ? ' (encontrei múltiplos clientes similares)' : ''}\n\n💰 Valor total: **R$ ${totalValue.toFixed(2)}**\n📏 Total de Metros: **${totalMetros.toFixed(2)} ML**`
+        message: `✅ Encontrei **${orders.length} pedido(s)** para o cliente: **${clientNames}**${foundClients.length > 1 ? ' (encontrei múltiplos clientes similares)' : ''}\n\n💰 Valor total: **R$ ${totalValue.toFixed(2)}**\n📏 Total de Metros: **${totalMetros.toFixed(2)} ML** (🖨️ ${totalMetrosDTF.toFixed(2)}m DTF | ✂️ ${totalMetrosVinil.toFixed(2)}m Vinil)`
       };
 
     } catch (orderError: any) {
@@ -1459,6 +1479,8 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
           status: (orderData as any).status,
           valor_total: (orderData as any).valor_total,
           total_metros: (orderData as any).total_metros,
+          total_metros_dtf: (orderData as any).total_metros_dtf,
+          total_metros_vinil: (orderData as any).total_metros_vinil,
           data_criacao: new Date((orderData as any).created_at).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }),
           observacoes: (orderData as any).observacoes || 'Nenhuma observação',
           items: formattedItems,
@@ -1483,7 +1505,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       if (!token) throw new Error("Token inválido");
 
       const queryParams = new URLSearchParams();
-      queryParams.append('select', 'id,order_number,status,valor_total,total_metros,created_at,clientes(nome)');
+      queryParams.append('select', 'id,order_number,status,valor_total,total_metros,total_metros_dtf,total_metros_vinil,created_at,clientes(nome)');
 
       if (statuses && statuses.length > 0) {
         const statusList = statuses.map(s => `"${s}"`).join(',');
@@ -1545,6 +1567,8 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
         status: order.status,
         valor_total: order.valor_total,
         total_metros: order.total_metros,
+        total_metros_dtf: order.total_metros_dtf,
+        total_metros_vinil: order.total_metros_vinil,
         created_at: new Date(order.created_at).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }),
         cliente: order.clientes?.nome
       }));
@@ -1552,6 +1576,8 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       // FIX 10, 11: Casting para OrderWithClient[]
       const totalValue = (orders as unknown as OrderWithClient[]).reduce((sum, order) => sum + order.valor_total, 0);
       const totalMetros = (orders as unknown as OrderWithClient[]).reduce((sum, order) => sum + (order.total_metros || 0), 0);
+      const totalMetrosDTF = (orders as unknown as OrderWithClient[]).reduce((sum, order) => sum + (order.total_metros_dtf || 0), 0);
+      const totalMetrosVinil = (orders as unknown as OrderWithClient[]).reduce((sum, order) => sum + (order.total_metros_vinil || 0), 0);
 
       return {
         orders: formattedOrders,

@@ -39,6 +39,12 @@ import { Produto } from "@/types/produto";
 import { useEffect, useState, useRef, useMemo } from "react";
 import { Trash2, Plus, Search, Edit3, X, User, Package, Wrench, Save, Zap, CalendarIcon, Ruler, ChevronDown, Loader2, FileText, Copy, GripVertical, Sparkles, Printer, Scissors } from "lucide-react";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   DndContext,
   closestCenter,
   KeyboardSensor,
@@ -198,26 +204,14 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
   useEffect(() => {
     if (isOpen && !hasInitializedRef.current) {
       if (isEditing && initialData) {
-        const itemsData = initialData.pedido_items?.map((item: any) => {
-          // Extrair tipo da observação (hack para evitar migration)
-          let tipo: 'dtf' | 'vinil' = 'dtf';
-          let observacao = item.observacao || '';
-
-          if (observacao.includes('__TYPE:VINIL__') || item.produto_nome?.toLowerCase().includes('vinil')) {
-            tipo = 'vinil';
-            observacao = observacao.replace('__TYPE:VINIL__', '').trim();
-          }
-
-          return {
-            tempId: Math.random().toString(36).substr(2, 9),
-            produto_id: item.produto_id,
-            produto_nome: item.produto_nome || item.produtos?.nome || '',
-            quantidade: item.quantidade,
-            preco_unitario: item.preco_unitario,
-            observacao: observacao,
-            tipo: tipo
-          };
-        }) || [];
+        const itemsData = initialData ? (initialData.pedido_items || []).map((item: any) => ({
+          produto_id: item.produto_id,
+          produto_nome: item.produto_nome,
+          quantidade: Number(item.quantidade),
+          preco_unitario: Number(item.preco_unitario),
+          observacao: item.observacao || '',
+          tipo: item.tipo || 'dtf' // Now native!
+        })) : [];
 
         const servicosData = initialData.servicos?.map((servico: any) => ({
           nome: servico.nome,
@@ -333,7 +327,9 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
     const descontoPercentualValor = subtotal * (descontoPercentual / 100);
     const valorTotal = Math.max(0, subtotal - descontoValor - descontoPercentualValor);
 
-    const totalMetros = items.reduce((sum, item) => sum + Number(item.quantidade || 0), 0); // NOVO CÁLCULO
+    const totalMetros = items.reduce((sum, item) => sum + Number(item.quantidade || 0), 0);
+    const totalMetrosDTF = items.filter(i => i.tipo === 'dtf').reduce((sum, item) => sum + Number(item.quantidade || 0), 0);
+    const totalMetrosVinil = items.filter(i => i.tipo === 'vinil').reduce((sum, item) => sum + Number(item.quantidade || 0), 0);
 
     const formattedData = {
       cliente_id: data.cliente_id,
@@ -342,24 +338,20 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
       subtotal_servicos: subtotalServicos,
       desconto_valor: descontoValor,
       desconto_percentual: descontoPercentual,
-      total_metros: totalMetros, // NOVO CAMPO
+      total_metros: totalMetros,
+      total_metros_dtf: totalMetrosDTF,
+      total_metros_vinil: totalMetrosVinil,
       observacoes: data.observacoes,
       created_at: data.created_at.toISOString(),
       items: items.map((item, index) => {
-        // Injetar tag de tipo na observação se for vinil
-        let finalObs = item.observacao || '';
-        if (item.tipo === 'vinil') {
-          finalObs = `${finalObs} __TYPE:VINIL__`.trim();
-        }
-
         return {
           // GARANTIA: Se produto_id for string vazia ou undefined, envia null
           produto_id: (item.produto_id && item.produto_id.trim() !== "") ? item.produto_id : null,
           produto_nome: item.produto_nome,
           quantidade: Number(item.quantidade),
           preco_unitario: Number(item.preco_unitario),
-          observacao: finalObs,
-          type_helper: item.tipo, // Campo auxiliar não salvo no banco, mas útil para debug/cache
+          observacao: item.observacao || '',
+          tipo: item.tipo, // Campo auxiliar não salvo no banco, mas útil para debug/cache
           ordem: index, // Garantir a ordem correta
         };
       }),
@@ -523,6 +515,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
       produto_nome: "",
       quantidade: 1,
       preco_unitario: selectedClientValorMetro || 0,
+      tipo: 'dtf' as const,
       observacao: ""
     };
 
@@ -1072,7 +1065,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                                                 ref={nameField.ref}
                                                                 placeholder="Nome do produto"
                                                                 className={cn(
-                                                                  "bg-background pr-12 transition-all duration-300",
+                                                                  "bg-background pr-[5.5rem] transition-all duration-300",
                                                                   typeField.value === 'vinil' && "border-orange-500 ring-1 ring-orange-500 focus-visible:ring-orange-500"
                                                                 )}
                                                               />
@@ -1084,17 +1077,22 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                                                   typeField.onChange(typeField.value === 'dtf' ? 'vinil' : 'dtf');
                                                                 }}
                                                                 className={cn(
-                                                                  "absolute right-1 top-1/2 -translate-y-1/2 p-2 rounded-md cursor-pointer transition-all hover:bg-accent active:scale-95 z-10 flex items-center justify-center",
+                                                                  "absolute right-1.5 top-1/2 -translate-y-1/2 px-2 py-1 rounded-md cursor-pointer transition-all hover:bg-accent active:scale-95 z-10 flex items-center justify-center gap-1.5 border shadow-sm select-none",
                                                                   typeField.value === 'vinil'
-                                                                    ? "text-orange-600 bg-orange-100/50 hover:bg-orange-100"
-                                                                    : "text-muted-foreground/40 hover:text-foreground"
+                                                                    ? "text-orange-700 bg-orange-100 border-orange-200 hover:bg-orange-200"
+                                                                    : "text-slate-500 bg-slate-50 border-slate-200 hover:bg-slate-100"
                                                                 )}
-                                                                title={typeField.value === 'vinil' ? "Modo Vinil Ativado" : "Modo DTF (Clique para alterar)"}
                                                               >
                                                                 {typeField.value === 'vinil' ? (
-                                                                  <Scissors className="w-4 h-4" />
+                                                                  <>
+                                                                    <Scissors className="w-3.5 h-3.5" />
+                                                                    <span className="text-[10px] font-bold uppercase tracking-tight">Vinil</span>
+                                                                  </>
                                                                 ) : (
-                                                                  <Printer className="w-4 h-4" />
+                                                                  <>
+                                                                    <Printer className="w-3.5 h-3.5" />
+                                                                    <span className="text-[10px] font-bold uppercase tracking-tight">DTF</span>
+                                                                  </>
                                                                 )}
                                                               </div>
                                                             </>

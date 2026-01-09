@@ -10,7 +10,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { DollarSign, Users, Activity, Ruler, Clock, Wrench, Package, CheckSquare, ChevronDown } from "lucide-react";
+import { DollarSign, Users, Activity, Ruler, Clock, Scissors, Printer, Wrench, Package, CheckSquare, ChevronDown } from "lucide-react";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { Skeleton } from "@/components/ui/skeleton";
 import { QuickActionCard } from "@/components/QuickActionCard";
@@ -171,9 +171,25 @@ const Index = () => {
           count={formatMeters(stats?.totalMeters || 0)}
           className={getGrowthColor(stats?.metersGrowth || 0)}
         >
-          <p className={`text-xs ${getGrowthColor(stats?.metersGrowth || 0)}`}>
-            {formatGrowth(stats?.metersGrowth || 0)} do último mês
-          </p>
+          <div className="flex flex-col gap-1">
+            <p className={`text-xs ${getGrowthColor(stats?.metersGrowth || 0)}`}>
+              {formatGrowth(stats?.metersGrowth || 0)} do último mês
+            </p>
+            {!isLoading && (stats?.totalMetersVinil > 0 || stats?.totalMetersDTF > 0) && (
+              <div className="flex items-center gap-2 mt-1 border-t pt-1 border-gray-100 dark:border-gray-800">
+                {stats?.totalMetersDTF > 0 && (
+                  <span className="text-[10px] font-medium text-blue-600 bg-blue-50 dark:bg-blue-900/20 px-1.5 py-0.5 rounded flex items-center gap-1">
+                    <Printer className="h-2.5 w-2.5" /> {stats.totalMetersDTF.toFixed(1)}m
+                  </span>
+                )}
+                {stats?.totalMetersVinil > 0 && (
+                  <span className="text-[10px] font-medium text-orange-600 bg-orange-50 dark:bg-orange-900/20 px-1.5 py-0.5 rounded flex items-center gap-1">
+                    <Scissors className="h-2.5 w-2.5" /> {stats.totalMetersVinil.toFixed(1)}m
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
         </DashboardShortcutCard>
 
         <DashboardShortcutCard

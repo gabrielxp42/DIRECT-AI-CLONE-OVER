@@ -36,6 +36,7 @@ import {
   Edit,
   Trash2,
   Printer,
+  Scissors,
   Clock,
   MessageSquare,
   History,
@@ -378,6 +379,7 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="w-[40px]"></TableHead>
                         <TableHead className="min-w-[150px]">Produto</TableHead>
                         <TableHead className="text-right min-w-[80px]">Quantidade</TableHead>
                         <TableHead className="text-right min-w-[100px]">Preço Unitário</TableHead>
@@ -387,6 +389,17 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
                     <TableBody>
                       {pedido.pedido_items.map((item) => (
                         <TableRow key={item.id}>
+                          <TableCell className="text-center p-2">
+                            {item.tipo === 'vinil' ? (
+                              <span title="Vinil / Recorte" className="p-1.5 bg-orange-100 text-orange-700 rounded-lg flex items-center justify-center">
+                                <Scissors className="h-4 w-4" />
+                              </span>
+                            ) : (
+                              <span title="DTF" className="p-1.5 bg-blue-100 text-blue-700 rounded-lg flex items-center justify-center">
+                                <Printer className="h-4 w-4" />
+                              </span>
+                            )}
+                          </TableCell>
                           <TableCell>
                             <div>
                               <div className="font-medium">{item.produto_nome || getProdutoNome(item.produto_id)}</div>
@@ -501,14 +514,34 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
                   </div>
                 )}
 
-                {/* NOVO: Total de Metros */}
+                {/* NOVO: Total de Metros Split */}
                 {pedido.total_metros > 0 && (
-                  <div className="flex justify-between border-t pt-3">
-                    <div className="flex items-center font-semibold text-blue-500">
-                      <Ruler className="h-4 w-4 mr-1" />
-                      <span>Total Metros (ML):</span>
+                  <div className="space-y-1 border-t pt-3 pb-2">
+                    {pedido.total_metros_dtf > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <div className="flex items-center text-blue-600 font-medium">
+                          <Printer className="h-4 w-4 mr-1" />
+                          <span>Total DTF:</span>
+                        </div>
+                        <span className="font-semibold text-blue-600">{pedido.total_metros_dtf.toFixed(2)} ML</span>
+                      </div>
+                    )}
+                    {pedido.total_metros_vinil > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <div className="flex items-center text-orange-600 font-medium">
+                          <Scissors className="h-4 w-4 mr-1" />
+                          <span>Total Vinil:</span>
+                        </div>
+                        <span className="font-semibold text-orange-600">{pedido.total_metros_vinil.toFixed(2)} ML</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between border-t pt-1 mt-1">
+                      <div className="flex items-center font-semibold text-gray-700 dark:text-gray-300">
+                        <Ruler className="h-4 w-4 mr-1" />
+                        <span>Total Metros:</span>
+                      </div>
+                      <span className="font-semibold">{pedido.total_metros.toFixed(2)} ML</span>
                     </div>
-                    <span className="font-semibold text-blue-500">{pedido.total_metros.toFixed(2)} ML</span>
                   </div>
                 )}
 

@@ -18,6 +18,8 @@ export interface DashboardStats {
   awaitingPickupOrdersCount: number;
   deliveredOrdersCount: number;
   totalMeters: number;
+  totalMetersDTF: number;
+  totalMetersVinil: number;
   metersGrowth: number;
 }
 
@@ -50,9 +52,9 @@ const fetchDashboardData = async (): Promise<DashboardStats> => {
   const firstDayPreviousMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1);
   const lastDayPreviousMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 0);
 
-  // Fetch current month orders (incluindo total_metros)
+  // Fetch current month orders (incluindo total_metros_dtf e total_metros_vinil)
   const currentOrders = await doFetch('pedidos', new URLSearchParams({
-    select: 'valor_total,created_at,status,total_metros',
+    select: 'valor_total,created_at,status,total_metros,total_metros_dtf,total_metros_vinil',
     created_at: `gte.${firstDayCurrentMonth.toISOString()}`,
   })).then(data => data.filter((d: any) => new Date(d.created_at) <= lastDayCurrentMonth));
 
@@ -81,6 +83,8 @@ const fetchDashboardData = async (): Promise<DashboardStats> => {
 
   // Calculate total meters (same logic as Reports.tsx)
   const totalMeters = currentOrders.reduce((sum: number, order: any) => sum + (order.total_metros || 0), 0);
+  const totalMetersDTF = currentOrders.reduce((sum: number, order: any) => sum + (Number(order.total_metros_dtf) || 0), 0);
+  const totalMetersVinil = currentOrders.reduce((sum: number, order: any) => sum + (Number(order.total_metros_vinil) || 0), 0);
   const previousTotalMeters = previousOrders.reduce((sum: number, order: any) => sum + (order.total_metros || 0), 0);
 
   // Calculate current month stats
@@ -112,6 +116,8 @@ const fetchDashboardData = async (): Promise<DashboardStats> => {
   return {
     totalSales,
     totalMeters,
+    totalMetersDTF,
+    totalMetersVinil,
     metersGrowth,
     newCustomers,
     activeOrders: activeOrdersCount,

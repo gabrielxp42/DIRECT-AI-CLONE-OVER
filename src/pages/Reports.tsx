@@ -50,6 +50,8 @@ import {
   BarChart3,
   Ruler,
   Clock,
+  Printer,
+  Scissors,
   ChevronDown,
   CalendarIcon,
   Loader2
@@ -94,7 +96,9 @@ interface SalesReport {
   };
   metersReport: {
     totalMeters: number;
-    metersByPeriod: Array<{ period: string; meters: number; }>;
+    totalMetersDTF: number;
+    totalMetersVinil: number;
+    metersByPeriod: Array<{ period: string; meters: number; dtf?: number; vinil?: number; }>;
   };
   revenueByPeriod: Array<{ period: string; revenue: number; }>;
   financialReport: {
@@ -427,7 +431,7 @@ const fetchReportData = async (
   const totalMeters = periodOrders.reduce((sum, order) => sum + (order.total_metros || 0), 0);
 
   // Meters by period and Revenue by period
-  const metersByPeriod: Array<{ period: string; meters: number }> = [];
+  const metersByPeriod: Array<{ period: string; meters: number; dtf: number; vinil: number }> = [];
   const revenueByPeriod: Array<{ period: string; revenue: number }> = [];
 
   // Financial Report Calculation
@@ -525,9 +529,11 @@ const fetchReportData = async (
 
         const revenue = ordersInPeriod.reduce((sum, order) => sum + order.valor_total, 0);
         const meters = ordersInPeriod.reduce((sum, order) => sum + (order.total_metros || 0), 0);
+        const dtf = ordersInPeriod.reduce((sum, order) => sum + (Number(order.total_metros_dtf) || 0), 0);
+        const vinil = ordersInPeriod.reduce((sum, order) => sum + (Number(order.total_metros_vinil) || 0), 0);
 
         revenueByPeriod.push({ period: period.name, revenue });
-        metersByPeriod.push({ period: period.name, meters });
+        metersByPeriod.push({ period: period.name, meters, dtf, vinil });
       });
 
       // Calcular dados financeiros para "Hoje"
@@ -603,6 +609,8 @@ const fetchReportData = async (
         },
         metersReport: {
           totalMeters,
+          totalMetersDTF: ordersInToday.reduce((sum, order) => sum + (Number(order.total_metros_dtf) || 0), 0),
+          totalMetersVinil: ordersInToday.reduce((sum, order) => sum + (Number(order.total_metros_vinil) || 0), 0),
           metersByPeriod
         },
         revenueByPeriod,
@@ -638,6 +646,8 @@ const fetchReportData = async (
 
       const revenue = dayOrders.reduce((sum, order) => sum + order.valor_total, 0);
       const meters = dayOrders.reduce((sum, order) => sum + (order.total_metros || 0), 0);
+      const dtf = dayOrders.reduce((sum, order) => sum + (Number(order.total_metros_dtf) || 0), 0);
+      const vinil = dayOrders.reduce((sum, order) => sum + (Number(order.total_metros_vinil) || 0), 0);
 
       // Formatar label do dia
       let periodLabel: string;
@@ -650,7 +660,7 @@ const fetchReportData = async (
       }
 
       revenueByPeriod.push({ period: periodLabel, revenue });
-      metersByPeriod.push({ period: periodLabel, meters });
+      metersByPeriod.push({ period: periodLabel, meters, dtf, vinil });
     }
   } else if (groupingType === 'weekly') {
     // Agrupamento semanal
@@ -685,6 +695,8 @@ const fetchReportData = async (
 
       const revenue = weekOrders.reduce((sum, order) => sum + order.valor_total, 0);
       const meters = weekOrders.reduce((sum, order) => sum + (order.total_metros || 0), 0);
+      const dtf = weekOrders.reduce((sum, order) => sum + (Number(order.total_metros_dtf) || 0), 0);
+      const vinil = weekOrders.reduce((sum, order) => sum + (Number(order.total_metros_vinil) || 0), 0);
 
       let periodLabel: string;
       if (selectedPeriod === 'month') {
@@ -694,7 +706,7 @@ const fetchReportData = async (
       }
 
       revenueByPeriod.push({ period: periodLabel, revenue });
-      metersByPeriod.push({ period: periodLabel, meters });
+      metersByPeriod.push({ period: periodLabel, meters, dtf, vinil });
     }
   } else if (groupingType === 'monthly') {
     // Agrupamento mensal (para ano)
@@ -709,11 +721,13 @@ const fetchReportData = async (
 
       const revenue = monthOrders.reduce((sum, order) => sum + order.valor_total, 0);
       const meters = monthOrders.reduce((sum, order) => sum + (order.total_metros || 0), 0);
+      const dtf = monthOrders.reduce((sum, order) => sum + (Number(order.total_metros_dtf) || 0), 0);
+      const vinil = monthOrders.reduce((sum, order) => sum + (Number(order.total_metros_vinil) || 0), 0);
 
       const periodLabel = monthStart.toLocaleDateString('pt-BR', { month: 'short' });
 
       revenueByPeriod.push({ period: periodLabel, revenue });
-      metersByPeriod.push({ period: periodLabel, meters });
+      metersByPeriod.push({ period: periodLabel, meters, dtf, vinil });
     }
   }
 
@@ -739,6 +753,8 @@ const fetchReportData = async (
     },
     metersReport: {
       totalMeters,
+      totalMetersDTF: periodOrders.reduce((sum, order) => sum + (Number(order.total_metros_dtf) || 0), 0),
+      totalMetersVinil: periodOrders.reduce((sum, order) => sum + (Number(order.total_metros_vinil) || 0), 0),
       metersByPeriod
     },
     revenueByPeriod,
@@ -977,9 +993,24 @@ const Reports: React.FC = () => {
                 <div className="text-lg md:text-2xl font-bold text-blue-600">
                   {formatMeters(reportData?.metersReport.totalMeters || 0)}
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Impressos
-                </p>
+                <div className="flex flex-col gap-0.5 mt-1 border-t pt-1 border-gray-100 dark:border-gray-800">
+                  <div className="flex items-center justify-between text-[10px] md:text-xs">
+                    <span className="text-muted-foreground flex items-center gap-1">
+                      <Printer className="h-3 w-3" /> DTF
+                    </span>
+                    <span className="font-semibold text-blue-700">
+                      {reportData?.metersReport.totalMetersDTF.toFixed(1)}m
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] md:text-xs">
+                    <span className="text-muted-foreground flex items-center gap-1">
+                      <Scissors className="h-3 w-3" /> Vinil
+                    </span>
+                    <span className="font-semibold text-orange-700">
+                      {reportData?.metersReport.totalMetersVinil.toFixed(1)}m
+                    </span>
+                  </div>
+                </div>
               </>
             )}
           </CardContent>
