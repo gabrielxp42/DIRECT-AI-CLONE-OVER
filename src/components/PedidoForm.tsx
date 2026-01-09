@@ -1053,54 +1053,54 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                               <FormField
                                                 control={form.control}
                                                 name={`items.${index}.produto_nome`}
-                                                render={({ field }) => (
+                                                render={({ field: nameField }) => (
                                                   <FormItem className="md:col-span-6">
-                                                    <div className="flex items-center justify-between mb-1.5">
-                                                      <FormLabel>Produto</FormLabel>
-                                                      <FormField
-                                                        control={form.control}
-                                                        name={`items.${index}.tipo`}
-                                                        render={({ field: typeField }) => (
-                                                          <div
-                                                            onClick={(e) => {
-                                                              e.preventDefault(); // Evitar foco indesejado
-                                                              e.stopPropagation();
-                                                              hapticSelect(); // Feedback tátil
-                                                              typeField.onChange(typeField.value === 'dtf' ? 'vinil' : 'dtf');
-                                                            }}
-                                                            className={cn(
-                                                              "cursor-pointer text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border transition-all duration-200 select-none flex items-center gap-1.5",
-                                                              typeField.value === 'vinil'
-                                                                ? "bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-200"
-                                                                : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200"
-                                                            )}
-                                                            title="Clique para alternar o tipo de produção"
-                                                          >
-                                                            {typeField.value === 'vinil' ? (
-                                                              <>
-                                                                <Scissors className="w-3 h-3" />
-                                                                Vinil / Recorte
-                                                              </>
-                                                            ) : (
-                                                              <>
-                                                                <Printer className="w-3 h-3" />
-                                                                DTF
-                                                              </>
-                                                            )}
-                                                          </div>
-                                                        )}
-                                                      />
-                                                    </div>
+                                                    <FormLabel>Produto</FormLabel>
                                                     <FormControl>
-                                                      <Input
-                                                        name={field.name}
-                                                        value={field.value || ''}
-                                                        onChange={field.onChange}
-                                                        onBlur={field.onBlur}
-                                                        ref={field.ref}
-                                                        placeholder="Nome do produto"
-                                                        className="bg-background"
-                                                      />
+                                                      <div className="relative">
+                                                        {/* Sub-subscription to ensure reactivity for the Input style */}
+                                                        <FormField
+                                                          control={form.control}
+                                                          name={`items.${index}.tipo`}
+                                                          render={({ field: typeField }) => (
+                                                            <>
+                                                              <Input
+                                                                {...nameField}
+                                                                value={nameField.value || ''}
+                                                                onChange={nameField.onChange}
+                                                                onBlur={nameField.onBlur}
+                                                                ref={nameField.ref}
+                                                                placeholder="Nome do produto"
+                                                                className={cn(
+                                                                  "bg-background pr-12 transition-all duration-300",
+                                                                  typeField.value === 'vinil' && "border-orange-500 ring-1 ring-orange-500 focus-visible:ring-orange-500"
+                                                                )}
+                                                              />
+                                                              <div
+                                                                onClick={(e) => {
+                                                                  e.preventDefault();
+                                                                  e.stopPropagation();
+                                                                  hapticSelect();
+                                                                  typeField.onChange(typeField.value === 'dtf' ? 'vinil' : 'dtf');
+                                                                }}
+                                                                className={cn(
+                                                                  "absolute right-1 top-1/2 -translate-y-1/2 p-2 rounded-md cursor-pointer transition-all hover:bg-accent active:scale-95 z-10 flex items-center justify-center",
+                                                                  typeField.value === 'vinil'
+                                                                    ? "text-orange-600 bg-orange-100/50 hover:bg-orange-100"
+                                                                    : "text-muted-foreground/40 hover:text-foreground"
+                                                                )}
+                                                                title={typeField.value === 'vinil' ? "Modo Vinil Ativado" : "Modo DTF (Clique para alterar)"}
+                                                              >
+                                                                {typeField.value === 'vinil' ? (
+                                                                  <Scissors className="w-4 h-4" />
+                                                                ) : (
+                                                                  <Printer className="w-4 h-4" />
+                                                                )}
+                                                              </div>
+                                                            </>
+                                                          )}
+                                                        />
+                                                      </div>
                                                     </FormControl>
                                                     <FormMessage />
                                                   </FormItem>
