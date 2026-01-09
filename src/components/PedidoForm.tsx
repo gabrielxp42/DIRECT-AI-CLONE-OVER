@@ -1052,51 +1052,45 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                             <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
                                               <FormField
                                                 control={form.control}
-                                                name={`items.${index}.tipo`}
-                                                render={({ field }) => (
-                                                  <FormItem className="md:col-span-4">
-                                                    <FormLabel>Tipo de Produção</FormLabel>
-                                                    <FormControl>
-                                                      <div className="flex gap-2">
-                                                        <Button
-                                                          type="button"
-                                                          size="sm"
-                                                          variant={field.value === 'dtf' ? 'default' : 'outline'}
-                                                          className={cn(
-                                                            "flex-1 transition-all",
-                                                            field.value === 'dtf' ? "bg-primary text-primary-foreground font-semibold shadow-md" : "hover:bg-accent hover:text-accent-foreground"
-                                                          )}
-                                                          onClick={() => field.onChange('dtf')}
-                                                        >
-                                                          <Printer className="w-3.5 h-3.5 mr-1.5" />
-                                                          DTF
-                                                        </Button>
-                                                        <Button
-                                                          type="button"
-                                                          size="sm"
-                                                          variant={field.value === 'vinil' ? 'default' : 'outline'}
-                                                          className={cn(
-                                                            "flex-1 transition-all",
-                                                            field.value === 'vinil' ? "bg-orange-500 hover:bg-orange-600 text-white font-semibold shadow-md border-orange-200" : "hover:bg-accent hover:text-accent-foreground"
-                                                          )}
-                                                          onClick={() => field.onChange('vinil')}
-                                                        >
-                                                          <Scissors className="w-3.5 h-3.5 mr-1.5" />
-                                                          Vinil
-                                                        </Button>
-                                                      </div>
-                                                    </FormControl>
-                                                    <FormMessage />
-                                                  </FormItem>
-                                                )}
-                                              />
-
-                                              <FormField
-                                                control={form.control}
                                                 name={`items.${index}.produto_nome`}
                                                 render={({ field }) => (
-                                                  <FormItem className="md:col-span-8">
-                                                    <FormLabel>Produto</FormLabel>
+                                                  <FormItem className="md:col-span-6">
+                                                    <div className="flex items-center justify-between mb-1.5">
+                                                      <FormLabel>Produto</FormLabel>
+                                                      <FormField
+                                                        control={form.control}
+                                                        name={`items.${index}.tipo`}
+                                                        render={({ field: typeField }) => (
+                                                          <div
+                                                            onClick={(e) => {
+                                                              e.preventDefault(); // Evitar foco indesejado
+                                                              e.stopPropagation();
+                                                              hapticSelect(); // Feedback tátil
+                                                              typeField.onChange(typeField.value === 'dtf' ? 'vinil' : 'dtf');
+                                                            }}
+                                                            className={cn(
+                                                              "cursor-pointer text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border transition-all duration-200 select-none flex items-center gap-1.5",
+                                                              typeField.value === 'vinil'
+                                                                ? "bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-200"
+                                                                : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200"
+                                                            )}
+                                                            title="Clique para alternar o tipo de produção"
+                                                          >
+                                                            {typeField.value === 'vinil' ? (
+                                                              <>
+                                                                <Scissors className="w-3 h-3" />
+                                                                Vinil / Recorte
+                                                              </>
+                                                            ) : (
+                                                              <>
+                                                                <Printer className="w-3 h-3" />
+                                                                DTF
+                                                              </>
+                                                            )}
+                                                          </div>
+                                                        )}
+                                                      />
+                                                    </div>
                                                     <FormControl>
                                                       <Input
                                                         name={field.name}
