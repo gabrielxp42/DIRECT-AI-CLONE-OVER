@@ -163,6 +163,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
     if (!tiposProducao) return [];
     const seen = new Set();
     return tiposProducao.filter(t => {
+      if (!t?.nome) return false;
       const nomeLow = t.nome.toLowerCase();
       if (seen.has(nomeLow)) return false;
       seen.add(nomeLow);
@@ -380,8 +381,8 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
       return sum + Number(item.quantidade || 0);
     }, 0);
 
-    const totalMetrosDTF = items.filter(i => i.tipo.toLowerCase() === 'dtf').reduce((sum, item) => sum + Number(item.quantidade || 0), 0);
-    const totalMetrosVinil = items.filter(i => i.tipo.toLowerCase() === 'vinil').reduce((sum, item) => sum + Number(item.quantidade || 0), 0);
+    const totalMetrosDTF = items.filter(i => i.tipo?.toLowerCase() === 'dtf').reduce((sum, item) => sum + Number(item.quantidade || 0), 0);
+    const totalMetrosVinil = items.filter(i => i.tipo?.toLowerCase() === 'vinil').reduce((sum, item) => sum + Number(item.quantidade || 0), 0);
 
     const formattedData = {
       cliente_id: data.cliente_id,
@@ -637,12 +638,13 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
     const currentItems = form.getValues('items') || [];
 
     const newItems = importedItems.map(item => ({
-      tempId: item.tempId,
-      produto_id: null, // Garantir que seja null para itens importados (que não tem ID de produto)
-      produto_nome: item.customName || "Produto Importado", // Nome temporário
-      quantidade: item.quantidade,
-      preco_unitario: selectedClientValorMetro || 0, // Usa o valor do metro do cliente se disponível
-      observacao: item.observacao,
+      tempId: item.tempId || Math.random().toString(36).substr(2, 9),
+      produto_id: null,
+      produto_nome: item.customName || item.produto_nome || "Produto Importado",
+      quantidade: item.quantidade || 1,
+      preco_unitario: selectedClientValorMetro || 0,
+      tipo: item.tipo || 'dtf',
+      observacao: item.observacao || "",
     }));
 
     // Usar append para adicionar múltiplos itens
@@ -711,7 +713,8 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
     const valorTotal = Math.max(0, subtotal - watchedDescontoValor - descontoPercentualValor);
 
     const totalMetros = watchedItems.reduce((sum, item) => {
-      const tipoInfo = tiposProducao?.find(t => t.nome.toLowerCase() === item.tipo.toLowerCase());
+      if (!item || !item.tipo) return sum;
+      const tipoInfo = tiposProducao?.find(t => t?.nome?.toLowerCase() === item.tipo?.toLowerCase());
       if (tipoInfo && tipoInfo.unidade_medida === 'unidade') return sum;
       return sum + Number(item.quantidade || 0);
     }, 0);
@@ -1062,7 +1065,8 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                             <div className="text-xs text-muted-foreground ml-6 mt-1 flex flex-wrap gap-x-4 gap-y-1">
                                               <span className="flex items-center gap-1">
                                                 {(() => {
-                                                  const tipoInfo = tiposProducao?.find(t => t.nome.toLowerCase() === (currentValues?.tipo || field.tipo || 'dtf').toLowerCase());
+                                                  const itemTipo = currentValues?.tipo || field.tipo || 'dtf';
+                                                  const tipoInfo = tiposProducao?.find(t => t.nome?.toLowerCase() === itemTipo?.toLowerCase());
                                                   const isMetro = tipoInfo?.unidade_medida !== 'unidade';
                                                   return (
                                                     <>
@@ -1135,9 +1139,10 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                                           control={form.control}
                                                           name={`items.${index}.tipo`}
                                                           render={({ field: typeField }) => {
-                                                            const currentType = tiposProducao?.find(t => t.nome.toLowerCase() === typeField.value.toLowerCase());
-                                                            const isVinil = typeField.value.toLowerCase() === 'vinil';
-                                                            const isDTF = typeField.value.toLowerCase() === 'dtf';
+                                                            const typeValue = typeField.value || 'dtf';
+                                                            const currentType = tiposProducao?.find(t => t.nome?.toLowerCase() === typeValue.toLowerCase());
+                                                            const isVinil = typeValue.toLowerCase() === 'vinil';
+                                                            const isDTF = typeValue.toLowerCase() === 'dtf';
 
                                                             return (
                                                               <>
@@ -1156,7 +1161,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                                                 />
                                                                 <div className="absolute right-1.5 top-1/2 -translate-y-1/2 z-10">
                                                                   <Select
-                                                                    value={typeField.value.toLowerCase()}
+                                                                    value={(typeField.value || 'dtf').toLowerCase()}
                                                                     onValueChange={(val) => {
                                                                       hapticSelect();
                                                                       typeField.onChange(val);
@@ -1246,8 +1251,8 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                                   <FormItem className="md:col-span-3">
                                                     <FormLabel>
                                                       {(() => {
-                                                        const itemTipo = form.watch(`items.${index}.tipo`);
-                                                        const tipoInfo = tiposProducao?.find(t => t.nome.toLowerCase() === itemTipo.toLowerCase());
+                                                        const itemTipo = form.watch(`items.${index}.tipo`) || 'dtf';
+                                                        const tipoInfo = tiposProducao?.find(t => t.nome?.toLowerCase() === itemTipo.toLowerCase());
                                                         return tipoInfo?.unidade_medida === 'unidade' ? 'Qtd (UND)' : 'Qtd (ML)';
                                                       })()}
                                                     </FormLabel>

@@ -75,10 +75,14 @@ export const MagicPasteModal: React.FC<MagicPasteModalProps> = ({
                 setActiveTab('text');
                 toast.success('Imagem lida! Revise o texto e clique em Mágica.');
                 setSelectedImage(null);
+                setIsProcessing(false);
 
-                // Increment AI usage in DB
-                await supabase?.rpc('increment_ai_usage');
+                // Increment AI usage in DB (non-blocking)
+                supabase?.rpc('increment_ai_usage').then(({ error }) => {
+                    if (error) console.error('Erro ao incrementar uso de IA:', error);
+                });
             } else {
+                setIsProcessing(false);
                 toast.error('Nenhum texto retornado pela IA.');
             }
         } catch (err) {
@@ -154,6 +158,7 @@ export const MagicPasteModal: React.FC<MagicPasteModalProps> = ({
                     produto_id: '',
                     quantidade,
                     preco_unitario: 0,
+                    tipo: 'dtf',
                     observacao,
                     customName: produtoNome,
                 });
