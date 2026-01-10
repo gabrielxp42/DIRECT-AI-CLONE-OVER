@@ -1,5 +1,6 @@
 
 import React from 'react';
+import { cn } from "@/lib/utils";
 import {
     Dialog,
     DialogContent,
@@ -9,7 +10,13 @@ import {
     DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Check, Sparkles, Zap, Shield, Crown, Bot, Printer } from "lucide-react";
+import { Check, Sparkles, Zap, Shield, Crown, Bot, Printer, BarChart3, TrendingUp, Bell, ArrowRight } from "lucide-react";
+import {
+    Carousel,
+    CarouselContent,
+    CarouselItem,
+    type CarouselApi,
+} from "@/components/ui/carousel";
 
 interface SubscriptionModalProps {
     open: boolean;
@@ -17,100 +24,160 @@ interface SubscriptionModalProps {
 }
 
 export const SubscriptionModal = ({ open, onOpenChange }: SubscriptionModalProps) => {
+    const [api, setApi] = React.useState<CarouselApi>();
+    const [current, setCurrent] = React.useState(0);
+
+    React.useEffect(() => {
+        if (!api) return;
+        setCurrent(api.selectedScrollSnap());
+        api.on("select", () => {
+            setCurrent(api.selectedScrollSnap());
+        });
+    }, [api]);
+
     const handleUpgrade = () => {
-        // Redirect to Stripe (Product: Direct AI Pro - Gestão & IA)
         window.open('https://buy.stripe.com/test_eVq5kE1DceNA51Afz18ww05', '_blank');
     };
 
+    const features = [
+        {
+            icon: <Bot className="w-6 h-6" />,
+            title: "Gerente IA 24/7",
+            badge: "Novo",
+            description: (
+                <>
+                    <span className="text-[#FFF200]">"Vendas cresceram 457%!"</span> Receba cobranças automáticas e insights reais via WhatsApp e Voz em tempo real.
+                </>
+            ),
+            highlights: ["Cobranças WhatsApp", "Relatórios via Áudio"]
+        },
+        {
+            icon: <TrendingUp className="w-6 h-6" />,
+            title: "Relatórios de Elite",
+            badge: "Inteligente",
+            description: (
+                <>
+                    Visualize <span className="text-green-400 font-bold">lucro real, inadimplência e projeções</span> com dashboards que explicam seu negócio.
+                </>
+            ),
+            highlights: ["Análise de Margem", "Previsão de Caixa"]
+        },
+        {
+            icon: <Printer className="w-6 h-6" />,
+            title: "Especialista em DTF",
+            badge: "Foco",
+            description: (
+                <>
+                    Controle <span className="text-[#FFF200]">metros, rolos e insumos</span>. Um sistema moldado para quem vive de impressão e escala.
+                </>
+            ),
+            highlights: ["Custos Automáticos", "Pedidos em 2 Cliques"]
+        }
+    ];
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-md w-[95vw] max-h-[90vh] overflow-y-auto border-[#FFF200]/20 bg-black/90 backdrop-blur-xl text-white p-0 gap-0 shadow-2xl animate-in zoom-in-95 duration-300 scrollbar-thin scrollbar-thumb-white/10">
+            <DialogContent className="max-w-md w-[95vw] max-h-[95vh] overflow-y-auto border-white/10 bg-[#080808] text-white p-0 gap-0 shadow-[0_0_50px_rgba(0,0,0,0.5)] animate-in zoom-in-95 duration-300 scrollbar-none">
 
-                {/* Header Visual */}
-                <div className="relative h-24 md:h-32 bg-gradient-to-br from-yellow-600 via-yellow-400 to-yellow-600 flex items-center justify-center overflow-hidden">
-                    <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 brightness-100 contrast-150"></div>
-                    <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-white/20 blur-3xl rounded-full"></div>
-                    {/* The Crown icon and its container are now part of the DialogHeader below */}
+                {/* Header Visual - More sleek */}
+                <div className="relative h-24 md:h-28 bg-gradient-to-br from-zinc-900 to-[#111] flex items-center justify-center overflow-hidden border-b border-white/5">
+                    <div className="absolute inset-0 bg-[#FFF200]/5 opacity-10"></div>
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 bg-[#FFF200]/10 blur-[60px] rounded-full animate-pulse"></div>
+                    <Crown className="w-10 h-10 text-[#FFF200] relative z-20 drop-shadow-[0_0_15px_rgba(255,242,0,0.5)]" />
                 </div>
 
-                <DialogHeader className="px-5 md:px-6 pt-4 md:pt-6 pb-2 text-center">
-                    <div className="mx-auto w-12 h-12 md:w-16 md:h-16 bg-[#FFF200]/10 rounded-full flex items-center justify-center mb-3 md:mb-4 border border-[#FFF200]/20 shadow-[0_0_30px_rgba(255,242,0,0.15)]">
-                        <Crown className="w-6 h-6 md:w-8 md:h-8 text-[#FFF200]" />
-                    </div>
-                    <DialogTitle className="text-xl md:text-2xl font-bold text-white tracking-tight">
-                        Desbloqueie a <span className="text-[#FFF200]">Inteligência Real</span>
+                <DialogHeader className="px-6 pt-6 pb-2 text-center">
+                    <DialogTitle className="text-2xl md:text-3xl font-black text-white tracking-tighter uppercase italic rotate-[-1deg]">
+                        DESBLOQUEIE A <br />
+                        <span className="text-[#FFF200] drop-shadow-[0_0_10px_rgba(255,242,0,0.3)]">INTELIGÊNCIA REAL</span>
                     </DialogTitle>
-                    <DialogDescription className="text-zinc-400 mt-1 md:mt-2 text-sm md:text-base">
-                        Leve sua gestão para o próximo nível com a potência máxima da Direct AI.
-                    </DialogDescription>
                 </DialogHeader>
 
-                <div className="px-5 md:px-6 py-2 md:py-4 space-y-3 md:space-y-4">
-                    {/* Benefit 1 - AI HIGHLY EMPHASIZED */}
-                    <div className="relative overflow-hidden rounded-xl border border-[#FFF200]/30 bg-gradient-to-r from-[#FFF200]/10 via-black/40 to-black/20 p-4 group">
-                        {/* Animated Background Gradient */}
-                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#FFF200]/10 to-transparent -translate-x-full group-hover:animate-shimmer" style={{ backgroundSize: '200% 100%' }}></div>
+                <div className="px-6 py-2">
+                    <Carousel setApi={setApi} className="w-full" opts={{ loop: true }}>
+                        <CarouselContent className="-ml-2 md:-ml-4">
+                            {features.map((feature, index) => (
+                                <CarouselItem key={index} className="pl-2 md:pl-4">
+                                    <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-zinc-900/50 p-5 md:p-6 min-h-[190px] flex flex-col justify-between group transition-all hover:bg-zinc-900/80">
+                                        <div className="absolute -top-4 -right-4 p-8 opacity-[0.03] group-hover:scale-110 group-hover:opacity-[0.05] transition-all">
+                                            {React.cloneElement(feature.icon as React.ReactElement, { className: "w-24 h-24" })}
+                                        </div>
 
-                        <div className="relative flex gap-3 md:gap-4 items-start">
-                            <div className="mt-1 bg-[#FFF200] p-1.5 md:p-2 rounded-lg text-black shadow-[0_0_15px_rgba(255,242,0,0.4)] animate-pulse">
-                                <Bot className="w-4 h-4 md:w-5 md:h-5" />
-                            </div>
-                            <div>
-                                <h4 className="font-bold text-white text-base md:text-lg flex items-center gap-2">
-                                    Seu Gerente IA
-                                    <span className="text-[9px] md:text-[10px] bg-[#FFF200] text-black px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Novo</span>
-                                </h4>
-                                <p className="text-xs md:text-sm text-zinc-300 leading-relaxed font-medium">
-                                    <span className="text-[#FFF200]">"Quanto vendi hoje?"</span> Mande áudios e receba relatórios instantâneos. Sua empresa na palma da mão.
-                                </p>
-                            </div>
-                        </div>
-                    </div>
+                                        <div>
+                                            <div className="flex items-center gap-3 mb-3">
+                                                <div className="bg-[#FFF200] p-2 rounded-xl text-black shadow-[0_0_20px_rgba(255,242,0,0.2)]">
+                                                    {feature.icon}
+                                                </div>
+                                                <h4 className="font-bold text-white text-lg md:text-xl">
+                                                    {feature.title}
+                                                </h4>
+                                                <span className="text-[9px] bg-[#FFF200]/10 text-[#FFF200] px-2 py-0.5 rounded-full font-black uppercase border border-[#FFF200]/20">
+                                                    {feature.badge}
+                                                </span>
+                                            </div>
+                                            <p className="text-sm md:text-base text-zinc-300 leading-snug font-medium">
+                                                {feature.description}
+                                            </p>
+                                        </div>
 
-                    {/* Benefit 2 - DTF SPECIALIZATION */}
-                    <div className="flex gap-3 md:gap-4 items-start group px-2">
-                        <div className="mt-1 bg-white/5 p-1.5 md:p-2 rounded-lg group-hover:bg-[#FFF200]/10 transition-colors">
-                            <Printer className="w-4 h-4 md:w-5 md:h-5 text-[#FFF200]" />
-                        </div>
-                        <div>
-                            <h4 className="font-semibold text-white">Feito para DTF & Impressão</h4>
-                            <p className="text-sm text-zinc-400 leading-relaxed">Chega de adaptarc ERPs de padaria. Controle metros, rolos e insumos com a unidade de medida certa.</p>
-                        </div>
+                                        <div className="mt-4 flex flex-wrap gap-1.5 font-bold">
+                                            {feature.highlights.map((h, i) => (
+                                                <span key={i} className="text-[9px] md:text-[10px] text-zinc-400 bg-white/5 px-2 py-1 rounded-md">
+                                                    {h}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </CarouselItem>
+                            ))}
+                        </CarouselContent>
+                    </Carousel>
+
+                    {/* Pagination Indicator - More spaced */}
+                    <div className="flex justify-center gap-2 mt-4 mb-2">
+                        {features.map((_, i) => (
+                            <button
+                                key={i}
+                                onClick={() => api?.scrollTo(i)}
+                                className={cn(
+                                    "h-1.5 rounded-full transition-all duration-300",
+                                    current === i ? "w-8 bg-[#FFF200]" : "w-1.5 bg-white/10 hover:bg-white/30"
+                                )}
+                            />
+                        ))}
                     </div>
-                    {/* Benefit 3 - FINANCE & SPEED */}
-                    <div className="flex gap-3 md:gap-4 items-start group px-2">
-                        <div className="mt-1 bg-white/5 p-1.5 md:p-2 rounded-lg group-hover:bg-[#FFF200]/10 transition-colors">
-                            <Zap className="w-4 h-4 md:w-5 md:h-5 text-[#FFF200]" />
+                </div>
+
+                {/* Pricing Section - Cleaner and separated */}
+                <div className="px-6 py-2">
+                    <div className="bg-zinc-900/80 border border-white/5 rounded-2xl p-4 flex items-center justify-between">
+                        <div className="text-left">
+                            <p className="text-zinc-500 text-[10px] uppercase font-black tracking-widest leading-none mb-1">PLANO PRO ANUAL</p>
+                            <div className="flex items-baseline gap-2">
+                                <span className="text-muted-foreground text-sm line-through">R$ 97</span>
+                                <span className="text-3xl font-black text-white italic">R$ 47<span className="text-xs not-italic font-medium text-zinc-500 ml-1">/mês</span></span>
+                            </div>
                         </div>
-                        <div>
-                            <h4 className="font-semibold text-white">Criação de Pedidos Flash</h4>
-                            <p className="text-sm text-zinc-400 leading-relaxed">Fluxo otimizado para lançar pedidos em segundos e calcular custos automaticamente.</p>
+                        <div className="text-right flex flex-col items-end">
+                            <span className="text-[10px] bg-green-500/10 text-green-400 px-2 py-1 rounded-md font-bold border border-green-500/20">50% OFF</span>
                         </div>
                     </div>
                 </div>
 
-                {/* Pricing Section */}
-                <div className="bg-white/5 mx-5 md:mx-6 p-3 md:p-4 rounded-xl border border-white/5 text-center mb-1 md:mb-2">
-                    <p className="text-zinc-400 text-[10px] md:text-sm uppercase tracking-wider font-semibold mb-0.5 md:mb-1">Apenas</p>
-                    <div className="flex items-center justify-center gap-1">
-                        <span className="text-muted-foreground text-base md:text-lg line-through mr-1 md:mr-2">R$ 97</span>
-                        <span className="text-3xl md:text-4xl font-bold text-white">R$ 47</span>
-                        <span className="text-zinc-400 self-end mb-1 text-xs md:text-base">/mês</span>
+                <DialogFooter className="p-6 pt-2 pb-8">
+                    <div className="w-full space-y-4">
+                        <Button
+                            className="w-full h-14 text-lg font-black bg-[#FFF200] text-black hover:bg-[#ffe600] shadow-[0_10px_20px_-5px_rgba(255,242,0,0.3)] rounded-2xl transition-all hover:scale-[1.01] active:scale-[0.98] uppercase italic"
+                            onClick={handleUpgrade}
+                        >
+                            Assinar Agora <ArrowRight className="ml-2 w-5 h-5" />
+                        </Button>
+                        <div className="flex items-center justify-center gap-4 text-zinc-500 text-[10px] font-bold uppercase tracking-wider">
+                            <span className="flex items-center gap-1.5"><Zap className="w-3 h-3 text-[#FFF200]" /> Pix Instantâneo</span>
+                            <span className="w-1 h-1 bg-zinc-700 rounded-full"></span>
+                            <span>Cancelamento Free</span>
+                        </div>
                     </div>
-                </div>
-
-                <DialogFooter className="p-5 md:p-6 pt-2 md:pt-2">
-                    <Button
-                        className="w-full h-12 md:h-14 text-base md:text-lg font-bold bg-[#FFF200] text-black hover:bg-[#E6D900] shadow-[0_0_20px_rgba(255,242,0,0.4)] transition-all hover:scale-[1.02] active:scale-[0.98]"
-                        onClick={handleUpgrade}
-                    >
-                        Assinar Agora
-                    </Button>
-                    <p className="text-center text-[10px] md:text-xs text-zinc-500 w-full mt-2 md:mt-3 flex items-center justify-center gap-2">
-                        <span className="flex items-center gap-1"><Zap className="w-3 h-3 text-green-500" /> Pix Instantâneo</span>
-                        <span>•</span>
-                        <span>Cancelamento grátis</span>
-                    </p>
                 </DialogFooter>
 
             </DialogContent>
