@@ -82,7 +82,7 @@ const Login = () => {
   }
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center p-3 md:p-4 relative overflow-hidden bg-[#0a0a0a]">
+    <div className="min-h-screen w-full flex items-center justify-center p-4 md:p-4 relative overflow-hidden bg-[#0a0a0a] pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] pr-[env(safe-area-inset-right)] pl-[env(safe-area-inset-left)]">
       {/* Dynamic Background */}
       <div className="absolute inset-0 bg-gradient-to-br from-[#0a0a0a] via-[#1a1a00] to-[#0f0f00] animate-gradient-xy opacity-80"></div>
 
@@ -93,17 +93,17 @@ const Login = () => {
       {/* Grid Pattern Overlay */}
       <div className="absolute inset-0 bg-[linear-gradient(rgba(255,242,0,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,242,0,0.02)_1px,transparent_1px)] bg-[size:60px_60px] opacity-20"></div>
 
-      {/* Glass Card - Dark Theme - MAXIMIZED SCALE */}
-      <div className="w-full max-w-[500px] relative z-10 backdrop-blur-xl bg-black/40 border border-white/10 rounded-[2.5rem] shadow-2xl p-6 md:p-12 animate-in fade-in zoom-in duration-500 ring-1 ring-white/5 mx-auto">
+      {/* Glass Card - Dark Theme - SCALED FOR COMPACTNESS ON DESKTOP / FULL ON MOBILE */}
+      <div className="w-full max-w-[400px] md:max-w-[420px] relative z-10 backdrop-blur-xl bg-black/40 border border-white/10 rounded-3xl md:rounded-[2rem] shadow-2xl p-6 md:p-10 animate-in fade-in zoom-in duration-500 ring-1 ring-white/5 mx-auto">
 
         {/* Header */}
-        <div className="text-center space-y-6 mb-8 md:mb-12">
-          <div className="inline-flex p-6 rounded-[2.5rem] bg-white/5 border border-white/10 mb-2 shadow-xl shadow-[#FFF200]/10 ring-1 ring-white/5">
-            <img src="/logo.png" alt="Logo" className="w-24 h-24 object-contain drop-shadow-md" />
+        <div className="text-center space-y-4 mb-6 md:mb-8">
+          <div className="inline-flex p-4 rounded-3xl bg-white/5 border border-white/10 mb-2 shadow-xl shadow-[#FFF200]/10 ring-1 ring-white/5">
+            <img src="/logo.png" alt="Logo" className="w-16 h-16 object-contain drop-shadow-md" />
           </div>
-          <div className="space-y-3">
-            <h1 className="text-4xl md:text-5xl font-bold text-white tracking-tight">Direct AI</h1>
-            <p className="text-lg md:text-xl text-zinc-400 font-medium">
+          <div className="space-y-2">
+            <h1 className="text-3xl md:text-3xl font-bold text-white tracking-tight">Direct AI</h1>
+            <p className="text-base md:text-base text-zinc-400 font-medium">
               {mode === 'signin' && 'Bem-vindo de volta'}
               {mode === 'signup' && 'Crie sua conta'}
               {mode === 'forgot' && 'Recuperar senha'}
@@ -112,16 +112,15 @@ const Login = () => {
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-6 md:space-y-8">
-
-          <div className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-5 md:space-y-6">
+          <div className="space-y-4 md:space-y-4">
             <div className="space-y-2">
               <div className="relative group">
-                <Mail className="absolute left-6 top-[1.2rem] h-6 w-6 text-zinc-500 group-focus-within:text-[#FFF200] transition-colors" />
+                <Mail className="absolute left-5 top-[1.1rem] h-5 w-5 text-zinc-500 group-focus-within:text-[#FFF200] transition-colors" />
                 <Input
                   type="email"
                   placeholder="Seu e-mail"
-                  className="pl-16 h-16 text-lg bg-white/5 border-white/10 text-white placeholder:text-zinc-600 focus:bg-black/50 focus:border-[#FFF200]/50 focus:ring-4 focus:ring-[#FFF200]/10 transition-all rounded-3xl shadow-inner"
+                  className="pl-14 h-14 md:h-14 text-base bg-white/5 border-white/10 text-white placeholder:text-zinc-600 focus:bg-black/50 focus:border-[#FFF200]/50 focus:ring-4 focus:ring-[#FFF200]/10 transition-all rounded-2xl shadow-inner"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -132,11 +131,11 @@ const Login = () => {
             {mode !== 'forgot' && (
               <div className="space-y-2">
                 <div className="relative group">
-                  <Lock className="absolute left-6 top-[1.2rem] h-6 w-6 text-zinc-500 group-focus-within:text-[#FFF200] transition-colors" />
+                  <Lock className="absolute left-5 top-[1.1rem] h-5 w-5 text-zinc-500 group-focus-within:text-[#FFF200] transition-colors" />
                   <Input
                     type="password"
                     placeholder="Sua senha"
-                    className="pl-16 h-16 text-lg bg-white/5 border-white/10 text-white placeholder:text-zinc-600 focus:bg-black/50 focus:border-[#FFF200]/50 focus:ring-4 focus:ring-[#FFF200]/10 transition-all rounded-3xl shadow-inner"
+                    className="pl-14 h-14 md:h-14 text-base bg-white/5 border-white/10 text-white placeholder:text-zinc-600 focus:bg-black/50 focus:border-[#FFF200]/50 focus:ring-4 focus:ring-[#FFF200]/10 transition-all rounded-2xl shadow-inner"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
@@ -147,8 +146,8 @@ const Login = () => {
           </div>
 
           {authError && (
-            <div className="p-5 rounded-3xl bg-red-500/10 border border-red-500/20 text-red-200 text-base flex items-start gap-4 animate-in slide-in-from-top-2">
-              <AlertCircle className="h-6 w-6 shrink-0 text-red-400 mt-0.5" />
+            <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-200 text-sm flex items-start gap-4 animate-in slide-in-from-top-2">
+              <AlertCircle className="h-5 w-5 shrink-0 text-red-400 mt-0.5" />
               <span>{authError}</span>
             </div>
           )}
@@ -160,16 +159,16 @@ const Login = () => {
                   id="remember-me"
                   checked={rememberMe}
                   onCheckedChange={handleRememberMeChange}
-                  className="h-6 w-6 border-zinc-600 data-[state=checked]:bg-[#FFF200] data-[state=checked]:text-black data-[state=checked]:border-[#FFF200] rounded-lg"
+                  className="h-5 w-5 border-zinc-600 data-[state=checked]:bg-[#FFF200] data-[state=checked]:text-black data-[state=checked]:border-[#FFF200] rounded-md"
                 />
-                <Label htmlFor="remember-me" className="text-zinc-400 cursor-pointer font-medium hover:text-white transition-colors text-base">
+                <Label htmlFor="remember-me" className="text-zinc-400 cursor-pointer font-medium hover:text-white transition-colors text-sm">
                   Lembrar
                 </Label>
               </div>
               <button
                 type="button"
                 onClick={() => setMode('forgot')}
-                className="text-[#FFF200] hover:text-[#FFF200]/80 transition-colors font-medium hover:underline decoration-2 underline-offset-4"
+                className="text-[#FFF200] hover:text-[#FFF200]/80 transition-colors font-medium hover:underline decoration-2 underline-offset-4 text-sm"
               >
                 Esqueceu?
               </button>
@@ -180,27 +179,27 @@ const Login = () => {
             type="submit"
             disabled={loading}
             className={cn(
-              "w-full h-16 rounded-3xl font-extrabold text-xl transition-all duration-300",
+              "w-full h-14 rounded-2xl font-extrabold text-lg transition-all duration-300",
               "bg-[#FFF200] text-black hover:bg-[#ffe600]",
-              "shadow-[0_0_30px_-5px_rgba(255,242,0,0.3)] hover:shadow-[0_0_40px_-5px_rgba(255,242,0,0.5)] hover:scale-[1.02] active:scale-[0.98]",
+              "shadow-[0_0_20px_-5px_rgba(255,242,0,0.3)] hover:shadow-[0_0_30px_-5px_rgba(255,242,0,0.5)] hover:scale-[1.02] active:scale-[0.98]",
               "border-0"
             )}
           >
             {loading ? (
-              <Loader2 className="h-7 w-7 animate-spin" />
+              <Loader2 className="h-6 w-6 animate-spin" />
             ) : (
-              <span className="flex items-center gap-3">
+              <span className="flex items-center gap-2">
                 {mode === 'signin' && 'ENTRAR'}
                 {mode === 'signup' && 'CRIAR CONTA'}
                 {mode === 'forgot' && 'ENVIAR LINK'}
-                <ArrowRight className="h-6 w-6" />
+                <ArrowRight className="h-5 w-5" />
               </span>
             )}
           </Button>
         </form>
 
         {/* Footer */}
-        <div className="mt-12 text-center text-lg">
+        <div className="mt-8 text-center text-base">
           {mode === 'signin' ? (
             <p className="text-zinc-500">
               Não tem uma conta?{' '}
@@ -224,8 +223,8 @@ const Login = () => {
           )}
         </div>
 
-        <div className="mt-12 text-center border-t border-white/5 pt-8">
-          <span className="text-xs text-zinc-600 font-bold tracking-[0.3em] uppercase">
+        <div className="mt-8 text-center border-t border-white/5 pt-6">
+          <span className="text-[10px] text-zinc-600 font-bold tracking-[0.3em] uppercase">
             Direct AI &bull; {APP_VERSION}
           </span>
         </div>
