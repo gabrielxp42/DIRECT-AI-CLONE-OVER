@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useTiposProducao } from "@/hooks/useDataFetch";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -68,6 +69,10 @@ import { ptBR } from "date-fns/locale";
 import { ServiceCommissionReport } from "@/components/ServiceCommissionReport";
 import { DateRange } from "react-day-picker"; // Importar DateRange
 import { EmptyState } from "@/components/EmptyState";
+import { useTour } from "@/hooks/useTour";
+import { REPORTS_TOUR } from "@/utils/tours";
+import { TutorialGuide } from "@/components/TutorialGuide";
+import { HelpCircle } from "lucide-react";
 
 // Tipos de dados (mantidos do original, mas simplificados para o contexto)
 interface SalesReport {
@@ -96,9 +101,8 @@ interface SalesReport {
   };
   metersReport: {
     totalMeters: number;
-    totalMetersDTF: number;
-    totalMetersVinil: number;
-    metersByPeriod: Array<{ period: string; meters: number; dtf?: number; vinil?: number; }>;
+    totalsByType: Record<string, number>;
+    metersByPeriod: Array<{ period: string; meters: number;[key: string]: string | number; }>;
   };
   revenueByPeriod: Array<{ period: string; revenue: number; }>;
   financialReport: {
@@ -431,7 +435,7 @@ const fetchReportData = async (
   const totalMeters = periodOrders.reduce((sum, order) => sum + (order.total_metros || 0), 0);
 
   // Meters by period and Revenue by period
-  const metersByPeriod: Array<{ period: string; meters: number; dtf: number; vinil: number }> = [];
+  const metersByPeriod: Array<{ period: string; meters: number;[key: string]: string | number }> = [];
   const revenueByPeriod: Array<{ period: string; revenue: number }> = [];
 
   // Financial Report Calculation
@@ -529,11 +533,19 @@ const fetchReportData = async (
 
         const revenue = ordersInPeriod.reduce((sum, order) => sum + order.valor_total, 0);
         const meters = ordersInPeriod.reduce((sum, order) => sum + (order.total_metros || 0), 0);
-        const dtf = ordersInPeriod.reduce((sum, order) => sum + (Number(order.total_metros_dtf) || 0), 0);
-        const vinil = ordersInPeriod.reduce((sum, order) => sum + (Number(order.total_metros_vinil) || 0), 0);
+
+        const periodTotals: Record<string, number> = {};
+        ordersInPeriod.forEach(order => {
+          if (order.pedido_items) {
+            order.pedido_items.forEach((item: any) => {
+              const tipo = (item.tipo || 'dtf').toLowerCase();
+              periodTotals[tipo] = (periodTotals[tipo] || 0) + (Number(item.quantidade) || 0);
+            });
+          }
+        });
 
         revenueByPeriod.push({ period: period.name, revenue });
-        metersByPeriod.push({ period: period.name, meters, dtf, vinil });
+        metersByPeriod.push({ period: period.name, meters, ...periodTotals });
       });
 
       // Calcular dados financeiros para "Hoje"
@@ -609,8 +621,18 @@ const fetchReportData = async (
         },
         metersReport: {
           totalMeters,
-          totalMetersDTF: ordersInToday.reduce((sum, order) => sum + (Number(order.total_metros_dtf) || 0), 0),
-          totalMetersVinil: ordersInToday.reduce((sum, order) => sum + (Number(order.total_metros_vinil) || 0), 0),
+          totalsByType: (() => {
+            const totals: Record<string, number> = {};
+            ordersInToday.forEach(order => {
+              if (order.pedido_items) {
+                order.pedido_items.forEach((item: any) => {
+                  const tipo = (item.tipo || 'dtf').toLowerCase();
+                  totals[tipo] = (totals[tipo] || 0) + (Number(item.quantidade) || 0);
+                });
+              }
+            });
+            return totals;
+          })(),
           metersByPeriod
         },
         revenueByPeriod,
@@ -646,8 +668,16 @@ const fetchReportData = async (
 
       const revenue = dayOrders.reduce((sum, order) => sum + order.valor_total, 0);
       const meters = dayOrders.reduce((sum, order) => sum + (order.total_metros || 0), 0);
-      const dtf = dayOrders.reduce((sum, order) => sum + (Number(order.total_metros_dtf) || 0), 0);
-      const vinil = dayOrders.reduce((sum, order) => sum + (Number(order.total_metros_vinil) || 0), 0);
+
+      const dayTotals: Record<string, number> = {};
+      dayOrders.forEach(order => {
+        if (order.pedido_items) {
+          order.pedido_items.forEach((item: any) => {
+            const tipo = (item.tipo || 'dtf').toLowerCase();
+            dayTotals[tipo] = (dayTotals[tipo] || 0) + (Number(item.quantidade) || 0);
+          });
+        }
+      });
 
       // Formatar label do dia
       let periodLabel: string;
@@ -660,7 +690,7 @@ const fetchReportData = async (
       }
 
       revenueByPeriod.push({ period: periodLabel, revenue });
-      metersByPeriod.push({ period: periodLabel, meters, dtf, vinil });
+      metersByPeriod.push({ period: periodLabel, meters, ...dayTotals });
     }
   } else if (groupingType === 'weekly') {
     // Agrupamento semanal
@@ -695,8 +725,16 @@ const fetchReportData = async (
 
       const revenue = weekOrders.reduce((sum, order) => sum + order.valor_total, 0);
       const meters = weekOrders.reduce((sum, order) => sum + (order.total_metros || 0), 0);
-      const dtf = weekOrders.reduce((sum, order) => sum + (Number(order.total_metros_dtf) || 0), 0);
-      const vinil = weekOrders.reduce((sum, order) => sum + (Number(order.total_metros_vinil) || 0), 0);
+
+      const weekTotals: Record<string, number> = {};
+      weekOrders.forEach(order => {
+        if (order.pedido_items) {
+          order.pedido_items.forEach((item: any) => {
+            const tipo = (item.tipo || 'dtf').toLowerCase();
+            weekTotals[tipo] = (weekTotals[tipo] || 0) + (Number(item.quantidade) || 0);
+          });
+        }
+      });
 
       let periodLabel: string;
       if (selectedPeriod === 'month') {
@@ -706,7 +744,7 @@ const fetchReportData = async (
       }
 
       revenueByPeriod.push({ period: periodLabel, revenue });
-      metersByPeriod.push({ period: periodLabel, meters, dtf, vinil });
+      metersByPeriod.push({ period: periodLabel, meters, ...weekTotals });
     }
   } else if (groupingType === 'monthly') {
     // Agrupamento mensal (para ano)
@@ -721,13 +759,21 @@ const fetchReportData = async (
 
       const revenue = monthOrders.reduce((sum, order) => sum + order.valor_total, 0);
       const meters = monthOrders.reduce((sum, order) => sum + (order.total_metros || 0), 0);
-      const dtf = monthOrders.reduce((sum, order) => sum + (Number(order.total_metros_dtf) || 0), 0);
-      const vinil = monthOrders.reduce((sum, order) => sum + (Number(order.total_metros_vinil) || 0), 0);
+
+      const monthTotals: Record<string, number> = {};
+      monthOrders.forEach(order => {
+        if (order.pedido_items) {
+          order.pedido_items.forEach((item: any) => {
+            const tipo = (item.tipo || 'dtf').toLowerCase();
+            monthTotals[tipo] = (monthTotals[tipo] || 0) + (Number(item.quantidade) || 0);
+          });
+        }
+      });
 
       const periodLabel = monthStart.toLocaleDateString('pt-BR', { month: 'short' });
 
       revenueByPeriod.push({ period: periodLabel, revenue });
-      metersByPeriod.push({ period: periodLabel, meters, dtf, vinil });
+      metersByPeriod.push({ period: periodLabel, meters, ...monthTotals });
     }
   }
 
@@ -753,8 +799,18 @@ const fetchReportData = async (
     },
     metersReport: {
       totalMeters,
-      totalMetersDTF: periodOrders.reduce((sum, order) => sum + (Number(order.total_metros_dtf) || 0), 0),
-      totalMetersVinil: periodOrders.reduce((sum, order) => sum + (Number(order.total_metros_vinil) || 0), 0),
+      totalsByType: (() => {
+        const totals: Record<string, number> = {};
+        periodOrders.forEach(order => {
+          if (order.pedido_items) {
+            order.pedido_items.forEach((item: any) => {
+              const tipo = (item.tipo || 'dtf').toLowerCase();
+              totals[tipo] = (totals[tipo] || 0) + (Number(item.quantidade) || 0);
+            });
+          }
+        });
+        return totals;
+      })(),
       metersByPeriod
     },
     revenueByPeriod,
@@ -774,6 +830,8 @@ const Reports: React.FC = () => {
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [chartView, setChartView] = useState<'summary' | 'daily'>('daily'); // NOVO: Controle de visualização
 
+  const { isTourOpen, currentStep, steps, startTour, nextStep, prevStep, closeTour } = useTour(REPORTS_TOUR, 'reports_page_tour');
+
 
 
   // Validação crítica: só executar se sessão não estiver carregando E token estiver disponível
@@ -791,6 +849,8 @@ const Reports: React.FC = () => {
     staleTime: 0, // Sempre considerar stale para forçar refetch
     refetchOnMount: true, // Sempre refetch quando o componente monta
   });
+
+  const { data: tiposProducao } = useTiposProducao();
 
   const getPeriodLabel = (period: string) => {
     switch (period) {
@@ -853,14 +913,25 @@ const Reports: React.FC = () => {
     <div className="space-y-4 md:space-y-6 pb-safe">
       {/* HEADER E SELETOR DE PERÍODO */}
       <div className="flex flex-col gap-3 border-b pb-3 md:pb-4">
-        <div className="flex items-center gap-2">
-          <BarChart3 className="h-6 w-6 md:h-8 md:w-8 text-primary" />
-          <h1 className="text-xl md:text-3xl font-bold">Relatórios</h1>
+        <div className="flex items-center justify-between w-full">
+          <div className="flex items-center gap-2">
+            <BarChart3 className="h-6 w-6 md:h-8 md:w-8 text-primary" />
+            <h1 className="text-xl md:text-3xl font-bold">Relatórios</h1>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={startTour}
+            className="flex items-center gap-2 text-muted-foreground hover:text-primary"
+          >
+            <HelpCircle className="h-4 w-4" />
+            <span className="hidden sm:inline">Como ler os dados</span>
+          </Button>
         </div>
       </div>
 
       {/* SELEÇÃO DE PERÍODO REIMAGINADA */}
-      <div className="flex flex-col gap-3">
+      <div id="reports-period-selector" className="flex flex-col gap-3">
         {/* Botões de período com scroll horizontal no mobile */}
         <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
           <ToggleGroup
@@ -944,7 +1015,7 @@ const Reports: React.FC = () => {
       <div className="grid gap-3 md:gap-4 grid-cols-2 lg:grid-cols-4">
 
         {/* Receita Total */}
-        <Card className="hover:shadow-lg transition-shadow">
+        <Card id="reports-revenue-card" className="hover:shadow-lg transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 md:p-6">
             <CardTitle className="text-xs md:text-sm font-medium">Receita Total</CardTitle>
             <DollarSign className="h-3 w-3 md:h-4 md:w-4 text-green-600" />
@@ -982,7 +1053,7 @@ const Reports: React.FC = () => {
         </Card>
 
         {/* Total de Metros */}
-        <Card className="hover:shadow-lg transition-shadow">
+        <Card id="reports-meters-card" className="hover:shadow-lg transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 md:p-6">
             <CardTitle className="text-xs md:text-sm font-medium">Metros (ML)</CardTitle>
             <Ruler className="h-3 w-3 md:h-4 md:w-4 text-blue-600" />
@@ -994,22 +1065,38 @@ const Reports: React.FC = () => {
                   {formatMeters(reportData?.metersReport.totalMeters || 0)}
                 </div>
                 <div className="flex flex-col gap-0.5 mt-1 border-t pt-1 border-gray-100 dark:border-gray-800">
-                  <div className="flex items-center justify-between text-[10px] md:text-xs">
-                    <span className="text-muted-foreground flex items-center gap-1">
-                      <Printer className="h-3 w-3" /> DTF
-                    </span>
-                    <span className="font-semibold text-blue-700">
-                      {reportData?.metersReport.totalMetersDTF.toFixed(1)}m
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-[10px] md:text-xs">
-                    <span className="text-muted-foreground flex items-center gap-1">
-                      <Scissors className="h-3 w-3" /> Vinil
-                    </span>
-                    <span className="font-semibold text-orange-700">
-                      {reportData?.metersReport.totalMetersVinil.toFixed(1)}m
-                    </span>
-                  </div>
+                  {reportData?.metersReport.totalsByType && Object.entries(reportData.metersReport.totalsByType).map(([tipo, total]) => {
+                    const tipoInfo = tiposProducao?.find(t => t.nome.toLowerCase() === tipo);
+                    const isVinil = tipo === 'vinil';
+                    const isDTF = tipo === 'dtf';
+                    const isUnidade = tipoInfo?.unidade_medida === 'unidade';
+
+                    let Icon = Ruler;
+                    let textColor = "text-gray-600";
+                    let label = tipoInfo?.nome || tipo.toUpperCase();
+
+                    if (isVinil) {
+                      Icon = Scissors;
+                      textColor = "text-orange-700";
+                    } else if (isDTF) {
+                      Icon = Printer;
+                      textColor = "text-blue-700";
+                    } else if (tipoInfo) {
+                      Icon = isUnidade ? Package : Ruler;
+                      textColor = "text-primary";
+                    }
+
+                    return (
+                      <div key={tipo} className="flex items-center justify-between text-[10px] md:text-xs">
+                        <span className="text-muted-foreground flex items-center gap-1">
+                          <Icon className="h-3 w-3" /> {label}
+                        </span>
+                        <span className={cn("font-semibold", textColor)}>
+                          {total.toFixed(isUnidade ? 0 : 1)}{isUnidade ? 'und' : 'm'}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               </>
             )}
@@ -1035,7 +1122,7 @@ const Reports: React.FC = () => {
         </Card>
 
         {/* Lucro Estimado */}
-        <Card className="hover:shadow-lg transition-shadow border-l-4 border-l-green-500">
+        <Card id="reports-profit-card" className="hover:shadow-lg transition-shadow border-l-4 border-l-green-500">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 md:p-6">
             <CardTitle className="text-xs md:text-sm font-medium">Lucro Estimado</CardTitle>
             <DollarSign className="h-3 w-3 md:h-4 md:w-4 text-green-600" />
@@ -1066,7 +1153,7 @@ const Reports: React.FC = () => {
           <>
             {/* Toggle de Visualização acima dos gráficos */}
             <div className="lg:col-span-2 flex items-center justify-between flex-wrap gap-3">
-              <div className="flex items-center gap-2">
+              <div id="reports-charts-section" className="flex items-center gap-2">
                 <BarChart3 className="h-5 w-5 text-muted-foreground" />
                 <h3 className="text-lg font-semibold">Gráficos de Desempenho</h3>
               </div>
@@ -1114,7 +1201,7 @@ const Reports: React.FC = () => {
       </div>
 
       {/* Tabbed Content */}
-      <Tabs defaultValue="commission" className="space-y-4">
+      <Tabs id="reports-tabs-section" defaultValue="commission" className="space-y-4">
         <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
           <TabsList className="grid w-max md:w-full grid-cols-4 h-auto">
             <TabsTrigger value="commission" className="py-2 px-3 md:px-4 flex items-center gap-1 md:gap-2 text-xs md:text-sm">
@@ -1319,6 +1406,15 @@ const Reports: React.FC = () => {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <TutorialGuide
+        isOpen={isTourOpen}
+        currentStep={currentStep}
+        steps={steps}
+        onNext={nextStep}
+        onPrev={prevStep}
+        onClose={closeTour}
+      />
     </div>
   );
 };

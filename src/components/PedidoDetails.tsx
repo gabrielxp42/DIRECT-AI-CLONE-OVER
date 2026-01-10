@@ -43,6 +43,8 @@ import {
   Ruler,
   Loader2
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { useTiposProducao } from '@/hooks/useDataFetch';
 import { showError, showSuccess } from '@/utils/toast';
 import {
   AlertDialog,
@@ -79,6 +81,7 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
   onDelete
 }) => {
   const { supabase, session } = useSession();
+  const { data: tiposProducao } = useTiposProducao();
   const [pedido, setPedido] = useState<Pedido | null>(null);
   const [statusHistory, setStatusHistory] = useState<StatusHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -110,7 +113,7 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
       const selectParam = '*,clientes(id,nome,telefone,email,endereco),pedido_items(*),pedido_servicos(*),pedido_status_history(*)';
       const url = `${SUPABASE_URL}/rest/v1/pedidos?select=${encodeURIComponent(selectParam)}&id=eq.${pedidoId}`;
 
-      const response = await fetch(url, { method: 'GET', headers });
+      const response = await fetch(url, { method: 'GET', headers, cache: 'no-store' });
 
       if (!response.ok) {
         throw new Error(`Erro ao buscar pedido: ${response.statusText}`);
@@ -201,7 +204,7 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
         showError("O pedido não possui itens ou serviços para gerar o PDF.");
         return;
       }
-      await generateOrderPDF(pedido, 'save');
+      await generateOrderPDF(pedido, 'save', tiposProducao);
       showSuccess("PDF gerado e baixado com sucesso!");
     } catch (error: any) {
       showError(`Erro ao gerar PDF: ${error.message}`);
@@ -215,7 +218,7 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
         showError("O pedido não possui itens ou serviços para imprimir.");
         return;
       }
-      await generateOrderPDF(pedido, 'print');
+      await generateOrderPDF(pedido, 'print', tiposProducao);
     } catch (error: any) {
       showError(`Erro ao gerar PDF para impressão: ${error.message}`);
     }
@@ -390,15 +393,34 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
                       {pedido.pedido_items.map((item) => (
                         <TableRow key={item.id}>
                           <TableCell className="text-center p-2">
-                            {item.tipo === 'vinil' ? (
-                              <span title="Vinil / Recorte" className="p-1.5 bg-orange-100 text-orange-700 rounded-lg flex items-center justify-center">
-                                <Scissors className="h-4 w-4" />
-                              </span>
-                            ) : (
-                              <span title="DTF" className="p-1.5 bg-blue-100 text-blue-700 rounded-lg flex items-center justify-center">
-                                <Printer className="h-4 w-4" />
-                              </span>
-                            )}
+                            {(() => {
+                              const tipoStr = (item.tipo || 'dtf').toLowerCase();
+                              const tipoInfo = tiposProducao?.find(t => t.nome.toLowerCase() === tipoStr);
+                              const isVinil = tipoStr === 'vinil';
+                              const isDTF = tipoStr === 'dtf';
+                              const isUnidade = tipoInfo?.unidade_medida === 'unidade';
+
+                              let Icon = Package;
+                              let bgClass = "bg-primary/10 text-primary";
+                              let label = tipoInfo?.nome || tipoStr.toUpperCase();
+
+                              if (isVinil) {
+                                Icon = Scissors;
+                                bgClass = "bg-orange-100 text-orange-700";
+                              } else if (isDTF) {
+                                Icon = Printer;
+                                bgClass = "bg-blue-100 text-blue-700";
+                              } else if (tipoInfo) {
+                                Icon = isUnidade ? Package : Ruler;
+                                bgClass = "bg-primary/10 text-primary";
+                              }
+
+                              return (
+                                <span title={label} className={cn("p-1.5 rounded-lg flex items-center justify-center", bgClass)}>
+                                  <Icon className="h-4 w-4" />
+                                </span>
+                              );
+                            })()}
                           </TableCell>
                           <TableCell>
                             <div>
@@ -410,7 +432,16 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
                               )}
                             </div>
                           </TableCell>
-                          <TableCell className="text-right">{item.quantidade}</TableCell>
+                          <TableCell className="text-right">
+                            {item.quantidade}
+                            <span className="text-[10px] text-muted-foreground ml-1">
+                              {(() => {
+                                const tipoStr = (item.tipo || 'dtf').toLowerCase();
+                                const tipoInfo = tiposProducao?.find(t => t.nome.toLowerCase() === tipoStr);
+                                return tipoInfo?.unidade_medida === 'unidade' ? 'UND' : 'ML';
+                              })()}
+                            </span>
+                          </TableCell>
                           <TableCell className="text-right">
                             {formatCurrency(item.preco_unitario)}
                           </TableCell>

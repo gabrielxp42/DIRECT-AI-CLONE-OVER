@@ -13,6 +13,13 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -37,7 +44,7 @@ import { NewPedido, Pedido } from "@/types/pedido";
 import { Cliente } from "@/types/cliente";
 import { Produto } from "@/types/produto";
 import { useEffect, useState, useRef, useMemo } from "react";
-import { Trash2, Plus, Search, Edit3, X, User, Package, Wrench, Save, Zap, CalendarIcon, Ruler, ChevronDown, Loader2, FileText, Copy, GripVertical, Sparkles, Printer, Scissors } from "lucide-react";
+import { Trash2, Plus, Search, Edit3, X, User, Package, Wrench, Save, Zap, CalendarIcon, Ruler, ChevronDown, Loader2, FileText, Copy, GripVertical, Sparkles, Printer, Scissors, Settings } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -85,6 +92,11 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { hapticTap, hapticImpact, hapticSelect } from "@/utils/haptic";
+import { useTiposProducao } from "@/hooks/useDataFetch";
+import { TipoProducao } from "@/types/producao";
+import { useTour } from '@/hooks/useTour';
+import { NEW_ORDER_TOUR } from '@/utils/tours';
+import { TutorialGuide } from '@/components/TutorialGuide';
 
 
 const formSchema = z.object({
@@ -103,7 +115,7 @@ const formSchema = z.object({
     quantidade: z.coerce.number().min(0.01, { message: "Quantidade deve ser maior que 0." }),
     preco_unitario: z.coerce.number().min(0, { message: "Preço deve ser maior ou igual a 0." }),
     observacao: z.string().optional(),
-    tipo: z.enum(['dtf', 'vinil']).default('dtf'),
+    tipo: z.string().default('dtf'),
   })).min(1, { message: "Pelo menos um item é obrigatório para o pedido." }),
   servicos: z.array(z.object({
     nome: z.string().min(1, { message: "Nome do serviço é obrigatório." }),
@@ -136,6 +148,7 @@ const DRAFT_STORAGE_KEY = "pedido_form_draft_v2";
 export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clientes, produtos, initialData }: PedidoFormProps) => {
   const { supabase, session } = useSession();
   const queryClient = useQueryClient();
+  const { data: tiposProducao } = useTiposProducao();
   const [filteredClientes, setFilteredClientes] = useState<Cliente[]>([]);
   const [clienteSearch, setClienteSearch] = useState('');
   const [clienteOpen, setClienteOpen] = useState(false);
@@ -144,6 +157,19 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
   const [isCreatingClient, setIsCreatingClient] = useState(false);
   const [selectedClientValorMetro, setSelectedClientValorMetro] = useState<number | null>(null);
   const [isMagicModalOpen, setIsMagicModalOpen] = useState(false);
+  const { isTourOpen, currentStep, steps, startTour, nextStep, prevStep, closeTour, shouldAutoStart } = useTour(NEW_ORDER_TOUR, 'new-order');
+
+  const uniqueTiposProducao = useMemo(() => {
+    if (!tiposProducao) return [];
+    const seen = new Set();
+    return tiposProducao.filter(t => {
+      const nomeLow = t.nome.toLowerCase();
+      if (seen.has(nomeLow)) return false;
+      seen.add(nomeLow);
+      return true;
+    });
+  }, [tiposProducao]);
+
 
   const [accordionItemValue, setAccordionItemValue] = useState<string | undefined>(undefined);
   const [accordionServiceValue, setAccordionServiceValue] = useState<string | undefined>(undefined);
@@ -180,6 +206,27 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
   const isEditing = !!initialData;
   const hasInitializedRef = useRef(false);
   const isSubmitInProgress = useRef(false);
+
+  useEffect(() => {
+    if (isOpen && shouldAutoStart && !isEditing) {
+      const timer = setTimeout(startTour, 1500); // Garante que o modal abriu totalmente
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, shouldAutoStart, isEditing, startTour]);
+
+  // Garantir que os itens estejam visíveis durante o tutorial
+  useEffect(() => {
+    if (isTourOpen) {
+      // Se não houver itens, adiciona um para o tutorial mostrar
+      if (itemFields.length === 0) {
+        addItem();
+      }
+      // Forçar o primeiro item a estar aberto para os passos que mostram detalhes
+      if (itemFields.length > 0) {
+        setAccordionItemValue(itemFields[0].fieldId);
+      }
+    }
+  }, [isTourOpen, itemFields]);
 
   // Efeito para filtrar clientes
   useEffect(() => {
@@ -300,19 +347,19 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
 
 
 
-  // Auto-save do rascunho
-  const formValues = form.watch();
+  // Auto-save do rascunho - Usando useWatch para evitar re-renders globais no componente
+  const allValues = form.watch(); // Monitora tudo mas apenas para o draft
   useEffect(() => {
     if (isOpen && !isEditing && !isSubmitting) {
       const timer = setTimeout(() => {
         // Só salvar se não estiver submetendo
         if (!isSubmitInProgress.current) {
-          localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(formValues));
+          localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(allValues));
         }
       }, 500); // Debounce de 500ms
       return () => clearTimeout(timer);
     }
-  }, [formValues, isOpen, isEditing, isSubmitting]);
+  }, [allValues, isOpen, isEditing, isSubmitting]);
 
   const handleValidSubmit = (data: PedidoFormValues) => {
     const items = data.items || [];
@@ -327,9 +374,14 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
     const descontoPercentualValor = subtotal * (descontoPercentual / 100);
     const valorTotal = Math.max(0, subtotal - descontoValor - descontoPercentualValor);
 
-    const totalMetros = items.reduce((sum, item) => sum + Number(item.quantidade || 0), 0);
-    const totalMetrosDTF = items.filter(i => i.tipo === 'dtf').reduce((sum, item) => sum + Number(item.quantidade || 0), 0);
-    const totalMetrosVinil = items.filter(i => i.tipo === 'vinil').reduce((sum, item) => sum + Number(item.quantidade || 0), 0);
+    const totalMetros = items.reduce((sum, item) => {
+      const tipoInfo = tiposProducao?.find(t => t.nome.toLowerCase() === item.tipo.toLowerCase());
+      if (tipoInfo && tipoInfo.unidade_medida === 'unidade') return sum;
+      return sum + Number(item.quantidade || 0);
+    }, 0);
+
+    const totalMetrosDTF = items.filter(i => i.tipo.toLowerCase() === 'dtf').reduce((sum, item) => sum + Number(item.quantidade || 0), 0);
+    const totalMetrosVinil = items.filter(i => i.tipo.toLowerCase() === 'vinil').reduce((sum, item) => sum + Number(item.quantidade || 0), 0);
 
     const formattedData = {
       cliente_id: data.cliente_id,
@@ -538,7 +590,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
     // Abrir o novo item
     setTimeout(() => {
       const index = itemFields.length; // Será o último pois usei append
-      setAccordionItemValue(`item-${index}`);
+      setAccordionItemValue(newItem.tempId);
       // Scroll para o novo item
       const newItemElement = document.getElementById(`item-card-${index}`);
       if (newItemElement) {
@@ -572,17 +624,13 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
     appendItem(duplicatedItem);
 
     setTimeout(() => {
-      setAccordionItemValue(`item-${itemFields.length}`);
+      setAccordionItemValue(duplicatedItem.tempId);
     }, 0);
   };
 
   const moveItem = (fromIndex: number, toIndex: number) => {
     moveItemField(fromIndex, toIndex);
-
-    // Se o item movido estava aberto, atualizar o índice do accordion
-    if (accordionItemValue === `item-${fromIndex}`) {
-      setAccordionItemValue(`item-${toIndex}`);
-    }
+    // Nota: Com fieldId no accordionValue, não precisamos atualizar ao mover
   };
 
   const handleImportItems = (importedItems: any[]) => {
@@ -604,10 +652,11 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
   };
 
   const removeItem = (index: number) => {
+    const itemToRemove = itemFields[index];
     hapticImpact();
     removeItemField(index);
 
-    if (accordionItemValue === `item-${index}`) {
+    if (accordionItemValue === itemToRemove.fieldId || accordionItemValue === (itemToRemove as any).tempId) {
       setAccordionItemValue(undefined);
     }
   };
@@ -627,7 +676,8 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
 
     // Aguardar um tick para garantir que o formulário atualizou
     setTimeout(() => {
-      setAccordionServiceValue(`servico-${newServiceIndex}`);
+      const addedServico = form.getValues(`servicos.${newServiceIndex}`);
+      setAccordionServiceValue((addedServico as any).id || `servico-${newServiceIndex}`);
     }, 0);
   };
 
@@ -638,27 +688,33 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
   };
 
   const removeServico = (index: number) => {
+    const servicoToRemove = servicoFields[index];
     removeServicoField(index);
     // Fecha o accordion se o serviço removido estava aberto
-    if (accordionServiceValue === `servico-${index}`) {
+    if (accordionServiceValue === (servicoToRemove as any).id || accordionServiceValue === `servico-${index}`) {
       setAccordionServiceValue(undefined);
     }
   };
 
-  const calculateTotal = () => {
-    const items = form.watch('items') || [];
-    const servicos = form.watch('servicos') || [];
-    const descontoValor = form.watch('desconto_valor') || 0;
-    const descontoPercentual = form.watch('desconto_percentual') || 0;
+  // Cálculo de totais otimizado usando useWatch seletivo
+  const watchedItems = form.watch('items') || [];
+  const watchedServicos = form.watch('servicos') || [];
+  const watchedDescontoValor = form.watch('desconto_valor') || 0;
+  const watchedDescontoPercentual = form.watch('desconto_percentual') || 0;
 
-    const subtotalProdutos = items.reduce((sum, item) => sum + (Number(item.quantidade) * Number(item.preco_unitario)), 0);
-    const subtotalServicos = servicos.reduce((sum, servico) => sum + (Number(servico.quantidade) * Number(servico.valor_unitario)), 0);
+  const calculateTotal = () => {
+    const subtotalProdutos = watchedItems.reduce((sum, item) => sum + (Number(item.quantidade) * Number(item.preco_unitario)), 0);
+    const subtotalServicos = watchedServicos.reduce((sum, servico) => sum + (Number(servico.quantidade) * Number(servico.valor_unitario)), 0);
     const subtotal = subtotalProdutos + subtotalServicos;
 
-    const descontoPercentualValor = subtotal * (descontoPercentual / 100);
-    const valorTotal = Math.max(0, subtotal - descontoValor - descontoPercentualValor);
+    const descontoPercentualValor = subtotal * (watchedDescontoPercentual / 100);
+    const valorTotal = Math.max(0, subtotal - watchedDescontoValor - descontoPercentualValor);
 
-    const totalMetros = items.reduce((sum, item) => sum + Number(item.quantidade || 0), 0);
+    const totalMetros = watchedItems.reduce((sum, item) => {
+      const tipoInfo = tiposProducao?.find(t => t.nome.toLowerCase() === item.tipo.toLowerCase());
+      if (tipoInfo && tipoInfo.unidade_medida === 'unidade') return sum;
+      return sum + Number(item.quantidade || 0);
+    }, 0);
 
     return {
       subtotalProdutos,
@@ -746,8 +802,22 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
               <Package className="h-4 w-4 sm:h-5 sm:w-5 text-primary flex-shrink-0" />
               <span className="truncate">{isEditing ? "Editar Pedido" : "Criar Novo Pedido"}</span>
             </DialogTitle>
-            <DialogDescription className="text-xs sm:text-sm">
-              {isEditing ? "Atualize as informações do pedido." : "Preencha as informações do novo pedido."}
+            <DialogDescription className="text-xs sm:text-sm flex items-center justify-between">
+              <span>{isEditing ? "Atualize as informações do pedido." : "Preencha as informações do novo pedido."}</span>
+              {!isTourOpen && !isEditing && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    startTour();
+                  }}
+                  className="h-7 text-[10px] text-primary hover:bg-primary/10"
+                >
+                  <Sparkles className="mr-1 h-3 w-3" />
+                  Ver Tutorial
+                </Button>
+              )}
             </DialogDescription>
           </DialogHeader>
           <Form {...form}>
@@ -764,7 +834,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                         Cliente *
                       </FormLabel>
                       <Popover open={clienteOpen} onOpenChange={setClienteOpen}>
-                        <PopoverTrigger asChild>
+                        <PopoverTrigger asChild id="field-cliente">
                           <FormControl>
                             <Button
                               variant="outline"
@@ -901,6 +971,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                         </Button>
 
                         <Button
+                          id="btn-magic-import"
                           type="button"
                           variant="outline"
                           size="sm"
@@ -924,12 +995,12 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                     )}
 
                     <div className="space-y-3 mt-4">
-                      {form.watch('items')?.length === 0 ? (
-                        <p className="text-center text-muted-foreground py-4">
+                      {watchedItems.length === 0 ? (
+                        <p id="empty-items-message" className="text-center text-muted-foreground py-10 bg-muted/20 border-2 border-dashed rounded-xl transition-all duration-300">
                           Nenhum produto adicionado. Clique em "Adicionar Item" para começar.
                         </p>
                       ) : (
-                        <div className="space-y-3">
+                        <div id="items-section" className="space-y-3">
                           <DndContext
                             sensors={sensors}
                             collisionDetection={closestCenter}
@@ -940,7 +1011,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                               strategy={verticalListSortingStrategy}
                             >
                               {itemFields.map((field, index) => {
-                                const isOpen = accordionItemValue === `item-${index}`;
+                                const isOpen = accordionItemValue === field.fieldId || accordionItemValue === (field as any).tempId;
                                 // Usar fieldId do useFieldArray como key estável
                                 const itemKey = field.fieldId;
 
@@ -971,7 +1042,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                             // Ao abrir, salvar snapshot dos valores atuais para permitir cancelamento
                                             const currentItem = form.getValues(`items.${index}`);
                                             setItemSnapshot({ index, data: { ...currentItem } });
-                                            setAccordionItemValue(`item-${index}`);
+                                            setAccordionItemValue(field.fieldId);
                                           }
                                         }}
                                       >
@@ -990,8 +1061,16 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                             </div>
                                             <div className="text-xs text-muted-foreground ml-6 mt-1 flex flex-wrap gap-x-4 gap-y-1">
                                               <span className="flex items-center gap-1">
-                                                <Ruler className="h-3 w-3" />
-                                                {Number(quantidade || 0).toFixed(2)} ML
+                                                {(() => {
+                                                  const tipoInfo = tiposProducao?.find(t => t.nome.toLowerCase() === (currentValues?.tipo || field.tipo || 'dtf').toLowerCase());
+                                                  const isMetro = tipoInfo?.unidade_medida !== 'unidade';
+                                                  return (
+                                                    <>
+                                                      {isMetro ? <Ruler className="h-3 w-3" /> : <Package className="h-3 w-3" />}
+                                                      {Number(quantidade || 0).toFixed(isMetro ? 2 : 0)} {isMetro ? 'ML' : 'UND'}
+                                                    </>
+                                                  );
+                                                })()}
                                               </span>
                                               <span className="font-medium text-foreground">
                                                 {formatCurrency(Number(quantidade || 0) * Number(precoUnitario || 0))}
@@ -1041,7 +1120,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                       {/* Conteúdo expansível */}
                                       <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}>
                                         <div className="px-4 pb-4 pt-2 border-t bg-muted/30">
-                                          <div className="space-y-4">
+                                          <div id={index === 0 ? "item-details-fields" : undefined} className="space-y-4">
                                             <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
                                               <FormField
                                                 control={form.control}
@@ -1055,48 +1134,103 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                                         <FormField
                                                           control={form.control}
                                                           name={`items.${index}.tipo`}
-                                                          render={({ field: typeField }) => (
-                                                            <>
-                                                              <Input
-                                                                {...nameField}
-                                                                value={nameField.value || ''}
-                                                                onChange={nameField.onChange}
-                                                                onBlur={nameField.onBlur}
-                                                                ref={nameField.ref}
-                                                                placeholder="Nome do produto"
-                                                                className={cn(
-                                                                  "bg-background pr-[5.5rem] transition-all duration-300",
-                                                                  typeField.value === 'vinil' && "border-orange-500 ring-1 ring-orange-500 focus-visible:ring-orange-500"
-                                                                )}
-                                                              />
-                                                              <div
-                                                                onClick={(e) => {
-                                                                  e.preventDefault();
-                                                                  e.stopPropagation();
-                                                                  hapticSelect();
-                                                                  typeField.onChange(typeField.value === 'dtf' ? 'vinil' : 'dtf');
-                                                                }}
-                                                                className={cn(
-                                                                  "absolute right-1.5 top-1/2 -translate-y-1/2 px-2 py-1 rounded-md cursor-pointer transition-all hover:bg-accent active:scale-95 z-10 flex items-center justify-center gap-1.5 border shadow-sm select-none",
-                                                                  typeField.value === 'vinil'
-                                                                    ? "text-orange-700 bg-orange-100 border-orange-200 hover:bg-orange-200"
-                                                                    : "text-slate-500 bg-slate-50 border-slate-200 hover:bg-slate-100"
-                                                                )}
-                                                              >
-                                                                {typeField.value === 'vinil' ? (
-                                                                  <>
-                                                                    <Scissors className="w-3.5 h-3.5" />
-                                                                    <span className="text-[10px] font-bold uppercase tracking-tight">Vinil</span>
-                                                                  </>
-                                                                ) : (
-                                                                  <>
-                                                                    <Printer className="w-3.5 h-3.5" />
-                                                                    <span className="text-[10px] font-bold uppercase tracking-tight">DTF</span>
-                                                                  </>
-                                                                )}
-                                                              </div>
-                                                            </>
-                                                          )}
+                                                          render={({ field: typeField }) => {
+                                                            const currentType = tiposProducao?.find(t => t.nome.toLowerCase() === typeField.value.toLowerCase());
+                                                            const isVinil = typeField.value.toLowerCase() === 'vinil';
+                                                            const isDTF = typeField.value.toLowerCase() === 'dtf';
+
+                                                            return (
+                                                              <>
+                                                                <Input
+                                                                  {...nameField}
+                                                                  value={nameField.value || ''}
+                                                                  onChange={nameField.onChange}
+                                                                  onBlur={nameField.onBlur}
+                                                                  ref={nameField.ref}
+                                                                  placeholder="Nome do produto"
+                                                                  className={cn(
+                                                                    "bg-background pr-[7rem] transition-all duration-300",
+                                                                    isVinil && "border-orange-500 ring-1 ring-orange-500 focus-visible:ring-orange-500",
+                                                                    !isVinil && !isDTF && typeField.value && "border-primary ring-1 ring-primary focus-visible:ring-primary"
+                                                                  )}
+                                                                />
+                                                                <div className="absolute right-1.5 top-1/2 -translate-y-1/2 z-10">
+                                                                  <Select
+                                                                    value={typeField.value.toLowerCase()}
+                                                                    onValueChange={(val) => {
+                                                                      hapticSelect();
+                                                                      typeField.onChange(val);
+                                                                    }}
+                                                                  >
+                                                                    <SelectTrigger
+                                                                      id={index === 0 ? "item-type-selector" : undefined}
+                                                                      className={cn(
+                                                                        "h-7 px-2 border shadow-sm select-none transition-all hover:bg-accent active:scale-95 flex items-center gap-1.5 w-auto min-w-[80px]",
+                                                                        isVinil
+                                                                          ? "text-orange-700 bg-orange-100 border-orange-200 hover:bg-orange-200"
+                                                                          : isDTF
+                                                                            ? "text-blue-700 bg-blue-100 border-blue-200 hover:bg-blue-200"
+                                                                            : "text-primary bg-primary/10 border-primary/20 hover:bg-primary/20"
+                                                                      )}
+                                                                    >
+                                                                      <div className="flex items-center gap-1.5 overflow-hidden">
+                                                                        {isVinil ? <Scissors className="w-3.5 h-3.5 flex-shrink-0" /> :
+                                                                          isDTF ? <Printer className="w-3.5 h-3.5 flex-shrink-0" /> :
+                                                                            <Package className="w-3.5 h-3.5 flex-shrink-0" />}
+                                                                        <span className="text-[10px] font-bold uppercase tracking-tight truncate max-w-[50px]">
+                                                                          {currentType?.nome || typeField.value}
+                                                                        </span>
+                                                                      </div>
+                                                                    </SelectTrigger>
+                                                                    <SelectContent align="end" className="p-1 min-w-[140px]">
+                                                                      {uniqueTiposProducao.map((tipo) => {
+                                                                        const nomeLow = tipo.nome.toLowerCase();
+                                                                        const isVinil = nomeLow.includes('vinil');
+                                                                        const isDTF = nomeLow.includes('dtf');
+                                                                        const isVarejo = nomeLow.includes('varejo');
+
+                                                                        return (
+                                                                          <SelectItem
+                                                                            key={tipo.id}
+                                                                            value={nomeLow}
+                                                                            className={cn(
+                                                                              "rounded-md mb-0.5 last:mb-0 transition-all cursor-pointer",
+                                                                              isVinil && "hover:bg-orange-500/10 focus:bg-orange-500/10 text-orange-500",
+                                                                              isDTF && "hover:bg-blue-500/10 focus:bg-blue-500/10 text-blue-500",
+                                                                              isVarejo && "hover:bg-green-500/10 focus:bg-green-500/10 text-green-500",
+                                                                              !isVinil && !isDTF && !isVarejo && "hover:bg-primary/10 focus:bg-primary/10 text-primary"
+                                                                            )}
+                                                                          >
+                                                                            <div className="flex items-center gap-2.5 py-0.5">
+                                                                              <div className={cn(
+                                                                                "p-1.5 rounded-md",
+                                                                                isVinil && "bg-orange-500/20 text-orange-400",
+                                                                                isDTF && "bg-blue-500/20 text-blue-400",
+                                                                                isVarejo && "bg-green-500/20 text-green-400",
+                                                                                !isVinil && !isDTF && !isVarejo && "bg-primary/20 text-primary"
+                                                                              )}>
+                                                                                {isVinil ? <Scissors className="w-3.5 h-3.5" /> :
+                                                                                  isDTF ? <Printer className="w-3.5 h-3.5" /> :
+                                                                                    <Package className="w-3.5 h-3.5" />}
+                                                                              </div>
+                                                                              <div className="flex flex-col">
+                                                                                <span className="text-[11px] font-bold uppercase tracking-tight leading-none">
+                                                                                  {tipo.nome}
+                                                                                </span>
+                                                                                <span className="text-[9px] opacity-70 font-medium">
+                                                                                  {tipo.unidade_medida === 'metro' ? 'Cobrado por ML' : 'Cobrado por UND'}
+                                                                                </span>
+                                                                              </div>
+                                                                            </div>
+                                                                          </SelectItem>
+                                                                        );
+                                                                      })}
+                                                                    </SelectContent>
+                                                                  </Select>
+                                                                </div>
+                                                              </>
+                                                            );
+                                                          }}
                                                         />
                                                       </div>
                                                     </FormControl>
@@ -1110,7 +1244,13 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                                 name={`items.${index}.quantidade`}
                                                 render={({ field }) => (
                                                   <FormItem className="md:col-span-3">
-                                                    <FormLabel>Qtd (ML)</FormLabel>
+                                                    <FormLabel>
+                                                      {(() => {
+                                                        const itemTipo = form.watch(`items.${index}.tipo`);
+                                                        const tipoInfo = tiposProducao?.find(t => t.nome.toLowerCase() === itemTipo.toLowerCase());
+                                                        return tipoInfo?.unidade_medida === 'unidade' ? 'Qtd (UND)' : 'Qtd (ML)';
+                                                      })()}
+                                                    </FormLabel>
                                                     <FormControl>
                                                       <Input
                                                         type="number"
@@ -1225,7 +1365,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
 
               <Separator className="my-6" />
 
-              <div className="space-y-4">
+              <div id="services-section" className="space-y-4">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <h3 className="text-lg font-medium flex items-center gap-2">
                     <Wrench className="h-5 w-5" />
@@ -1267,7 +1407,8 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                   ) : (
                     <div className="space-y-3">
                       {servicoFields.map((field, index) => {
-                        const isOpen = accordionServiceValue === `servico-${index}`;
+                        const fieldId = (field as any).id || (field as any).fieldId || `servico-${index}`;
+                        const isOpen = accordionServiceValue === fieldId;
 
                         const currentValues = form.getValues(`servicos.${index}`);
                         const nome = currentValues?.nome || field.nome;
@@ -1287,7 +1428,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                   // Salvar snapshot dos valores atuais
                                   const currentServico = form.getValues(`servicos.${index}`);
                                   setServicoSnapshot({ index, data: { ...currentServico } });
-                                  setAccordionServiceValue(`servico-${index}`);
+                                  setAccordionServiceValue(fieldId);
                                 }
                               }}
                             >
@@ -1481,6 +1622,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                   Cancelar
                 </Button>
                 <Button
+                  id="btn-save-pedido"
                   type="submit"
                   disabled={isSubmitting}
                   className="w-full sm:w-auto transition-all duration-300 hover:scale-[1.02] h-9 sm:h-10 text-sm"
@@ -1496,6 +1638,15 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
               />
             </form>
           </Form>
+
+          <TutorialGuide
+            steps={steps}
+            isOpen={isTourOpen}
+            currentStep={currentStep}
+            onNext={nextStep}
+            onPrev={prevStep}
+            onClose={closeTour}
+          />
         </DialogContent>
       </Dialog >
 

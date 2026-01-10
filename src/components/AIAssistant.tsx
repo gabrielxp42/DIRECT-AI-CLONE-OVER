@@ -14,6 +14,9 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/integrations/supabase/client'
 import { getValidToken } from '@/utils/tokenGuard';
 import { AgentMemoryManager } from '@/utils/agentMemory';
 import { generateReActSystemPrompt } from '@/utils/agentPrompts';
+import { useSubscription } from '@/hooks/useSubscription';
+import { SubscriptionModal } from '@/components/SubscriptionModal';
+
 
 export const AIAssistant = () => {
   const { isOpen, close } = useAIAssistant();
@@ -25,6 +28,8 @@ export const AIAssistant = () => {
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+  const { canUseAI } = useSubscription();
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   // Initialize Memory Manager
   const memoryManager = useRef<AgentMemoryManager | null>(null);
@@ -63,6 +68,11 @@ export const AIAssistant = () => {
 
   const handleSendMessage = async (messageContent: string) => {
     if (messageContent.trim() === '') return;
+
+    if (!canUseAI) {
+      setShowUpgradeModal(true);
+      return;
+    }
 
     const userMessage: ChatMessage = { role: 'user', content: messageContent };
     setMessages((prev) => [...prev, userMessage]);
@@ -491,6 +501,7 @@ export const AIAssistant = () => {
           )}
         </div>
       </CardFooter>
+      <SubscriptionModal open={showUpgradeModal} onOpenChange={setShowUpgradeModal} />
     </Card>
   );
 };

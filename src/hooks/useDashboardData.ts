@@ -20,6 +20,7 @@ export interface DashboardStats {
   totalMeters: number;
   totalMetersDTF: number;
   totalMetersVinil: number;
+  productionTotals: Record<string, number>;
   metersGrowth: number;
 }
 
@@ -52,9 +53,9 @@ const fetchDashboardData = async (): Promise<DashboardStats> => {
   const firstDayPreviousMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1);
   const lastDayPreviousMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 0);
 
-  // Fetch current month orders (incluindo total_metros_dtf e total_metros_vinil)
+  // Fetch current month orders with items for dynamic aggregation
   const currentOrders = await doFetch('pedidos', new URLSearchParams({
-    select: 'valor_total,created_at,status,total_metros,total_metros_dtf,total_metros_vinil',
+    select: 'valor_total,created_at,status,total_metros,pedido_items(tipo,quantidade)',
     created_at: `gte.${firstDayCurrentMonth.toISOString()}`,
   })).then(data => data.filter((d: any) => new Date(d.created_at) <= lastDayCurrentMonth));
 
@@ -81,10 +82,22 @@ const fetchDashboardData = async (): Promise<DashboardStats> => {
     select: 'id,status'
   }));
 
-  // Calculate total meters (same logic as Reports.tsx)
-  const totalMeters = currentOrders.reduce((sum: number, order: any) => sum + (order.total_metros || 0), 0);
-  const totalMetersDTF = currentOrders.reduce((sum: number, order: any) => sum + (Number(order.total_metros_dtf) || 0), 0);
-  const totalMetersVinil = currentOrders.reduce((sum: number, order: any) => sum + (Number(order.total_metros_vinil) || 0), 0);
+  // Calculate total meters dynamically from items
+  const productionTotals: Record<string, number> = {};
+  let totalMeters = 0;
+
+  currentOrders.forEach((order: any) => {
+    totalMeters += (order.total_metros || 0);
+    if (order.pedido_items) {
+      order.pedido_items.forEach((item: any) => {
+        const tipo = (item.tipo || 'dtf').toLowerCase();
+        productionTotals[tipo] = (productionTotals[tipo] || 0) + (Number(item.quantidade) || 0);
+      });
+    }
+  });
+
+  const totalMetersDTF = productionTotals['dtf'] || 0;
+  const totalMetersVinil = productionTotals['vinil'] || 0;
   const previousTotalMeters = previousOrders.reduce((sum: number, order: any) => sum + (order.total_metros || 0), 0);
 
   // Calculate current month stats
@@ -118,6 +131,7 @@ const fetchDashboardData = async (): Promise<DashboardStats> => {
     totalMeters,
     totalMetersDTF,
     totalMetersVinil,
+    productionTotals,
     metersGrowth,
     newCustomers,
     activeOrders: activeOrdersCount,

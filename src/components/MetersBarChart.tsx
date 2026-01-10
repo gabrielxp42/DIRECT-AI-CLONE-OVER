@@ -6,8 +6,7 @@ import { cn } from '@/lib/utils';
 interface ChartData {
   period: string;
   meters: number;
-  dtf?: number;
-  vinil?: number;
+  [key: string]: string | number | undefined; // Permite chaves dinâmicas para tipos de produção
 }
 
 interface MetersBarChartProps {
@@ -27,15 +26,30 @@ export const MetersBarChart: React.FC<MetersBarChartProps> = ({ data, title, des
             <h3 className="text-lg font-semibold mb-1">{title}</h3>
             <p className="text-sm text-muted-foreground">{description}</p>
           </div>
-          <div className="flex gap-3 text-[10px] font-medium">
-            <div className="flex items-center gap-1">
-              <div className="w-2.5 h-2.5 rounded-sm bg-blue-500" />
-              <span>DTF</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-2.5 h-2.5 rounded-sm bg-orange-500" />
-              <span>VINIL</span>
-            </div>
+          <div className="flex flex-wrap gap-3 text-[10px] font-medium justify-end max-w-[200px]">
+            {/* Legenda Dinâmica baseada nos dados presentes */}
+            {(() => {
+              const types = new Set<string>();
+              data.forEach(item => {
+                Object.keys(item).forEach(key => {
+                  if (key !== 'period' && key !== 'meters' && typeof item[key] === 'number' && (item[key] as number) > 0) {
+                    types.add(key);
+                  }
+                });
+              });
+
+              return Array.from(types).map(type => {
+                const isVinil = type === 'vinil';
+                const isDTF = type === 'dtf';
+                const color = isVinil ? "#f97316" : isDTF ? "#3b82f6" : "#8b5cf6";
+                return (
+                  <div key={type} className="flex items-center gap-1">
+                    <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: color }} />
+                    <span className="uppercase">{type}</span>
+                  </div>
+                );
+              });
+            })()}
           </div>
         </div>
 
@@ -73,8 +87,35 @@ export const MetersBarChart: React.FC<MetersBarChartProps> = ({ data, title, des
                   }}
                   itemStyle={{ padding: '0px' }}
                 />
-                <Bar dataKey="dtf" name="DTF" stackId="a" fill="#3b82f6" radius={[0, 0, 0, 0]} barSize={30} />
-                <Bar dataKey="vinil" name="Vinil" stackId="a" fill="#f97316" radius={[4, 4, 0, 0]} barSize={30} />
+                {(() => {
+                  const types = new Set<string>();
+                  data.forEach(item => {
+                    Object.keys(item).forEach(key => {
+                      if (key !== 'period' && key !== 'meters' && typeof item[key] === 'number') {
+                        types.add(key);
+                      }
+                    });
+                  });
+
+                  return Array.from(types).map((type, index, arr) => {
+                    const isVinil = type === 'vinil';
+                    const isDTF = type === 'dtf';
+                    const color = isVinil ? "#f97316" : isDTF ? "#3b82f6" : "#8b5cf6";
+                    const isLast = index === arr.length - 1;
+
+                    return (
+                      <Bar
+                        key={type}
+                        dataKey={type}
+                        name={type.toUpperCase()}
+                        stackId="a"
+                        fill={color}
+                        radius={isLast ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                        barSize={30}
+                      />
+                    );
+                  });
+                })()}
               </BarChart>
             </ResponsiveContainer>
           </div>

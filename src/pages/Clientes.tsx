@@ -32,12 +32,16 @@ import { Skeleton } from "@/components/ui/skeleton"; // IMPORTAÇÃO ADICIONADA
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "@/integrations/supabase/client";
 import { getValidToken } from '@/utils/tokenGuard';
 import { removeAccents } from "@/utils/string"; // Importar função de normalização
+import { useSubscription } from '@/hooks/useSubscription';
+import { SubscriptionModal } from '@/components/SubscriptionModal';
 
 const Clientes = () => {
-  const { session } = useSession();
+  const { session, profile } = useSession();
   const { data: clientes, isLoading, error } = useClientes();
   const queryClient = useQueryClient();
   const accessToken = session?.access_token;
+  const { canWriteData } = useSubscription();
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   const [rawSearchTerm, setRawSearchTerm] = useState("");
   const searchTerm = useDebounce(rawSearchTerm, 300); // Aplicar debounce
@@ -52,8 +56,12 @@ const Clientes = () => {
 
   useEffect(() => {
     if (location.state?.openForm) {
-      setEditingCliente(null);
-      setIsFormOpen(true);
+      if (!canWriteData) {
+        setShowUpgradeModal(true);
+      } else {
+        setEditingCliente(null);
+        setIsFormOpen(true);
+      }
       navigate(location.pathname, { replace: true, state: {} });
     }
   }, [location.state, navigate]);
@@ -66,6 +74,7 @@ const Clientes = () => {
       const clienteData = {
         ...data,
         user_id: session.user.id,
+        organization_id: profile?.organization_id,
         status: data.status || 'ativo'
       };
 
@@ -160,7 +169,20 @@ const Clientes = () => {
   // --- Fim Mutações ---
 
   const handleEdit = (cliente: Cliente) => {
+    if (!canWriteData) {
+      setShowUpgradeModal(true);
+      return;
+    }
     setEditingCliente(cliente);
+    setIsFormOpen(true);
+  };
+
+  const handleCreate = () => {
+    if (!canWriteData) {
+      setShowUpgradeModal(true);
+      return;
+    }
+    setEditingCliente(null);
     setIsFormOpen(true);
   };
 
@@ -173,6 +195,10 @@ const Clientes = () => {
   };
 
   const handleDelete = (id: string) => {
+    if (!canWriteData) {
+      setShowUpgradeModal(true);
+      return;
+    }
     deleteClienteMutation.mutate(id);
   };
 
@@ -241,7 +267,7 @@ const Clientes = () => {
           </p>
         </div>
         <Button
-          onClick={() => { setEditingCliente(null); setIsFormOpen(true); }}
+          onClick={handleCreate}
           size="default"
           className="h-10 w-full sm:w-auto transition-all duration-300 hover:scale-[1.02]"
         >
@@ -389,6 +415,8 @@ const Clientes = () => {
           </DialogContent>
         </Dialog>
       )}
+
+      <SubscriptionModal open={showUpgradeModal} onOpenChange={setShowUpgradeModal} />
     </div>
   );
 };

@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Pedido } from '@/types/pedido';
+import { TipoProducao } from '@/types/producao';
 
 // Função para converter imagem para base64
 const getImageAsBase64 = (url: string): Promise<string> => {
@@ -21,7 +22,7 @@ const getImageAsBase64 = (url: string): Promise<string> => {
   });
 };
 
-export const generateOrderPDF = async (pedido: Pedido, action: 'save' | 'print' = 'save') => {
+export const generateOrderPDF = async (pedido: Pedido, action: 'save' | 'print' = 'save', tiposProducao?: TipoProducao[]) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.width;
 
@@ -243,24 +244,19 @@ export const generateOrderPDF = async (pedido: Pedido, action: 'save' | 'print' 
     yPosition = (doc as any).lastAutoTable.finalY + 3;
   }
 
-  // CÁLCULO SEPARADO DE TOTAIS (DTF vs VINIL)
-  let totalDTF = 0;
-  let totalVinil = 0;
+  // CÁLCULO DINÂMICO DE TOTAIS POR TIPO
+  const totalsByType = new Map<string, number>();
 
   pedido.pedido_items.forEach(item => {
-    const isVinil = item.tipo === 'vinil';
-    if (isVinil) {
-      totalVinil += Number(item.quantidade || 0);
-    } else {
-      totalDTF += Number(item.quantidade || 0);
-    }
+    const tipo = (item.tipo || 'dtf').toLowerCase();
+    const current = totalsByType.get(tipo) || 0;
+    totalsByType.set(tipo, current + Number(item.quantidade || 0));
   });
 
   // Exibir totais separados
-  if (totalDTF > 0 || totalVinil > 0) {
-    // Layout mais inteligente para totais
-    const hasBoth = totalDTF > 0 && totalVinil > 0;
-    const boxHeight = hasBoth ? 12 : 7;
+  if (totalsByType.size > 0) {
+    const typesWithTotal = Array.from(totalsByType.entries());
+    const boxHeight = Math.ceil(typesWithTotal.length / 2) * 6 + 2;
 
     doc.setDrawColor(0, 0, 0);
     doc.rect(10, yPosition, pageWidth - 20, boxHeight);
@@ -269,18 +265,18 @@ export const generateOrderPDF = async (pedido: Pedido, action: 'save' | 'print' 
     doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');
 
-    if (hasBoth) {
-      doc.text(`Total DTF: ${totalDTF.toFixed(2)} m`, 15, yPosition + 5);
-      doc.text(`Total VINIL/RECORTE: ${totalVinil.toFixed(2)} m`, pageWidth / 2, yPosition + 5);
-      doc.setFontSize(7);
-      doc.setTextColor(100, 100, 100);
-      doc.text(`Total Geral: ${(totalDTF + totalVinil).toFixed(2)} m`, 15, yPosition + 9);
-      doc.setTextColor(0, 0, 0);
-    } else if (totalVinil > 0) {
-      doc.text(`Total VINIL/RECORTE: ${totalVinil.toFixed(2)} m`, 15, yPosition + 5);
-    } else {
-      doc.text(`Total DTF: ${totalDTF.toFixed(2)} m`, 15, yPosition + 5);
-    }
+    typesWithTotal.forEach(([tipo, total], index) => {
+      const col = index % 2;
+      const row = Math.floor(index / 2);
+      const x = col === 0 ? 15 : pageWidth / 2;
+      const y = yPosition + 5 + (row * 6);
+
+      const tipoInfo = tiposProducao?.find(t => t.nome.toLowerCase() === tipo);
+      const unit = tipoInfo?.unidade_medida === 'unidade' ? 'und' : 'm';
+      const label = tipoInfo?.nome || tipo.toUpperCase();
+
+      doc.text(`Total ${label}: ${total.toFixed(total % 1 === 0 && unit === 'und' ? 0 : 2)} ${unit}`, x, y);
+    });
 
     yPosition += boxHeight + 3;
   }

@@ -19,6 +19,7 @@ import { AIAssistantProvider } from "./contexts/AIAssistantProvider";
 import { useEffect, useRef } from "react";
 import { useSession } from "./contexts/SessionProvider";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { TrialBanner } from "./components/TrialBanner";
 // import { setupAuthRefreshInterceptor } from "./utils/authRefresh";
 
 // Configurar interceptor de renovação de token
@@ -100,6 +101,7 @@ const App = () => (
             <SessionProvider>
               <PWAManager />
               <InstallPrompt />
+              <TrialBanner />
               <CacheInvalidator />
               <ErrorBoundary>
                 <Routes>

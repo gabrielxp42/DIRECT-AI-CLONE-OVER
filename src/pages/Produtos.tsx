@@ -45,12 +45,19 @@ import { useDebounce } from "@/hooks/useDebounce"; // Importar useDebounce
 import { Skeleton } from "@/components/ui/skeleton"; // Importar Skeleton
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "@/integrations/supabase/client";
 import { getValidToken } from '@/utils/tokenGuard';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TipoProducaoManager } from "@/components/TipoProducaoManager";
+import { Settings2 } from "lucide-react";
+import { useSubscription } from '@/hooks/useSubscription';
+import { SubscriptionModal } from '@/components/SubscriptionModal';
 
 const Produtos = () => {
-  const { session } = useSession();
+  const { session, profile } = useSession();
   const queryClient = useQueryClient();
   const { data: produtos, isLoading, error } = useProdutos(); // Usando o hook centralizado
   const accessToken = session?.access_token;
+  const { canWriteData } = useSubscription();
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -73,7 +80,11 @@ const Produtos = () => {
     mutationFn: async (newProduto: Omit<NewProduto, 'user_id'>) => {
       if (!session || !accessToken) throw new Error("Sessão não encontrada");
 
-      const productToInsert = { ...newProduto, user_id: session.user.id };
+      const productToInsert = {
+        ...newProduto,
+        user_id: session.user.id,
+        organization_id: profile?.organization_id
+      };
 
       const validToken = await getValidToken();
       if (!validToken) throw new Error("Sessão expirada. Por favor, recarregue a página.");
@@ -123,7 +134,10 @@ const Produtos = () => {
       const response = await fetch(url, {
         method: 'PATCH',
         headers,
-        body: JSON.stringify(updateData)
+        body: JSON.stringify({
+          ...updateData,
+          organization_id: profile?.organization_id
+        })
       });
 
       if (!response.ok) {
@@ -185,11 +199,19 @@ const Produtos = () => {
   };
 
   const handleOpenForm = (produto: Produto | null = null) => {
+    if (!canWriteData) {
+      setShowUpgradeModal(true);
+      return;
+    }
     setSelectedProduto(produto);
     setIsFormOpen(true);
   };
 
   const handleOpenDeleteDialog = (produto: Produto) => {
+    if (!canWriteData) {
+      setShowUpgradeModal(true);
+      return;
+    }
     setSelectedProduto(produto);
     setIsDeleteDialogOpen(true);
   };
@@ -220,204 +242,121 @@ const Produtos = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      {/* Header Section - Responsivo */}
       <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
-        <h1 className="text-2xl sm:text-3xl font-bold">Produtos</h1>
-        <Button
-          onClick={() => handleOpenForm()}
-          className="w-full sm:w-auto min-h-[44px] touch-manipulation active:scale-95 transition-transform"
-          size="default"
-        >
-          <PlusCircle className="mr-2 h-4 w-4 flex-shrink-0" />
-          <span className="text-sm sm:text-base">Adicionar Produto</span>
-        </Button>
+        <h1 className="text-2xl sm:text-3xl font-bold">Produtos & Configurações</h1>
       </div>
 
-      {/* Alertas de Estoque */}
-      {produtos && <LowStockAlert produtos={produtos} />}
+      <Tabs defaultValue="produtos" className="w-full">
+        <TabsList className="grid w-full grid-cols-2 max-w-md">
+          <TabsTrigger value="produtos" className="flex items-center gap-2">
+            <Package className="h-4 w-4" />
+            Produtos
+          </TabsTrigger>
+          <TabsTrigger value="configuracoes" className="flex items-center gap-2">
+            <Settings2 className="h-4 w-4" />
+            Tipos de Produção
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Search Input - Responsivo */}
-      <div className="w-full">
-        <SearchInput
-          placeholder="Buscar produtos por nome ou descrição..."
-          value={rawSearchTerm} // Usa o valor bruto para o input
-          onChange={setRawSearchTerm} // Atualiza o valor bruto
-          className="w-full sm:max-w-md"
-        />
-      </div>
-
-      <ProdutoForm
-        isOpen={isFormOpen}
-        onOpenChange={(isOpen) => {
-          setIsFormOpen(isOpen);
-          if (!isOpen) setSelectedProduto(null);
-        }}
-        onSubmit={handleSaveProduto}
-        isSubmitting={isMutating}
-        initialData={selectedProduto}
-      />
-
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent className="mx-4 max-w-md">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-lg">Você tem certeza?</AlertDialogTitle>
-            <AlertDialogDescription className="text-sm">
-              Essa ação não pode ser desfeita. Isso excluirá permanentemente o produto "{selectedProduto?.nome}".
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-2">
-            <AlertDialogCancel
-              onClick={() => setSelectedProduto(null)}
-              className="w-full sm:w-auto"
+        <TabsContent value="produtos" className="space-y-4 pt-4">
+          <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
+            <div className="flex-1" />
+            <Button
+              onClick={() => handleOpenForm()}
+              className="w-full sm:w-auto min-h-[44px] touch-manipulation active:scale-95 transition-transform"
+              size="default"
             >
-              Cancelar
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => selectedProduto && deleteProdutoMutation.mutate(selectedProduto.id)}
-              className="w-full sm:w-auto"
-            >
-              {deleteProdutoMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Excluir"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+              <PlusCircle className="mr-2 h-4 w-4 flex-shrink-0" />
+              <span className="text-sm sm:text-base">Adicionar Produto</span>
+            </Button>
+          </div>
 
-      {/* Cards para Mobile, Tabela para Desktop */}
-      <div className="block sm:hidden">
-        {/* Layout de Cards para Mobile */}
-        <div className="space-y-4">
-          {isLoading ? (
-            <div className="text-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
-              <p className="text-muted-foreground mt-2">Carregando...</p>
-            </div>
-          ) : filteredProdutos.length > 0 ? (
-            filteredProdutos.map((produto) => {
-              const stockStatus = getStockStatus(produto.estoque);
-              return (
-                <Card key={produto.id} className="touch-manipulation">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1 min-w-0">
-                        <CardTitle className="text-lg leading-tight truncate">
-                          {produto.nome}
-                        </CardTitle>
-                        {produto.descricao && (
-                          <CardDescription className="text-sm mt-1 line-clamp-2">
-                            {produto.descricao}
-                          </CardDescription>
-                        )}
-                      </div>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            className="h-8 w-8 p-0 ml-2 flex-shrink-0 touch-manipulation"
-                          >
-                            <span className="sr-only">Abrir menu</span>
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-40">
-                          <DropdownMenuItem onClick={() => handleOpenForm(produto)}>
-                            Editar
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleOpenDeleteDialog(produto)}>
-                            Excluir
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-4">
-                        <div className="flex items-center space-x-1">
-                          <DollarSign className="h-4 w-4 text-green-600" />
-                          <span className="font-semibold text-lg">
-                            R$ {produto.preco.toFixed(2)}
-                          </span>
-                        </div>
-                        <div className="flex items-center space-x-1">
-                          <Package className="h-4 w-4 text-muted-foreground" />
-                          <span className={`text-sm font-medium ${stockStatus.color}`}>
-                            {stockStatus.text}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })
-          ) : (
-            <Card>
-              <CardContent className="text-center py-8">
-                <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground">
-                  {searchTerm ? "Nenhum produto encontrado para a busca." : "Nenhum produto encontrado."}
-                </p>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      </div>
+          {/* Alertas de Estoque */}
+          {produtos && <LowStockAlert produtos={produtos} />}
 
-      {/* Tabela para Desktop */}
-      <Card className="hidden sm:block">
-        <CardHeader>
-          <CardTitle>Lista de Produtos</CardTitle>
-          <CardDescription>
-            Gerencie seus produtos cadastrados. {filteredProdutos.length} produto(s) encontrado(s).
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>Preço</TableHead>
-                  <TableHead>Estoque</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-center py-8">
-                      <Loader2 className="h-6 w-6 animate-spin text-primary mx-auto" />
-                      <p className="text-muted-foreground mt-2">Carregando...</p>
-                    </TableCell>
-                  </TableRow>
-                ) : filteredProdutos.length > 0 ? (
-                  filteredProdutos.map((produto) => {
-                    const stockStatus = getStockStatus(produto.estoque);
-                    return (
-                      <TableRow key={produto.id}>
-                        <TableCell className="font-medium">
-                          <div>
-                            <div className="font-medium">{produto.nome}</div>
+          {/* Search Input - Responsivo */}
+          <div className="w-full">
+            <SearchInput
+              placeholder="Buscar produtos por nome ou descrição..."
+              value={rawSearchTerm} // Usa o valor bruto para o input
+              onChange={setRawSearchTerm} // Atualiza o valor bruto
+              className="w-full sm:max-w-md"
+            />
+          </div>
+
+          <ProdutoForm
+            isOpen={isFormOpen}
+            onOpenChange={(isOpen) => {
+              setIsFormOpen(isOpen);
+              if (!isOpen) setSelectedProduto(null);
+            }}
+            onSubmit={handleSaveProduto}
+            isSubmitting={isMutating}
+            initialData={selectedProduto}
+          />
+
+          <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+            <AlertDialogContent className="mx-4 max-w-md">
+              <AlertDialogHeader>
+                <AlertDialogTitle className="text-lg">Você tem certeza?</AlertDialogTitle>
+                <AlertDialogDescription className="text-sm">
+                  Essa ação não pode ser desfeita. Isso excluirá permanentemente o produto "{selectedProduto?.nome}".
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter className="flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-2">
+                <AlertDialogCancel
+                  onClick={() => setSelectedProduto(null)}
+                  className="w-full sm:w-auto"
+                >
+                  Cancelar
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => selectedProduto && deleteProdutoMutation.mutate(selectedProduto.id)}
+                  className="w-full sm:w-auto"
+                >
+                  {deleteProdutoMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Excluir"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          {/* Cards para Mobile, Tabela para Desktop */}
+          <div className="block sm:hidden">
+            {/* Layout de Cards para Mobile */}
+            <div className="space-y-4">
+              {isLoading ? (
+                <div className="text-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
+                  <p className="text-muted-foreground mt-2">Carregando...</p>
+                </div>
+              ) : filteredProdutos.length > 0 ? (
+                filteredProdutos.map((produto) => {
+                  const stockStatus = getStockStatus(produto.estoque);
+                  return (
+                    <Card key={produto.id} className="touch-manipulation">
+                      <CardHeader className="pb-3">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0">
+                            <CardTitle className="text-lg leading-tight truncate">
+                              {produto.nome}
+                            </CardTitle>
                             {produto.descricao && (
-                              <div className="text-sm text-muted-foreground truncate max-w-xs">
+                              <CardDescription className="text-sm mt-1 line-clamp-2">
                                 {produto.descricao}
-                              </div>
+                              </CardDescription>
                             )}
                           </div>
-                        </TableCell>
-                        <TableCell>R$ {produto.preco.toFixed(2)}</TableCell>
-                        <TableCell className={stockStatus.color}>
-                          {stockStatus.text}
-                        </TableCell>
-                        <TableCell className="text-right">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" className="h-8 w-8 p-0">
+                              <Button
+                                variant="ghost"
+                                className="h-8 w-8 p-0 ml-2 flex-shrink-0 touch-manipulation"
+                              >
                                 <span className="sr-only">Abrir menu</span>
                                 <MoreHorizontal className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
+                            <DropdownMenuContent align="end" className="w-40">
                               <DropdownMenuItem onClick={() => handleOpenForm(produto)}>
                                 Editar
                               </DropdownMenuItem>
@@ -426,22 +365,133 @@ const Produtos = () => {
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="pt-0">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-4">
+                            <div className="flex items-center space-x-1">
+                              <DollarSign className="h-4 w-4 text-green-600" />
+                              <span className="font-semibold text-lg">
+                                R$ {produto.preco.toFixed(2)}
+                              </span>
+                            </div>
+                            <div className="flex items-center space-x-1">
+                              <Package className="h-4 w-4 text-muted-foreground" />
+                              <span className={`text-sm font-medium ${stockStatus.color}`}>
+                                {stockStatus.text}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })
+              ) : (
+                <Card>
+                  <CardContent className="text-center py-8">
+                    <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <p className="text-muted-foreground">
+                      {searchTerm ? "Nenhum produto encontrado para a busca." : "Nenhum produto encontrado."}
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </div>
+
+          {/* Tabela para Desktop */}
+          <Card className="hidden sm:block">
+            <CardHeader>
+              <CardTitle>Lista de Produtos</CardTitle>
+              <CardDescription>
+                Gerencie seus produtos cadastrados. {filteredProdutos.length} produto(s) encontrado(s).
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nome</TableHead>
+                      <TableHead>Preço</TableHead>
+                      <TableHead>Estoque</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {isLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center py-8">
+                          <Loader2 className="h-6 w-6 animate-spin text-primary mx-auto" />
+                          <p className="text-muted-foreground mt-2">Carregando...</p>
                         </TableCell>
                       </TableRow>
-                    );
-                  })
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-center py-8">
-                      {searchTerm ? "Nenhum produto encontrado para a busca." : "Nenhum produto encontrado."}
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+                    ) : filteredProdutos.length > 0 ? (
+                      filteredProdutos.map((produto) => {
+                        const stockStatus = getStockStatus(produto.estoque);
+                        return (
+                          <TableRow key={produto.id}>
+                            <TableCell className="font-medium">
+                              <div>
+                                <div className="font-medium">{produto.nome}</div>
+                                {produto.descricao && (
+                                  <div className="text-sm text-muted-foreground truncate max-w-xs">
+                                    {produto.descricao}
+                                  </div>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>R$ {produto.preco.toFixed(2)}</TableCell>
+                            <TableCell className={stockStatus.color}>
+                              {stockStatus.text}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" className="h-8 w-8 p-0">
+                                    <span className="sr-only">Abrir menu</span>
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => handleOpenForm(produto)}>
+                                    Editar
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleOpenDeleteDialog(produto)}>
+                                    Excluir
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center py-8">
+                          {searchTerm ? "Nenhum produto encontrado para a busca." : "Nenhum produto encontrado."}
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="configuracoes" className="pt-4">
+          <Card>
+            <CardContent className="pt-6">
+              <TipoProducaoManager />
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      <SubscriptionModal open={showUpgradeModal} onOpenChange={setShowUpgradeModal} />
     </div>
   );
 };

@@ -75,6 +75,7 @@ export const MobileBottomNav = () => {
         <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
           <SheetTrigger asChild>
             <Button
+              id="mobile-quick-actions"
               size="icon"
               className="h-16 w-16 rounded-full bg-primary text-primary-foreground shadow-lg border-4 border-background hover:bg-primary/90"
             >
@@ -86,9 +87,9 @@ export const MobileBottomNav = () => {
               <SheetTitle>O que você gostaria de criar?</SheetTitle>
             </SheetHeader>
             <div className="grid gap-4 py-4">
-              <Button variant="outline" size="lg" onClick={() => handleCreate('/pedidos')}>Novo Pedido</Button>
-              <Button variant="outline" size="lg" onClick={() => handleCreate('/clientes')}>Novo Cliente</Button>
-              <Button variant="outline" size="lg" onClick={() => handleCreate('/produtos')}>Novo Produto</Button>
+              <Button id="mobile-action-pedido" variant="outline" size="lg" onClick={() => handleCreate('/pedidos')}>Novo Pedido</Button>
+              <Button id="mobile-action-cliente" variant="outline" size="lg" onClick={() => handleCreate('/clientes')}>Novo Cliente</Button>
+              <Button id="mobile-action-produto" variant="outline" size="lg" onClick={() => handleCreate('/produtos')}>Novo Produto</Button>
             </div>
           </SheetContent>
         </Sheet>

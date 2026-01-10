@@ -6,7 +6,7 @@ import { Cliente } from '@/types/cliente';
 import { Produto } from '@/types/produto';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Plus, Search, Filter, Eye, Edit, Trash2, Loader2, CalendarIcon, DollarSign, FileText, Scissors, History, MessageSquare, MoreHorizontal, User, Clock, CheckCircle, XCircle, Package, X, Printer, Ruler, PackageOpen, Wrench, Users, Activity, CheckSquare, ChevronDown } from 'lucide-react';
+import { Plus, Search, Filter, Eye, Edit, Trash2, Loader2, CalendarIcon, DollarSign, FileText, Scissors, History, MessageSquare, MoreHorizontal, User, Clock, CheckCircle, XCircle, Package, X, Printer, Ruler, PackageOpen, Wrench, Users, Activity, CheckSquare, ChevronDown, Sparkles } from 'lucide-react';
 import { PedidoForm } from '@/components/PedidoForm';
 import { PedidoDetails } from '@/components/PedidoDetails';
 import { EmptyState } from '@/components/EmptyState';
@@ -42,7 +42,7 @@ import {
 import { OrderStatusIndicator } from '@/components/OrderStatusIndicator';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { usePedidos, useClientes, useProdutos, usePaginatedPedidos } from '@/hooks/useDataFetch';
+import { usePedidos, useClientes, useProdutos, usePaginatedPedidos, useTiposProducao } from '@/hooks/useDataFetch';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useDebounce } from '@/hooks/useDebounce';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -50,13 +50,29 @@ import { PaginationControls } from '@/components/PaginationControls';
 import { DateRange } from 'react-day-picker'; // Importar DateRange
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/integrations/supabase/client';
 import { getValidToken } from '@/utils/tokenGuard';
+import { useSubscription } from '@/hooks/useSubscription';
+import { SubscriptionModal } from '@/components/SubscriptionModal';
+import { TutorialGuide } from '@/components/TutorialGuide';
+import { useTour } from '@/hooks/useTour';
+import { PEDIDOS_TOUR } from '@/utils/tours';
 
 const ITEMS_PER_PAGE_OPTIONS = [10, 20, 50, 100];
 
 const PedidosPage: React.FC = () => {
-  const { session, isLoading: sessionLoading } = useSession();
+  const { session, profile, isLoading: sessionLoading } = useSession();
+  const { data: tiposProducao } = useTiposProducao();
   const queryClient = useQueryClient();
   const accessToken = session?.access_token;
+  const { canWriteData } = useSubscription();
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const { isTourOpen, currentStep, steps, startTour, nextStep, prevStep, closeTour, shouldAutoStart } = useTour(PEDIDOS_TOUR, 'pedidos');
+
+  useEffect(() => {
+    if (shouldAutoStart && !sessionLoading) {
+      const timer = setTimeout(startTour, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [shouldAutoStart, sessionLoading, startTour]);
 
   // Verificação CRÍTICA no início do componente
   if (sessionLoading) {
@@ -142,8 +158,12 @@ const PedidosPage: React.FC = () => {
     }
 
     if (location.state?.openForm) {
-      setEditingPedido(null);
-      setIsFormOpen(true);
+      if (!canWriteData) {
+        setShowUpgradeModal(true);
+      } else {
+        setEditingPedido(null);
+        setIsFormOpen(true);
+      }
       navigate(location.pathname, { replace: true, state: {} });
     }
   }, [location.state, location.pathname, navigate]);
@@ -159,11 +179,19 @@ const PedidosPage: React.FC = () => {
   };
 
   const handleCreatePedido = () => {
+    if (!canWriteData) {
+      setShowUpgradeModal(true);
+      return;
+    }
     setEditingPedido(null); // Garante que é um novo pedido
     setIsFormOpen(true);
   };
 
   const handleEditPedido = (pedido: Pedido) => {
+    if (!canWriteData) {
+      setShowUpgradeModal(true);
+      return;
+    }
     setEditingPedido(pedido);
     setIsFormOpen(true);
   };
@@ -174,6 +202,10 @@ const PedidosPage: React.FC = () => {
   };
 
   const handleStatusChange = (pedido: Pedido) => {
+    if (!canWriteData) {
+      setShowUpgradeModal(true);
+      return;
+    }
     setStatusChangePedido(pedido);
     setIsStatusChangeOpen(true);
   };
@@ -415,6 +447,7 @@ const PedidosPage: React.FC = () => {
         const newPedidoData = {
           ...pedidoData,
           user_id: session.user.id,
+          organization_id: profile?.organization_id,
           status: 'pendente',
           created_at: created_at
         };
@@ -657,8 +690,21 @@ const PedidosPage: React.FC = () => {
   return (
     <div className="container mx-auto p-4">
       <div className="flex flex-col sm:flex-row items-center justify-between mb-6 gap-4">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-50">Pedidos</h1>
-        <Button onClick={handleCreatePedido} className="w-full sm:w-auto">
+        <div className="flex items-center gap-4">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-50">Pedidos</h1>
+          {!isTourOpen && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={startTour}
+              className="hidden sm:flex text-[10px] h-7 bg-primary/5 hover:bg-primary/10 border-primary/20"
+            >
+              <Sparkles className="mr-1 h-3 w-3" />
+              Ver Tutorial
+            </Button>
+          )}
+        </div>
+        <Button id="btn-novo-pedido" onClick={handleCreatePedido} className="w-full sm:w-auto">
           <Plus className="mr-2 h-4 w-4" />
           Novo Pedido
         </Button>
@@ -684,6 +730,7 @@ const PedidosPage: React.FC = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
         <Input
+          id="search-pedidos"
           placeholder="Buscar por cliente, produto, ID..."
           value={rawSearchTerm}
           onChange={(e) => setRawSearchTerm(e.target.value)}
@@ -749,7 +796,7 @@ const PedidosPage: React.FC = () => {
 
       {isGlobalLoading ? (
         <PedidoSkeleton />
-      ) : filteredPedidos.length === 0 ? (
+      ) : (filteredPedidos.length === 0 && !isTourOpen) ? (
         <div className="col-span-full">
           <EmptyState
             title={searchTerm || filterStatus !== 'todos' || filterClientId ? "Nenhum pedido encontrado com esses filtros" : "Nenhum pedido cadastrado"}
@@ -766,10 +813,57 @@ const PedidosPage: React.FC = () => {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filteredPedidos.map((pedido) => (
+          <div id="lista-pedidos" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {/* Card de Demonstração para o Tutorial quando a lista está vazia */}
+            {isTourOpen && filteredPedidos.length === 0 && (
+              <Card
+                id="first-order-card"
+                className="opacity-90 border-dashed border-primary/50 relative overflow-hidden"
+              >
+                <div className="absolute top-0 right-0 bg-primary text-primary-foreground text-[10px] font-bold px-2 py-0.5 rounded-bl-lg z-10">
+                  EXEMPLO
+                </div>
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between w-full">
+                    <div>
+                      <CardTitle className="text-lg font-semibold">Pedido #1001</CardTitle>
+                      <CardDescription className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
+                        <User className="h-3 w-3" /> João Silva (Exemplo)
+                      </CardDescription>
+                    </div>
+                    <div id="order-status-badge">
+                      <Badge className="bg-blue-100 text-blue-800 border-blue-300">
+                        <Wrench className="h-3 w-3 mr-1" /> Processando
+                      </Badge>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex items-center text-sm text-muted-foreground">
+                    <CalendarIcon className="h-4 w-4 mr-2" /> 10/01/2024
+                  </div>
+                  <div className="flex items-center text-base font-bold text-primary">
+                    <DollarSign className="h-4 w-4 mr-1" /> Total: R$ 450,00
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <div className="flex items-center text-[10px] font-bold px-2 py-0.5 rounded border text-blue-600 bg-blue-50">
+                      <Printer className="h-3 w-3 mr-1" /> DTF: 5.00m
+                    </div>
+                    <div className="flex items-center text-[10px] font-bold px-2 py-0.5 rounded border text-orange-600 bg-orange-50">
+                      <Scissors className="h-3 w-3 mr-1" /> VINIL: 2.50m
+                    </div>
+                  </div>
+                  <div id="order-card-actions" className="flex justify-end gap-2 pt-3 border-t mt-2">
+                    <Button variant="outline" size="icon" className="h-8 w-8 opacity-50"><FileText className="h-4 w-4" /></Button>
+                    <Button variant="outline" size="icon" className="h-8 w-8 opacity-50"><Printer className="h-4 w-4" /></Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            {filteredPedidos.map((pedido, index) => (
               <Card
                 key={pedido.id}
+                id={index === 0 ? "first-order-card" : undefined}
                 className="touch-manipulation cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-[1.02] hover:border-primary/50"
                 onClick={() => handleViewPedido(pedido.id)}
               >
@@ -786,7 +880,7 @@ const PedidosPage: React.FC = () => {
                         </span>
                       </CardDescription>
                     </div>
-                    <div className="flex-shrink-0 max-w-full">
+                    <div id={index === 0 ? "order-status-badge" : undefined} className="flex-shrink-0 max-w-full">
                       {isMobile ? (
                         getStatusBadge(pedido)
                       ) : (
@@ -817,27 +911,47 @@ const PedidosPage: React.FC = () => {
                     <span>Total: {formatCurrency(pedido.valor_total)}</span>
                   </div>
 
-                  {/* Exibição Detalhada da Produção (DTF vs Vinil) */}
-                  {pedido.total_metros > 0 && (
+                  {/* Exibição Detalhada da Produção (Dinâmica) */}
+                  {pedido.pedido_items && pedido.pedido_items.length > 0 && (
                     <div className="flex flex-wrap items-center gap-2 mt-1">
-                      {pedido.total_metros_dtf > 0 && (
-                        <div className="flex items-center text-[0.65rem] font-bold text-blue-600 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded border border-blue-100 dark:border-blue-800">
-                          <Printer className="h-3 w-3 mr-1" />
-                          DTF: {pedido.total_metros_dtf.toFixed(2)}m
-                        </div>
-                      )}
-                      {pedido.total_metros_vinil > 0 && (
-                        <div className="flex items-center text-[0.65rem] font-bold text-orange-600 bg-orange-50 dark:bg-orange-900/20 px-2 py-0.5 rounded border border-orange-100 dark:border-orange-800">
-                          <Scissors className="h-3 w-3 mr-1" />
-                          VINIL: {pedido.total_metros_vinil.toFixed(2)}m
-                        </div>
-                      )}
-                      {!pedido.total_metros_dtf && !pedido.total_metros_vinil && pedido.total_metros > 0 && (
-                        <div className="flex items-center text-xs font-medium text-gray-600 dark:text-gray-400">
-                          <Ruler className="h-4 w-4 mr-1 text-blue-500" />
-                          Metros: {pedido.total_metros.toFixed(2)}m
-                        </div>
-                      )}
+                      {(() => {
+                        // Agrupar itens por tipo
+                        const totalsByType = new Map<string, number>();
+                        pedido.pedido_items.forEach(item => {
+                          const tipo = (item.tipo || 'dtf').toLowerCase();
+                          const current = totalsByType.get(tipo) || 0;
+                          totalsByType.set(tipo, current + Number(item.quantidade || 0));
+                        });
+
+                        return Array.from(totalsByType.entries()).map(([tipo, total]) => {
+                          const tipoInfo = tiposProducao?.find(t => t.nome.toLowerCase() === tipo);
+                          const isVinil = tipo === 'vinil';
+                          const isDTF = tipo === 'dtf';
+                          const isUnidade = tipoInfo?.unidade_medida === 'unidade';
+
+                          let Icon = Ruler;
+                          let colorClass = "text-gray-600 bg-gray-50 border-gray-100 dark:bg-gray-900/20 dark:border-gray-800";
+                          let label = tipoInfo?.nome || tipo.toUpperCase();
+
+                          if (isVinil) {
+                            Icon = Scissors;
+                            colorClass = "text-orange-600 bg-orange-50 border-orange-100 dark:bg-orange-900/20 dark:border-orange-800";
+                          } else if (isDTF) {
+                            Icon = Printer;
+                            colorClass = "text-blue-600 bg-blue-50 border-blue-100 dark:bg-blue-900/20 dark:border-blue-800";
+                          } else if (tipoInfo) {
+                            Icon = isUnidade ? Package : Ruler;
+                            colorClass = "text-primary bg-primary/5 border-primary/10 dark:bg-primary/900/20 dark:border-primary/800";
+                          }
+
+                          return (
+                            <div key={tipo} className={cn("flex items-center text-[0.65rem] font-bold px-2 py-0.5 rounded border", colorClass)}>
+                              <Icon className="h-3 w-3 mr-1" />
+                              {label}: {total.toFixed(isUnidade ? 0 : 2)}{isUnidade ? 'und' : 'm'}
+                            </div>
+                          );
+                        });
+                      })()}
                     </div>
                   )}
 
@@ -848,7 +962,7 @@ const PedidosPage: React.FC = () => {
                     </div>
                   )}
 
-                  <div className="flex justify-end gap-2 pt-3 border-t mt-3">
+                  <div id={index === 0 ? "order-card-actions" : undefined} className="flex justify-end gap-2 pt-3 border-t mt-3">
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button
@@ -1027,6 +1141,17 @@ const PedidosPage: React.FC = () => {
           orderNumber={viewingStatusHistory.order_number}
         />
       )}
+
+      <SubscriptionModal open={showUpgradeModal} onOpenChange={setShowUpgradeModal} />
+
+      <TutorialGuide
+        isOpen={isTourOpen}
+        currentStep={currentStep}
+        steps={steps}
+        onNext={nextStep}
+        onPrev={prevStep}
+        onClose={closeTour}
+      />
     </div>
   );
 };

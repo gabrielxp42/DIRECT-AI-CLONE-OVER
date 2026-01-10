@@ -13,6 +13,8 @@ import { Sparkles, FileText, Image as ImageIcon, Loader2, Upload, X } from 'luci
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { getOpenAIClient } from '@/integrations/openai/client';
+import { useSubscription } from '@/hooks/useSubscription';
+import { useSession } from '@/contexts/SessionProvider';
 
 interface MagicPasteModalProps {
     isOpen: boolean;
@@ -30,6 +32,8 @@ export const MagicPasteModal: React.FC<MagicPasteModalProps> = ({
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [activeTab, setActiveTab] = useState<'text' | 'image'>('text');
+    const { canUseAI } = useSubscription();
+    const { supabase } = useSession();
 
     // ---------- Image handling ----------
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -46,6 +50,10 @@ export const MagicPasteModal: React.FC<MagicPasteModalProps> = ({
 
     const processImage = async () => {
         if (!selectedImage) return;
+        if (!canUseAI) {
+            toast.error('Limite diário de IA atingido. Faça upgrade para continuar!');
+            return;
+        }
         setIsProcessing(true);
         try {
             const client = getOpenAIClient();
@@ -67,6 +75,9 @@ export const MagicPasteModal: React.FC<MagicPasteModalProps> = ({
                 setActiveTab('text');
                 toast.success('Imagem lida! Revise o texto e clique em Mágica.');
                 setSelectedImage(null);
+
+                // Increment AI usage in DB
+                await supabase?.rpc('increment_ai_usage');
             } else {
                 toast.error('Nenhum texto retornado pela IA.');
             }
@@ -82,6 +93,10 @@ export const MagicPasteModal: React.FC<MagicPasteModalProps> = ({
     const processText = () => {
         if (!text.trim()) {
             toast.error('Cole algum texto primeiro!');
+            return;
+        }
+        if (!canUseAI) {
+            toast.error('Limite diário de IA atingido. Faça upgrade para continuar!');
             return;
         }
         setIsProcessing(true);

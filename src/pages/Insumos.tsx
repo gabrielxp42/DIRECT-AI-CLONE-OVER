@@ -103,6 +103,7 @@ const Insumos = () => {
             };
 
             const payload = {
+                user_id: session.user.id,
                 nome: formData.nome,
                 quantidade_atual: parseFloat(formData.quantidade_atual) || 0,
                 unidade: formData.unidade,

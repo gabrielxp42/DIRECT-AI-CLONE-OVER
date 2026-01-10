@@ -7,21 +7,27 @@ import { setupTokenRefresh, clearTokenRefresh } from '@/utils/tokenRefresh';
 
 type Profile = {
   organization_id: string | null;
+  trial_start_date: string | null;
+  subscription_status: 'trial' | 'active' | 'expired' | null;
+  daily_ai_count: number | null;
+  completed_tours: string[] | null;
 };
 
 type SessionContextType = {
   session: Session | null;
   supabase: SupabaseClient;
   isLoading: boolean;
-  organizationId: string | null; // Adicionado organizationId
+  organizationId: string | null;
+  profile: Profile | null; // Added profile to context
 };
 
 // Inicializa o contexto com o cliente Supabase síncrono
 const initialContextValue: SessionContextType = {
   session: null,
-  supabase: supabaseClient, // O cliente é síncrono e deve estar aqui
+  supabase: supabaseClient,
   isLoading: true,
   organizationId: null,
+  profile: null,
 };
 
 const SessionContext = createContext<SessionContextType | null>(null);
@@ -29,6 +35,9 @@ const SessionContext = createContext<SessionContextType | null>(null);
 export const SessionProvider = ({ children }: { children: React.ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [profile, setProfile] = useState<Profile | null>(null); // State for full profile
+  // Derivations can stay or be redundant, but keeping organizationId for compat if needed,
+  // though accessing profile.organization_id is better.
   const [organizationId, setOrganizationId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -41,15 +50,13 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
 
     const fetchProfile = async (userId: string) => {
       if (!supabaseClient || typeof supabaseClient.from !== 'function') {
-        console.error('Supabase client is undefined or invalid during fetchProfile.');
         return null;
       }
 
       try {
-        // Alterado de .single() para .limit(1) para ser mais robusto contra 406
         const { data, error } = await supabaseClient
           .from('profiles')
-          .select('organization_id')
+          .select('*')
           .eq('id', userId)
           .limit(1);
 
@@ -58,8 +65,9 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
           return null;
         }
 
-        // Pega o primeiro item do array, se existir
-        return data?.[0]?.organization_id || null;
+        const userProfile = data?.[0] || null;
+        // Cast to Profile type safely
+        return userProfile as Profile;
       } catch (error) {
         console.error('Exception in fetchProfile:', error);
         return null;
@@ -110,10 +118,12 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
 
           if (currentSession?.user) {
             console.log('🔍 [SessionProvider] Buscando perfil do usuário...');
-            const orgId = await fetchProfile(currentSession.user.id);
-            setOrganizationId(orgId);
-            console.log('✅ [SessionProvider] Perfil carregado:', orgId);
+            const fullProfile = await fetchProfile(currentSession.user.id);
+            setProfile(fullProfile);
+            setOrganizationId(fullProfile?.organization_id || null);
+            console.log('✅ [SessionProvider] Perfil carregado:', fullProfile?.organization_id);
           } else {
+            setProfile(null);
             setOrganizationId(null);
             console.log('ℹ️ [SessionProvider] Sem sessão ativa');
           }
@@ -141,7 +151,10 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
                 // Tenta buscar perfil (sem bloquear se falhar)
                 if (storedSession.user) {
                   fetchProfile(storedSession.user.id)
-                    .then(orgId => setOrganizationId(orgId))
+                    .then(fullProfile => {
+                      setProfile(fullProfile);
+                      setOrganizationId(fullProfile?.organization_id || null);
+                    })
                     .catch(err => console.error('Erro ao buscar perfil no fallback:', err));
                 }
 
@@ -208,16 +221,21 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
             }, 2000);
           }
 
-          // Atualizar sessão
-          setSession(session);
-          setIsLoading(false);
-
-          if (session?.user) {
-            const orgId = await fetchProfile(session.user.id);
-            setOrganizationId(orgId);
+          // Atualizar sessão e perfil
+          if (session) {
+            setSession(session);
+            // Fetch additional profile data
+            const fullProfile = await fetchProfile(session.user.id);
+            setProfile(fullProfile);
+            setOrganizationId(fullProfile?.organization_id || null);
           } else {
+            setSession(null);
+            setProfile(null);
             setOrganizationId(null);
           }
+
+          setIsLoading(false); // Always set loading to false AFTER fetching profile
+
 
           // Log do estado atual
           console.log('[SessionProvider] State:', { event, hasSession: !!session, organizationId });
@@ -237,6 +255,7 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
           if (event === 'SIGNED_OUT' && !isRefreshing) {
             console.log('👋 [SessionProvider] User signed out');
             setOrganizationId(null);
+            setProfile(null); // Clear profile on sign out
             clearTokenRefresh();
           }
         }
@@ -282,6 +301,7 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
     supabase: validSupabase,
     isLoading,
     organizationId,
+    profile, // Added profile to context value
   };
 
   return (
