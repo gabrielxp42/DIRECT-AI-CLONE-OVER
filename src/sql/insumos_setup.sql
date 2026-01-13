@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS insumos (
   unidade TEXT DEFAULT 'un', -- 'm', 'kg', 'l', 'un'
   quantidade_minima DECIMAL(10,2) DEFAULT 10,
   custo_unitario DECIMAL(10,2) DEFAULT 0,
+  user_id UUID REFERENCES auth.users(id),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -30,11 +31,11 @@ ALTER TABLE insumos ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Permitir leitura para autenticados" ON insumos;
 CREATE POLICY "Permitir leitura para autenticados" ON insumos
-    FOR SELECT USING (auth.role() = 'authenticated');
+    FOR SELECT USING (auth.uid() = user_id);
 
 DROP POLICY IF EXISTS "Permitir escrita para autenticados" ON insumos;
 CREATE POLICY "Permitir escrita para autenticados" ON insumos
-    FOR ALL USING (auth.role() = 'authenticated');
+    FOR ALL USING (auth.uid() = user_id);
 
 -- Função para dar baixa no estoque (será chamada via RPC ou Trigger de Pedido)
 CREATE OR REPLACE FUNCTION baixar_estoque_insumo(p_insumo_id UUID, p_quantidade DECIMAL)

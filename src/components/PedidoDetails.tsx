@@ -13,6 +13,14 @@ import {
   DialogTitle
 } from '@/components/ui/dialog';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Table,
   TableBody,
   TableCell,
@@ -41,7 +49,8 @@ import {
   MessageSquare,
   History,
   Ruler,
-  Loader2
+  Loader2,
+  ScrollText
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTiposProducao } from '@/hooks/useDataFetch';
@@ -58,6 +67,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { generateOrderPDF } from '@/utils/pdfGenerator';
+import { printThermalReceipt } from '@/utils/thermalPrinter';
 import { StatusChangeDialog } from '@/components/StatusChangeDialog';
 import { StatusHistoryDialog } from '@/components/StatusHistoryDialog';
 import { useCompanyProfile, getCompanyInfoForPDF } from '@/hooks/useCompanyProfile';
@@ -317,10 +327,27 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
                 <FileText className="h-4 w-4 mr-2" />
                 Baixar PDF
               </Button>
-              <Button variant="outline" size="sm" onClick={handlePrintPDF}>
-                <Printer className="h-4 w-4 mr-2" />
-                Imprimir Nota
-              </Button>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Printer className="h-4 w-4 mr-2" />
+                    Imprimir
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Opções de Impressão</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handlePrintPDF}>
+                    <Printer className="h-4 w-4 mr-2" />
+                    Imprimir Nota (A4)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => pedido && printThermalReceipt(pedido)}>
+                    <ScrollText className="h-4 w-4 mr-2" />
+                    Imprimir Cupom (80mm)
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               {statusHistory.length > 0 && (
                 <Button
                   variant="outline"

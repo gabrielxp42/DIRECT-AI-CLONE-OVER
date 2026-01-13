@@ -44,7 +44,7 @@ import { NewPedido, Pedido } from "@/types/pedido";
 import { Cliente } from "@/types/cliente";
 import { Produto } from "@/types/produto";
 import { useEffect, useState, useRef, useMemo } from "react";
-import { Trash2, Plus, Search, Edit3, X, User, Package, Wrench, Save, Zap, CalendarIcon, Ruler, ChevronDown, Loader2, FileText, Copy, GripVertical, Sparkles, Printer, Scissors, Settings } from "lucide-react";
+import { Trash2, Plus, Search, Edit3, X, User, Package, Wrench, Save, Zap, CalendarIcon, Ruler, ChevronDown, Loader2, FileText, Copy, GripVertical, Sparkles, Printer, Scissors, Settings, Bike } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -1103,6 +1103,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                           >
                                             <Copy className="h-4 w-4" />
                                           </Button>
+                                          {/* Botão Remover */}
 
                                           {/* Botão Remover */}
                                           <Button
@@ -1376,16 +1377,37 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                     <Wrench className="h-5 w-5" />
                     Serviços
                   </h3>
-                  <Button
-                    type="button"
-                    onClick={addServico}
-                    size="sm"
-                    variant="outline"
-                    className="transition-all duration-300 hover:scale-[1.05] shadow-sm hover:shadow-md w-full sm:w-auto"
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    Adicionar Serviço
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      onClick={addServico}
+                      size="sm"
+                      variant="outline"
+                      className="transition-all duration-300 hover:scale-[1.05] shadow-sm hover:shadow-md w-full sm:w-auto"
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Adicionar Serviço
+                    </Button>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="text-orange-600 border-orange-200 hover:bg-orange-50"
+                            onClick={() => addShortcutServico("Frete", 0)}
+                          >
+                            <Bike className="h-4 w-4 mr-1" />
+                            Frete
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Adicionar Frete</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 pb-2 border-b">
