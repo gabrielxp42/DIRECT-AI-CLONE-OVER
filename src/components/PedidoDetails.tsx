@@ -60,6 +60,7 @@ import {
 import { generateOrderPDF } from '@/utils/pdfGenerator';
 import { StatusChangeDialog } from '@/components/StatusChangeDialog';
 import { StatusHistoryDialog } from '@/components/StatusHistoryDialog';
+import { useCompanyProfile, getCompanyInfoForPDF } from '@/hooks/useCompanyProfile';
 
 interface PedidoDetailsProps {
   isOpen: boolean;
@@ -87,6 +88,7 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
   const [loading, setLoading] = useState(true);
   const [isStatusChangeOpen, setIsStatusChangeOpen] = useState(false);
   const [isStatusHistoryOpen, setIsStatusHistoryOpen] = useState(false);
+  const { companyProfile } = useCompanyProfile();
 
   const fetchPedidoDetails = async () => {
     if (!session || !pedidoId) return;
@@ -204,7 +206,8 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
         showError("O pedido não possui itens ou serviços para gerar o PDF.");
         return;
       }
-      await generateOrderPDF(pedido, 'save', tiposProducao);
+      const companyInfo = getCompanyInfoForPDF(companyProfile);
+      await generateOrderPDF(pedido, 'save', tiposProducao, companyInfo);
       showSuccess("PDF gerado e baixado com sucesso!");
     } catch (error: any) {
       showError(`Erro ao gerar PDF: ${error.message}`);
@@ -218,7 +221,8 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
         showError("O pedido não possui itens ou serviços para imprimir.");
         return;
       }
-      await generateOrderPDF(pedido, 'print', tiposProducao);
+      const companyInfo = getCompanyInfoForPDF(companyProfile);
+      await generateOrderPDF(pedido, 'print', tiposProducao, companyInfo);
     } catch (error: any) {
       showError(`Erro ao gerar PDF para impressão: ${error.message}`);
     }

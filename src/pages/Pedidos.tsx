@@ -55,6 +55,7 @@ import { SubscriptionModal } from '@/components/SubscriptionModal';
 import { TutorialGuide } from '@/components/TutorialGuide';
 import { useTour } from '@/hooks/useTour';
 import { PEDIDOS_TOUR } from '@/utils/tours';
+import { useCompanyProfile, getCompanyInfoForPDF } from '@/hooks/useCompanyProfile';
 
 const ITEMS_PER_PAGE_OPTIONS = [10, 20, 50, 100];
 
@@ -66,6 +67,7 @@ const PedidosPage: React.FC = () => {
   const { canWriteData } = useSubscription();
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const { isTourOpen, currentStep, steps, startTour, nextStep, prevStep, closeTour, shouldAutoStart } = useTour(PEDIDOS_TOUR, 'pedidos');
+  const { companyProfile } = useCompanyProfile();
 
   useEffect(() => {
     if (shouldAutoStart && !sessionLoading) {
@@ -222,7 +224,8 @@ const PedidosPage: React.FC = () => {
         showError("O pedido não possui itens ou serviços para gerar o PDF.");
         return;
       }
-      await generateOrderPDF(pedido, 'save');
+      const companyInfo = getCompanyInfoForPDF(companyProfile);
+      await generateOrderPDF(pedido, 'save', undefined, companyInfo);
       showSuccess("PDF gerado e baixado com sucesso!");
     } catch (error: any) {
       showError(`Erro ao gerar PDF: ${error.message}`);
@@ -235,7 +238,8 @@ const PedidosPage: React.FC = () => {
         showError("O pedido não possui itens ou serviços para imprimir.");
         return;
       }
-      await generateOrderPDF(pedido, 'print');
+      const companyInfo = getCompanyInfoForPDF(companyProfile);
+      await generateOrderPDF(pedido, 'print', undefined, companyInfo);
     } catch (error: any) {
       showError(`Erro ao gerar PDF para impressão: ${error.message}`);
     }

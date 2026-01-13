@@ -86,6 +86,12 @@ export const WELCOME_TOUR: TutorialStep[] = [
         position: 'bottom'
     },
     {
+        targetId: 'user-nav-dropdown',
+        title: 'Sua Empresa, Sua Identidade',
+        description: 'Clique aqui e acesse "Configurações" para personalizar suas ordens de serviço com sua logo, dados de contato e chave PIX. Deixe o sistema com a cara da sua marca!',
+        position: 'bottom'
+    },
+    {
         targetId: 'quick-actions-container, mobile-quick-actions, mobile-action-pedido',
         title: 'Agilidade Operacional',
         description: 'As tarefas mais comuns estão a um toque de distância. Cadastre clientes ou inicie produções sem navegar por menus complexos.',
@@ -95,6 +101,39 @@ export const WELCOME_TOUR: TutorialStep[] = [
         targetId: 'status-charts-container',
         title: 'Visão 360° da Fábrica',
         description: 'Gráficos em tempo real mostram sua capacidade produtiva e gargalos. Tome decisões baseadas em dados, não em palpites.',
+        position: 'top'
+    }
+];
+
+export const SETTINGS_TOUR: TutorialStep[] = [
+    {
+        targetId: 'company-logo-section',
+        title: 'Sua Marca em Destaque',
+        description: 'Faça upload da sua logo aqui. Ela aparecerá automaticamente no topo de todos os PDFs e notas gerados pelo sistema.',
+        position: 'bottom'
+    },
+    {
+        targetId: 'company-info-section',
+        title: 'Dados Profissionais',
+        description: 'Mantenha o nome e slogan da sua empresa atualizados para que seus clientes identifiquem suas ordens de serviço instantaneamente.',
+        position: 'bottom'
+    },
+    {
+        targetId: 'contact-info-section',
+        title: 'Facilite o Contato',
+        description: 'Seus telefones e e-mails comerciais aparecerão no rodapé dos documentos, facilitando a comunicação com seus clientes.',
+        position: 'bottom'
+    },
+    {
+        targetId: 'address-info-section',
+        title: 'Presença Física',
+        description: 'O endereço completo da sua gráfica ajuda na credibilidade e serve como referência para retiradas e entregas.',
+        position: 'bottom'
+    },
+    {
+        targetId: 'payment-info-section',
+        title: 'Receba Mais Rápido',
+        description: 'Configure sua chave PIX para que ela apareça direto na nota do cliente. Menos burocracia, mais dinheiro no caixa!',
         position: 'top'
     }
 ];

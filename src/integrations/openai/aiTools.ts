@@ -778,6 +778,59 @@ const findClientWithMultipleStrategies = async (clientName: string) => {
   }
 };
 
+// Helper to get company info for PDF from profile
+const getCompanyInfo = async () => {
+  try {
+    const token = await getValidToken();
+    if (!token) return undefined;
+
+    const response = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) return undefined;
+    const userData = await response.json();
+    const userId = userData.id;
+
+    const profileResponse = await fetch(`${SUPABASE_URL}/rest/v1/profiles?select=*&id=eq.${userId}&limit=1`, {
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!profileResponse.ok) return undefined;
+    const profiles = await profileResponse.json();
+    if (!profiles || profiles.length === 0) return undefined;
+
+    const profile = profiles[0];
+
+    // Construct full address
+    const address_full = [
+      profile.company_address_street,
+      profile.company_address_number,
+      profile.company_address_neighborhood,
+      profile.company_address_city,
+      profile.company_address_state
+    ].filter(Boolean).join(', ');
+
+    return {
+      company_name: profile.company_name || 'Minha Empresa',
+      phone: profile.company_whatsapp || profile.company_phone || '',
+      email: profile.company_email || '',
+      address_full: address_full || '',
+      pix_key: profile.company_pix_key || '',
+      logo_url: profile.company_logo_url || '/logo.png'
+    };
+  } catch (error) {
+    console.warn('⚠️ Erro ao buscar informações da empresa para PDF:', error);
+    return undefined;
+  }
+};
+
 // Helper function to fetch complete order data for PDF generation
 const fetchCompleteOrderData = async (fullOrderId: string) => {
   console.log(`📋 [fetchCompleteOrderData] Buscando dados completos do pedido: ${fullOrderId}`);
@@ -1720,8 +1773,11 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
 
       console.log(`📋 [generate_order_pdf] Dados obtidos, gerando PDF...`);
 
+      // Buscar informações da empresa para o PDF
+      const companyInfo = await getCompanyInfo();
+
       // Ação padrão para a IA é 'save' (download)
-      await generateOrderPDF(orderData as any, 'save');
+      await generateOrderPDF(orderData as any, 'save', undefined, companyInfo);
 
       console.log(`✅ [generate_order_pdf] PDF gerado com sucesso!`);
 
@@ -1758,8 +1814,11 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
         }
 
         const orderData = await fetchCompleteOrderData(fullOrderId);
+        // Buscar informações da empresa para o PDF (uma única vez por batch se possível, mas aqui por item para segurança)
+        const companyInfo = await getCompanyInfo();
+
         // Ação padrão para a IA é 'save' (download)
-        await generateOrderPDF(orderData as any, 'save');
+        await generateOrderPDF(orderData as any, 'save', undefined, companyInfo);
 
         results.push(`✅ Pedido #${orderNumber}: PDF gerado`);
         console.log(`✅ [generate_multiple_pdfs] PDF do pedido #${orderNumber} gerado com sucesso`);

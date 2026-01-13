@@ -12,6 +12,7 @@ import { useViewportZoom } from '@/hooks/useViewportZoom';
 import { APP_VERSION } from '@/utils/version';
 import { cn } from '@/lib/utils';
 import { CommandMenu } from './CommandMenu';
+import { GiftPlanModal } from './GiftPlanModal';
 
 const navItems = [
   { href: '/', icon: Home, label: 'Dashboard' },
@@ -116,10 +117,11 @@ const Layout = () => {
         <main className="flex flex-1 flex-col gap-3 p-3 sm:gap-4 sm:p-4 lg:gap-6 lg:p-6">
           <Outlet />
         </main>
-        <MobileBottomNav />
+        {location.pathname !== '/settings' && <MobileBottomNav />}
       </div>
       <AIAssistant />
       <CommandMenu />
+      <GiftPlanModal />
       {!isOpen && !isMobile && (
         <Button
           className="fixed bottom-4 right-4 h-16 w-16 rounded-full shadow-xl z-50 transition-all duration-300 hover:scale-110"

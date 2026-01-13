@@ -10,7 +10,10 @@ export const useTour = (steps: TutorialStep[], tourId: string) => {
     const [currentStep, setCurrentStep] = useState(0);
 
     const completedTours = profile?.completed_tours || [];
-    const isCompleted = completedTours.includes(tourId);
+
+    // Check localStorage first for immediate feedback
+    const localCompleted = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('completed_tours') || '[]') : [];
+    const isCompleted = completedTours.includes(tourId) || localCompleted.includes(tourId);
 
     const startTour = useCallback(() => {
         setCurrentStep(0);
@@ -34,23 +37,38 @@ export const useTour = (steps: TutorialStep[], tourId: string) => {
     const completeTour = useCallback(async (isFinished: boolean) => {
         setIsTourOpen(false);
 
-        if (isFinished && !isCompleted && profile) {
-            const updatedTours = [...completedTours, tourId];
+        if (isFinished && !isCompleted) {
+            // 1. Immediate Local Update
+            const local = JSON.parse(localStorage.getItem('completed_tours') || '[]');
+            if (!local.includes(tourId)) {
+                local.push(tourId);
+                localStorage.setItem('completed_tours', JSON.stringify(local));
+            }
 
-            const { error } = await supabase
-                .from('profiles')
-                .update({ completed_tours: updatedTours })
-                .eq('id', (await supabase.auth.getUser()).data.user?.id);
+            // 2. Database Update (if profile exists)
+            if (profile) {
+                const updatedTours = [...(profile.completed_tours || []), tourId];
+                // De-duplicate just in case
+                const uniqueTours = Array.from(new Set(updatedTours));
 
-            if (error) {
-                console.error('Error saving tour progress:', error);
+                const { error } = await supabase
+                    .from('profiles')
+                    .update({ completed_tours: uniqueTours })
+                    .eq('id', profile.id);
+
+                if (error) {
+                    console.error('Error saving tour progress:', error);
+                } else {
+                    console.log('Tour progress saved to DB');
+                }
             }
         }
-    }, [completedTours, isCompleted, profile, supabase, tourId]);
+    }, [isCompleted, profile, supabase, tourId]);
 
     const closeTour = useCallback(() => {
-        setIsTourOpen(false);
-    }, []);
+        // If user manually closes the tour, we consider it "seen" so it doesn't auto-open again.
+        completeTour(true);
+    }, [completeTour]);
 
     return {
         isTourOpen,

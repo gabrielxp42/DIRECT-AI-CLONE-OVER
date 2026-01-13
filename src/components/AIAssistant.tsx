@@ -16,6 +16,7 @@ import { AgentMemoryManager } from '@/utils/agentMemory';
 import { generateReActSystemPrompt } from '@/utils/agentPrompts';
 import { useSubscription } from '@/hooks/useSubscription';
 import { SubscriptionModal } from '@/components/SubscriptionModal';
+import { logAIError } from '@/utils/logger';
 
 
 export const AIAssistant = () => {
@@ -183,6 +184,9 @@ export const AIAssistant = () => {
 
     } catch (error: any) {
       console.error('❌ [AIAssistant] Erro completo:', error);
+
+      // LOG TO ADMIN PANEL
+      logAIError(`Erro no processamento da IA: ${error.message || 'Erro desconhecido'}`, error, userId);
 
       let errorMessage = '❌ Ocorreu um erro ao processar sua solicitação.';
 

@@ -9,7 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useSession } from "@/contexts/SessionProvider";
-import { LogOut } from "lucide-react";
+import { LogOut, Settings, User as UserIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { SUPABASE_URL } from "@/integrations/supabase/client";
 
@@ -20,7 +20,7 @@ export function UserNav() {
   const handleLogout = async () => {
     try {
       console.log("Iniciando logout...");
-      
+
       // Limpar localStorage e sessionStorage primeiro (mais importante)
       const keysToRemove: string[] = [];
       for (let i = 0; i < localStorage.length; i++) {
@@ -33,7 +33,7 @@ export function UserNav() {
         localStorage.removeItem(key);
         console.log(`🗑️ Removido do localStorage: ${key}`);
       });
-      
+
       // Limpar sessionStorage também
       const sessionKeysToRemove: string[] = [];
       for (let i = 0; i < sessionStorage.length; i++) {
@@ -46,7 +46,7 @@ export function UserNav() {
         sessionStorage.removeItem(key);
         console.log(`🗑️ Removido do sessionStorage: ${key}`);
       });
-      
+
       // Tentar fazer logout via API direta se tiver access_token válido
       // Mas não esperar por isso - o importante é limpar o storage
       if (session?.access_token) {
@@ -60,12 +60,12 @@ export function UserNav() {
           // Ignorar erros silenciosamente - 401 é esperado se token expirado
         });
       }
-      
+
       // Tentar logout via cliente Supabase (não bloqueante)
       supabase.auth.signOut().catch(() => {
         // Ignorar erros - já limpamos o storage
       });
-      
+
       console.log("✅ Storage limpo. Redirecionando para login...");
     } catch (error) {
       console.error("Exceção no logout:", error);
@@ -85,7 +85,7 @@ export function UserNav() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+        <Button id="user-nav-dropdown" variant="ghost" className="relative h-8 w-8 rounded-full">
           <Avatar className="h-8 w-8">
             <AvatarFallback>{userInitials}</AvatarFallback>
           </Avatar>
@@ -101,6 +101,14 @@ export function UserNav() {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => navigate('/profile')}>
+          <UserIcon className="mr-2 h-4 w-4" />
+          <span>Meu Perfil</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => navigate('/settings')}>
+          <Settings className="mr-2 h-4 w-4" />
+          <span>Configurações</span>
+        </DropdownMenuItem>
         <DropdownMenuItem onClick={handleLogout}>
           <LogOut className="mr-2 h-4 w-4" />
           <span>Sair</span>

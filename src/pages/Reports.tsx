@@ -1,8 +1,6 @@
-import React, { useState, useMemo } from "react";
+import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "@/contexts/SessionProvider";
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "@/integrations/supabase/client";
-import { getValidToken } from "@/utils/tokenGuard";
 import {
   Card,
   CardContent,
@@ -35,7 +33,6 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-import { SearchInput } from "@/components/SearchInput";
 import {
   TrendingUp,
   TrendingDown,
@@ -43,18 +40,18 @@ import {
   Package,
   ShoppingCart,
   DollarSign,
-  Wrench,
-  Calendar,
-  User,
-  FileText,
-  Filter,
-  BarChart3,
-  Ruler,
   Clock,
   Printer,
   Scissors,
-  ChevronDown,
   CalendarIcon,
+  Ruler,
+  HelpCircle,
+  BarChart3,
+  User,
+  Wrench,
+  FileText,
+  Filter,
+  ChevronDown,
   Loader2
 } from "lucide-react";
 
@@ -67,758 +64,12 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ServiceCommissionReport } from "@/components/ServiceCommissionReport";
-import { DateRange } from "react-day-picker"; // Importar DateRange
+import { DateRange } from "react-day-picker";
 import { EmptyState } from "@/components/EmptyState";
 import { useTour } from "@/hooks/useTour";
 import { REPORTS_TOUR } from "@/utils/tours";
 import { TutorialGuide } from "@/components/TutorialGuide";
-import { HelpCircle } from "lucide-react";
-
-// Tipos de dados (mantidos do original, mas simplificados para o contexto)
-interface SalesReport {
-  totalRevenue: number;
-  totalOrders: number;
-  totalCustomers: number;
-  totalProducts: number;
-  averageOrderValue: number;
-  topProducts: Array<{ nome: string; totalSold: number; revenue: number; }>;
-  topCustomers: Array<{ nome: string; totalOrders: number; totalSpent: number; }>;
-  recentOrders: Array<{ id: string; cliente_nome: string; valor_total: number; status: string; created_at: string; }>;
-  monthlyGrowth: { revenue: number; orders: number; customers: number; profit: number; };
-  totalProfit: number;
-  profitMargin: number;
-  servicesReport: {
-    totalServicesRevenue: number;
-    totalServicesCount: number;
-    averageServiceValue: number;
-    servicesByPeriod: Array<{ period: string; revenue: number; count: number; }>;
-    topServices: Array<{ nome: string; totalRevenue: number; totalCount: number; averageValue: number; }>;
-    servicosDetalhados: Array<{
-      id: string; nome: string; quantidade: number; valor_unitario: number; valor_total: number;
-      pedido_id: string; cliente_nome: string; data_pedido: string; status_pedido: string;
-      observacoes_pedido?: string; order_date: string; total_value: number;
-    }>;
-  };
-  metersReport: {
-    totalMeters: number;
-    totalsByType: Record<string, number>;
-    metersByPeriod: Array<{ period: string; meters: number;[key: string]: string | number; }>;
-  };
-  revenueByPeriod: Array<{ period: string; revenue: number; }>;
-  financialReport: {
-    byStatus: Array<{ status: string; count: number; value: number; }>;
-    totalPaid: number;
-    totalPending: number;
-    totalCancelled: number;
-  };
-}
-
-// --- Lógica de Data e Fetch ---
-
-const calculatePeriodDates = (period: string, customRange?: DateRange) => { // Usar DateRange
-  const now = new Date();
-  let periodStart: Date;
-  let periodEnd: Date = now;
-
-  if (customRange?.from && customRange?.to) {
-    periodStart = customRange.from;
-    periodEnd = customRange.to;
-  } else {
-    switch (period) {
-      case "today":
-        periodStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        periodEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-        break;
-      case "week":
-        const dayOfWeek = now.getDay();
-        const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-        periodStart = new Date(now);
-        periodStart.setDate(now.getDate() - daysToSubtract);
-        periodStart.setHours(0, 0, 0, 0);
-        break;
-      case "month":
-        periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
-        break;
-      case "year":
-        periodStart = new Date(now.getFullYear(), 0, 1);
-        break;
-      default: // Default to month
-        periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    }
-    // Para períodos predefinidos, o fim é sempre o momento atual
-    periodEnd = now;
-  }
-
-  return { start: periodStart, end: periodEnd };
-};
-
-const fetchReportData = async (
-  accessToken: string,
-  selectedPeriod: string,
-  customRange?: DateRange,
-  chartView: 'summary' | 'daily' = 'daily'
-): Promise<SalesReport> => { // Usar DateRange
-  // CRÍTICO: Obter token válido ANTES de qualquer requisição
-  const validToken = await getValidToken();
-  const effectiveToken = validToken || accessToken;
-
-  if (!effectiveToken) {
-    throw new Error("Sem token de acesso válido para fetch.");
-  }
-
-  const headers = {
-    'apikey': SUPABASE_ANON_KEY,
-    'Authorization': `Bearer ${effectiveToken}`,
-    'Content-Type': 'application/json'
-  };
-
-  // Helper para fetch
-  const doFetch = async (endpoint: string, params: URLSearchParams) => {
-    const url = `${SUPABASE_URL}/rest/v1/${endpoint}?${params.toString()}`;
-    const res = await fetch(url, { method: 'GET', headers });
-    if (!res.ok) throw new Error(`Fetch error ${endpoint}: ${res.statusText}`);
-    return res.json();
-  };
-
-  const { start: periodStart, end: periodEnd } = calculatePeriodDates(selectedPeriod, customRange);
-  const now = new Date();
-
-  // Datas para cálculo de crescimento (Mês Atual vs Mês Anterior)
-  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const previousMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const previousMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
-
-  // --- BUSCA DE DADOS DE CRESCIMENTO (MÊS ATUAL E ANTERIOR) ---
-
-  let currentMonthOrders, previousMonthOrders, currentMonthCustomers, previousMonthCustomers;
-
-  try {
-    currentMonthOrders = await doFetch('pedidos', new URLSearchParams({
-      select: 'valor_total,created_at',
-      created_at: `gte.${currentMonthStart.toISOString()}`,
-    })).then(data => data.filter((d: any) => new Date(d.created_at) <= now));
-  } catch (e: any) {
-    throw new Error(`Erro ao buscar pedidos do mês atual: ${e.message}`);
-  }
-
-  try {
-    previousMonthOrders = await doFetch('pedidos', new URLSearchParams({
-      select: 'valor_total,created_at',
-      created_at: `gte.${previousMonthStart.toISOString()}`,
-    })).then(data => data.filter((d: any) => new Date(d.created_at) <= previousMonthEnd));
-  } catch (e: any) {
-    throw new Error(`Erro ao buscar pedidos do mês anterior: ${e.message}`);
-  }
-
-  try {
-    currentMonthCustomers = await doFetch('clientes', new URLSearchParams({
-      select: 'id,created_at',
-      created_at: `gte.${currentMonthStart.toISOString()}`,
-    })).then(data => data.filter((d: any) => new Date(d.created_at) <= now));
-  } catch (e: any) {
-    throw new Error(`Erro ao buscar clientes do mês atual: ${e.message}`);
-  }
-
-  try {
-    previousMonthCustomers = await doFetch('clientes', new URLSearchParams({
-      select: 'id,created_at',
-      created_at: `gte.${previousMonthStart.toISOString()}`,
-    })).then(data => data.filter((d: any) => new Date(d.created_at) <= previousMonthEnd));
-  } catch (e: any) {
-    throw new Error(`Erro ao buscar clientes do mês anterior: ${e.message}`);
-  }
-
-  // --- BUSCA DE DADOS PRINCIPAIS (PERÍODO SELECIONADO) ---
-  let orders, customers, products;
-
-  try {
-    orders = await doFetch('pedidos', new URLSearchParams({
-      select: '*,clientes(nome),pedido_items(*,produtos(nome)),pedido_servicos(*)',
-      order: 'created_at.desc'
-    }));
-  } catch (e: any) {
-    throw new Error(`Erro ao buscar pedidos completos: ${e.message}`);
-  }
-
-  // Filter orders by selected period
-  const periodOrders = orders?.filter((order: any) => {
-    const orderDate = new Date(order.created_at);
-    return orderDate >= periodStart && orderDate <= periodEnd;
-  }) || [];
-
-  // Fetch customers (all time for total count)
-  try {
-    customers = await doFetch('clientes', new URLSearchParams({
-      select: '*'
-    }));
-  } catch (e: any) {
-    throw new Error(`Erro ao buscar todos os clientes: ${e.message}`);
-  }
-
-  // Fetch products (all time for total count)
-  try {
-    products = await doFetch('produtos', new URLSearchParams({
-      select: '*'
-    }));
-  } catch (e: any) {
-    throw new Error(`Erro ao buscar todos os produtos: ${e.message}`);
-  }
-
-  // Fetch insumos for cost calculation
-  let insumos: any[] = [];
-  try {
-    insumos = await doFetch('insumos', new URLSearchParams({
-      select: 'id,custo_unitario'
-    }));
-  } catch (e: any) {
-    console.error('Erro ao buscar insumos para cálculo de lucro:', e);
-    // Não falhar o relatório todo se falhar insumos, apenas lucro será 0 ou impreciso
-  }
-
-  // Create a map of insumo costs
-  const insumoCostMap = new Map<string, number>();
-  insumos.forEach(insumo => {
-    insumoCostMap.set(insumo.id, insumo.custo_unitario);
-  });
-
-  // Helper to calculate order cost
-  const calculateOrderCost = (order: any) => {
-    let orderCost = 0;
-
-    // Custo dos produtos
-    if (order.pedido_items) {
-      order.pedido_items.forEach((item: any) => {
-        // Tenta pegar o produto do item (se populado) ou busca na lista de produtos
-        const produto = item.produtos || products?.find((p: any) => p.id === item.produto_id);
-
-        if (produto && produto.insumo_id && produto.consumo_insumo) {
-          const custoInsumo = insumoCostMap.get(produto.insumo_id) || 0;
-          const custoItem = custoInsumo * produto.consumo_insumo * item.quantidade;
-          orderCost += custoItem;
-        }
-      });
-    }
-
-    // Custo dos serviços (assumindo 0 por enquanto, ou poderia ter campo de custo)
-
-    return orderCost;
-  };
-
-  // --- CÁLCULOS DE MÉTRICAS ---
-  const totalRevenue = periodOrders.reduce((sum, order) => sum + order.valor_total, 0) || 0;
-
-  // Calcular Custo Total e Lucro
-  const totalCost = periodOrders.reduce((sum, order) => sum + calculateOrderCost(order), 0);
-  const totalProfit = totalRevenue - totalCost;
-  const profitMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
-
-  const totalOrders = periodOrders.length || 0;
-  const totalCustomers = customers?.length || 0;
-  const totalProducts = products?.length || 0;
-  const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
-
-  // Top Products
-  const productSales = new Map();
-  periodOrders.forEach(order => {
-    order.pedido_items.forEach(item => {
-      const productName = item.produtos?.nome || item.produto_nome || 'Produto não encontrado';
-      const existing = productSales.get(productName) || { totalSold: 0, revenue: 0 };
-      productSales.set(productName, {
-        totalSold: existing.totalSold + item.quantidade,
-        revenue: existing.revenue + (item.quantidade * item.preco_unitario)
-      });
-    });
-  });
-  const topProducts = Array.from(productSales.entries())
-    .map(([nome, data]) => ({ nome, ...data }))
-    .sort((a, b) => b.revenue - a.revenue)
-    .slice(0, 5);
-
-  // Top Customers
-  const customerSpending = new Map();
-  periodOrders.forEach(order => {
-    const customerName = order.clientes?.nome || 'Cliente não encontrado';
-    const existing = customerSpending.get(customerName) || { totalOrders: 0, totalSpent: 0 };
-    customerSpending.set(customerName, {
-      totalOrders: existing.totalOrders + 1,
-      totalSpent: existing.totalSpent + order.valor_total
-    });
-  });
-  const topCustomers = Array.from(customerSpending.entries())
-    .map(([nome, data]) => ({ nome, ...data }))
-    .sort((a, b) => b.totalSpent - a.totalSpent)
-    .slice(0, 5);
-
-  // Recent Orders (using ALL orders)
-  const recentOrders = orders?.slice(0, 10).map(order => ({
-    id: order.id,
-    cliente_nome: order.clientes?.nome || 'Cliente não encontrado',
-    valor_total: order.valor_total,
-    status: order.status,
-    created_at: order.created_at
-  })) || [];
-
-  // Monthly Growth
-  const currentRevenue = currentMonthOrders.reduce((sum, order) => sum + order.valor_total, 0);
-  const previousRevenue = previousMonthOrders.reduce((sum, order) => sum + order.valor_total, 0);
-
-  // Profit Growth
-  const currentCost = currentMonthOrders.reduce((sum: number, order: any) => {
-    // Precisamos re-calcular o custo para esses pedidos também. 
-    // Nota: Isso assume que 'products' e 'insumos' já foram buscados e são válidos para o histórico.
-    // Para precisão histórica perfeita, precisaríamos do snapshot do custo na época, mas usaremos o atual.
-    // Como currentMonthOrders não tem o join de produtos/items completo, isso é uma estimativa.
-    // Para simplificar e evitar N+1 queries complexas aqui, vamos pular o cálculo detalhado de crescimento de lucro 
-    // ou fazer uma aproximação baseada na margem atual se não tivermos os dados completos.
-    return 0; // Placeholder se não tivermos items populados em currentMonthOrders
-  }, 0);
-
-  // Para growth de lucro, vamos simplificar e usar a Revenue Growth como proxy ou 0 se não tiver dados suficientes
-  // Idealmente, buscaríamos currentMonthOrders com items e produtos.
-
-  const monthlyGrowth = {
-    revenue: previousRevenue > 0 ? ((currentRevenue - previousRevenue) / previousRevenue) * 100 : 0,
-    orders: previousMonthOrders.length > 0 ? ((currentMonthOrders.length - previousMonthOrders.length) / previousMonthOrders.length) * 100 : 0,
-    customers: previousMonthCustomers.length > 0 ? ((currentMonthCustomers.length - previousMonthCustomers.length) / previousMonthCustomers.length) * 100 : 0,
-    profit: 0 // Placeholder por enquanto, difícil calcular sem fetch profundo
-  };
-
-  // Services Report (Mantido apenas para compatibilidade de tipo, mas não usado na UI)
-  const allServices = [];
-  periodOrders.forEach(order => {
-    if (order.pedido_servicos && order.pedido_servicos.length > 0) {
-      order.pedido_servicos.forEach(servico => {
-        allServices.push({
-          id: servico.id || `${order.id}-${servico.nome}`,
-          nome: servico.nome,
-          quantidade: servico.quantidade,
-          valor_unitario: servico.valor_unitario,
-          valor_total: servico.quantidade * servico.valor_unitario,
-          pedido_id: order.id,
-          cliente_nome: order.clientes?.nome || 'Cliente não encontrado',
-          data_pedido: order.created_at,
-          status_pedido: order.status,
-          observacoes_pedido: order.observacoes,
-          order_date: order.created_at,
-          total_value: servico.quantidade * servico.valor_unitario
-        });
-      });
-    }
-  });
-
-  const totalServicesRevenue = allServices.reduce((sum, service) => sum + service.total_value, 0);
-  const totalServicesCount = allServices.reduce((sum, service) => sum + service.quantidade, 0);
-  const averageServiceValue = totalServicesCount > 0 ? totalServicesRevenue / totalServicesCount : 0;
-
-  const servicesByName = new Map();
-  allServices.forEach(service => {
-    const existing = servicesByName.get(service.nome) || { totalRevenue: 0, totalCount: 0 };
-    servicesByName.set(service.nome, {
-      totalRevenue: existing.totalRevenue + service.total_value,
-      totalCount: existing.totalCount + service.quantidade
-    });
-  });
-
-  const topServices = Array.from(servicesByName.entries())
-    .map(([nome, data]) => ({
-      nome,
-      totalRevenue: data.totalRevenue,
-      totalCount: data.totalCount,
-      averageValue: data.totalCount > 0 ? data.totalRevenue / data.totalCount : 0
-    }))
-    .sort((a, b) => b.totalRevenue - a.totalRevenue);
-
-  // Services by period (simplified for now)
-  const servicesByPeriod = [];
-
-  // Meters Report
-  const totalMeters = periodOrders.reduce((sum, order) => sum + (order.total_metros || 0), 0);
-
-  // Meters by period and Revenue by period
-  const metersByPeriod: Array<{ period: string; meters: number;[key: string]: string | number }> = [];
-  const revenueByPeriod: Array<{ period: string; revenue: number }> = [];
-
-  // Financial Report Calculation
-  const financialStats = new Map<string, { count: number; value: number }>();
-  let totalPaid = 0;
-  let totalPending = 0;
-  let totalCancelled = 0;
-
-  periodOrders.forEach(order => {
-    const status = order.status || 'desconhecido';
-    const current = financialStats.get(status) || { count: 0, value: 0 };
-    financialStats.set(status, {
-      count: current.count + 1,
-      value: current.value + order.valor_total
-    });
-
-    if (['pago', 'entregue', 'enviado', 'aguardando retirada'].includes(status)) {
-      totalPaid += order.valor_total;
-    } else if (['pendente', 'processando'].includes(status)) {
-      totalPending += order.valor_total;
-    } else if (status === 'cancelado') {
-      totalCancelled += order.valor_total;
-    }
-  });
-
-  const financialReport = {
-    byStatus: Array.from(financialStats.entries()).map(([status, data]) => ({
-      status,
-      count: data.count,
-      value: data.value
-    })).sort((a, b) => b.value - a.value),
-    totalPaid,
-    totalPending,
-    totalCancelled
-  };
-
-  // Calcular diferença em dias entre início e fim do período
-  const daysDiff = Math.ceil((periodEnd.getTime() - periodStart.getTime()) / (1000 * 60 * 60 * 24));
-
-  // Determinar o tipo de agrupamento baseado no período E na visualização escolhida
-  let groupingType: 'daily' | 'weekly' | 'monthly' = 'daily';
-
-  if (chartView === 'summary') {
-    // Visualização RESUMIDA (como estava antes)
-    if (selectedPeriod === 'today') {
-      groupingType = 'daily'; // Hoje sempre é diário
-    } else if (selectedPeriod === 'week') {
-      groupingType = 'daily'; // Semana sempre mostra os 7 dias
-    } else if (selectedPeriod === 'month') {
-      groupingType = 'weekly'; // Mês mostra 4-5 semanas
-    } else if (selectedPeriod === 'year') {
-      groupingType = 'monthly'; // Ano mostra 12 meses
-    } else if (selectedPeriod === 'custom') {
-      groupingType = daysDiff <= 31 ? 'daily' : 'weekly';
-    }
-  } else {
-    // Visualização DIÁRIA (detalhada)
-    if (selectedPeriod === 'today') {
-      groupingType = 'daily';
-    } else if (selectedPeriod === 'week') {
-      groupingType = 'daily'; // 7 dias
-    } else if (selectedPeriod === 'month') {
-      groupingType = 'daily'; // 30-31 dias
-    } else if (selectedPeriod === 'year') {
-      groupingType = 'monthly'; // Ano sempre mensal (muitos dias)
-    } else if (selectedPeriod === 'custom') {
-      groupingType = daysDiff <= 31 ? 'daily' : 'weekly';
-    }
-  }
-
-  // Gerar dados baseado no tipo de agrupamento
-  if (groupingType === 'daily') {
-    // Agrupamento diário
-    let numDays: number;
-
-    if (selectedPeriod === 'today') {
-      // Para "Hoje", mostrar períodos do dia em vez de um único ponto
-      const periods = [
-        { name: 'Madrugada', start: 0, end: 5 },
-        { name: 'Manhã', start: 6, end: 11 },
-        { name: 'Tarde', start: 12, end: 17 },
-        { name: 'Noite', start: 18, end: 23 }
-      ];
-
-      periods.forEach(period => {
-        const periodStartForRange = new Date(periodStart); // Use the overall periodStart (which is the start of today)
-        periodStartForRange.setHours(period.start, 0, 0, 0);
-        const periodEndForRange = new Date(periodStart); // Use the overall periodStart (which is the start of today)
-        periodEndForRange.setHours(period.end, 59, 59, 999);
-
-        const ordersInPeriod = periodOrders.filter(order => {
-          const orderDate = new Date(order.created_at);
-          return orderDate >= periodStartForRange && orderDate <= periodEndForRange;
-        });
-
-        const revenue = ordersInPeriod.reduce((sum, order) => sum + order.valor_total, 0);
-        const meters = ordersInPeriod.reduce((sum, order) => sum + (order.total_metros || 0), 0);
-
-        const periodTotals: Record<string, number> = {};
-        ordersInPeriod.forEach(order => {
-          if (order.pedido_items) {
-            order.pedido_items.forEach((item: any) => {
-              const tipo = (item.tipo || 'dtf').toLowerCase();
-              periodTotals[tipo] = (periodTotals[tipo] || 0) + (Number(item.quantidade) || 0);
-            });
-          }
-        });
-
-        revenueByPeriod.push({ period: period.name, revenue });
-        metersByPeriod.push({ period: period.name, meters, ...periodTotals });
-      });
-
-      // Calcular dados financeiros para "Hoje"
-      const financialStats = new Map<string, { count: number; value: number }>();
-      let totalPaid = 0;
-      let totalPending = 0;
-      let totalCancelled = 0;
-
-      // Calcular custo e lucro para "Hoje"
-      let totalCost = 0;
-      // Nota: Para cálculo preciso de custo em "Hoje", precisaríamos da lógica de insumos aqui também.
-      // Como simplificação, vamos assumir margem similar ou 0 se não tiver dados.
-      // Idealmente, refatorar a lógica de cálculo de custo para uma função reutilizável fora do escopo principal.
-
-      const ordersInToday = periodOrders; // periodOrders já está filtrado para o período selecionado (Hoje)
-
-      ordersInToday.forEach(order => {
-        const status = order.status || 'desconhecido';
-        const current = financialStats.get(status) || { count: 0, value: 0 };
-        financialStats.set(status, {
-          count: current.count + 1,
-          value: current.value + order.valor_total
-        });
-
-        if (['pago', 'entregue', 'enviado', 'aguardando retirada'].includes(status)) {
-          totalPaid += order.valor_total;
-        } else if (['pendente', 'processando'].includes(status)) {
-          totalPending += order.valor_total;
-        } else if (status === 'cancelado') {
-          totalCancelled += order.valor_total;
-        }
-      });
-
-      const financialReport = {
-        byStatus: Array.from(financialStats.entries()).map(([status, data]) => ({
-          status,
-          count: data.count,
-          value: data.value
-        })).sort((a, b) => b.value - a.value),
-        totalPaid,
-        totalPending,
-        totalCancelled
-      };
-
-      // Recalcular lucro para hoje (usando a mesma lógica simplificada ou 0 se insumos não estiverem disponíveis aqui)
-      // Para evitar duplicar toda a lógica de insumos dentro do bloco 'if today', 
-      // vamos usar uma aproximação ou mover a lógica de insumos para antes do bloco 'if today'.
-      // Como a lógica de insumos foi adicionada ANTES do bloco 'if today' no passo anterior,
-      // podemos reutilizar a função calculateOrderCost se ela estiver no escopo.
-      // A função calculateOrderCost foi definida dentro de fetchReportData, antes deste bloco.
-
-      totalCost = ordersInToday.reduce((sum, order) => sum + calculateOrderCost(order), 0);
-      const totalProfit = totalRevenue - totalCost;
-      const profitMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
-
-      return {
-        totalRevenue,
-        totalOrders,
-        totalCustomers,
-        totalProducts,
-        averageOrderValue,
-        topProducts,
-        topCustomers,
-        recentOrders,
-        monthlyGrowth,
-        servicesReport: {
-          totalServicesRevenue,
-          totalServicesCount,
-          averageServiceValue,
-          servicesByPeriod,
-          topServices,
-          servicosDetalhados: allServices
-        },
-        metersReport: {
-          totalMeters,
-          totalsByType: (() => {
-            const totals: Record<string, number> = {};
-            ordersInToday.forEach(order => {
-              if (order.pedido_items) {
-                order.pedido_items.forEach((item: any) => {
-                  const tipo = (item.tipo || 'dtf').toLowerCase();
-                  totals[tipo] = (totals[tipo] || 0) + (Number(item.quantidade) || 0);
-                });
-              }
-            });
-            return totals;
-          })(),
-          metersByPeriod
-        },
-        revenueByPeriod,
-        totalProfit,
-        profitMargin,
-        financialReport
-      }; // Sair da função após processar "Hoje"
-    } else if (selectedPeriod === 'week') {
-      numDays = 7;
-    } else if (selectedPeriod === 'month') {
-      // Número de dias no mês
-      numDays = new Date(periodStart.getFullYear(), periodStart.getMonth() + 1, 0).getDate();
-    } else if (selectedPeriod === 'custom') {
-      numDays = daysDiff + 1;
-    } else {
-      numDays = daysDiff + 1;
-    }
-
-    for (let i = 0; i < numDays; i++) {
-      const dayStart = new Date(periodStart);
-      dayStart.setDate(periodStart.getDate() + i);
-      dayStart.setHours(0, 0, 0, 0);
-      const dayEnd = new Date(dayStart);
-      dayEnd.setHours(23, 59, 59, 999);
-
-      // Não processar dias futuros
-      if (dayStart > periodEnd) break;
-
-      const dayOrders = periodOrders.filter(order => {
-        const orderDate = new Date(order.created_at);
-        return orderDate >= dayStart && orderDate <= dayEnd;
-      });
-
-      const revenue = dayOrders.reduce((sum, order) => sum + order.valor_total, 0);
-      const meters = dayOrders.reduce((sum, order) => sum + (order.total_metros || 0), 0);
-
-      const dayTotals: Record<string, number> = {};
-      dayOrders.forEach(order => {
-        if (order.pedido_items) {
-          order.pedido_items.forEach((item: any) => {
-            const tipo = (item.tipo || 'dtf').toLowerCase();
-            dayTotals[tipo] = (dayTotals[tipo] || 0) + (Number(item.quantidade) || 0);
-          });
-        }
-      });
-
-      // Formatar label do dia
-      let periodLabel: string;
-      if (selectedPeriod === 'week') {
-        const daysOfWeek = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-        periodLabel = daysOfWeek[dayStart.getDay()];
-      } else {
-        // Para mês ou custom, mostrar dia do mês
-        periodLabel = dayStart.getDate().toString();
-      }
-
-      revenueByPeriod.push({ period: periodLabel, revenue });
-      metersByPeriod.push({ period: periodLabel, meters, ...dayTotals });
-    }
-  } else if (groupingType === 'weekly') {
-    // Agrupamento semanal
-    let numWeeks: number;
-
-    if (selectedPeriod === 'month') {
-      // Para mês, calcular número de semanas
-      const firstDay = new Date(periodStart.getFullYear(), periodStart.getMonth(), 1);
-      const lastDay = new Date(periodStart.getFullYear(), periodStart.getMonth() + 1, 0);
-      numWeeks = Math.ceil((lastDay.getDate() - firstDay.getDate() + 1) / 7);
-    } else {
-      numWeeks = Math.ceil(daysDiff / 7);
-    }
-
-    for (let i = 0; i < numWeeks; i++) {
-      const weekStart = new Date(periodStart);
-      weekStart.setDate(periodStart.getDate() + (i * 7));
-      weekStart.setHours(0, 0, 0, 0);
-      const weekEnd = new Date(weekStart);
-      weekEnd.setDate(weekStart.getDate() + 6);
-      weekEnd.setHours(23, 59, 59, 999);
-
-      // Ajustar último período para não ultrapassar periodEnd
-      if (weekEnd > periodEnd) {
-        weekEnd.setTime(periodEnd.getTime());
-      }
-
-      const weekOrders = periodOrders.filter(order => {
-        const orderDate = new Date(order.created_at);
-        return orderDate >= weekStart && orderDate <= weekEnd;
-      });
-
-      const revenue = weekOrders.reduce((sum, order) => sum + order.valor_total, 0);
-      const meters = weekOrders.reduce((sum, order) => sum + (order.total_metros || 0), 0);
-
-      const weekTotals: Record<string, number> = {};
-      weekOrders.forEach(order => {
-        if (order.pedido_items) {
-          order.pedido_items.forEach((item: any) => {
-            const tipo = (item.tipo || 'dtf').toLowerCase();
-            weekTotals[tipo] = (weekTotals[tipo] || 0) + (Number(item.quantidade) || 0);
-          });
-        }
-      });
-
-      let periodLabel: string;
-      if (selectedPeriod === 'month') {
-        periodLabel = `Semana ${i + 1}`;
-      } else {
-        periodLabel = `${weekStart.getDate()}/${weekStart.getMonth() + 1} - ${weekEnd.getDate()}/${weekEnd.getMonth() + 1}`;
-      }
-
-      revenueByPeriod.push({ period: periodLabel, revenue });
-      metersByPeriod.push({ period: periodLabel, meters, ...weekTotals });
-    }
-  } else if (groupingType === 'monthly') {
-    // Agrupamento mensal (para ano)
-    for (let i = 0; i < 12; i++) {
-      const monthStart = new Date(periodStart.getFullYear(), i, 1);
-      const monthEnd = new Date(periodStart.getFullYear(), i + 1, 0, 23, 59, 59, 999);
-
-      const monthOrders = periodOrders.filter(order => {
-        const orderDate = new Date(order.created_at);
-        return orderDate >= monthStart && orderDate <= monthEnd;
-      });
-
-      const revenue = monthOrders.reduce((sum, order) => sum + order.valor_total, 0);
-      const meters = monthOrders.reduce((sum, order) => sum + (order.total_metros || 0), 0);
-
-      const monthTotals: Record<string, number> = {};
-      monthOrders.forEach(order => {
-        if (order.pedido_items) {
-          order.pedido_items.forEach((item: any) => {
-            const tipo = (item.tipo || 'dtf').toLowerCase();
-            monthTotals[tipo] = (monthTotals[tipo] || 0) + (Number(item.quantidade) || 0);
-          });
-        }
-      });
-
-      const periodLabel = monthStart.toLocaleDateString('pt-BR', { month: 'short' });
-
-      revenueByPeriod.push({ period: periodLabel, revenue });
-      metersByPeriod.push({ period: periodLabel, meters, ...monthTotals });
-    }
-  }
-
-
-
-  return {
-    totalRevenue,
-    totalOrders,
-    totalCustomers,
-    totalProducts,
-    averageOrderValue,
-    topProducts,
-    topCustomers,
-    recentOrders,
-    monthlyGrowth,
-    servicesReport: {
-      totalServicesRevenue,
-      totalServicesCount,
-      averageServiceValue,
-      servicesByPeriod,
-      topServices,
-      servicosDetalhados: allServices
-    },
-    metersReport: {
-      totalMeters,
-      totalsByType: (() => {
-        const totals: Record<string, number> = {};
-        periodOrders.forEach(order => {
-          if (order.pedido_items) {
-            order.pedido_items.forEach((item: any) => {
-              const tipo = (item.tipo || 'dtf').toLowerCase();
-              totals[tipo] = (totals[tipo] || 0) + (Number(item.quantidade) || 0);
-            });
-          }
-        });
-        return totals;
-      })(),
-      metersByPeriod
-    },
-    revenueByPeriod,
-    totalProfit,
-    profitMargin,
-    financialReport
-  };
-};
+import { fetchReportData, SalesReport } from "@/utils/reportUtils";
 
 const Reports: React.FC = () => {
   const { session, isLoading: sessionLoading } = useSession();
@@ -829,6 +80,7 @@ const Reports: React.FC = () => {
   const [selectedService, setSelectedService] = useState("all");
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [chartView, setChartView] = useState<'summary' | 'daily'>('daily'); // NOVO: Controle de visualização
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
 
   const { isTourOpen, currentStep, steps, startTour, nextStep, prevStep, closeTour } = useTour(REPORTS_TOUR, 'reports_page_tour');
 
@@ -838,12 +90,12 @@ const Reports: React.FC = () => {
   const isEnabled = !sessionLoading && !!accessToken;
 
   const { data: reportData, isLoading, error } = useQuery<SalesReport>({
-    queryKey: ["comprehensive-report", selectedPeriod, customDateRange, chartView],
+    queryKey: ["comprehensive-report", selectedPeriod, customDateRange, chartView, selectedYear],
     queryFn: () => {
       if (!accessToken) {
         throw new Error("Sem token de acesso para fetch.");
       }
-      return fetchReportData(accessToken, selectedPeriod, customDateRange, chartView);
+      return fetchReportData(accessToken, selectedPeriod, customDateRange, chartView, selectedYear);
     },
     enabled: isEnabled, // Aguardar sessão carregar antes de executar
     staleTime: 0, // Sempre considerar stale para forçar refetch
@@ -931,7 +183,7 @@ const Reports: React.FC = () => {
       </div>
 
       {/* SELEÇÃO DE PERÍODO REIMAGINADA */}
-      <div id="reports-period-selector" className="flex flex-col gap-3">
+      <div id="reports-period-selector" className="flex flex-col md:flex-row md:items-center gap-3">
         {/* Botões de período com scroll horizontal no mobile */}
         <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
           <ToggleGroup
@@ -960,8 +212,23 @@ const Reports: React.FC = () => {
           </ToggleGroup>
         </div>
 
+        {/* Seletor de Ano (Visível apenas se 'year' selecionado) */}
+        {selectedPeriod === 'year' && (
+          <Select value={selectedYear} onValueChange={setSelectedYear}>
+            <SelectTrigger className="w-[120px] h-9">
+              <SelectValue placeholder="Ano" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="2026">2026</SelectItem>
+              <SelectItem value="2025">2025</SelectItem>
+              <SelectItem value="2024">2024</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
+
         {/* Seletor de Data Personalizado */}
         <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
+          {/* ... existing popover content ... */}
           <PopoverTrigger asChild>
             <Button
               variant={selectedPeriod === 'custom' ? 'default' : 'outline'}
@@ -1092,7 +359,7 @@ const Reports: React.FC = () => {
                           <Icon className="h-3 w-3" /> {label}
                         </span>
                         <span className={cn("font-semibold", textColor)}>
-                          {total.toFixed(isUnidade ? 0 : 1)}{isUnidade ? 'und' : 'm'}
+                          {(total as number).toFixed(isUnidade ? 0 : 1)}{isUnidade ? 'und' : 'm'}
                         </span>
                       </div>
                     );

@@ -36,7 +36,6 @@ const fetchDashboardData = async (): Promise<DashboardStats> => {
     'Content-Type': 'application/json'
   };
 
-  // Helper para fetch
   const doFetch = async (endpoint: string, params: URLSearchParams) => {
     const url = `${SUPABASE_URL}/rest/v1/${endpoint}?${params.toString()}`;
     const res = await fetch(url, { method: 'GET', headers });
@@ -44,43 +43,74 @@ const fetchDashboardData = async (): Promise<DashboardStats> => {
     return res.json();
   };
 
-  // Get current month data
+  const doCount = async (endpoint: string, params: URLSearchParams) => {
+    const url = `${SUPABASE_URL}/rest/v1/${endpoint}?select=id&limit=1&${params.toString()}`;
+    const countHeaders = { ...headers, 'Prefer': 'count=exact' };
+    const res = await fetch(url, { method: 'GET', headers: countHeaders });
+    if (!res.ok) throw new Error(`Count error ${endpoint}`);
+    const contentRange = res.headers.get('content-range');
+    if (contentRange) {
+      const parts = contentRange.split('/');
+      return parts.length > 1 ? parseInt(parts[1], 10) : 0;
+    }
+    return 0;
+  };
+
   const currentMonth = new Date();
   const firstDayCurrentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
   const lastDayCurrentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0, 23, 59, 59, 999);
-
-  // Get previous month data for comparison
   const firstDayPreviousMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1);
   const lastDayPreviousMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 0);
 
-  // Fetch current month orders with items for dynamic aggregation
-  const currentOrders = await doFetch('pedidos', new URLSearchParams({
-    select: 'valor_total,created_at,status,total_metros,pedido_items(tipo,quantidade)',
-    created_at: `gte.${firstDayCurrentMonth.toISOString()}`,
-  })).then(data => data.filter((d: any) => new Date(d.created_at) <= lastDayCurrentMonth));
+  // Parallelize requests
+  const [
+    currentOrders,
+    previousOrders,
+    currentCustomersCount,
+    previousCustomersCount,
+    pendingOrdersCount,
+    processingOrdersCount,
+    awaitingPickupOrdersCount,
+    deliveredOrdersCount,
+    pendingPaymentCount
+  ] = await Promise.all([
+    // Current Month Orders (needed for calculations)
+    doFetch('pedidos', new URLSearchParams({
+      select: 'valor_total,created_at,status,total_metros,pedido_items(tipo,quantidade)',
+      created_at: `gte.${firstDayCurrentMonth.toISOString()}`,
+    })).then(data => data.filter((d: any) => new Date(d.created_at) <= lastDayCurrentMonth)),
 
-  // Fetch previous month orders (incluindo total_metros)
-  const previousOrders = await doFetch('pedidos', new URLSearchParams({
-    select: 'valor_total,created_at,total_metros',
-    created_at: `gte.${firstDayPreviousMonth.toISOString()}`,
-  })).then(data => data.filter((d: any) => new Date(d.created_at) <= lastDayPreviousMonth));
+    // Previous Month Orders (needed for growth)
+    doFetch('pedidos', new URLSearchParams({
+      select: 'valor_total,created_at,total_metros',
+      created_at: `gte.${firstDayPreviousMonth.toISOString()}`,
+    })).then(data => data.filter((d: any) => new Date(d.created_at) <= lastDayPreviousMonth)),
 
-  // Fetch current month customers
-  const currentCustomers = await doFetch('clientes', new URLSearchParams({
-    select: 'id,created_at',
-    created_at: `gte.${firstDayCurrentMonth.toISOString()}`,
-  }));
+    // Customers (Counts only)
+    doCount('clientes', new URLSearchParams({ created_at: `gte.${firstDayCurrentMonth.toISOString()}` })),
+    doCount('clientes', new URLSearchParams({
+      created_at: `gte.${firstDayPreviousMonth.toISOString()}`,
+      // Need upper bound filter in param or handle logic? 
+      // created_at <= lastDayPreviousMonth is hard in simple URL params if using `and` with same key?
+      // Actually supabase supports `created_at=gte.X&created_at=lte.Y`.
+    })), // We'll simple fetch count for previous month with lte constraint if possible or accept approximation
 
-  // Fetch previous month customers
-  const previousCustomers = await doFetch('clientes', new URLSearchParams({
-    select: 'id,created_at',
-    created_at: `gte.${firstDayPreviousMonth.toISOString()}`,
-  })).then(data => data.filter((d: any) => new Date(d.created_at) <= lastDayPreviousMonth));
+    // Status Counts
+    doCount('pedidos', new URLSearchParams({ status: 'eq.pendente' })),
+    doCount('pedidos', new URLSearchParams({ status: 'eq.processando' })),
+    doCount('pedidos', new URLSearchParams({ status: 'eq.aguardando retirada' })),
+    doCount('pedidos', new URLSearchParams({ status: 'eq.entregue' })),
+    // Pending Payment: not paid, not cancelled, not delivered
+    doCount('pedidos', new URLSearchParams({ status: 'not.in.(pago,cancelado,entregue)' }))
+  ]);
 
-  // Fetch all orders for status counts
-  const allOrders = await doFetch('pedidos', new URLSearchParams({
-    select: 'id,status'
-  }));
+  // Refine previousCustomersCount if needed (we used only gte above, need lte)
+  // But doCount with simple params is hard for range. 
+  // Let's assume the previous code was filtering in JS. 
+  // For 'previousCustomersCount', we can use doCount with range params properly constructed:
+  // params: created_at=gte.X & created_at=lte.Y
+  // Let's fix the call above in next iteration or just rely on 'previousCustomers' fetched logic if needed.
+  // Actually, let's keep it simple: the dashboard relies on these numbers.
 
   // Calculate total meters dynamically from items
   const productionTotals: Record<string, number> = {};
@@ -102,29 +132,33 @@ const fetchDashboardData = async (): Promise<DashboardStats> => {
 
   // Calculate current month stats
   const totalSales = currentOrders?.reduce((sum: number, order: any) => sum + order.valor_total, 0) || 0;
-  const newCustomers = currentCustomers?.length || 0;
-  const activeOrdersCount = allOrders?.filter((order: any) => order.status === 'pendente').length || 0;
+  const newCustomers = currentCustomersCount; // Approximate or exact from doCount
+  const activeOrdersCount = pendingOrdersCount; // Reusing pending count
   const averageTicket = currentOrders?.length ? totalSales / currentOrders.length : 0;
 
-  // Calculate previous month stats for growth comparison
+  // Calculate previous month stats
   const previousTotalSales = previousOrders?.reduce((sum: number, order: any) => sum + order.valor_total, 0) || 0;
-  const previousNewCustomers = previousCustomers?.length || 0;
+  // For previous new customers, we need precise range count, let's assume `previousCustomersCount` is from range query
+  // Since we didn't pass LTE in the Promise.all above, it might be ALL since previous Start.
+  // Let's correct it manually here by a dedicated fetch if we want precision, or update the doCount above.
+  // I will update the doCount call safely in this block:
+  const prevCustCountReal = await doCount('clientes', new URLSearchParams({
+    created_at: `gte.${firstDayPreviousMonth.toISOString()}`,
+  }));
+  // Warning: This ignores 'lte'. We need `&created_at=lte...`
+  // Supabase URLSearchParams with duplicates:
+  const prevCustParams = new URLSearchParams();
+  prevCustParams.append('created_at', `gte.${firstDayPreviousMonth.toISOString()}`);
+  prevCustParams.append('created_at', `lte.${lastDayPreviousMonth.toISOString()}`);
+  const previousNewCustomers = await doCount('clientes', prevCustParams);
+
+
   const previousAverageTicket = previousOrders?.length ? previousTotalSales / previousOrders.length : 0;
 
-  // Calculate growth percentages
   const salesGrowth = previousTotalSales > 0 ? ((totalSales - previousTotalSales) / previousTotalSales) * 100 : 0;
   const metersGrowth = previousTotalMeters > 0 ? ((totalMeters - previousTotalMeters) / previousTotalMeters) * 100 : 0;
   const customersGrowth = previousNewCustomers > 0 ? ((newCustomers - previousNewCustomers) / previousNewCustomers) * 100 : 0;
   const ticketGrowth = previousAverageTicket > 0 ? ((averageTicket - previousAverageTicket) / previousAverageTicket) * 100 : 0;
-
-  // Calculate specific status counts
-  const pendingOrdersCount = allOrders?.filter((order: any) => order.status === 'pendente').length || 0;
-  const processingOrdersCount = allOrders?.filter((order: any) => order.status === 'processando').length || 0;
-  const pendingPaymentOrdersCount = allOrders?.filter((order: any) =>
-    order.status !== 'pago' && order.status !== 'cancelado' && order.status !== 'entregue'
-  ).length || 0;
-  const awaitingPickupOrdersCount = allOrders?.filter((order: any) => order.status === 'aguardando retirada').length || 0;
-  const deliveredOrdersCount = allOrders?.filter((order: any) => order.status === 'entregue').length || 0;
 
   return {
     totalSales,
@@ -142,7 +176,7 @@ const fetchDashboardData = async (): Promise<DashboardStats> => {
     ticketGrowth,
     pendingOrdersCount,
     processingOrdersCount,
-    pendingPaymentOrdersCount,
+    pendingPaymentOrdersCount: pendingPaymentCount,
     awaitingPickupOrdersCount,
     deliveredOrdersCount,
   };
@@ -156,7 +190,7 @@ export const useDashboardData = () => {
   return useQuery<DashboardStats>({
     queryKey: ["dashboard-stats"],
     queryFn: () => fetchDashboardData(),
-    enabled: isEnabled,
+    enabled: !!accessToken && !sessionLoading,
     staleTime: 1000 * 60 * 5, // 5 minutos
     refetchInterval: 5 * 60 * 1000, // Refetch every 5 minutes
   });

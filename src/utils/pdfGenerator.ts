@@ -3,6 +3,26 @@ import autoTable from 'jspdf-autotable';
 import { Pedido } from '@/types/pedido';
 import { TipoProducao } from '@/types/producao';
 
+// Company info interface for PDF generation
+export interface CompanyInfoForPDF {
+  company_name: string;
+  phone?: string;
+  email?: string;
+  address_full?: string;
+  pix_key?: string;
+  logo_url?: string;
+}
+
+// Default company info (fallback)
+const DEFAULT_COMPANY_INFO: CompanyInfoForPDF = {
+  company_name: 'Minha Empresa',
+  phone: '',
+  email: '',
+  address_full: '',
+  pix_key: '',
+  logo_url: '/logo.png',
+};
+
 // Função para converter imagem para base64
 const getImageAsBase64 = (url: string): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -22,9 +42,17 @@ const getImageAsBase64 = (url: string): Promise<string> => {
   });
 };
 
-export const generateOrderPDF = async (pedido: Pedido, action: 'save' | 'print' = 'save', tiposProducao?: TipoProducao[]) => {
+export const generateOrderPDF = async (
+  pedido: Pedido,
+  action: 'save' | 'print' = 'save',
+  tiposProducao?: TipoProducao[],
+  companyInfo?: CompanyInfoForPDF
+) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.width;
+
+  // Use provided company info or defaults
+  const company = { ...DEFAULT_COMPANY_INFO, ...companyInfo };
 
   // Helper function to format currency
   const formatCurrency = (value: number) => {
@@ -50,9 +78,10 @@ export const generateOrderPDF = async (pedido: Pedido, action: 'save' | 'print' 
   doc.setFillColor(0, 0, 0);
   doc.rect(15, 13, 20, 20, 'F'); // Reduzido
 
-  // Tentar carregar a logo real
+  // Tentar carregar a logo (company logo or fallback)
+  const logoUrl = company.logo_url || '/logo.png';
   try {
-    const logoBase64 = await getImageAsBase64('/logo.png');
+    const logoBase64 = await getImageAsBase64(logoUrl);
     doc.addImage(logoBase64, 'PNG', 16, 14, 18, 18); // Ajustado
   } catch (error) {
     console.log('Erro ao carregar logo, usando placeholder:', error);
@@ -64,23 +93,36 @@ export const generateOrderPDF = async (pedido: Pedido, action: 'save' | 'print' 
     doc.rect(22, 20, 6, 6, 'F');
   }
 
-  // Company name
+  // Company name (dynamic)
   doc.setTextColor(0, 0, 0);
-  doc.setFontSize(14); // Reduzido de 16
+  doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
-  doc.text('DIRECT DTF', 40, 20);
+  doc.text(company.company_name.toUpperCase(), 40, 20);
 
-  // Company address - MAIS COMPACTO
-  doc.setFontSize(7); // Reduzido de 8
-  doc.setFont('helvetica', 'normal');
-  doc.text('Rod. Washington Luiz, 3926 - Vila Sao Sebastiao', 40, 26);
-  doc.text('Duque de Caxias - RJ, 25055-009 | CORREDOR F | LOJA 246', 40, 29);
-  doc.text('TELEFONE: +55 21 99594-0055', 40, 32);
-
-  // Contact info (right side)
+  // Company address - MAIS COMPACTO (dynamic)
   doc.setFontSize(7);
-  doc.text('PIX: +55 21 99594-0055', pageWidth - 55, 20);
-  doc.text('EMAIL: DIRETONODTF@GMAIL.COM', pageWidth - 55, 24);
+  doc.setFont('helvetica', 'normal');
+
+  // Split address into lines if too long
+  if (company.address_full) {
+    const addressLines = doc.splitTextToSize(company.address_full, 80);
+    addressLines.slice(0, 2).forEach((line: string, index: number) => {
+      doc.text(line, 40, 26 + (index * 3));
+    });
+  }
+
+  if (company.phone) {
+    doc.text(`TELEFONE: ${company.phone}`, 40, 32);
+  }
+
+  // Contact info (right side) - dynamic
+  doc.setFontSize(7);
+  if (company.pix_key) {
+    doc.text(`PIX: ${company.pix_key}`, pageWidth - 55, 20);
+  }
+  if (company.email) {
+    doc.text(`EMAIL: ${company.email.toUpperCase()}`, pageWidth - 55, 24);
+  }
 
   yPosition = 45; // Reduzido de 55
 
