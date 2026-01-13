@@ -117,6 +117,9 @@ const fetchDashboardData = async (): Promise<DashboardStats> => {
   let totalMeters = 0;
 
   currentOrders.forEach((order: any) => {
+    // Ignorar pedidos cancelados nas métricas de produção
+    if (order.status === 'cancelado') return;
+
     totalMeters += (order.total_metros || 0);
     if (order.pedido_items) {
       order.pedido_items.forEach((item: any) => {
@@ -128,32 +131,42 @@ const fetchDashboardData = async (): Promise<DashboardStats> => {
 
   const totalMetersDTF = productionTotals['dtf'] || 0;
   const totalMetersVinil = productionTotals['vinil'] || 0;
-  const previousTotalMeters = previousOrders.reduce((sum: number, order: any) => sum + (order.total_metros || 0), 0);
 
-  // Calculate current month stats
-  const totalSales = currentOrders?.reduce((sum: number, order: any) => sum + order.valor_total, 0) || 0;
+  const previousTotalMeters = previousOrders.reduce((sum: number, order: any) => {
+    if (order.status === 'cancelado') return sum;
+    return sum + (order.total_metros || 0);
+  }, 0);
+
+  // Calculate previous month stats
+  const calculateSales = (orders: any[]) => {
+    return orders?.reduce((sum: number, order: any) => {
+      // Definir quais status contam como venda (Lucro)
+      const isPaidStatus = ['pago', 'entregue'].includes(order.status?.toLowerCase());
+
+      // Caso especial: 'aguardando retirada' só conta se já passou por 'pago'
+      const isAwaitingPickup = order.status?.toLowerCase() === 'aguardando retirada';
+      let wasPaid = false;
+
+      if (isAwaitingPickup && order.pedido_status_history && Array.isArray(order.pedido_status_history)) {
+        wasPaid = order.pedido_status_history.some((h: any) => h.status_novo?.toLowerCase() === 'pago' || h.status_anterior?.toLowerCase() === 'pago');
+      }
+
+      if (isPaidStatus || (isAwaitingPickup && wasPaid)) {
+        return sum + (Number(order.valor_total) || 0);
+      }
+      return sum;
+    }, 0) || 0;
+  };
+
+  const totalSales = calculateSales(currentOrders);
+  const previousTotalSales = calculateSales(previousOrders);
+
   const newCustomers = currentCustomersCount; // Approximate or exact from doCount
   const activeOrdersCount = pendingOrdersCount; // Reusing pending count
   const averageTicket = currentOrders?.length ? totalSales / currentOrders.length : 0;
-
-  // Calculate previous month stats
-  const previousTotalSales = previousOrders?.reduce((sum: number, order: any) => sum + order.valor_total, 0) || 0;
-  // For previous new customers, we need precise range count, let's assume `previousCustomersCount` is from range query
-  // Since we didn't pass LTE in the Promise.all above, it might be ALL since previous Start.
-  // Let's correct it manually here by a dedicated fetch if we want precision, or update the doCount above.
-  // I will update the doCount call safely in this block:
-  const prevCustCountReal = await doCount('clientes', new URLSearchParams({
-    created_at: `gte.${firstDayPreviousMonth.toISOString()}`,
-  }));
-  // Warning: This ignores 'lte'. We need `&created_at=lte...`
-  // Supabase URLSearchParams with duplicates:
-  const prevCustParams = new URLSearchParams();
-  prevCustParams.append('created_at', `gte.${firstDayPreviousMonth.toISOString()}`);
-  prevCustParams.append('created_at', `lte.${lastDayPreviousMonth.toISOString()}`);
-  const previousNewCustomers = await doCount('clientes', prevCustParams);
-
-
   const previousAverageTicket = previousOrders?.length ? previousTotalSales / previousOrders.length : 0;
+
+  const previousNewCustomers = previousCustomersCount;
 
   const salesGrowth = previousTotalSales > 0 ? ((totalSales - previousTotalSales) / previousTotalSales) * 100 : 0;
   const metersGrowth = previousTotalMeters > 0 ? ((totalMeters - previousTotalMeters) / previousTotalMeters) * 100 : 0;

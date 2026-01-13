@@ -847,6 +847,20 @@ export const useInsumos = () => {
 // --- Inventory Management Logic ---
 
 /**
+ * Verifica se um status de pedido deve consumir estoque.
+ */
+export const isInventoryConsumingStatus = (status: string): boolean => {
+  const consumingStatuses = [
+    'processando',
+    'enviado',
+    'entregue',
+    'pago',
+    'aguardando retirada'
+  ];
+  return consumingStatuses.includes(status.toLowerCase());
+};
+
+/**
  * Deduz insumos do estoque baseados nos itens de um pedido.
  */
 export const deductInsumosFromPedido = async (pedido: Pedido) => {

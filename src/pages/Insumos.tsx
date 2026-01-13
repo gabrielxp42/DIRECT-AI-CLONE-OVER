@@ -80,6 +80,19 @@ const Insumos = () => {
         }
     }, [location.state, navigate, location.pathname]);
 
+    const formatCurrencyDisplay = (value: number) => {
+        return new Intl.NumberFormat('pt-BR', {
+            style: 'currency',
+            currency: 'BRL',
+        }).format(value);
+    };
+
+    const handleCurrencyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const rawValue = e.target.value.replace(/\D/g, "");
+        const numericValue = Number(rawValue) / 100;
+        setFormData({ ...formData, custo_unitario: numericValue });
+    };
+
     const fetchInsumos = async () => {
         try {
             setLoading(true);
@@ -421,9 +434,10 @@ const Insumos = () => {
                                 <Label htmlFor="custo">Custo Unitário (R$)</Label>
                                 <Input
                                     id="custo"
-                                    type="number"
-                                    value={formData.custo_unitario}
-                                    onChange={e => setFormData({ ...formData, custo_unitario: Number(e.target.value) })}
+                                    type="text"
+                                    value={formData.custo_unitario === 0 ? '' : formatCurrencyDisplay(formData.custo_unitario || 0)}
+                                    onChange={handleCurrencyChange}
+                                    placeholder="R$ 0,00"
                                 />
                             </div>
                         </div>

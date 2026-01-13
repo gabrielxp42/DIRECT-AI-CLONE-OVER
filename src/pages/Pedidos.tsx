@@ -44,13 +44,13 @@ import {
 import { OrderStatusIndicator } from '@/components/OrderStatusIndicator';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { usePedidos, useClientes, useProdutos, usePaginatedPedidos, useTiposProducao, restoreInsumosFromPedido } from '@/hooks/useDataFetch';
+import { usePedidos, useClientes, useProdutos, usePaginatedPedidos, useTiposProducao, restoreInsumosFromPedido, deductInsumosFromPedido, isInventoryConsumingStatus } from '@/hooks/useDataFetch';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useDebounce } from '@/hooks/useDebounce';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PaginationControls } from '@/components/PaginationControls';
 import { DateRange } from 'react-day-picker'; // Importar DateRange
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/integrations/supabase/client';
+import { SUPABASE_URL, SUPABASE_ANON_KEY, supabase } from '@/integrations/supabase/client';
 import { getValidToken } from '@/utils/tokenGuard';
 import { useSubscription } from '@/hooks/useSubscription';
 import { SubscriptionModal } from '@/components/SubscriptionModal';
@@ -253,7 +253,7 @@ const PedidosPage: React.FC = () => {
   // --- Mutações ---
 
   const updateStatusMutation = useMutation({
-    mutationFn: async ({ id, newStatus, observacao, statusAnterior }: { id: string, newStatus: string, observacao?: string, statusAnterior: string }) => {
+    mutationFn: async ({ id, newStatus, observacao, statusAnterior, pedidoFull }: { id: string, newStatus: string, observacao?: string, statusAnterior: string, pedidoFull?: Pedido }) => {
       const validToken = await getValidToken();
       if (!validToken || !session) throw new Error("Sessão expirada. Por favor, recarregue a página.");
 
@@ -297,6 +297,20 @@ const PedidosPage: React.FC = () => {
           console.warn('Aviso: Erro ao salvar histórico:', errorText);
         }
       }
+
+      // --- Lógica de Inventário Unificada ---
+      if (pedidoFull) {
+        const wasConsuming = isInventoryConsumingStatus(statusAnterior);
+        const isNowConsuming = isInventoryConsumingStatus(newStatus);
+
+        if (!wasConsuming && isNowConsuming) {
+          console.log(`[Inventory] Status mudou para ${newStatus}. Deduzindo estoque...`);
+          await deductInsumosFromPedido(pedidoFull);
+        } else if (wasConsuming && !isNowConsuming) {
+          console.log(`[Inventory] Status mudou para ${newStatus}. Restaurando estoque...`);
+          await restoreInsumosFromPedido(pedidoFull);
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pedidos"] });
@@ -314,7 +328,8 @@ const PedidosPage: React.FC = () => {
       id: statusChangePedido.id,
       newStatus,
       observacao,
-      statusAnterior: statusChangePedido.status
+      statusAnterior: statusChangePedido.status,
+      pedidoFull: statusChangePedido
     });
   };
 
@@ -338,11 +353,13 @@ const PedidosPage: React.FC = () => {
 
       if (fetchError) {
         console.error("Erro ao buscar pedido para exclusão:", fetchError);
-        // Se n~ao achar o pedido, talvez já tenha sido excluído
-      } else if (pedido && pedido.status === 'pago') {
-        // 2. Se o pedido estava pago, restaurar os insumos
-        console.log(`[Inventory] Pedido #${pedido.order_number} excluído com status PAGO. Restaurando estoque...`);
-        await restoreInsumosFromPedido(pedido);
+      } else if (pedido) {
+        // 2. Se o pedido consumia estoque, restaurar os insumos
+        const wasConsuming = isInventoryConsumingStatus(pedido.status);
+        if (wasConsuming) {
+          console.log(`[Inventory] Pedido #${pedido.order_number} excluído com status que consumia estoque (${pedido.status}). Restaurando estoque...`);
+          await restoreInsumosFromPedido(pedido);
+        }
       }
 
       // 3. Excluir itens e serviços relacionados
@@ -421,6 +438,13 @@ const PedidosPage: React.FC = () => {
           throw new Error(`Erro ao atualizar pedido: ${updateResponse.status} ${updateResponse.statusText} - ${errorText}`);
         }
 
+        // --- Lógica de Inventário para Edição ---
+        const isConsuming = editingPedido ? isInventoryConsumingStatus(editingPedido.status) : false;
+        if (isConsuming && editingPedido) {
+          console.log(`[Inventory] Editando pedido #${editingPedido.order_number} que consome estoque. Restaurando insumos antigos...`);
+          await restoreInsumosFromPedido(editingPedido);
+        }
+
         // Handle items: delete old, insert new
         const deleteItemsUrl = `${SUPABASE_URL}/rest/v1/pedido_items?pedido_id=eq.${pedidoId}`;
         await fetch(deleteItemsUrl, { method: 'DELETE', headers });
@@ -436,6 +460,15 @@ const PedidosPage: React.FC = () => {
           if (!itemsResponse.ok) {
             const errorText = await itemsResponse.text();
             throw new Error(`Erro ao inserir itens: ${itemsResponse.status} ${itemsResponse.statusText} - ${errorText}`);
+          }
+
+          // Se o pedido consome estoque, deduzir com base nos NOVOS itens
+          if (isConsuming && editingPedido) {
+            console.log(`[Inventory] Pedido #${editingPedido.order_number} atualizado. Deduzindo estoque dos novos itens...`);
+            await deductInsumosFromPedido({
+              ...editingPedido,
+              pedido_items: items
+            } as Pedido);
           }
         }
 

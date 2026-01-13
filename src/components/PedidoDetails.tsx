@@ -53,7 +53,7 @@ import {
   ScrollText
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useTiposProducao, deductInsumosFromPedido, restoreInsumosFromPedido } from '@/hooks/useDataFetch';
+import { useTiposProducao, deductInsumosFromPedido, restoreInsumosFromPedido, isInventoryConsumingStatus } from '@/hooks/useDataFetch';
 import { showError, showSuccess } from '@/utils/toast';
 import {
   AlertDialog,
@@ -252,14 +252,15 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
 
       if (error) throw error;
 
-      // Se o status mudou para PAGO e antes NÃO era PAGO, abater estoque
-      if (newStatus === 'pago' && statusAnterior !== 'pago') {
-        // Não bloqueia a UI (roda em background) mas loga erros
-        deductInsumosFromPedido(pedido);
-      }
+      // --- Lógica de Inventário Unificada ---
+      const wasConsuming = isInventoryConsumingStatus(statusAnterior);
+      const isNowConsuming = isInventoryConsumingStatus(newStatus);
 
-      // Se era PAGO e mudou para outro status (ex: CANCELADO), restaurar estoque
-      if (statusAnterior === 'pago' && newStatus !== 'pago') {
+      if (!wasConsuming && isNowConsuming) {
+        console.log(`[Inventory] Status mudou para ${newStatus}. Deduzindo estoque...`);
+        deductInsumosFromPedido(pedido);
+      } else if (wasConsuming && !isNowConsuming) {
+        console.log(`[Inventory] Status mudou para ${newStatus}. Restaurando estoque...`);
         restoreInsumosFromPedido(pedido);
       }
 

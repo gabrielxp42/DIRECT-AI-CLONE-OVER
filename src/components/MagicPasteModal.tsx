@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Sparkles, FileText, Image as ImageIcon, Loader2, Upload, X } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { getGenerativeModel } from '@/integrations/gemini/client';
+import { getOpenAIClient } from '@/integrations/openai/client';
 import { useSubscription } from '@/hooks/useSubscription';
 import { useSession } from '@/contexts/SessionProvider';
 
@@ -56,24 +56,21 @@ export const MagicPasteModal: React.FC<MagicPasteModalProps> = ({
         }
         setIsProcessing(true);
         try {
-            const model = getGenerativeModel();
-
-            // Remover o prefixo data:image/...;base64, para o Gemini
-            const base64Data = selectedImage.split(',')[1];
+            const client = getOpenAIClient();
 
             const prompt = "Analise a imagem do pedido. Extraia os itens linha por linha.\n\nRetorne APENAS um JSON no seguinte formato (sem markdown):\n[\n  { \"quantidade\": 0.5, \"produto_nome\": \"Nome do Produto\", \"tipo\": \"dtf\", \"observacao\": \"Obs\" }\n]\n\nRegras:\n1. Converta quantidades por extenso para números (ex: 'MEIO METRO' -> 0.5).\n2. O campo 'quantidade' deve ser um número.\n3. 'tipo' deve ser 'dtf' ou 'vinil'.\n4. Se não souber o tipo, use 'dtf'.";
 
-            const result = await model.generateContent([
-                prompt,
+            const result = await client.sendMessage([
                 {
-                    inlineData: {
-                        data: base64Data,
-                        mimeType: "image/jpeg"
-                    }
+                    role: 'user',
+                    content: [
+                        { type: 'text', text: prompt },
+                        { type: 'image_url', image_url: { url: selectedImage } }
+                    ]
                 }
             ]);
 
-            const responseText = result.response.text();
+            const responseText = result.content || "";
             // Tentar encontrar JSON no texto se houver markdown
             const jsonMatch = responseText.match(/\[[\s\S]*\]/);
             const jsonStr = jsonMatch ? jsonMatch[0] : responseText;
@@ -104,7 +101,7 @@ export const MagicPasteModal: React.FC<MagicPasteModalProps> = ({
             });
         } catch (err) {
             console.error(err);
-            toast.error('Erro ao processar a imagem com Gemini.');
+            toast.error('Erro ao processar a imagem com OpenAI.');
         } finally {
             setIsProcessing(false);
         }
@@ -122,7 +119,7 @@ export const MagicPasteModal: React.FC<MagicPasteModalProps> = ({
         }
         setIsProcessing(true);
         try {
-            const model = getGenerativeModel();
+            const client = getOpenAIClient();
             const prompt = `Analise o seguinte pedido e extraia os itens.
             
             Retorne APENAS um JSON no seguinte formato (sem markdown):
@@ -139,8 +136,8 @@ export const MagicPasteModal: React.FC<MagicPasteModalProps> = ({
             3. 'produto_nome' deve ser o nome principal do produto.
             4. 'observacao' deve conter detalhes como cores, nomes personalizados, etc.`;
 
-            const result = await model.generateContent(prompt);
-            const responseText = result.response.text();
+            const result = await client.sendMessage([{ role: 'user', content: prompt }]);
+            const responseText = result.content || "";
 
             // Tentar encontrar JSON no texto se houver markdown
             const jsonMatch = responseText.match(/\[[\s\S]*\]/);
@@ -169,7 +166,7 @@ export const MagicPasteModal: React.FC<MagicPasteModalProps> = ({
             }
         } catch (err) {
             console.error('Erro no processamento LLM:', err);
-            toast.error('Erro ao processar o texto com Gemini.');
+            toast.error('Erro ao processar o texto com OpenAI.');
         } finally {
             setIsProcessing(false);
         }
