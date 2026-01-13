@@ -59,15 +59,12 @@ export const printThermalReceipt = (pedido: Pedido) => {
 
   // Build Services HTML (excluding freight)
   const servicesHtml = servicesWithoutFreight.length > 0 ?
-    `<div class="section-title" style="margin-top: 10px;">SERVIÇOS</div>` +
+    `<div class="section-title" style="margin-top: 10px; font-size: 12px;">SERVIÇOS EXTRAS</div>` +
     servicesWithoutFreight.map(servico => `
-    <div class="item-block">
-      <div class="line"><strong>Serviço:</strong> ${servico.nome}</div>
-      <div class="line"><strong>Qtd:</strong> ${servico.quantidade}</div>
-      <div class="line"><strong>Valor unitário:</strong> ${formatCurrency(servico.valor_unitario)}</div>
-      <div class="line"><strong>Total:</strong> ${formatCurrency(servico.valor_unitario * servico.quantidade)}</div>
+    <div class="compact-row">
+      <span class="compact-name">${servico.nome} (${servico.quantidade}x)</span>
+      <span class="compact-price">${formatCurrency(servico.valor_unitario * servico.quantidade)}</span>
     </div>
-    <div class="separator-dashed">- - - - - - - - - - - -</div>
   `).join('') : '';
 
   const htmlContent = `
@@ -130,18 +127,27 @@ export const printThermalReceipt = (pedido: Pedido) => {
         .item-block {
           margin-bottom: 8px;
         }
+        .compact-row {
+          display: flex;
+          justify-content: space-between;
+          font-size: 11px; /* Smaller font for secondary info */
+          margin-bottom: 2px;
+        }
+        .compact-name {
+          flex: 1;
+          text-align: left;
+        }
+        .compact-price {
+          text-align: right;
+          min-width: 60px;
+        }
         .total-block {
-          margin-top: 15px;
-          font-size: 18px; /* High visibility for total */
+          margin-top: 10px;
+          font-size: 18px;
           font-weight: 900;
           text-align: right;
           border-top: 2px solid #000;
           padding-top: 5px;
-        }
-        .freight-block {
-           margin-top: 5px;
-           text-align: right;
-           font-size: 14px;
         }
         .footer {
           margin-top: 25px;
@@ -170,11 +176,13 @@ export const printThermalReceipt = (pedido: Pedido) => {
       <div class="separator"></div>
 
       ${itemsHtml}
+
       ${servicesHtml}
 
       ${hasFreight ? `
-      <div class="freight-block">
-         <strong>FRETE / ENTREGA:</strong> ${formatCurrency(freightValue)}
+      <div class="compact-row" style="margin-top: 5px; font-weight: bold;">
+         <span class="compact-name" style="text-align: right; padding-right: 10px;">FRETE:</span>
+         <span class="compact-price">${formatCurrency(freightValue)}</span>
       </div>` : ''}
       
       <div class="total-block">

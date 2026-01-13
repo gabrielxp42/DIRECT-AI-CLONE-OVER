@@ -53,7 +53,7 @@ import {
   ScrollText
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useTiposProducao } from '@/hooks/useDataFetch';
+import { useTiposProducao, deductInsumosFromPedido, restoreInsumosFromPedido } from '@/hooks/useDataFetch';
 import { showError, showSuccess } from '@/utils/toast';
 import {
   AlertDialog,
@@ -238,6 +238,7 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
     }
   };
 
+
   const handleSubmitStatusChange = async (newStatus: string, observacao?: string) => {
     if (!pedido || !supabase) return;
 
@@ -250,6 +251,17 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
         .eq('id', pedido.id);
 
       if (error) throw error;
+
+      // Se o status mudou para PAGO e antes NÃO era PAGO, abater estoque
+      if (newStatus === 'pago' && statusAnterior !== 'pago') {
+        // Não bloqueia a UI (roda em background) mas loga erros
+        deductInsumosFromPedido(pedido);
+      }
+
+      // Se era PAGO e mudou para outro status (ex: CANCELADO), restaurar estoque
+      if (statusAnterior === 'pago' && newStatus !== 'pago') {
+        restoreInsumosFromPedido(pedido);
+      }
 
       // Se houver observação, adicionar ao histórico
       if (observacao && observacao.trim()) {

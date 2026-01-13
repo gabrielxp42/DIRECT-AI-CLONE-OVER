@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Pencil, Trash2, Check, X, Printer, Scissors, Package, Ruler, Info } from "lucide-react";
+import { Plus, Pencil, Trash2, Check, X, Printer, Scissors, Package, Ruler, Info, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -116,10 +116,51 @@ export const TipoProducaoManager = () => {
                         Configure as categorias de produtos e suas unidades de medida.
                     </p>
                 </div>
-                <Button onClick={handleOpenAdd} size="sm">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Novo Tipo
-                </Button>
+                <div className="flex gap-2">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={async () => {
+                            if (!tipos) return;
+                            const seen = new Map<string, string>(); // nome -> id (mantido)
+                            const toDelete: string[] = [];
+
+                            tipos.forEach(t => {
+                                const nomeLow = t.nome.trim().toLowerCase();
+                                if (seen.has(nomeLow)) {
+                                    toDelete.push(t.id);
+                                } else {
+                                    seen.set(nomeLow, t.id);
+                                }
+                            });
+
+                            if (toDelete.length === 0) {
+                                showSuccess("Nenhuma duplicata encontrada.");
+                                return;
+                            }
+
+                            if (confirm(`Encontradas ${toDelete.length} duplicatas. Deseja removê-las? (Os dados dos pedidos não serão afetados)`)) {
+                                let successCount = 0;
+                                for (const id of toDelete) {
+                                    try {
+                                        await deleteMutation.mutateAsync(id);
+                                        successCount++;
+                                    } catch (e) {
+                                        console.error("Erro ao deletar duplicata", id, e);
+                                    }
+                                }
+                                showSuccess(`${successCount} duplicatas removidas com sucesso!`);
+                            }
+                        }}
+                    >
+                        <Wrench className="mr-2 h-4 w-4" />
+                        Corrigir Duplicados
+                    </Button>
+                    <Button onClick={handleOpenAdd} size="sm">
+                        <Plus className="mr-2 h-4 w-4" />
+                        Novo Tipo
+                    </Button>
+                </div>
             </div>
 
             <div className="rounded-md border">

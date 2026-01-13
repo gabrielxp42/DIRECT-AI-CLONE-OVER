@@ -7,6 +7,8 @@ import { UserNav } from './UserNav';
 import { MobileBottomNav } from './MobileBottomNav';
 import { useAIAssistant } from '@/contexts/AIAssistantProvider';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useInsumos } from '@/hooks/useDataFetch';
+import { AILowStockAlert } from './AILowStockAlert';
 import { Button } from './ui/button';
 import { useViewportZoom } from '@/hooks/useViewportZoom';
 import { APP_VERSION } from '@/utils/version';
@@ -27,6 +29,12 @@ const Layout = () => {
   const { isOpen, open: openAIAssistant } = useAIAssistant();
   const isMobile = useIsMobile();
   const location = useLocation();
+  const { data: insumos } = useInsumos();
+
+  // Verificar se há insumos em estoque baixo (uso de <= para precisão)
+  const hasLowStock = React.useMemo(() => {
+    return insumos?.some(i => (i.quantidade_atual || 0) <= (i.quantidade_minima || 0));
+  }, [insumos]);
 
   // Estado para controlar a expansão do menu lateral
   const [isExpanded, setIsExpanded] = React.useState(false);
@@ -67,23 +75,37 @@ const Layout = () => {
             <nav className="grid items-start gap-1 text-sm font-medium">
               {navItems.map((item) => {
                 const isActive = location.pathname === item.href;
+                const isInsumos = item.href === '/insumos';
+
                 return (
                   <Link
                     key={item.href}
                     to={item.href}
                     className={cn(
-                      "flex items-center gap-4 rounded-lg px-3 py-2 transition-all duration-300 ease-in-out",
+                      "flex items-center gap-4 rounded-lg px-3 py-2 transition-all duration-300 ease-in-out relative group",
                       isActive
                         ? "bg-primary text-primary-foreground shadow-md hover:bg-primary/90"
                         : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:scale-[1.02]" // Adicionado hover:scale
                     )}
                   >
-                    <item.icon className="h-5 w-5 flex-shrink-0" />
+                    <div className="relative">
+                      <item.icon className="h-5 w-5 flex-shrink-0" />
+                      {isInsumos && hasLowStock && (
+                        <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 border border-white dark:border-slate-900"></span>
+                        </span>
+                      )}
+                    </div>
+
                     <span className={cn(
-                      "whitespace-nowrap transition-opacity duration-300 delay-100", // Aumentei a duração da opacidade para 300ms e adicionei um pequeno delay
+                      "whitespace-nowrap transition-opacity duration-300 delay-100 flex items-center gap-2", // Aumentei a duração da opacidade para 300ms e adicionei um pequeno delay
                       isExpanded ? "opacity-100" : "opacity-0"
                     )}>
                       {item.label}
+                      {isInsumos && hasLowStock && isExpanded && (
+                        <span className="ml-auto flex h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+                      )}
                     </span>
                   </Link>
                 );
@@ -119,6 +141,7 @@ const Layout = () => {
         </main>
         {location.pathname !== '/settings' && <MobileBottomNav />}
       </div>
+      <AILowStockAlert />
       <AIAssistant />
       <CommandMenu />
       <GiftPlanModal />

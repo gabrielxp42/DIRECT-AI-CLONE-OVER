@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Sparkles, FileText, Image as ImageIcon, Loader2, Upload, X } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { getOpenAIClient } from '@/integrations/openai/client';
+import { getGenerativeModel } from '@/integrations/gemini/client';
 import { useSubscription } from '@/hooks/useSubscription';
 import { useSession } from '@/contexts/SessionProvider';
 
@@ -56,45 +56,62 @@ export const MagicPasteModal: React.FC<MagicPasteModalProps> = ({
         }
         setIsProcessing(true);
         try {
-            const client = getOpenAIClient();
-            const response = await client.sendMessage([
+            const model = getGenerativeModel();
+
+            // Remover o prefixo data:image/...;base64, para o Gemini
+            const base64Data = selectedImage.split(',')[1];
+
+            const prompt = "Analise a imagem do pedido. Extraia os itens linha por linha.\n\nRetorne APENAS um JSON no seguinte formato (sem markdown):\n[\n  { \"quantidade\": 0.5, \"produto_nome\": \"Nome do Produto\", \"tipo\": \"dtf\", \"observacao\": \"Obs\" }\n]\n\nRegras:\n1. Converta quantidades por extenso para números (ex: 'MEIO METRO' -> 0.5).\n2. O campo 'quantidade' deve ser um número.\n3. 'tipo' deve ser 'dtf' ou 'vinil'.\n4. Se não souber o tipo, use 'dtf'.";
+
+            const result = await model.generateContent([
+                prompt,
                 {
-                    role: 'user',
-                    content: [
-                        {
-                            type: 'text',
-                            text: "Analise a imagem do pedido. Extraia os itens linha por linha.\n\nRegras de Formatação:\n1. Converta quantidades por extenso para números (ex: 'MEIO METRO' -> '0.5M', 'UM METRO' -> '1M').\n2. Formato de saída: 'QUANTIDADE - PRODUTO | OBSERVAÇÕES'.\n3. Use ' | ' (barra vertical) para separar o Produto das Observações.\n4. Se a linha começar com um número que parece ser quantidade, use-o.\n5. Se houver 'MEIO METRO', a quantidade é 0.5M.\n6. Exemplo: '0.5M - NUMERO FLA 25 - BRANCO | 0 - ANA FLAVIA'.\n\nResponda APENAS com a lista formatada.",
-                        },
-                        { type: 'image_url', image_url: { url: selectedImage } },
-                    ],
-                },
+                    inlineData: {
+                        data: base64Data,
+                        mimeType: "image/jpeg"
+                    }
+                }
             ]);
 
-            if (response.content) {
-                setText(response.content);
-                setActiveTab('text');
-                toast.success('Imagem lida! Revise o texto e clique em Mágica.');
-                setSelectedImage(null);
-                setIsProcessing(false);
+            const responseText = result.response.text();
+            // Tentar encontrar JSON no texto se houver markdown
+            const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+            const jsonStr = jsonMatch ? jsonMatch[0] : responseText;
 
-                // Increment AI usage in DB (non-blocking)
-                supabase?.rpc('increment_ai_usage').then(({ error }) => {
-                    if (error) console.error('Erro ao incrementar uso de IA:', error);
-                });
-            } else {
-                setIsProcessing(false);
-                toast.error('Nenhum texto retornado pela IA.');
+            try {
+                const parsedItems = JSON.parse(jsonStr);
+                const itemsWithIds = parsedItems.map((item: any) => ({
+                    ...item,
+                    tempId: Math.random().toString(36).substr(2, 9),
+                    produto_id: '',
+                    preco_unitario: 0,
+                }));
+
+                onImportItems(itemsWithIds);
+                toast.success('Imagem lida com sucesso!');
+                onOpenChange(false);
+                setSelectedImage(null);
+            } catch (e) {
+                console.error('Erro ao fazer parse do JSON da IA:', responseText);
+                setText(responseText);
+                setActiveTab('text');
+                toast.warning('Ocorreu um erro ao formatar os itens automaticamente. O texto foi colado para revisão manual.');
             }
+
+            // Increment AI usage in DB (non-blocking)
+            supabase?.rpc('increment_ai_usage').then(({ error }) => {
+                if (error) console.error('Erro ao incrementar uso de IA:', error);
+            });
         } catch (err) {
             console.error(err);
-            toast.error('Erro ao processar a imagem. Verifique a chave da API.');
+            toast.error('Erro ao processar a imagem com Gemini.');
         } finally {
             setIsProcessing(false);
         }
     };
 
     // ---------- Text parsing ----------
-    const processText = () => {
+    const processText = async () => {
         if (!text.trim()) {
             toast.error('Cole algum texto primeiro!');
             return;
@@ -105,76 +122,54 @@ export const MagicPasteModal: React.FC<MagicPasteModalProps> = ({
         }
         setIsProcessing(true);
         try {
-            const lines = text.split('\n').filter(l => l.trim().length > 0);
-            const parsedItems: any[] = [];
+            const model = getGenerativeModel();
+            const prompt = `Analise o seguinte pedido e extraia os itens.
+            
+            Retorne APENAS um JSON no seguinte formato (sem markdown):
+            [
+              { "quantidade": 1, "produto_nome": "Nome do Produto", "tipo": "dtf", "observacao": "Obs" }
+            ]
+            
+            Pedido:
+            ${text}
+            
+            Regras:
+            1. 'quantidade' deve ser um número (extraia de "1M", "0.5M", "2x", etc).
+            2. 'tipo' deve ser 'dtf' ou 'vinil' com base no contexto (se não souber, use 'dtf').
+            3. 'produto_nome' deve ser o nome principal do produto.
+            4. 'observacao' deve conter detalhes como cores, nomes personalizados, etc.`;
 
-            lines.forEach(line => {
-                let cleanLine = line.trim();
-                let produtoNome = '';
-                let observacao = '';
-                let quantidade = 1;
+            const result = await model.generateContent(prompt);
+            const responseText = result.response.text();
 
-                // 1. Tentar extrair quantidade do INÍCIO da linha
-                // Suporta: "1M", "1.5M", "0.5M", "34CM", "2x", "1 - "
-                const startQtyMatch = cleanLine.match(/^(\d+(?:[.,]\d+)?)\s*(?:M|CM|X|UN|PC|MT|METROS|mts)?\s*[-–]?\s*/i);
+            // Tentar encontrar JSON no texto se houver markdown
+            const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+            const jsonStr = jsonMatch ? jsonMatch[0] : responseText;
 
-                if (startQtyMatch) {
-                    const rawQty = startQtyMatch[1].replace(',', '.');
-                    const parsed = parseFloat(rawQty);
+            const parsedItems = JSON.parse(jsonStr);
+            const itemsWithIds = parsedItems.map((item: any) => ({
+                ...item,
+                tempId: Math.random().toString(36).substr(2, 9),
+                produto_id: null,
+                preco_unitario: 0,
+            }));
 
-                    if (!isNaN(parsed) && parsed > 0) {
-                        quantidade = parsed;
-                        // Remove a quantidade da linha para não duplicar no nome
-                        cleanLine = cleanLine.substring(startQtyMatch[0].length).trim();
-                        // Remove hífen inicial se sobrou
-                        cleanLine = cleanLine.replace(/^[-–]\s*/, '');
-                    }
-                }
-
-                // 2. Separar por "|" para definir Nome vs Observação (Novo padrão LLM)
-                if (cleanLine.includes('|')) {
-                    const parts = cleanLine.split('|');
-                    produtoNome = parts[0].trim();
-                    observacao = parts.slice(1).join('|').trim();
-                } else {
-                    // Fallback para o padrão antigo com hífens
-                    const parts = cleanLine.split(/\s+[-–]\s+/);
-
-                    if (parts.length >= 3) {
-                        // Ex: "NIKE - BRANCO - 25CM" -> Nome: "NIKE - BRANCO", Obs: "25CM"
-                        produtoNome = parts.slice(0, parts.length - 1).join(' - ');
-                        observacao = parts[parts.length - 1];
-                    } else if (parts.length === 2) {
-                        // Ex: "NIKE - BRANCO" -> Nome: "NIKE", Obs: "BRANCO"
-                        produtoNome = parts[0];
-                        observacao = parts[1];
-                    } else {
-                        produtoNome = cleanLine;
-                    }
-                }
-
-                parsedItems.push({
-                    tempId: Math.random().toString(36).substr(2, 9),
-                    produto_id: '',
-                    quantidade,
-                    preco_unitario: 0,
-                    tipo: 'dtf',
-                    observacao,
-                    customName: produtoNome,
-                });
-            });
-
-            if (parsedItems.length > 0) {
-                onImportItems(parsedItems);
-                toast.success(`${parsedItems.length} itens importados!`);
+            if (itemsWithIds.length > 0) {
+                onImportItems(itemsWithIds);
+                toast.success(`${itemsWithIds.length} itens importados com sucesso!`);
                 onOpenChange(false);
                 setText('');
+
+                // Increment AI usage
+                supabase?.rpc('increment_ai_usage').then(({ error }) => {
+                    if (error) console.error('Erro ao incrementar uso de IA:', error);
+                });
             } else {
                 toast.warning('Não consegui identificar itens no texto.');
             }
         } catch (err) {
-            console.error(err);
-            toast.error('Erro ao processar o texto.');
+            console.error('Erro no processamento LLM:', err);
+            toast.error('Erro ao processar o texto com Gemini.');
         } finally {
             setIsProcessing(false);
         }

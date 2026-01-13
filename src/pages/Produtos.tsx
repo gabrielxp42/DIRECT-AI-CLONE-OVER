@@ -47,16 +47,47 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from "@/integrations/supabase/client"
 import { getValidToken } from '@/utils/tokenGuard';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TipoProducaoManager } from "@/components/TipoProducaoManager";
-import { Settings2 } from "lucide-react";
+import { ServiceShortcutsManager } from "@/components/ServiceShortcutsManager";
+import { TutorialGuide } from "@/components/TutorialGuide";
+import { useTour } from "@/hooks/useTour";
+import { PRODUTOS_GENERAL_TOUR, PRODUTOS_PRODUCAO_TOUR, PRODUTOS_SERVICOS_TOUR } from "@/utils/tours";
+import { Sparkles, Settings2, Wrench } from "lucide-react";
 import { useSubscription } from '@/hooks/useSubscription';
 import { SubscriptionModal } from '@/components/SubscriptionModal';
 
 const Produtos = () => {
-  const { session, profile } = useSession();
+  const { session, profile, isLoading: sessionLoading } = useSession();
   const queryClient = useQueryClient();
   const { data: produtos, isLoading, error } = useProdutos(); // Usando o hook centralizado
   const accessToken = session?.access_token;
   const { canWriteData } = useSubscription();
+
+  const { isTourOpen: isGeneralTourOpen, currentStep: generalStep, steps: generalSteps, startTour: startGeneralTour, nextStep: nextGeneralStep, prevStep: prevGeneralStep, closeTour: closeGeneralTour, shouldAutoStart: shouldAutoStartGeneral } = useTour(PRODUTOS_GENERAL_TOUR, 'produtos-general');
+  const { isTourOpen: isProducaoTourOpen, currentStep: producaoStep, steps: producaoSteps, startTour: startProducaoTour, nextStep: nextProducaoStep, prevStep: prevProducaoStep, closeTour: closeProducaoTour, shouldAutoStart: shouldAutoStartProducao } = useTour(PRODUTOS_PRODUCAO_TOUR, 'produtos-producao');
+  const { isTourOpen: isServicosTourOpen, currentStep: servicosStep, steps: servicosSteps, startTour: startServicosTour, nextStep: nextServicosStep, prevStep: prevServicosStep, closeTour: closeServicosTour, shouldAutoStart: shouldAutoStartServicos } = useTour(PRODUTOS_SERVICOS_TOUR, 'produtos-servicos');
+
+  const [activeTab, setActiveTab] = useState("produtos");
+
+  useEffect(() => {
+    if (!sessionLoading) {
+      if (activeTab === "produtos" && shouldAutoStartGeneral) {
+        setTimeout(startGeneralTour, 1000);
+      } else if (activeTab === "configuracoes" && shouldAutoStartProducao) {
+        setTimeout(startProducaoTour, 1000);
+      } else if (activeTab === "servicos" && shouldAutoStartServicos) {
+        setTimeout(startServicosTour, 1000);
+      }
+    }
+  }, [sessionLoading, activeTab, shouldAutoStartGeneral, shouldAutoStartProducao, shouldAutoStartServicos, startGeneralTour, startProducaoTour, startServicosTour]);
+
+  const handleStartCurrentTour = () => {
+    if (activeTab === "produtos") startGeneralTour();
+    else if (activeTab === "configuracoes") startProducaoTour();
+    else if (activeTab === "servicos") startServicosTour();
+  };
+
+  const isAnyTourOpen = isGeneralTourOpen || isProducaoTourOpen || isServicosTourOpen;
+
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -77,17 +108,18 @@ const Produtos = () => {
   }, [location.state, navigate]);
 
   const addProdutoMutation = useMutation({
-    mutationFn: async (newProduto: Omit<NewProduto, 'user_id'>) => {
+    mutationFn: async (formData: any) => {
       if (!session || !accessToken) throw new Error("Sessão não encontrada");
+      const validToken = await getValidToken();
+      if (!validToken) throw new Error("Sessão expirada. Por favor, recarregue a página.");
+
+      const { insumos_vinculados, ...productData } = formData;
 
       const productToInsert = {
-        ...newProduto,
+        ...productData,
         user_id: session.user.id,
         organization_id: profile?.organization_id
       };
-
-      const validToken = await getValidToken();
-      if (!validToken) throw new Error("Sessão expirada. Por favor, recarregue a página.");
 
       const headers = {
         'apikey': SUPABASE_ANON_KEY,
@@ -96,8 +128,8 @@ const Produtos = () => {
         'Prefer': 'return=representation'
       };
 
-      const url = `${SUPABASE_URL}/rest/v1/produtos`;
-      const response = await fetch(url, {
+      // 1. Inserir o produto
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/produtos`, {
         method: 'POST',
         headers,
         body: JSON.stringify([productToInsert])
@@ -105,7 +137,32 @@ const Produtos = () => {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Erro ao adicionar produto: ${response.status} ${response.statusText} - ${errorText}`);
+        throw new Error(`Erro ao adicionar produto: ${errorText}`);
+      }
+
+      const createdProducts = await response.json();
+      const product = createdProducts[0];
+
+      // 2. Inserir os vínculos de insumos se houverem
+      if (insumos_vinculados && insumos_vinculados.length > 0) {
+        const linksToInsert = insumos_vinculados.map((link: any) => ({
+          produto_id: product.id,
+          insumo_id: link.insumo_id,
+          consumo: link.consumo
+        }));
+
+        const linkResponse = await fetch(`${SUPABASE_URL}/rest/v1/produto_insumos`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(linksToInsert)
+        });
+
+        if (!linkResponse.ok) {
+          const errorText = await linkResponse.text();
+          console.error("Erro ao vincular insumos:", errorText);
+          // Não lançamos erro aqui para não desfazer a criação do produto, 
+          // mas informamos no console. Idealmente seria uma transação.
+        }
       }
     },
     onSuccess: () => {
@@ -119,9 +176,11 @@ const Produtos = () => {
   });
 
   const updateProdutoMutation = useMutation({
-    mutationFn: async ({ id, ...updateData }: { id: string } & Omit<NewProduto, 'user_id'>) => {
+    mutationFn: async ({ id, ...formData }: { id: string } & any) => {
       const validToken = await getValidToken();
       if (!validToken) throw new Error("Sessão expirada. Por favor, recarregue a página.");
+
+      const { insumos_vinculados, ...productUpdateData } = formData;
 
       const headers = {
         'apikey': SUPABASE_ANON_KEY,
@@ -130,19 +189,41 @@ const Produtos = () => {
         'Prefer': 'return=representation'
       };
 
-      const url = `${SUPABASE_URL}/rest/v1/produtos?id=eq.${id}`;
-      const response = await fetch(url, {
+      // 1. Atualizar o produto
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/produtos?id=eq.${id}`, {
         method: 'PATCH',
         headers,
         body: JSON.stringify({
-          ...updateData,
+          ...productUpdateData,
           organization_id: profile?.organization_id
         })
       });
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Erro ao atualizar produto: ${response.status} ${response.statusText} - ${errorText}`);
+        throw new Error(`Erro ao atualizar produto: ${errorText}`);
+      }
+
+      // 2. Gerenciar vínculos de insumo (Delete then Insert)
+      // Primeiro, deletar existentes
+      await fetch(`${SUPABASE_URL}/rest/v1/produto_insumos?produto_id=eq.${id}`, {
+        method: 'DELETE',
+        headers
+      });
+
+      // Depois, inserir novos
+      if (insumos_vinculados && insumos_vinculados.length > 0) {
+        const linksToInsert = insumos_vinculados.map((link: any) => ({
+          produto_id: id,
+          insumo_id: link.insumo_id,
+          consumo: link.consumo
+        }));
+
+        await fetch(`${SUPABASE_URL}/rest/v1/produto_insumos`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(linksToInsert)
+        });
       }
     },
     onSuccess: () => {
@@ -243,18 +324,35 @@ const Produtos = () => {
   return (
     <div className="space-y-4 sm:space-y-6">
       <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
-        <h1 className="text-2xl sm:text-3xl font-bold">Produtos & Configurações</h1>
+        <div className="flex items-center gap-4">
+          <h1 className="text-2xl sm:text-3xl font-bold">Produtos & Configurações</h1>
+          {!isAnyTourOpen && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleStartCurrentTour}
+              className="hidden sm:flex text-[10px] h-7 bg-primary/10 hover:bg-primary/20 border-primary/20"
+            >
+              <Sparkles className="mr-1 h-3 w-3" />
+              Ver Tutorial
+            </Button>
+          )}
+        </div>
       </div>
 
-      <Tabs defaultValue="produtos" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 max-w-md">
-          <TabsTrigger value="produtos" className="flex items-center gap-2">
+      <Tabs defaultValue="produtos" value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-3 max-w-lg">
+          <TabsTrigger id="tab-produtos" value="produtos" className="flex items-center gap-2">
             <Package className="h-4 w-4" />
             Produtos
           </TabsTrigger>
-          <TabsTrigger value="configuracoes" className="flex items-center gap-2">
+          <TabsTrigger id="tab-producao" value="configuracoes" className="flex items-center gap-2">
             <Settings2 className="h-4 w-4" />
-            Tipos de Produção
+            Produção
+          </TabsTrigger>
+          <TabsTrigger id="tab-servicos" value="servicos" className="flex items-center gap-2">
+            <Wrench className="h-4 w-4" />
+            Serviços
           </TabsTrigger>
         </TabsList>
 
@@ -262,6 +360,7 @@ const Produtos = () => {
           <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
             <div className="flex-1" />
             <Button
+              id="btn-add-produto"
               onClick={() => handleOpenForm()}
               className="w-full sm:w-auto min-h-[44px] touch-manipulation active:scale-95 transition-transform"
               size="default"
@@ -275,7 +374,7 @@ const Produtos = () => {
           {produtos && <LowStockAlert produtos={produtos} />}
 
           {/* Search Input - Responsivo */}
-          <div className="w-full">
+          <div id="search-produtos" className="w-full">
             <SearchInput
               placeholder="Buscar produtos por nome ou descrição..."
               value={rawSearchTerm} // Usa o valor bruto para o input
@@ -489,9 +588,43 @@ const Produtos = () => {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="servicos" className="pt-4">
+          <ServiceShortcutsManager />
+        </TabsContent>
       </Tabs>
 
-      <SubscriptionModal open={showUpgradeModal} onOpenChange={setShowUpgradeModal} />
+      <SubscriptionModal
+        open={showUpgradeModal}
+        onOpenChange={setShowUpgradeModal}
+      />
+
+      <TutorialGuide
+        steps={generalSteps}
+        isOpen={isGeneralTourOpen}
+        currentStep={generalStep}
+        onNext={nextGeneralStep}
+        onPrev={prevGeneralStep}
+        onClose={closeGeneralTour}
+      />
+
+      <TutorialGuide
+        steps={producaoSteps}
+        isOpen={isProducaoTourOpen}
+        currentStep={producaoStep}
+        onNext={nextProducaoStep}
+        onPrev={prevProducaoStep}
+        onClose={closeProducaoTour}
+      />
+
+      <TutorialGuide
+        steps={servicosSteps}
+        isOpen={isServicosTourOpen}
+        currentStep={servicosStep}
+        onNext={nextServicosStep}
+        onPrev={prevServicosStep}
+        onClose={closeServicosTour}
+      />
     </div>
   );
 };

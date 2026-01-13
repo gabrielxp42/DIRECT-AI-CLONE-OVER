@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,13 +18,15 @@ import {
     Save,
     Loader2,
     ImageIcon,
-    Globe
+    Globe,
+    Sparkles,
+    Wand2,
+    Info
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TutorialGuide } from '@/components/TutorialGuide';
 import { useTour } from '@/hooks/useTour';
 import { SETTINGS_TOUR } from '@/utils/tours';
-import { Sparkles, Wand2, Info } from 'lucide-react';
 import { MagicSettingsModal } from '@/components/MagicSettingsModal';
 import {
     Tooltip,
@@ -45,6 +48,43 @@ const ESTADOS_BR = [
     'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN',
     'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'
 ];
+
+const MagicMessageRotator = () => {
+    const messages = [
+        "✨ Exporte dados em 1 click com IA",
+        "🚀 Preencha tudo automaticamente!",
+        "💡 IA: Economize seu tempo",
+        "📸 Teste com foto de cartão!",
+        "🪄 A mágica acontece aqui"
+    ];
+    const [index, setIndex] = useState(0);
+
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setIndex((prev) => (prev + 1) % messages.length);
+        }, 3500);
+        return () => clearInterval(interval);
+    }, []);
+
+    return (
+        <div className="relative h-5 overflow-hidden flex items-center justify-center min-w-[170px]">
+            <AnimatePresence mode="wait">
+                <motion.span
+                    key={index}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.4, ease: "easeOut" }}
+                    className="font-medium text-[10px] md:text-[11px] whitespace-nowrap absolute top-0.5"
+                >
+                    {messages[index]}
+                </motion.span>
+            </AnimatePresence>
+        </div>
+    );
+};
+
+
 
 export default function Settings() {
     const {
@@ -212,7 +252,7 @@ export default function Settings() {
                             </p>
                         </div>
                         {!isTourOpen && (
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 relative">
                                 <Button
                                     variant="outline"
                                     size="sm"
@@ -222,6 +262,19 @@ export default function Settings() {
                                     <Sparkles className="mr-1 h-3 w-3" />
                                     Ver Tutorial
                                 </Button>
+                                {/* Premium Magic Engagement Tooltip */}
+                                <div className="absolute -top-12 right-0 pointer-events-none hidden md:block z-20">
+                                    <motion.div
+                                        initial={{ opacity: 0, scale: 0.9, y: 5 }}
+                                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                                        transition={{ delay: 0.5, duration: 0.5 }}
+                                        className="relative bg-yellow-400/10 dark:bg-yellow-500/10 backdrop-blur-md border border-yellow-400/20 dark:border-yellow-400/10 text-yellow-700 dark:text-yellow-200 px-3 py-1.5 rounded-full shadow-[0_8px_16px_-6px_rgba(234,179,8,0.2)] flex items-center gap-2"
+                                    >
+                                        <div className="absolute -bottom-1 right-6 w-2.5 h-2.5 bg-yellow-400/10 dark:bg-yellow-900/20 border-r border-b border-yellow-400/20 dark:border-yellow-400/10 backdrop-blur-md rotate-45 transform origin-center"></div>
+                                        <Sparkles className="w-3 h-3 text-yellow-600 dark:text-yellow-400 animate-pulse" />
+                                        <MagicMessageRotator />
+                                    </motion.div>
+                                </div>
                                 <TooltipProvider>
                                     <Tooltip>
                                         <TooltipTrigger asChild>
@@ -229,7 +282,7 @@ export default function Settings() {
                                                 variant="outline"
                                                 size="sm"
                                                 onClick={() => setIsMagicModalOpen(true)}
-                                                className="flex text-[10px] h-7 bg-yellow-500/10 hover:bg-yellow-500/20 border-yellow-500/20 text-yellow-600 dark:text-yellow-400 font-bold gap-1"
+                                                className="flex text-[10px] h-7 bg-yellow-500/10 hover:bg-yellow-500/20 border-yellow-500/20 text-yellow-600 dark:text-yellow-400 font-bold gap-1 relative z-10"
                                             >
                                                 <Wand2 className="h-3 w-3" />
                                                 Preenchimento Mágico
@@ -261,6 +314,7 @@ export default function Settings() {
                         )}
                         Salvar Alterações
                     </Button>
+
                 </div>
 
                 {/* Logo Section */}
@@ -593,40 +647,41 @@ export default function Settings() {
                         Salvar Alterações
                     </Button>
                 </div>
+
+                {/* Premium Sticky Bottom Bar (Mobile) */}
+                <div className="md:hidden fixed bottom-0 left-0 right-0 p-4 bg-background/80 backdrop-blur-xl border-t border-border/50 z-50">
+                    <Button
+                        onClick={handleSave}
+                        disabled={!hasChanges || isUpdating}
+                        className={cn(
+                            "w-full h-12 gap-2 text-base font-semibold transition-all duration-300 shadow-lg shadow-primary/20",
+                            hasChanges && "animate-pulse-subtle"
+                        )}
+                        size="lg"
+                    >
+                        {isUpdating ? (
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                        ) : (
+                            <Save className="w-5 h-5" />
+                        )}
+                        Salvar Configurações
+                    </Button>
+                </div>
+                <MagicSettingsModal
+                    isOpen={isMagicModalOpen}
+                    onOpenChange={setIsMagicModalOpen}
+                    onImportSettings={handleImportSettings}
+                />
+                <TutorialGuide
+                    steps={SETTINGS_TOUR}
+                    isOpen={isTourOpen}
+                    currentStep={currentStep}
+                    onNext={nextStep}
+                    onPrev={prevStep}
+                    onClose={closeTour}
+                />
             </div>
 
-            {/* Premium Sticky Bottom Bar (Mobile) */}
-            <div className="md:hidden fixed bottom-0 left-0 right-0 p-4 bg-background/80 backdrop-blur-xl border-t border-border/50 z-50">
-                <Button
-                    onClick={handleSave}
-                    disabled={!hasChanges || isUpdating}
-                    className={cn(
-                        "w-full h-12 gap-2 text-base font-semibold transition-all duration-300 shadow-lg shadow-primary/20",
-                        hasChanges && "animate-pulse-subtle"
-                    )}
-                    size="lg"
-                >
-                    {isUpdating ? (
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                    ) : (
-                        <Save className="w-5 h-5" />
-                    )}
-                    Salvar Configurações
-                </Button>
-            </div>
-            <MagicSettingsModal
-                isOpen={isMagicModalOpen}
-                onOpenChange={setIsMagicModalOpen}
-                onImportSettings={handleImportSettings}
-            />
-            <TutorialGuide
-                steps={SETTINGS_TOUR}
-                isOpen={isTourOpen}
-                currentStep={currentStep}
-                onNext={nextStep}
-                onPrev={prevStep}
-                onClose={closeTour}
-            />
         </div>
     );
 }

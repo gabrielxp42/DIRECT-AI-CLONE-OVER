@@ -44,7 +44,7 @@ import {
 import { OrderStatusIndicator } from '@/components/OrderStatusIndicator';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { usePedidos, useClientes, useProdutos, usePaginatedPedidos, useTiposProducao } from '@/hooks/useDataFetch';
+import { usePedidos, useClientes, useProdutos, usePaginatedPedidos, useTiposProducao, restoreInsumosFromPedido } from '@/hooks/useDataFetch';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useDebounce } from '@/hooks/useDebounce';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -329,41 +329,49 @@ const PedidosPage: React.FC = () => {
         'Content-Type': 'application/json'
       };
 
-      // Excluir itens e serviços relacionados
+      // 1. Buscar detalhes do pedido para ver se precisamos restaurar estoque
+      const { data: pedido, error: fetchError } = await supabase
+        .from('pedidos')
+        .select('*, pedido_items(*)')
+        .eq('id', id)
+        .single();
+
+      if (fetchError) {
+        console.error("Erro ao buscar pedido para exclusão:", fetchError);
+        // Se n~ao achar o pedido, talvez já tenha sido excluído
+      } else if (pedido && pedido.status === 'pago') {
+        // 2. Se o pedido estava pago, restaurar os insumos
+        console.log(`[Inventory] Pedido #${pedido.order_number} excluído com status PAGO. Restaurando estoque...`);
+        await restoreInsumosFromPedido(pedido);
+      }
+
+      // 3. Excluir itens e serviços relacionados
       const deleteRelated = async (table: string) => {
         try {
           const url = `${SUPABASE_URL}/rest/v1/${table}?pedido_id=eq.${id}`;
           const response = await fetch(url, { method: 'DELETE', headers });
-
           if (!response.ok) {
             const errorText = await response.text();
-            // Logar aviso mas não interromper imediatamente (tenta excluir o pedido mesmo assim, 
-            // caso as relações já tenham sido removidas ou não existam)
             console.warn(`Aviso: Erro ao excluir ${table}: ${response.status} - ${errorText}`);
-
-            // Se for erro de permissão (RLS) ou erro severo, talvez devêssemos parar?
-            // Mas vamos tentar seguir para o delete principal.
           }
         } catch (e) {
           console.error(`Exceção ao excluir ${table}:`, e);
         }
       };
 
-      // Tentar excluir dependências em paralelo, mas tratar erros individualmente
       await Promise.all([
         deleteRelated('pedido_items'),
         deleteRelated('pedido_servicos'),
         deleteRelated('pedido_status_history')
       ]);
 
-      // Excluir o pedido
+      // 4. Excluir o pedido
       const pedidoUrl = `${SUPABASE_URL}/rest/v1/pedidos?id=eq.${id}&user_id=eq.${session.user.id}`;
       const response = await fetch(pedidoUrl, { method: 'DELETE', headers });
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("Erro ao excluir pedido principal:", errorText);
-        throw new Error(`Erro ao excluir pedido: ${response.status} ${response.statusText} - ${errorText}`);
+        throw new Error(`Erro ao excluir pedido: ${response.status} - ${errorText}`);
       }
     },
     onSuccess: () => {

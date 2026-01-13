@@ -2,13 +2,15 @@ import { useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/contexts/SessionProvider";
 import { Cliente } from "@/types/cliente";
-import { Pedido } from "@/types/pedido";
 import { Produto } from "@/types/produto";
+import { Pedido } from "@/types/pedido";
+import { Insumo } from "@/types/insumo";
+import { TipoProducao } from "@/types/producao";
 import { SupabaseClient } from "@supabase/supabase-js";
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from "@/integrations/supabase/client";
 import { getValidToken } from '@/utils/tokenGuard';
 import { removeAccents } from "@/utils/string";
-import { TipoProducao } from "@/types/producao";
+import { ServiceShortcut, NewServiceShortcut } from "@/types/servico";
 
 const buildHeaders = (token: string) => ({
   apikey: SUPABASE_ANON_KEY,
@@ -26,7 +28,7 @@ const fetchTable = async <T>(token: string, endpoint: string, params: URLSearchP
   const res = await fetch(url, { headers: buildHeaders(effectiveToken) });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Supabase fetch error (${endpoint}): ${res.status} ${res.statusText} - ${text}`);
+    throw new Error(`Supabase fetch error(${endpoint}): ${res.status} ${res.statusText} - ${text} `);
   }
   return res.json();
 };
@@ -65,7 +67,7 @@ export const useClientes = () => {
 // --- Fetch Produtos ---
 const fetchProdutos = async (token: string): Promise<Produto[]> => {
   const params = new URLSearchParams({
-    select: "*",
+    select: "*,produto_insumos(*,insumos(nome,unidade))",
     order: "created_at.desc",
   });
   return fetchTable<Produto>(token, "produtos", params);
@@ -123,12 +125,12 @@ const fetchPedidos = async (
       throw new Error(`Supabase client is undefined at ${context}.`);
     }
     if (typeof supabaseRef !== 'object') {
-      console.error(`[fetchPedidos] ${context}: supabaseRef não é um objeto:`, typeof supabaseRef);
+      console.error(`[fetchPedidos] ${context}: supabaseRef não é um objeto: `, typeof supabaseRef);
       throw new Error(`Supabase client is not an object at ${context}.`);
     }
     if (typeof supabaseRef.from !== 'function') {
-      console.error(`[fetchPedidos] ${context}: supabaseRef.from não é uma função:`, typeof supabaseRef.from);
-      console.error(`[fetchPedidos] ${context}: supabaseRef keys:`, Object.keys(supabaseRef || {}));
+      console.error(`[fetchPedidos] ${context}: supabaseRef.from não é uma função: `, typeof supabaseRef.from);
+      console.error(`[fetchPedidos] ${context}: supabaseRef keys: `, Object.keys(supabaseRef || {}));
       throw new Error(`Supabase client is missing 'from' method at ${context}.`);
     }
   };
@@ -163,12 +165,12 @@ const fetchPedidos = async (
     let query = supabaseRef
       .from('pedidos')
       .select(`
-        *,
-        clientes (id, nome, telefone, email, endereco),
-        pedido_items (*),
-        pedido_servicos (*),
-        pedido_status_history (*)
-      `, { count: 'exact' });
+  *,
+  clientes(id, nome, telefone, email, endereco),
+  pedido_items(*),
+  pedido_servicos(*),
+  pedido_status_history(*)
+    `, { count: 'exact' });
 
     console.log('[fetchPedidos] Query builder criado com sucesso');
 
@@ -236,7 +238,7 @@ const fetchPedidos = async (
 
         // Filtros
         if (filterStatus === 'pendente-pagamento') {
-          queryParams.append('status', 'not.in.("pago","cancelado","entregue")'); // Correção sintaxe PostgREST
+          queryParams.append('status', 'not.in.("pago","cancelado","entregue")');
         } else if (filterStatus !== 'todos') {
           queryParams.append('status', `eq.${filterStatus}`);
         }
@@ -258,7 +260,7 @@ const fetchPedidos = async (
         if (trimmedSearchTerm && !filterClientId) {
           const isNumeric = !isNaN(Number(trimmedSearchTerm));
           if (isNumeric) {
-            queryParams.append('or', `order_number.eq.${trimmedSearchTerm},observacoes.ilike.*${trimmedSearchTerm}*`);
+            queryParams.append('or', `order_number.eq.${trimmedSearchTerm},observacoes.ilike.%${trimmedSearchTerm}%`);
           } else {
             // Buscar clientes usando fetch direto com normalização de acentos
             try {
@@ -305,25 +307,25 @@ const fetchPedidos = async (
                     .filter((id: any) => id && typeof id === 'string');
 
                   if (clientIds.length > 0) {
-                    console.log(`✅ [fetchPedidos] Busca encontrou ${clientIds.length} cliente(s) para: "${trimmedSearchTerm}"`);
+                    console.log(`✅[fetchPedidos] Busca encontrou ${clientIds.length} cliente(s) para: "${trimmedSearchTerm}"`);
                     // Adicionar filtro de cliente_id usando operador 'in' do PostgREST
                     queryParams.append('cliente_id', `in.(${clientIds.join(',')})`);
                   } else {
                     console.log('[fetchPedidos] Nenhum ID de cliente válido encontrado, buscando em observações');
-                    queryParams.append('observacoes', `ilike.*${trimmedSearchTerm}*`);
+                    queryParams.append('observacoes', `ilike.%${trimmedSearchTerm}%`);
                   }
                 } else {
                   console.log('[fetchPedidos] Nenhum cliente encontrado, buscando em observações');
-                  queryParams.append('observacoes', `ilike.*${trimmedSearchTerm}*`);
+                  queryParams.append('observacoes', `ilike.%${trimmedSearchTerm}%`);
                 }
               } else {
                 console.warn('[fetchPedidos] Erro ao buscar clientes, usando busca em observações');
-                queryParams.append('observacoes', `ilike.*${trimmedSearchTerm}*`);
+                queryParams.append('observacoes', `ilike.%${trimmedSearchTerm}%`);
               }
             } catch (searchError: any) {
               console.error("❌ [fetchPedidos] Erro ao buscar clientes:", searchError);
               // Fallback: buscar nas observações
-              queryParams.append('observacoes', `ilike.*${trimmedSearchTerm}*`);
+              queryParams.append('observacoes', `ilike.%${trimmedSearchTerm}%`);
             }
           }
         }
@@ -360,9 +362,9 @@ const fetchPedidos = async (
           const errorText = await response.text();
           // Se ainda for 401, lançar erro específico para o React Query tentar de novo (se retry estiver ativado)
           if (response.status === 401) {
-            throw new Error(`JWT_EXPIRED: ${errorText}`);
+            throw new Error(`JWT_EXPIRED: ${errorText} `);
           }
-          throw new Error(`Erro no fetch direto: ${response.status} ${response.statusText} - ${errorText}`);
+          throw new Error(`Erro no fetch direto: ${response.status} ${response.statusText} - ${errorText} `);
         }
 
         const data = await response.json();
@@ -522,12 +524,12 @@ export const usePedidos = () => {
     const { data: pedidosData, error: pedidosError } = await currentSupabase
       .from('pedidos')
       .select(`
-        *,
-        clientes (id, nome, telefone, email, endereco),
-        pedido_items (*),
-        pedido_servicos (*),
-        pedido_status_history (*)
-      `)
+  *,
+  clientes(id, nome, telefone, email, endereco),
+  pedido_items(*),
+  pedido_servicos(*),
+  pedido_status_history(*)
+    `)
       .order('order_number', { ascending: false });
 
     if (pedidosError) throw pedidosError;
@@ -676,4 +678,288 @@ export const useDeleteTipoProducao = () => {
       queryClient.invalidateQueries({ queryKey: ["tipos_producao"] });
     },
   });
+};
+
+// --- Fetch Service Shortcuts ---
+const fetchServiceShortcuts = async (token: string): Promise<ServiceShortcut[]> => {
+  const params = new URLSearchParams({
+    select: "*",
+    order: "is_pinned.desc,usage_count.desc,nome.asc",
+  });
+  return fetchTable<ServiceShortcut>(token, "service_shortcuts", params);
+};
+
+export const useServiceShortcuts = () => {
+  const { session, isLoading: sessionLoading } = useSession();
+  const accessToken = session?.access_token;
+
+  const isEnabled = !sessionLoading && !!accessToken;
+
+  return useQuery<ServiceShortcut[]>({
+    queryKey: ["service_shortcuts"],
+    queryFn: () => {
+      if (!accessToken) {
+        throw new Error("Access token missing.");
+      }
+      return fetchServiceShortcuts(accessToken);
+    },
+    enabled: isEnabled,
+    staleTime: 1000 * 60 * 2, // 2 minutes
+    refetchOnMount: true,
+  });
+};
+
+export const useAddServiceShortcut = () => {
+  const queryClient = useQueryClient();
+  const { supabase, session } = useSession();
+
+  return useMutation({
+    mutationFn: async (newShortcut: NewServiceShortcut) => {
+      if (!session?.user?.id || !supabase) throw new Error("Autenticação necessária");
+
+      const { data, error } = await supabase
+        .from("service_shortcuts")
+        .insert([{
+          ...newShortcut,
+          user_id: session.user.id
+        }])
+        .select();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["service_shortcuts"] });
+    },
+  });
+};
+
+export const useUpdateServiceShortcut = () => {
+  const queryClient = useQueryClient();
+  const { supabase } = useSession();
+
+  return useMutation({
+    mutationFn: async ({ id, ...updateData }: Partial<ServiceShortcut> & { id: string }) => {
+      const { data, error } = await supabase
+        .from("service_shortcuts")
+        .update(updateData)
+        .eq("id", id)
+        .select();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["service_shortcuts"] });
+    },
+  });
+};
+
+export const useDeleteServiceShortcut = () => {
+  const queryClient = useQueryClient();
+  const { supabase } = useSession();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("service_shortcuts")
+        .delete()
+        .eq("id", id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["service_shortcuts"] });
+    },
+  });
+};
+
+export const useIncrementServiceUsage = () => {
+  const queryClient = useQueryClient();
+  const { supabase, session } = useSession();
+
+  return useMutation({
+    mutationFn: async ({ nome, valor }: { nome: string, valor: number }) => {
+      if (!session?.user?.id || !supabase) return;
+
+      // Buscar se já existe
+      const { data: existing } = await supabase
+        .from("service_shortcuts")
+        .select("id, usage_count")
+        .eq("nome", nome)
+        .eq("user_id", session.user.id)
+        .single();
+
+      if (existing) {
+        // Incrementar
+        await supabase
+          .from("service_shortcuts")
+          .update({
+            usage_count: (existing.usage_count || 0) + 1,
+            last_used: new Date().toISOString()
+          })
+          .eq("id", existing.id);
+      } else {
+        // Criar novo sugerido
+        await supabase
+          .from("service_shortcuts")
+          .insert([{
+            nome,
+            valor,
+            user_id: session.user.id,
+            usage_count: 1,
+            last_used: new Date().toISOString()
+          }]);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["service_shortcuts"] });
+    },
+  });
+};
+
+// --- Fetch Insumos ---
+const fetchInsumos = async (token: string): Promise<Insumo[]> => {
+  const params = new URLSearchParams({
+    select: "*",
+    order: "nome.asc",
+  });
+  return fetchTable<Insumo>(token, "insumos", params);
+};
+
+export const useInsumos = () => {
+  const { session, isLoading: sessionLoading } = useSession();
+  const accessToken = session?.access_token;
+  const isEnabled = !sessionLoading && !!accessToken;
+
+  return useQuery<Insumo[]>({
+    queryKey: ["insumos"],
+    queryFn: () => {
+      if (!accessToken) throw new Error("Access token missing.");
+      return fetchInsumos(accessToken);
+    },
+    enabled: isEnabled,
+    staleTime: 5 * 60 * 1000,
+    retry: 3,
+  });
+};
+
+// --- Inventory Management Logic ---
+
+/**
+ * Deduz insumos do estoque baseados nos itens de um pedido.
+ */
+export const deductInsumosFromPedido = async (pedido: Pedido) => {
+  if (!supabase) return;
+
+  try {
+    console.log(`[Inventory] Iniciando abate de insumos para pedido #${pedido.order_number}`);
+
+    // Garantir que temos itens
+    const items = pedido.pedido_items || [];
+    if (items.length === 0) return;
+
+    for (const item of items) {
+      // Buscar insumos vinculados ao produto
+      const { data: produtoData, error: pError } = await supabase
+        .from('produtos')
+        .select(`
+          id,
+          produto_insumos (
+            insumo_id,
+            consumo
+          )
+        `)
+        .eq('id', item.produto_id)
+        .single();
+
+      if (pError || !produtoData) continue;
+
+      const produto_insumos = (produtoData as any).produto_insumos || [];
+
+      for (const pi of produto_insumos) {
+        if (!pi.insumo_id || !pi.consumo) continue;
+
+        // Buscar quantidade atual
+        const { data: insumo, error: iError } = await supabase
+          .from('insumos')
+          .select('id, nome, quantidade_atual')
+          .eq('id', pi.insumo_id)
+          .single();
+
+        if (iError || !insumo) continue;
+
+        const totalConsumo = pi.consumo * item.quantidade;
+        const novaQuantidade = (insumo.quantidade_atual || 0) - totalConsumo;
+
+        await supabase
+          .from('insumos')
+          .update({ quantidade_atual: novaQuantidade })
+          .eq('id', insumo.id);
+
+        console.log(`[Inventory] Deduzido ${totalConsumo} de ${insumo.nome}. Novo saldo: ${novaQuantidade}`);
+      }
+    }
+    console.log('✅ [Inventory] Abate concluído.');
+  } catch (error) {
+    console.error('❌ [Inventory] Erro no abate:', error);
+  }
+};
+
+/**
+ * Restaura insumos ao estoque (estorno) baseados nos itens de um pedido.
+ * Útil ao excluir ou cancelar um pedido pago.
+ */
+export const restoreInsumosFromPedido = async (pedido: Pedido) => {
+  if (!supabase) return;
+
+  try {
+    console.log(`[Inventory] Restaurando insumos para pedido #${pedido.order_number}`);
+
+    const items = pedido.pedido_items || [];
+    if (items.length === 0) return;
+
+    for (const item of items) {
+      const { data: produtoData, error: pError } = await supabase
+        .from('produtos')
+        .select(`
+          id,
+          produto_insumos (
+            insumo_id,
+            consumo
+          )
+        `)
+        .eq('id', item.produto_id)
+        .single();
+
+      if (pError || !produtoData) continue;
+
+      const produto_insumos = (produtoData as any).produto_insumos || [];
+
+      for (const pi of produto_insumos) {
+        if (!pi.insumo_id || !pi.consumo) continue;
+
+        const { data: insumo, error: iError } = await supabase
+          .from('insumos')
+          .select('id, nome, quantidade_atual')
+          .eq('id', pi.insumo_id)
+          .single();
+
+        if (iError || !insumo) continue;
+
+        const totalRestauro = pi.consumo * item.quantidade;
+        const novaQuantidade = (insumo.quantidade_atual || 0) + totalRestauro;
+
+        await supabase
+          .from('insumos')
+          .update({ quantidade_atual: novaQuantidade })
+          .eq('id', insumo.id);
+
+        console.log(`[Inventory] Restaurado ${totalRestauro} de ${insumo.nome}. Novo saldo: ${novaQuantidade}`);
+      }
+    }
+    console.log('✅ [Inventory] Restauração concluída.');
+  } catch (error) {
+    console.error('❌ [Inventory] Erro na restauração:', error);
+  }
 };

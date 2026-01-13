@@ -66,8 +66,8 @@ export const NEW_ORDER_TOUR: TutorialStep[] = [
     },
     {
         targetId: 'services-section',
-        title: 'Serviços e Mão de Obra',
-        description: 'Não trabalhe de graça! Adicione taxas de montagem, edições de arte ou ajustes rápidos. Valorize cada minuto do seu trabalho técnico.',
+        title: 'Atalhos de Serviços Inteligentes',
+        description: 'Não trabalhe de graça! Use os novos atalhos inteligentes para adicionar taxas de entrega ou montagem em um clique. O sistema aprende quais você mais usa para agilizar seu dia.',
         position: 'top'
     },
     {
@@ -173,6 +173,62 @@ export const REPORTS_TOUR: TutorialStep[] = [
         targetId: 'reports-tabs-section',
         title: 'Aprofundamento Financeiro',
         description: 'Explore as abas para gerir Comissões, entender quais status de pedidos mais geram receita e quem são seus melhores clientes.',
+        position: 'top'
+    }
+];
+export const PRODUTOS_GENERAL_TOUR: TutorialStep[] = [
+    {
+        targetId: 'tab-produtos',
+        title: 'Gestão de Catálogo',
+        description: 'Aqui você gerencia seus produtos. Cadastre preços, controle o estoque e vincule insumos para descontar automaticamente na produção.',
+        position: 'bottom'
+    },
+    {
+        targetId: 'search-produtos',
+        title: 'Busca Rápida',
+        description: 'Encontre seus produtos instantaneamente por nome ou descrição. Mantenha seu catálogo organizado e acessível.',
+        position: 'bottom'
+    },
+    {
+        targetId: 'btn-add-produto',
+        title: 'Novo item',
+        description: 'Cadastre novos itens em seu catálogo aqui. Defina se é um produto de balcão ou um serviço personalizado.',
+        position: 'bottom'
+    }
+];
+
+export const PRODUTOS_PRODUCAO_TOUR: TutorialStep[] = [
+    {
+        targetId: 'tab-producao',
+        title: 'Tipos de Produção',
+        description: 'Configure seus processos (DTF, Vinil, etc.). Você pode definir cores e ícones para facilitar a identificação visual em toda a plataforma.',
+        position: 'bottom'
+    }
+];
+
+export const PRODUTOS_SERVICOS_TOUR: TutorialStep[] = [
+    {
+        targetId: 'tab-servicos',
+        title: 'Atalhos de Serviços',
+        description: 'A grande novidade! Aqui você gerencia os atalhos que aparecem no modal de pedidos. O sistema aprende seus serviços mais usados automaticamente.',
+        position: 'bottom'
+    },
+    {
+        targetId: 'card-novo-atalho',
+        title: 'Criação Manual',
+        description: 'Adicione atalhos personalizados para serviços fixos, como "Arte Final" ou "Frete". Eles ficarão disponíveis para acesso rápido.',
+        position: 'top'
+    },
+    {
+        targetId: 'card-atalhos-fixados',
+        title: 'Itens de Elite',
+        description: 'Serviços fixados aparecem sempre no topo da lista no momento da venda. Use para o que você mais precisa!',
+        position: 'top'
+    },
+    {
+        targetId: 'card-sugestoes-automaticas',
+        title: 'Inteligência Artificial',
+        description: 'O sistema monitora o que você digita nos pedidos e sugere automaticamente novos atalhos baseados na sua produtividade.',
         position: 'top'
     }
 ];

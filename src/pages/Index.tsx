@@ -17,13 +17,14 @@ import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { QuickActionCard } from "@/components/QuickActionCard";
 import { useAIAssistant } from '@/contexts/AIAssistantProvider';
-import { DashboardShortcutCard } from "@/components/DashboardShortcutCard"; // Reutilizando o card maior para métricas
+import { DashboardShortcutCard } from "@/components/DashboardShortcutCard";
 import { AIMessagesWidget } from "@/components/AIMessagesWidget";
 import { useState, useEffect } from "react";
 
 import { DashboardQuickActions } from "@/components/DashboardQuickActions";
 import { DailySummaryCard } from "@/components/DailySummaryCard";
 import { AIAttentionBubble } from "@/components/AIAttentionBubble";
+import { AILowStockAlert } from "@/components/AILowStockAlert";
 import { useSession } from "@/contexts/SessionProvider";
 import { TutorialGuide } from "@/components/TutorialGuide";
 import { useTour } from "@/hooks/useTour";
@@ -39,17 +40,16 @@ const Index = () => {
 
   useEffect(() => {
     if (shouldAutoStart && !sessionLoading) {
-      const timer = setTimeout(startTour, 2000); // Increased delay
+      const timer = setTimeout(startTour, 2000);
       return () => clearTimeout(timer);
     }
   }, [shouldAutoStart, sessionLoading, startTour]);
-  // Estado do acordeão: aberto no desktop, fechado no mobile
+
   const [accordionValue, setAccordionValue] = useState<string>("");
 
-  // Detectar tamanho da tela e definir estado inicial
   useEffect(() => {
     const isMobile = window.innerWidth < 768;
-    setAccordionValue(isMobile ? "" : "resumo"); // Fechado no mobile, aberto no desktop
+    setAccordionValue(isMobile ? "" : "resumo");
   }, []);
 
   const formatCurrency = (value: number) => {
@@ -82,20 +82,17 @@ const Index = () => {
     );
   }
 
-  // Log para debug
-  console.log('[Dashboard] Estado:', { isLoading, hasData: !!stats, error: !!error });
-
   return (
     <div>
       <h1 className="text-3xl font-bold mb-6 text-left">Dashboard</h1>
 
       <div id="ai-assistant-widget" className="grid gap-6 md:grid-cols-2 mb-6">
         <div className="relative">
+          <AILowStockAlert />
           <AIAttentionBubble />
           <AIMessagesWidget />
         </div>
 
-        {/* Resumo Diário com Acordeão */}
         <Accordion
           type="single"
           collapsible
@@ -116,17 +113,15 @@ const Index = () => {
         </Accordion>
       </div>
 
-      {/* Ações Rápidas */}
       <div id="quick-actions-container">
         <DashboardQuickActions />
       </div>
 
-      {/* Status dos Pedidos */}
       <div id="status-charts-container" className="mb-8">
         <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
           <span className="bg-blue-100 text-blue-600 p-1 rounded">📊</span> Status dos Pedidos
         </h2>
-        <div className="grid grid-cols-3 sm:grid-cols-5 gap-4"> {/* Layout mais compacto */}
+        <div className="grid grid-cols-3 sm:grid-cols-5 gap-4">
           <QuickActionCard
             title="Pendentes"
             icon={Clock}
@@ -165,7 +160,6 @@ const Index = () => {
         </div>
       </div>
 
-      {/* Cards de Visão Geral - Usando DashboardShortcutCard para melhor visualização */}
       <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
         <DashboardShortcutCard
           title="Vendas Totais"

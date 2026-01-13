@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { useForm, useFieldArray } from "react-hook-form";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -31,14 +32,19 @@ import { NewProduto, Produto } from "@/types/produto";
 import { useEffect, useRef, useState } from "react";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "@/integrations/supabase/client";
 import { useSession } from "@/contexts/SessionProvider";
+import { useTiposProducao } from "@/hooks/useDataFetch";
+import { Package, Plus, Trash2, Loader2, Printer, Scissors, Boxes } from "lucide-react";
 
 const formSchema = z.object({
   nome: z.string().min(2, { message: "O nome deve ter pelo menos 2 caracteres." }),
   descricao: z.string().optional(),
   preco: z.coerce.number().min(0, { message: "O preço não pode ser negativo." }),
   estoque: z.coerce.number().min(0, { message: "O estoque não pode ser negativo." }).optional(),
-  insumo_id: z.string().optional().nullable(),
-  consumo_insumo: z.coerce.number().min(0).optional(),
+  tipo: z.string().min(1, { message: "Selecione o tipo do produto." }),
+  insumos_vinculados: z.array(z.object({
+    insumo_id: z.string().min(1, { message: "Selecione um insumo." }),
+    consumo: z.coerce.number().min(0.0001, { message: "Consumo deve ser maior que 0." }),
+  })),
 });
 
 type ProdutoFormValues = z.infer<typeof formSchema>;
@@ -46,7 +52,7 @@ type ProdutoFormValues = z.infer<typeof formSchema>;
 interface ProdutoFormProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onSubmit: (data: Omit<NewProduto, 'user_id'>, id?: string) => void;
+  onSubmit: (data: any, id?: string) => void;
   isSubmitting: boolean;
   initialData?: Produto | null;
 }
@@ -60,6 +66,7 @@ interface Insumo {
 export const ProdutoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, initialData }: ProdutoFormProps) => {
   const { session } = useSession();
   const [insumos, setInsumos] = useState<Insumo[]>([]);
+  const { data: tiposProducao } = useTiposProducao();
 
   const form = useForm<ProdutoFormValues>({
     resolver: zodResolver(formSchema),
@@ -68,9 +75,14 @@ export const ProdutoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, init
       descricao: "",
       preco: 0,
       estoque: 0,
-      insumo_id: null,
-      consumo_insumo: 0,
+      tipo: "unidade",
+      insumos_vinculados: [],
     },
+  });
+
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: "insumos_vinculados" as const,
   });
 
   const isEditing = !!initialData;
@@ -109,8 +121,11 @@ export const ProdutoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, init
           descricao: initialData.descricao || "",
           preco: initialData.preco,
           estoque: initialData.estoque || 0,
-          insumo_id: (initialData as any).insumo_id || null, // Cast temporário até atualizar o tipo
-          consumo_insumo: (initialData as any).consumo_insumo || 0,
+          tipo: initialData.tipo || "unidade",
+          insumos_vinculados: initialData.produto_insumos?.map(pi => ({
+            insumo_id: pi.insumo_id,
+            consumo: pi.consumo
+          })) || [],
         });
         isFirstOpenForNewRef.current = true;
       } else {
@@ -120,37 +135,33 @@ export const ProdutoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, init
             descricao: "",
             preco: 0,
             estoque: 0,
-            insumo_id: null,
-            consumo_insumo: 0,
+            tipo: "unidade",
+            insumos_vinculados: [],
           });
           isFirstOpenForNewRef.current = false;
         }
       }
     } else {
       isFirstOpenForNewRef.current = true;
-      form.reset({
-        nome: "",
-        descricao: "",
-        preco: 0,
-        estoque: 0,
-        insumo_id: null,
-        consumo_insumo: 0,
-      });
+      if (!isEditing) {
+        form.reset();
+      }
     }
   }, [isOpen, isEditing, initialData, form]);
 
+  const selectedTipo = form.watch("tipo");
+  const currentTipoInfo = tiposProducao?.find(t => t.nome.toLowerCase() === selectedTipo.toLowerCase());
+  const isMetro = currentTipoInfo?.unidade_medida === 'metro';
+  const isVinil = selectedTipo.toLowerCase().includes('vinil');
+  const isDTF = selectedTipo.toLowerCase().includes('dtf');
+
   const handleSubmit = (data: ProdutoFormValues) => {
-    // Tratar insumo_id vazio como null
-    const payload = {
-      ...data,
-      insumo_id: data.insumo_id === "none" || data.insumo_id === "" ? null : data.insumo_id
-    };
-    onSubmit(payload as any, initialData?.id);
+    onSubmit(data, initialData?.id);
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEditing ? "Editar Produto" : "Adicionar Novo Produto"}</DialogTitle>
           <DialogDescription>
@@ -158,16 +169,16 @@ export const ProdutoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, init
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="nome"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Nome</FormLabel>
+                    <FormLabel>Nome do Produto</FormLabel>
                     <FormControl>
-                      <Input placeholder="Nome do produto" {...field} />
+                      <Input placeholder="Ex: Camiseta DTF" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -175,12 +186,66 @@ export const ProdutoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, init
               />
               <FormField
                 control={form.control}
+                name="tipo"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tipo de Produto</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger className={cn(
+                          "transition-all",
+                          isVinil && "border-orange-500/50 bg-orange-500/5 text-orange-600 focus:ring-orange-500",
+                          isDTF && "border-blue-500/50 bg-blue-500/5 text-blue-600 focus:ring-blue-500"
+                        )}>
+                          <SelectValue placeholder="Selecione..." />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {tiposProducao?.map((t) => {
+                          const nomeLow = t.nome.toLowerCase();
+                          const itIsVinil = nomeLow.includes('vinil');
+                          const itIsDTF = nomeLow.includes('dtf');
+                          return (
+                            <SelectItem key={t.id} value={nomeLow}>
+                              <div className="flex items-center gap-2">
+                                {itIsVinil ? <Scissors className="w-4 h-4" /> :
+                                  itIsDTF ? <Printer className="w-4 h-4" /> :
+                                    <Package className="w-4 h-4" />}
+                                <span>{t.nome}</span>
+                              </div>
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
                 name="preco"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Preço (R$)</FormLabel>
+                    <FormLabel>Preço de Venda (R$)</FormLabel>
                     <FormControl>
                       <Input type="number" step="0.01" placeholder="99.90" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="estoque"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Estoque Inicial ({isMetro ? "Metros" : "UND"})</FormLabel>
+                    <FormControl>
+                      <Input type="number" placeholder="100" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -202,72 +267,101 @@ export const ProdutoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, init
               )}
             />
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <FormField
-                control={form.control}
-                name="estoque"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Estoque Atual</FormLabel>
-                    <FormControl>
-                      <Input type="number" placeholder="100" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+            <div className="space-y-4 border rounded-lg p-4 bg-muted/30">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold flex items-center gap-2">
+                  <Package className="w-4 h-4 text-primary" />
+                  Insumos Vinculados (Composição)
+                </h3>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => append({ insumo_id: "", consumo: 0 })}
+                  className="h-8"
+                >
+                  <Plus className="w-4 h-4 mr-1" /> Add Insumo
+                </Button>
+              </div>
 
-              <FormField
-                control={form.control}
-                name="insumo_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Insumo Vinculado</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value || "none"}
-                      value={field.value || "none"}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione..." />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="none">Nenhum</SelectItem>
-                        {insumos.map((insumo) => (
-                          <SelectItem key={insumo.id} value={insumo.id}>
-                            {insumo.nome} ({insumo.unidade})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {fields.length === 0 && (
+                <p className="text-xs text-muted-foreground text-center py-2">
+                  Nenhum insumo vinculado a este produto.
+                </p>
+              )}
 
-              <FormField
-                control={form.control}
-                name="consumo_insumo"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Consumo (por un.)</FormLabel>
-                    <FormControl>
-                      <Input type="number" step="0.001" placeholder="Ex: 1.5" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="space-y-3">
+                {fields.map((field, index) => {
+                  const selectedInsumoId = form.watch(`insumos_vinculados.${index}.insumo_id`);
+                  const selectedInsumo = insumos.find(i => i.id === selectedInsumoId);
+
+                  return (
+                    <div key={field.id} className="flex gap-3 items-end border-b pb-3 last:border-0 last:pb-0">
+                      <FormField
+                        control={form.control}
+                        name={`insumos_vinculados.${index}.insumo_id`}
+                        render={({ field }) => (
+                          <FormItem className="flex-1">
+                            <FormLabel className="text-[10px] uppercase font-bold text-muted-foreground">Insumo</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Selecione..." />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {insumos.map((i) => (
+                                  <SelectItem key={i.id} value={i.id}>
+                                    {i.nome} ({i.unidade})
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name={`insumos_vinculados.${index}.consumo`}
+                        render={({ field }) => (
+                          <FormItem className="w-32">
+                            <FormLabel className="text-[10px] uppercase font-bold text-muted-foreground">
+                              Consumo {selectedInsumo ? `(${selectedInsumo.unidade})` : ''}
+                            </FormLabel>
+                            <FormControl>
+                              <Input type="number" step="0.0001" placeholder="0.5" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => remove(index)}
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
-            <DialogFooter>
+            <DialogFooter className="sticky bottom-0 bg-background pt-2">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancelar
               </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Salvando..." : isEditing ? "Salvar Alterações" : "Salvar Produto"}
+              <Button type="submit" disabled={isSubmitting} className="min-w-[120px]">
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Salvando...
+                  </>
+                ) : isEditing ? "Salvar Alterações" : "Criar Produto"}
               </Button>
             </DialogFooter>
           </form>
