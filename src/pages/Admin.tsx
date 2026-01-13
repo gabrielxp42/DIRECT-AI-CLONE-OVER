@@ -29,7 +29,9 @@ import {
     Users,
     AlertTriangle,
     Eye,
-    Check
+    Check,
+    Activity,
+    Package
 } from "lucide-react";
 import { toast } from 'sonner';
 import { differenceInDays, format, subDays } from 'date-fns';
@@ -67,6 +69,10 @@ type GlobalStats = {
     mrr: number;
     newUsers7d: number;
     totalAiUsage: number;
+    totalClients: number;
+    totalOrders: number;
+    orders7d: number;
+    activeUsers30d: number;
 };
 
 type SystemLog = {
@@ -90,7 +96,11 @@ export default function Admin() {
         activeSubscribers: 0,
         mrr: 0,
         newUsers7d: 0,
-        totalAiUsage: 0
+        totalAiUsage: 0,
+        totalClients: 0,
+        totalOrders: 0,
+        orders7d: 0,
+        activeUsers30d: 0
     });
     const [isLoading, setIsLoading] = useState(true);
     const [selectedUser, setSelectedUser] = useState<AdminProfile | null>(null);
@@ -98,6 +108,24 @@ export default function Admin() {
     const [searchTerm, setSearchTerm] = useState("");
 
     const [editForm, setEditForm] = useState<Partial<AdminProfile>>({});
+    const [userStats, setUserStats] = useState<{ pedidos: number, clientes: number } | null>(null);
+    const [loadingStats, setLoadingStats] = useState(false);
+
+    const fetchUserStats = async (userId: string) => {
+        setLoadingStats(true);
+        setUserStats(null);
+        try {
+            const [{ count: pedidosCount }, { count: clientesCount }] = await Promise.all([
+                supabase.from('pedidos').select('*', { count: 'exact', head: true }).eq('user_id', userId),
+                supabase.from('clientes').select('*', { count: 'exact', head: true }).eq('user_id', userId)
+            ]);
+            setUserStats({ pedidos: pedidosCount || 0, clientes: clientesCount || 0 });
+        } catch (error) {
+            console.error("Erro ao buscar stats:", error);
+        } finally {
+            setLoadingStats(false);
+        }
+    };
 
     const fetchData = async () => {
         setIsLoading(true);
@@ -119,6 +147,25 @@ export default function Admin() {
                 .limit(50);
 
             if (!logsError) setLogs(logsData as any);
+
+            // Fetch Platform Totals
+            const sevenDaysAgoStr = subDays(new Date(), 7).toISOString();
+            const thirtyDaysAgoStr = subDays(new Date(), 30).toISOString();
+
+            const [
+                { count: totalClients },
+                { count: totalOrders },
+                { count: orders7d },
+                { data: recentOrders }
+            ] = await Promise.all([
+                supabase.from('clientes').select('*', { count: 'exact', head: true }),
+                supabase.from('pedidos').select('*', { count: 'exact', head: true }),
+                supabase.from('pedidos').select('*', { count: 'exact', head: true }).gte('created_at', sevenDaysAgoStr),
+                supabase.from('pedidos').select('user_id').gte('created_at', thirtyDaysAgoStr)
+            ]);
+
+            const activeUsersSet = new Set(recentOrders?.map((o: any) => o.user_id));
+            const activeUsers30d = activeUsersSet.size;
 
             // Calculate Stats
             const totalUsers = usersData.length;
@@ -142,7 +189,11 @@ export default function Admin() {
                 activeSubscribers,
                 mrr: mrrValue,
                 newUsers7d,
-                totalAiUsage
+                totalAiUsage,
+                totalClients: totalClients || 0,
+                totalOrders: totalOrders || 0,
+                orders7d: orders7d || 0,
+                activeUsers30d
             });
 
         } catch (err: any) {
@@ -167,6 +218,7 @@ export default function Admin() {
             daily_ai_count: user.daily_ai_count,
             is_gifted_plan: user.is_gifted_plan || false
         });
+        fetchUserStats(user.id);
         setIsDetailOpen(true);
     };
 
@@ -218,15 +270,15 @@ export default function Admin() {
     }
 
     return (
-        <div className="container max-w-7xl py-10 space-y-10 selection:bg-primary selection:text-black">
+        <div className="container max-w-7xl px-4 pt-6 pb-24 md:py-10 space-y-8 md:space-y-10 selection:bg-primary selection:text-black">
 
             {/* Header com Liquid Identity */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                 <div>
-                    <h1 className="text-4xl font-black tracking-tighter text-foreground uppercase italic leading-none">
+                    <h1 className="text-3xl md:text-4xl font-black tracking-tighter text-foreground uppercase italic leading-none">
                         Quartel-General <span className="text-primary">Direct AI</span>
                     </h1>
-                    <p className="text-muted-foreground mt-2 font-medium">Painel de Controle e Inteligência de Faturamento.</p>
+                    <p className="text-muted-foreground mt-2 font-medium text-sm md:text-base">Painel de Controle e Inteligência de Faturamento.</p>
                 </div>
                 <Button onClick={fetchData} variant="outline" className="gap-2 rounded-xl">
                     <RefreshCw className={isLoading ? "animate-spin" : ""} size={18} />
@@ -235,9 +287,9 @@ export default function Admin() {
             </div>
 
             {/* Dashboard Stats Grid - OS NÚMEROS QUE IMPORTAM */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
                 <Card className="bg-white dark:bg-zinc-900 border-none shadow-xl rounded-[2rem] overflow-hidden">
-                    <CardContent className="p-8">
+                    <CardContent className="p-6 md:p-8">
                         <div className="flex items-center gap-4 mb-4">
                             <div className="p-3 bg-primary/10 rounded-2xl text-primary">
                                 <DollarSign size={24} />
@@ -275,16 +327,56 @@ export default function Admin() {
                 <Card className="bg-white dark:bg-zinc-900 border-none shadow-xl rounded-[2rem] overflow-hidden">
                     <CardContent className="p-8">
                         <div className="flex items-center gap-4 mb-4">
-                            <div className="p-3 bg-emerald-500/10 rounded-2xl text-emerald-500">
-                                <TrendingUp size={24} />
+                            <div className="p-3 bg-indigo-500/10 rounded-2xl text-indigo-500">
+                                <Activity size={24} />
                             </div>
-                            <span className="text-xs font-black uppercase tracking-widest text-muted-foreground">Taxa de Conversão</span>
+                            <span className="text-xs font-black uppercase tracking-widest text-muted-foreground">Usuários Ativos (30d)</span>
                         </div>
                         <div className="space-y-1">
                             <h3 className="text-3xl font-black italic tracking-tighter">
-                                {((stats.activeSubscribers / (stats.totalUsers || 1)) * 100).toFixed(1)}%
+                                {stats.activeUsers30d}
                             </h3>
-                            <p className="text-emerald-500 text-xs font-bold">Saúde da base: Excelente</p>
+                            <p className="text-indigo-500 text-xs font-bold flex items-center gap-1">
+                                <Users size={12} /> Operando a plataforma
+                            </p>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card className="bg-white dark:bg-zinc-900 border-none shadow-xl rounded-[2rem] overflow-hidden">
+                    <CardContent className="p-8">
+                        <div className="flex items-center gap-4 mb-4">
+                            <div className="p-3 bg-emerald-500/10 rounded-2xl text-emerald-500">
+                                <Package size={24} />
+                            </div>
+                            <span className="text-xs font-black uppercase tracking-widest text-muted-foreground">Pedidos na Plataforma</span>
+                        </div>
+                        <div className="space-y-1">
+                            <h3 className="text-3xl font-black italic tracking-tighter">
+                                {stats.totalOrders}
+                            </h3>
+                            <p className="text-emerald-500 text-xs font-bold">
+                                +{stats.orders7d} essa semana
+                            </p>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card className="bg-white dark:bg-zinc-900 border-none shadow-xl rounded-[2rem] overflow-hidden">
+                    <CardContent className="p-8">
+                        <div className="flex items-center gap-4 mb-4">
+                            <div className="p-3 bg-violet-500/10 rounded-2xl text-violet-500">
+                                <Users size={24} />
+                            </div>
+                            <span className="text-xs font-black uppercase tracking-widest text-muted-foreground">Clientes Cadastrados</span>
+                        </div>
+                        <div className="space-y-1">
+                            <h3 className="text-3xl font-black italic tracking-tighter">
+                                {stats.totalClients}
+                            </h3>
+                            <p className="text-violet-500 text-xs font-bold italic">
+                                Total de clientes finais
+                            </p>
                         </div>
                     </CardContent>
                 </Card>
@@ -309,20 +401,20 @@ export default function Admin() {
 
             {/* Abas Principais */}
             <Tabs defaultValue="users" className="w-full">
-                <TabsList className="bg-muted/50 p-1 rounded-2xl mb-8">
-                    <TabsTrigger value="users" className="rounded-xl px-8 font-black uppercase tracking-widest text-[11px]">Usuários</TabsTrigger>
-                    <TabsTrigger value="logs" className="rounded-xl px-8 font-black uppercase tracking-widest text-[11px]">Monitoramento IA</TabsTrigger>
-                    <TabsTrigger value="marketing" className="rounded-xl px-8 font-black uppercase tracking-widest text-[11px]">Marketing & Ganhos</TabsTrigger>
+                <TabsList className="bg-muted/50 p-1 rounded-2xl mb-8 flex overflow-x-auto scrollbar-hide w-full md:w-auto">
+                    <TabsTrigger value="users" className="rounded-xl px-4 md:px-8 font-black uppercase tracking-widest text-[11px] flex-1 md:flex-none shrink-0">Usuários</TabsTrigger>
+                    <TabsTrigger value="logs" className="rounded-xl px-4 md:px-8 font-black uppercase tracking-widest text-[11px] flex-1 md:flex-none shrink-0">Monitoramento IA</TabsTrigger>
+                    <TabsTrigger value="marketing" className="rounded-xl px-4 md:px-8 font-black uppercase tracking-widest text-[11px] flex-1 md:flex-none shrink-0">Marketing & Ganhos</TabsTrigger>
                 </TabsList>
 
                 {/* ABA DE USUÁRIOS */}
                 <TabsContent value="users">
                     <Card className="shadow-2xl rounded-[2rem] overflow-hidden border-none bg-white dark:bg-zinc-900/50 backdrop-blur-xl">
-                        <CardHeader className="p-8 border-b border-zinc-100 dark:border-zinc-800">
-                            <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                        <CardHeader className="p-6 md:p-8 border-b border-zinc-100 dark:border-zinc-800">
+                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                                 <div>
-                                    <CardTitle className="text-2xl font-black uppercase italic tracking-tighter">Lista de Operadores</CardTitle>
-                                    <CardDescription>Gerenciamento total de contas e acessos.</CardDescription>
+                                    <CardTitle className="text-xl md:text-2xl font-black uppercase italic tracking-tighter">Lista de Operadores</CardTitle>
+                                    <CardDescription className="text-sm font-medium">Gerenciamento total de contas e acessos.</CardDescription>
                                 </div>
                                 <div className="relative w-full md:w-80">
                                     <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -336,7 +428,7 @@ export default function Admin() {
                             </div>
                         </CardHeader>
                         <CardContent className="p-0 overflow-x-auto">
-                            <Table>
+                            <Table className="min-w-[800px]">
                                 <TableHeader>
                                     <TableRow className="hover:bg-transparent border-zinc-100 dark:border-zinc-800">
                                         <TableHead className="font-black uppercase tracking-widest text-[10px] p-6">Empresa / Usuário</TableHead>
@@ -520,6 +612,21 @@ export default function Admin() {
 
                     {selectedUser && (
                         <div className="space-y-6 py-6 font-bold">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="p-4 rounded-2xl bg-violet-50 dark:bg-violet-900/10 border border-violet-100 dark:border-violet-900/20 text-center">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-violet-500 block mb-1">Pedidos Feitos</span>
+                                    <span className="text-2xl font-black italic text-violet-700 dark:text-violet-400 leading-none">
+                                        {loadingStats ? <RefreshCw className="animate-spin inline" size={16} /> : userStats?.pedidos || 0}
+                                    </span>
+                                </div>
+                                <div className="p-4 rounded-2xl bg-orange-50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-900/20 text-center">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-orange-500 block mb-1">Clientes</span>
+                                    <span className="text-2xl font-black italic text-orange-700 dark:text-orange-400 leading-none">
+                                        {loadingStats ? <RefreshCw className="animate-spin inline" size={16} /> : userStats?.clientes || 0}
+                                    </span>
+                                </div>
+                            </div>
+
                             <div className="space-y-2">
                                 <label className="text-xs uppercase tracking-widest text-muted-foreground">Status do Plano</label>
                                 <Select value={editForm.subscription_status} onValueChange={(v: any) => setEditForm(p => ({ ...p, subscription_status: v, subscription_tier: v === 'active' ? 'pro' : p.subscription_tier }))}>
