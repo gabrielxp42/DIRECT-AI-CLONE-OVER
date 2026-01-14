@@ -785,53 +785,54 @@ const PedidosPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Card de Novidade: Calculadora DTF */}
+      {/* Card de Novidade: Calculadora DTF (Mais discreto) */}
       {showUpdateCard && (
         <motion.div
-          initial={{ opacity: 0, y: -20 }}
+          initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           className="mb-8"
         >
-          <Card className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border-none shadow-2xl rounded-[2rem] overflow-hidden relative">
-            <div className="absolute top-0 right-0 p-4">
+          <div className="relative overflow-hidden rounded-[1.5rem] border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-all p-4 md:p-6 backdrop-blur-sm">
+            <div className="absolute top-2 right-2">
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={handleDismissUpdateCard}
-                className="text-white/40 hover:text-white hover:bg-white/10 rounded-full"
+                className="h-7 w-7 text-muted-foreground hover:text-foreground rounded-full"
               >
-                <X className="h-5 w-5" />
+                <X className="h-4 w-4" />
               </Button>
             </div>
-            <CardContent className="p-8 md:p-10 flex flex-col md:flex-row items-center gap-8">
-              <div className="p-5 bg-primary/20 rounded-[2rem] text-primary shadow-inner">
-                <Calculator className="w-12 h-12" />
+
+            <div className="flex flex-col md:flex-row items-center gap-4 md:gap-8">
+              <div className="shrink-0 p-3 bg-primary/10 rounded-xl text-primary border border-primary/10">
+                <Calculator className="w-7 h-7" />
               </div>
+
               <div className="flex-1 text-center md:text-left">
-                <div className="flex items-center justify-center md:justify-start gap-3 mb-2">
-                  <Badge className="bg-primary text-primary-foreground font-black uppercase tracking-widest text-[10px] px-3 py-1 rounded-lg">Update v2.0</Badge>
-                  <span className="text-primary font-black uppercase tracking-[0.3em] text-[10px]">Nova Ferramenta</span>
+                <div className="flex items-center justify-center md:justify-start gap-2 mb-1">
+                  <Badge variant="outline" className="text-[9px] font-black uppercase tracking-widest px-2 h-4 border-primary/30 text-primary">v2.0</Badge>
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Nova Ferramenta</span>
                 </div>
-                <h2 className="text-3xl md:text-4xl font-black italic tracking-tighter text-white uppercase leading-none mb-3">
-                  Calculadora <span className="text-primary underline decoration-primary/30">DTF Profissional</span>
-                </h2>
-                <p className="text-slate-400 font-medium text-sm md:text-base max-w-2xl leading-relaxed">
-                  Chega de quebrar a cabeça com medidas! Agora você pode simular o aproveitamento total do rolo, calcular margens de segurança e saber exatamente quantos metros precisa antes de fechar o pedido.
+                <h3 className="text-xl font-black italic tracking-tighter uppercase mb-0.5">
+                  Calculadora <span className="text-primary tracking-normal">DTF Profissional</span>
+                </h3>
+                <p className="text-xs text-muted-foreground font-medium max-w-xl line-clamp-2 md:line-clamp-none">
+                  Simule o aproveitamento total do rolo, margens e metros necessários instantaneamente antes de fechar o pedido.
                 </p>
-                <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 mt-6">
-                  <Button
-                    onClick={() => { setIsCalculatorOpen(true); handleDismissUpdateCard(); }}
-                    className="bg-primary hover:bg-primary/90 text-primary-foreground font-black uppercase tracking-widest px-8 h-12 rounded-2xl shadow-lg shadow-primary/20 transition-all hover:scale-105"
-                  >
-                    Testar Agora
-                  </Button>
-                  <div className="flex items-center gap-2 text-slate-500 font-bold italic text-xs uppercase tracking-wider">
-                    <CheckCircle className="h-4 w-4 text-emerald-500" /> + Precisão no Orçamento
-                  </div>
-                </div>
               </div>
-            </CardContent>
-          </Card>
+
+              <div className="shrink-0">
+                <Button
+                  onClick={() => { setIsCalculatorOpen(true); handleDismissUpdateCard(); }}
+                  size="sm"
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground font-black uppercase tracking-widest px-6 h-9 rounded-xl shadow-lg shadow-primary/10 transition-transform active:scale-95"
+                >
+                  Abrir Agora
+                </Button>
+              </div>
+            </div>
+          </div>
         </motion.div>
       )}
 
