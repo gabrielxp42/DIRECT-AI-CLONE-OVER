@@ -249,55 +249,101 @@ function getHudPositionStyle(rect: DOMRect | null, position?: string): any {
 
     const targetCenterX = rect.left + rect.width / 2;
     const targetCenterY = rect.top + rect.height / 2;
+    const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1000;
     const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 1000;
 
-    // Helper to determine if we should flip to top if space at bottom is low
+    const hudWidth = 400;
+    const hudHeight = 280;
+
     const spaceBelow = viewportHeight - rect.bottom;
     const spaceAbove = rect.top;
+    const spaceLeft = rect.left;
+    const spaceRight = viewportWidth - rect.right;
 
     let effectivePosition = position;
     if (!effectivePosition) {
-        effectivePosition = spaceBelow > 300 ? 'bottom' : 'top';
+        if (spaceBelow > hudHeight + 40) effectivePosition = 'bottom';
+        else if (spaceAbove > hudHeight + 40) effectivePosition = 'top';
+        else if (spaceRight > hudWidth + 40) effectivePosition = 'right';
+        else if (spaceLeft > hudWidth + 40) effectivePosition = 'left';
+        else effectivePosition = 'bottom';
     }
 
-    // Flip if no space
-    if (effectivePosition === 'bottom' && spaceBelow < 250 && spaceAbove > 250) effectivePosition = 'top';
-    if (effectivePosition === 'top' && spaceAbove < 250 && spaceBelow > 250) effectivePosition = 'bottom';
+    if (effectivePosition === 'bottom' && spaceBelow < hudHeight && spaceAbove > hudHeight) effectivePosition = 'top';
+    if (effectivePosition === 'top' && spaceAbove < hudHeight && spaceBelow > hudHeight) effectivePosition = 'bottom';
+
+    const getClampedX = (idealX: number) => {
+        const halfWidth = hudWidth / 2;
+        return Math.min(viewportWidth - halfWidth - 20, Math.max(halfWidth + 20, idealX));
+    };
+
+    const getClampedY = (idealY: number, height: number, isBottomTrigger: boolean) => {
+        if (isBottomTrigger) {
+            return Math.min(viewportHeight - height - 20, Math.max(20, idealY));
+        } else {
+            return Math.min(viewportHeight - 20, Math.max(height + 20, idealY));
+        }
+    };
 
     switch (effectivePosition) {
         case 'top':
             return {
-                top: rect.top - padding,
-                left: targetCenterX,
+                top: getClampedY(rect.top - padding, hudHeight, false),
+                left: getClampedX(targetCenterX),
                 x: '-50%',
                 y: '-100%',
                 bottom: 'auto'
             };
         case 'bottom':
             return {
-                top: rect.bottom + padding,
-                left: targetCenterX,
+                top: getClampedY(rect.bottom + padding, hudHeight, true),
+                left: getClampedX(targetCenterX),
                 x: '-50%',
                 y: 0,
                 bottom: 'auto'
             };
         case 'left':
+            if (spaceLeft < hudWidth + 20) {
+                const useBottom = spaceBelow > spaceAbove;
+                return {
+                    top: getClampedY(useBottom ? rect.bottom + padding : rect.top - padding, hudHeight, useBottom),
+                    left: getClampedX(targetCenterX),
+                    x: '-50%',
+                    y: useBottom ? 0 : '-100%',
+                };
+            }
             return {
-                top: targetCenterY,
+                top: Math.min(viewportHeight - hudHeight / 2 - 20, Math.max(hudHeight / 2 + 20, targetCenterY)),
                 left: rect.left - padding,
                 x: '-100%',
                 y: '-50%',
                 right: 'auto'
             };
         case 'right':
+            if (spaceRight < hudWidth + 20) {
+                const useBottom = spaceBelow > spaceAbove;
+                return {
+                    top: getClampedY(useBottom ? rect.bottom + padding : rect.top - padding, hudHeight, useBottom),
+                    left: getClampedX(targetCenterX),
+                    x: '-50%',
+                    y: useBottom ? 0 : '-100%',
+                };
+            }
             return {
-                top: targetCenterY,
+                top: Math.min(viewportHeight - hudHeight / 2 - 20, Math.max(hudHeight / 2 + 20, targetCenterY)),
                 left: rect.right + padding,
                 x: 0,
                 y: '-50%',
                 right: 'auto'
             };
+        case 'center':
+            return { top: '50%', left: '50%', x: '-50%', y: '-50%' };
         default:
-            return { top: rect.bottom + padding, left: targetCenterX, x: '-50%', y: 0 };
+            return {
+                top: getClampedY(rect.bottom + padding, hudHeight, true),
+                left: getClampedX(targetCenterX),
+                x: '-50%',
+                y: 0
+            };
     }
 }
