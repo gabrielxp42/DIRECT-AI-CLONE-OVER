@@ -46,8 +46,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
     const [imageWidth, setImageWidth] = useState(initialData?.imageWidth || 5);
     const [imageHeight, setImageHeight] = useState(initialData?.imageHeight || 5);
     const [separation, setSeparation] = useState(0.5);
-    const [marginSide, setMarginSide] = useState(1);
-    const [marginTopBottom, setMarginTopBottom] = useState(1.5);
+    const [margin, setMargin] = useState(1);
     const [quantity, setQuantity] = useState(initialData?.quantity || 100);
 
     // UX State
@@ -72,7 +71,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
 
     // Results calculation
     const results = useMemo(() => {
-        const usableWidth = rollWidth - (marginSide * 2);
+        const usableWidth = rollWidth - (margin * 2);
         const totalImageWidth = imageWidth + separation;
         const totalImageHeight = imageHeight + separation;
 
@@ -81,7 +80,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
 
         // Altura total = (linhas * altura_logo) + (espaçamentos entre elas) + Margens Topo/Fundo
         const contentHeight = (totalRows * imageHeight) + ((totalRows - 1) * separation);
-        const totalHeightCm = contentHeight + (marginTopBottom * 2);
+        const totalHeightCm = contentHeight + (margin * 2);
         const totalMeters = totalHeightCm / 100;
 
         const imagesPerMeter = (100 / totalImageHeight) * imagesPerRow;
@@ -103,13 +102,13 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
             realSideMargin,
             totalHeightCm
         };
-    }, [rollWidth, imageWidth, imageHeight, separation, marginSide, marginTopBottom, quantity]);
+    }, [rollWidth, imageWidth, imageHeight, separation, margin, quantity]);
 
     const handleTargetMetersChange = (meters: number) => {
         setTargetMeters(meters);
         if (meters <= 0) return;
 
-        const usableHeight = (meters * 100) - (marginTopBottom * 2);
+        const usableHeight = (meters * 100) - (margin * 2);
         if (usableHeight <= 0) return;
 
         const rowHeightWithGap = imageHeight + separation;
@@ -126,7 +125,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
             `📐 *Logo:* ${imageWidth}x${imageHeight}cm\n` +
             `🔢 *Qtde:* ${quantity} un\n` +
             `📏 *Rolo:* ${rollWidth}cm\n` +
-            `↔️ *Espaço:* ${separation}cm | *Margens:* L:${marginSide}/V:${marginTopBottom}cm\n\n` +
+            `↔️ *Espaço:* ${separation}cm | *Margem:* ${margin}cm\n\n` +
             `✅ *TOTAL:* ${results.totalMeters.toFixed(2)}m\n` +
             `📈 *Aproveit.:* ${results.efficiency}% (Real)\n` +
             `📦 *Rendimento:* ${results.imagesPerMeter} un/m`;
@@ -380,44 +379,24 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                             </div>
                                         </div>
                                         {/* Configuração de Margens de Segurança */}
-                                        <div className="space-y-4">
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <div className="space-y-1">
-                                                    <InfoTooltip
-                                                        id="marginSide"
-                                                        fieldId="margin"
-                                                        label="Margem Lat. (cm)"
-                                                        content="Margem mínima de segurança nas laterais do rolo."
-                                                    />
-                                                    <NumberInput
-                                                        id="marginSide"
-                                                        value={marginSide}
-                                                        onChange={setMarginSide}
-                                                        min={0}
-                                                        max={10}
-                                                        step={0.1}
-                                                        fieldId="margin"
-                                                        highlight={hoveredField === 'margin'}
-                                                    />
-                                                </div>
-                                                <div className="space-y-1">
-                                                    <InfoTooltip
-                                                        id="marginTopBottom"
-                                                        fieldId="margin"
-                                                        label="Margem T/F (cm)"
-                                                        content="Sangria no início e fim do arquivo."
-                                                    />
-                                                    <NumberInput
-                                                        id="marginTopBottom"
-                                                        value={marginTopBottom}
-                                                        onChange={setMarginTopBottom}
-                                                        min={0}
-                                                        max={10}
-                                                        step={0.1}
-                                                        fieldId="margin"
-                                                        highlight={hoveredField === 'margin'}
-                                                    />
-                                                </div>
+                                        <div className="space-y-3">
+                                            <div className="space-y-1">
+                                                <InfoTooltip
+                                                    id="margin"
+                                                    fieldId="margin"
+                                                    label="Margem de Segurança (cm)"
+                                                    content="Espaço de segurança nas bordas (topo, fundo e laterais)."
+                                                />
+                                                <NumberInput
+                                                    id="margin"
+                                                    value={margin}
+                                                    onChange={setMargin}
+                                                    min={0}
+                                                    max={10}
+                                                    step={0.5}
+                                                    fieldId="margin"
+                                                    highlight={hoveredField === 'margin'}
+                                                />
                                             </div>
                                             <div className="flex gap-1">
                                                 {[0.5, 1, 1.5, 2].map((m) => (
@@ -425,8 +404,8 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                         key={m}
                                                         variant="outline"
                                                         size="sm"
-                                                        className={`h-7 flex-1 text-[10px] uppercase font-bold transition-all ${(marginSide === m && marginTopBottom === m) ? 'bg-primary/20 border-primary text-primary' : 'text-muted-foreground hover:bg-primary/5'}`}
-                                                        onClick={() => { setMarginSide(m); setMarginTopBottom(m); }}
+                                                        className={`h-7 flex-1 text-[10px] uppercase font-bold transition-all ${margin === m ? 'bg-primary/20 border-primary text-primary' : 'text-muted-foreground hover:bg-primary/5'}`}
+                                                        onClick={() => setMargin(m)}
                                                     >
                                                         {m}cm
                                                     </Button>
@@ -563,7 +542,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                         </Card>
 
                         {/* Alerta de Erro se não couber */}
-                        {imageWidth + (marginSide * 2) > rollWidth && (
+                        {imageWidth + (margin * 2) > rollWidth && (
                             <div className="p-3 bg-red-500/10 border border-red-500/50 rounded-lg flex items-center gap-2 text-red-500">
                                 <Info className="h-4 w-4" />
                                 <span className="text-xs font-bold">Erro: A logo não cabe na largura do rolo com essas margens!</span>
@@ -635,8 +614,8 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                         style={{
                                             left: `${(results.realSideMargin / rollWidth) * 100}%`,
                                             right: `${(results.realSideMargin / rollWidth) * 100}%`,
-                                            top: `${(marginTopBottom / (results.totalHeightCm)) * 100}%`,
-                                            bottom: `${(marginTopBottom / (results.totalHeightCm)) * 100}%`,
+                                            top: `${(margin / (results.totalHeightCm)) * 100}%`,
+                                            bottom: `${(margin / (results.totalHeightCm)) * 100}%`,
                                         }}
                                     >
                                         {/* Grid de Logos */}
@@ -678,10 +657,10 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                             "absolute top-0 inset-x-0 transition-all duration-300 pointer-events-none z-10 border-b border-emerald-500/20",
                                             hoveredField === 'margin' ? "bg-emerald-500/60" : "bg-emerald-500/10"
                                         )}
-                                        style={{ height: `${(marginTopBottom / results.totalHeightCm) * 100}%` }}
+                                        style={{ height: `${(margin / results.totalHeightCm) * 100}%` }}
                                     >
                                         <div className="absolute inset-0 flex items-center justify-center">
-                                            <span className="text-[7px] font-bold text-emerald-600/50 uppercase tracking-widest">{marginTopBottom}cm</span>
+                                            <span className="text-[7px] font-bold text-emerald-600/50 uppercase tracking-widest">{margin}cm</span>
                                         </div>
                                     </div>
                                     {/* Fundo (Largura Total) */}
@@ -690,10 +669,10 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                             "absolute bottom-0 inset-x-0 transition-all duration-300 pointer-events-none z-10 border-t border-emerald-500/20",
                                             hoveredField === 'margin' ? "bg-emerald-500/60" : "bg-emerald-500/10"
                                         )}
-                                        style={{ height: `${(marginTopBottom / results.totalHeightCm) * 100}%` }}
+                                        style={{ height: `${(margin / results.totalHeightCm) * 100}%` }}
                                     >
                                         <div className="absolute inset-0 flex items-center justify-center">
-                                            <span className="text-[7px] font-bold text-emerald-600/50 uppercase tracking-widest">{marginTopBottom}cm</span>
+                                            <span className="text-[7px] font-bold text-emerald-600/50 uppercase tracking-widest">{margin}cm</span>
                                         </div>
                                     </div>
                                     {/* Esquerda - MOSTRA A SOBRA REAL DO ROLO (FAITHFUL) */}
@@ -704,8 +683,8 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                         )}
                                         style={{
                                             width: `${(results.realSideMargin / rollWidth) * 100}%`,
-                                            top: `${(marginTopBottom / results.totalHeightCm) * 100}%`,
-                                            bottom: `${(marginTopBottom / results.totalHeightCm) * 100}%`
+                                            top: `${(margin / results.totalHeightCm) * 100}%`,
+                                            bottom: `${(margin / results.totalHeightCm) * 100}%`
                                         }}
                                     >
                                         <div className="absolute inset-0 flex items-center justify-center [writing-mode:vertical-lr] rotate-180">
@@ -720,8 +699,8 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                         )}
                                         style={{
                                             width: `${(results.realSideMargin / rollWidth) * 100}%`,
-                                            top: `${(marginTopBottom / results.totalHeightCm) * 100}%`,
-                                            bottom: `${(marginTopBottom / results.totalHeightCm) * 100}%`
+                                            top: `${(margin / results.totalHeightCm) * 100}%`,
+                                            bottom: `${(margin / results.totalHeightCm) * 100}%`
                                         }}
                                     >
                                         <div className="absolute inset-0 flex items-center justify-center [writing-mode:vertical-lr]">
