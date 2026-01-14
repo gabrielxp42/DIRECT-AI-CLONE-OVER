@@ -118,33 +118,37 @@
         <div class="container">
             <div class="ai-reveal">
                 <div class="ai-core-visual">
-                    <canvas id="gabiSmoke"></canvas>
-                    <div class="ai-pulse"></div>
-                    <div class="ai-sphere">
-                        <i data-lucide="brain-circuit"></i>
+                    <div class="gabi-orb-wrap">
+                        <canvas id="gabiSmoke"></canvas>
+                        <div class="ai-pulse"></div>
+                        <div class="ai-sphere">
+                            <i data-lucide="brain-circuit"></i>
+                        </div>
                     </div>
                     <!-- Floating Dialog Bubbles -->
                     <div class="gabi-dialogs">
                         <div class="gabi-bubble bubble-left" data-scroll-reveal="1">
                             <span class="bubble-user">Você:</span>
-                            <p>Gabi, me mostra as notas do dia 22 até o dia 30.</p>
+                            <p>Gabi, quanto entrou de grana essa semana?</p>
                         </div>
                         <div class="gabi-bubble bubble-right" data-scroll-reveal="2">
                             <span class="bubble-gabi">Gabi:</span>
-                            <p>Gerando relatório... 📊 Foram R$ 12.450 faturados nesse período em 42 pedidos.</p>
+                            <p>Essa semana foram R$ 4.280 em 31 pedidos. 📈 Seu ticket médio subiu 12% comparado à
+                                semana passada!</p>
                         </div>
                         <div class="gabi-bubble bubble-left-bottom" data-scroll-reveal="3">
                             <span class="bubble-user">Você:</span>
-                            <p>Gabi, altera o status do pedido do 'Carlos' para Pronto.</p>
+                            <p>O pedido do Marcelo tá pronto, avisa ele pra buscar.</p>
                         </div>
                         <div class="gabi-bubble bubble-right-bottom" data-scroll-reveal="4">
                             <span class="bubble-gabi">Gabi:</span>
-                            <p>Feito! ✅ Pedido #842 atualizado. Já enviei a notificação de retirada pro WhatsApp dele.
-                            </p>
+                            <p>Pronto! ✅ Atualizei o status e já mandei no WhatsApp dele: "Seu pedido está pronto para
+                                retirada!"</p>
                         </div>
                         <div class="gabi-bubble bubble-extra-1" data-scroll-reveal="5">
-                            <span class="bubble-user">Você:</span>
-                            <p>Gabi, muda a observação do cliente 'X' para 'Retirada Urgente'.</p>
+                            <span class="bubble-gabi">Gabi:</span>
+                            <p>⚠️ Atenção: O cliente "Estamparia do João" tem R$ 350 em aberto há 8 dias. Quer que eu
+                                envie um lembrete?</p>
                         </div>
                     </div>
                 </div>
@@ -191,7 +195,7 @@
                 </div>
                 <div class="visual-container">
                     <div class="glass-card stats-preview">
-                        <img src="reports-preview.png" alt="Relatórios Direct AI" class="preview-img">
+                        <img src="relatorios-desktop.png" alt="Relatórios Direct AI" class="preview-img">
                         <div class="glass-overlay"></div>
                     </div>
                     <div class="floating-element element-4">
@@ -427,6 +431,13 @@
             let lastScrollY = window.scrollY;
             let scrollVelocity = 0;
 
+            // --- SMOOTH ANIMATION PROGRESS ---
+            let visualProgress = 0;
+            const progressEase = 0.08;
+            const isMobile = window.innerWidth <= 992;
+
+
+
             function resize() {
                 canvas.width = 1000;
                 canvas.height = 1000;
@@ -482,6 +493,40 @@
 
             function animate() {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // Track actual scroll velocity for animations
+                const currentActual = window.scrollY;
+                scrollVelocity = currentActual - lastScrollY;
+                lastScrollY = currentActual;
+
+                // Smoothly update visualProgress towards actual scroll
+                if (aiSection) {
+                    const rect = (isMobile ? document.querySelector('.ai-core-visual') : aiSection).getBoundingClientRect();
+                    const viewHeight = window.innerHeight;
+
+                    let targetProg;
+                    if (isMobile) {
+                        const sectionEntry = rect.top - viewHeight;
+                        const sectionHeight = rect.height;
+                        targetProg = Math.max(0, Math.min(1, -sectionEntry / sectionHeight));
+                    } else {
+                        targetProg = Math.max(0, Math.min(1, (viewHeight - rect.top) / rect.height));
+                    }
+
+                    // Ease the visual progress
+                    visualProgress += (targetProg - visualProgress) * (isMobile ? 0.25 : 0.08);
+
+                    // Update bubbles based on visualProgress
+                    bubbles.forEach((bubble) => {
+                        const revealAt = parseFloat(bubble.getAttribute('data-scroll-reveal')) * (isMobile ? 0.18 : 0.2);
+                        if (visualProgress > revealAt) {
+                            bubble.classList.add('visible');
+                        } else {
+                            bubble.classList.remove('visible');
+                        }
+                    });
+                }
+
                 const sX = canvas.width / 2;
                 const sY = canvas.height / 2;
 
@@ -499,49 +544,11 @@
                     pulse.style.transform = "translate(-50%, -50%) scale(" + pS + ")";
                 }
 
-                scrollVelocity *= 0.94;
                 requestAnimationFrame(animate);
             }
 
             const bubbles = document.querySelectorAll('.gabi-bubble');
             const aiSection = document.getElementById('agente-ia');
-
-            window.addEventListener('scroll', () => {
-                const current = window.scrollY;
-                scrollVelocity = current - lastScrollY;
-                lastScrollY = current;
-
-                // Bubble Reveal Logic
-                if (aiSection) {
-                    const isMobile = window.innerWidth <= 992;
-                    const triggerEl = isMobile ? document.querySelector('.ai-core-visual') : aiSection;
-
-                    if (triggerEl) {
-                        const rect = triggerEl.getBoundingClientRect();
-                        const viewHeight = window.innerHeight;
-
-                        // Progress calculation: 
-                        // Desktop: based on section height (sticky)
-                        // Mobile: based on the visual core entering the middle of the screen
-                        let progress;
-                        if (isMobile) {
-                            const entryY = rect.top - (viewHeight * 0.7);
-                            progress = Math.max(0, Math.min(1, -entryY / 200));
-                        } else {
-                            progress = Math.max(0, Math.min(1, (viewHeight - rect.top) / rect.height));
-                        }
-
-                        bubbles.forEach((bubble) => {
-                            const revealAt = parseFloat(bubble.getAttribute('data-scroll-reveal')) * (isMobile ? 0.15 : 0.2);
-                            if (progress > revealAt) {
-                                bubble.classList.add('visible');
-                            } else {
-                                bubble.classList.remove('visible');
-                            }
-                        });
-                    }
-                }
-            });
 
             // Mobile Menu Toggle
             const mobileMenuBtn = document.getElementById('mobileMenuBtn');

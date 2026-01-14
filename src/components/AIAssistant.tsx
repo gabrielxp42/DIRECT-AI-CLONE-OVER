@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Send, X, Bot, User, Check, ShoppingBag, Loader2 } from 'lucide-react';
+import { Send, X, Bot, User, Check, ShoppingBag, Loader2, Calculator, LayoutGrid } from 'lucide-react';
 import { getOpenAIClient, type ChatMessage } from '@/integrations/openai/client';
 import { openAIFunctions, callOpenAIFunction } from '@/integrations/openai/aiTools';
 import { useToast } from '@/hooks/use-toast';
@@ -17,6 +17,7 @@ import { generateReActSystemPrompt } from '@/utils/agentPrompts';
 import { useSubscription } from '@/hooks/useSubscription';
 import { SubscriptionModal } from '@/components/SubscriptionModal';
 import { logAIError } from '@/utils/logger';
+import { DTFCalculatorModal } from './DTFCalculatorModal';
 
 
 export const AIAssistant = () => {
@@ -31,6 +32,10 @@ export const AIAssistant = () => {
   const { toast } = useToast();
   const { canUseAI } = useSubscription();
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+
+  // DTF Calculator State
+  const [isCalcOpen, setIsCalcOpen] = useState(false);
+  const [calcData, setCalcData] = useState<any>(null);
 
   // Initialize Memory Manager
   const memoryManager = useRef<AgentMemoryManager | null>(null);
@@ -85,7 +90,8 @@ export const AIAssistant = () => {
 
       // Salva mensagem do usuário na memória
       if (memoryManager.current) {
-        await memoryManager.current.addMessage('user', userMessage.content);
+        const content = typeof userMessage.content === 'string' ? userMessage.content : '';
+        await memoryManager.current.addMessage('user', content);
       }
 
       // Carrega memórias e insights relevantes
@@ -94,8 +100,9 @@ export const AIAssistant = () => {
 
       if (memoryManager.current) {
         console.log('🧠 [AIAssistant] Carregando memórias relevantes...');
+        const content = typeof userMessage.content === 'string' ? userMessage.content : '';
         [memories, insights] = await Promise.all([
-          memoryManager.current.getRelevantMemories(10, 0.3, userMessage.content),
+          memoryManager.current.getRelevantMemories(10, 0.3, content),
           memoryManager.current.getActiveInsights()
         ]);
         console.log('✅ [AIAssistant] Memórias carregadas:', memories.length, '| Insights:', insights.length);
@@ -176,8 +183,9 @@ export const AIAssistant = () => {
         await memoryManager.current.addMessage('assistant', finalResponseText);
 
         // Extrai e salva memórias automaticamente da conversa
+        const content = typeof userMessage.content === 'string' ? userMessage.content : '';
         await memoryManager.current.extractMemoriesFromConversation(
-          userMessage.content,
+          content,
           finalResponseText
         );
       }
@@ -363,9 +371,9 @@ export const AIAssistant = () => {
                 <div className="flex items-start gap-2">
                   <div className="flex-1">
                     {msg.audioUrl ? (
-                      <AudioMessageDisplay audioUrl={msg.audioUrl} transcription={msg.content || ''} isUserMessage={true} />
+                      <AudioMessageDisplay audioUrl={typeof msg.audioUrl === 'string' ? msg.audioUrl : ''} transcription={typeof msg.content === 'string' ? msg.content : ''} isUserMessage={true} />
                     ) : (
-                      <div dangerouslySetInnerHTML={{ __html: formatMessage(msg.content) }} />
+                      <div dangerouslySetInnerHTML={{ __html: formatMessage(typeof msg.content === 'string' ? msg.content : '') }} />
                     )}
                   </div>
                   <User className="h-4 w-4 flex-shrink-0 mt-0.5 opacity-70" />
@@ -374,7 +382,8 @@ export const AIAssistant = () => {
                 msg.role === 'function' && msg.name === 'create_order_draft' ? (
                   (() => {
                     try {
-                      const result = JSON.parse(msg.content);
+                      const content = typeof msg.content === 'string' ? msg.content : '';
+                      const result = JSON.parse(content);
                       if (result.type === 'order_draft') {
                         return (
                           <div className="mt-2 border rounded-lg p-4 bg-white dark:bg-slate-950 shadow-sm w-full max-w-xs">
@@ -418,12 +427,58 @@ export const AIAssistant = () => {
                         );
                       }
                     } catch (e) { return null; }
-                    return <div dangerouslySetInnerHTML={{ __html: formatMessage(msg.content) }} />;
+                    return <div dangerouslySetInnerHTML={{ __html: formatMessage(typeof msg.content === 'string' ? msg.content : '') }} />;
+                  })()
+                ) : msg.role === 'function' && msg.name === 'calculate_dtf_packing' ? (
+                  (() => {
+                    try {
+                      const content = typeof msg.content === 'string' ? msg.content : '';
+                      const result = JSON.parse(content);
+                      if (result.type === 'dtf_calculation') {
+                        return (
+                          <div className="mt-2 bg-white dark:bg-slate-900 border-2 border-primary/20 rounded-xl shadow-lg overflow-hidden max-w-xs">
+                            <div className="bg-primary/5 p-3 border-b border-primary/10 flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <Calculator className="h-4 w-4 text-primary" />
+                                <span className="font-bold text-sm">Orçamento DTF</span>
+                              </div>
+                              <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold">
+                                {result.data.rollWidth}cm
+                              </span>
+                            </div>
+                            <div className="p-4 space-y-3">
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className="bg-muted/50 p-2 rounded-lg text-center">
+                                  <p className="text-[9px] uppercase font-bold text-muted-foreground">Total Metros</p>
+                                  <p className="text-xl font-black text-primary">{result.data.results.totalMeters.toFixed(2)}m</p>
+                                </div>
+                                <div className="bg-muted/50 p-2 rounded-lg text-center">
+                                  <p className="text-[9px] uppercase font-bold text-muted-foreground">Rendimento/m</p>
+                                  <p className="text-xl font-black text-primary">{result.data.results.imagesPerMeter} un</p>
+                                </div>
+                              </div>
+                              <div className="text-xs text-muted-foreground leading-snug">
+                                Para <strong>{result.data.quantity}</strong> unidades de <strong>{result.data.imageWidth}x{result.data.imageHeight}cm</strong>.
+                              </div>
+                              <Button
+                                className="w-full gap-2 h-9 text-xs"
+                                onClick={() => {
+                                  setCalcData(result.data);
+                                  setIsCalcOpen(true);
+                                }}
+                              >
+                                <LayoutGrid className="h-4 w-4" />
+                                Ver Preview e Detalhes
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      }
+                    } catch (e) { return null; }
+                    return <div dangerouslySetInnerHTML={{ __html: formatMessage(typeof msg.content === 'string' ? msg.content : '') }} />;
                   })()
                 ) : (
-                  <div
-                    dangerouslySetInnerHTML={{ __html: formatMessage(msg.content) }}
-                  />
+                  <div dangerouslySetInnerHTML={{ __html: formatMessage(typeof msg.content === 'string' ? msg.content : '') }} />
                 )
               )}
             </div>
@@ -506,6 +561,11 @@ export const AIAssistant = () => {
         </div>
       </CardFooter>
       <SubscriptionModal open={showUpgradeModal} onOpenChange={setShowUpgradeModal} />
+      <DTFCalculatorModal
+        isOpen={isCalcOpen}
+        onClose={() => setIsCalcOpen(false)}
+        initialData={calcData}
+      />
     </Card>
   );
 };

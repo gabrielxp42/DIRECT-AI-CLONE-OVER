@@ -6,8 +6,9 @@ import { Cliente } from '@/types/cliente';
 import { Produto } from '@/types/produto';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Plus, Search, Filter, Eye, Edit, Trash2, Loader2, CalendarIcon, DollarSign, FileText, Scissors, History, MessageSquare, MoreHorizontal, User, Clock, CheckCircle, XCircle, Package, X, Printer, Ruler, PackageOpen, Wrench, Users, Activity, CheckSquare, ChevronDown, Sparkles, ScrollText } from 'lucide-react';
+import { Plus, Search, Filter, Eye, Edit, Trash2, Loader2, CalendarIcon, DollarSign, FileText, Scissors, History, MessageSquare, MoreHorizontal, User, Clock, CheckCircle, XCircle, Package, X, Printer, Ruler, PackageOpen, Wrench, Users, Activity, CheckSquare, ChevronDown, Sparkles, ScrollText, Calculator } from 'lucide-react';
 import { PedidoForm } from '@/components/PedidoForm';
+import { DTFCalculatorModal } from '@/components/DTFCalculatorModal';
 import { PedidoDetails } from '@/components/PedidoDetails';
 import { EmptyState } from '@/components/EmptyState';
 import { showSuccess, showError } from '@/utils/toast';
@@ -59,6 +60,7 @@ import { useTour } from '@/hooks/useTour';
 import { PEDIDOS_TOUR } from '@/utils/tours';
 import { useCompanyProfile, getCompanyInfoForPDF } from '@/hooks/useCompanyProfile';
 import { printThermalReceipt } from '@/utils/thermalPrinter';
+import { motion } from 'framer-motion';
 
 const ITEMS_PER_PAGE_OPTIONS = [10, 20, 50, 100];
 
@@ -140,10 +142,24 @@ const PedidosPage: React.FC = () => {
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [isStatusChangeOpen, setIsStatusChangeOpen] = useState(false);
   const [isStatusHistoryOpen, setIsStatusHistoryOpen] = useState(false);
+  const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
+  const [showUpdateCard, setShowUpdateCard] = useState(false);
   const [editingPedido, setEditingPedido] = useState<Pedido | null>(null);
   const [viewingPedidoId, setViewingPedidoId] = useState<string | null>(null);
   const [statusChangePedido, setStatusChangePedido] = useState<Pedido | null>(null);
   const [viewingStatusHistory, setViewingStatusHistory] = useState<Pedido | null>(null);
+
+  useEffect(() => {
+    const hasViewed = localStorage.getItem('dtf_calculator_update_viewed_v2');
+    if (!hasViewed) {
+      setShowUpdateCard(true);
+    }
+  }, []);
+
+  const handleDismissUpdateCard = () => {
+    localStorage.setItem('dtf_calculator_update_viewed_v2', 'true');
+    setShowUpdateCard(false);
+  };
 
   const isMobile = useIsMobile();
   const location = useLocation();
@@ -752,11 +768,72 @@ const PedidosPage: React.FC = () => {
             </Button>
           )}
         </div>
-        <Button id="btn-novo-pedido" onClick={handleCreatePedido} className="w-full sm:w-auto">
-          <Plus className="mr-2 h-4 w-4" />
-          Novo Pedido
-        </Button>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <Button
+            id="btn-gerar-orcamento"
+            variant="outline"
+            onClick={() => setIsCalculatorOpen(true)}
+            className="flex-1 sm:flex-none gap-2 bg-background border-primary/20 hover:bg-primary/5 text-muted-foreground hover:text-primary transition-all underline-offset-4 hover:underline"
+          >
+            <ScrollText className="h-4 w-4" />
+            Gerar Orçamento
+          </Button>
+          <Button id="btn-novo-pedido" onClick={handleCreatePedido} className="flex-1 sm:flex-none">
+            <Plus className="mr-2 h-4 w-4" />
+            Novo Pedido
+          </Button>
+        </div>
       </div>
+
+      {/* Card de Novidade: Calculadora DTF */}
+      {showUpdateCard && (
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-8"
+        >
+          <Card className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border-none shadow-2xl rounded-[2rem] overflow-hidden relative">
+            <div className="absolute top-0 right-0 p-4">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleDismissUpdateCard}
+                className="text-white/40 hover:text-white hover:bg-white/10 rounded-full"
+              >
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+            <CardContent className="p-8 md:p-10 flex flex-col md:flex-row items-center gap-8">
+              <div className="p-5 bg-primary/20 rounded-[2rem] text-primary shadow-inner">
+                <Calculator className="w-12 h-12" />
+              </div>
+              <div className="flex-1 text-center md:text-left">
+                <div className="flex items-center justify-center md:justify-start gap-3 mb-2">
+                  <Badge className="bg-primary text-primary-foreground font-black uppercase tracking-widest text-[10px] px-3 py-1 rounded-lg">Update v2.0</Badge>
+                  <span className="text-primary font-black uppercase tracking-[0.3em] text-[10px]">Nova Ferramenta</span>
+                </div>
+                <h2 className="text-3xl md:text-4xl font-black italic tracking-tighter text-white uppercase leading-none mb-3">
+                  Calculadora <span className="text-primary underline decoration-primary/30">DTF Profissional</span>
+                </h2>
+                <p className="text-slate-400 font-medium text-sm md:text-base max-w-2xl leading-relaxed">
+                  Chega de quebrar a cabeça com medidas! Agora você pode simular o aproveitamento total do rolo, calcular margens de segurança e saber exatamente quantos metros precisa antes de fechar o pedido.
+                </p>
+                <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 mt-6">
+                  <Button
+                    onClick={() => { setIsCalculatorOpen(true); handleDismissUpdateCard(); }}
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground font-black uppercase tracking-widest px-8 h-12 rounded-2xl shadow-lg shadow-primary/20 transition-all hover:scale-105"
+                  >
+                    Testar Agora
+                  </Button>
+                  <div className="flex items-center gap-2 text-slate-500 font-bold italic text-xs uppercase tracking-wider">
+                    <CheckCircle className="h-4 w-4 text-emerald-500" /> + Precisão no Orçamento
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
 
       {/* Filtro de Cliente Ativo */}
       {filterClientId && filterClientName && (
@@ -1213,6 +1290,10 @@ const PedidosPage: React.FC = () => {
         onNext={nextStep}
         onPrev={prevStep}
         onClose={closeTour}
+      />
+      <DTFCalculatorModal
+        isOpen={isCalculatorOpen}
+        onClose={() => setIsCalculatorOpen(false)}
       />
     </div>
   );

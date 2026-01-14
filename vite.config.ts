@@ -28,6 +28,7 @@ export default defineConfig(() => ({
     dyadComponentTagger(),
     react(),
     VitePWA({
+      // ... (restante da config PWA)
       registerType: 'autoUpdate',
       workbox: {
         cleanupOutdatedCaches: true,

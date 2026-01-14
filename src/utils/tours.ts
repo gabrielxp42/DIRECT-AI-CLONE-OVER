@@ -14,6 +14,12 @@ export const PEDIDOS_TOUR: TutorialStep[] = [
         position: 'bottom'
     },
     {
+        targetId: 'btn-gerar-orcamento',
+        title: 'Orçamentos em Segundos',
+        description: 'A nova Calculadora DTF 2.0 ajuda você a calcular a metragem exata para seus pedidos. Evite desperdícios e dê orçamentos precisos para seus clientes instantaneamente.',
+        position: 'bottom'
+    },
+    {
         targetId: 'first-order-card',
         title: 'O Card do Pedido',
         description: 'Cada card é um resumo vivo. Ele mostra o valor total, o cliente e, o mais importante: os indicadores de produção (DTF, Vinil, etc.) para você saber exatamente o que precisa ser feito sem precisar abrir o pedido.',

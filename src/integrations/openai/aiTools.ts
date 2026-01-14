@@ -617,6 +617,43 @@ export const openAIFunctions = [
       },
       required: ["orderNumbers"]
     }
+  },
+  {
+    name: "calculate_dtf_packing",
+    description: "Calcula o aproveitamento (packing) de imagens em um rolo de DTF e a metragem necessária. Use quando o usuário perguntar 'quantas logos cabem', 'quantos metros vou gastar', ou solicitar um orçamento baseado em dimensões. Retorna imagens por linha, total de metros e rendimento.",
+    parameters: {
+      type: "object",
+      properties: {
+        imageWidth: {
+          type: "number",
+          description: "Largura da imagem individual em centímetros (cm)."
+        },
+        imageHeight: {
+          type: "number",
+          description: "Altura da imagem individual em centímetros (cm)."
+        },
+        quantity: {
+          type: "number",
+          description: "Quantidade total de imagens/logos desejada."
+        },
+        rollWidth: {
+          type: "number",
+          description: "Largura do rolo de filme (ex: 58 ou 100). Valor padrão é 58.",
+          default: 58
+        },
+        separation: {
+          type: "number",
+          description: "Espaçamento entre as imagens em centímetros. Valor padrão é 0.5.",
+          default: 0.5
+        },
+        margin: {
+          type: "number",
+          description: "Margem de segurança nas laterais do rolo em centímetros. Valor padrão é 1.0.",
+          default: 1.0
+        }
+      },
+      required: ["imageWidth", "imageHeight", "quantity"]
+    }
   }
 ];
 
@@ -1847,6 +1884,56 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
         timestamp: new Date().toLocaleString('pt-BR', { timeZone: TIME_ZONE })
       }
     };
+  }
+
+  if (name === "calculate_dtf_packing") {
+    const { imageWidth, imageHeight, quantity, rollWidth = 58, separation = 0.5, margin = 1.0 } = args;
+
+    try {
+      const usableWidth = rollWidth - (margin * 2);
+      const totalImageWidth = imageWidth + separation;
+      const totalImageHeight = imageHeight + separation;
+
+      const imagesPerRow = Math.max(1, Math.floor((usableWidth + separation) / totalImageWidth));
+      const totalRows = Math.ceil(quantity / imagesPerRow);
+      const totalHeightCm = totalRows * totalImageHeight;
+      const totalMeters = totalHeightCm / 100;
+
+      const imagesPerMeter = (100 / totalImageHeight) * imagesPerRow;
+      const usedWidth = imagesPerRow * totalImageWidth - separation;
+      const efficiency = (usedWidth / usableWidth) * 100;
+
+      const message = `📏 **Resultado do Orçamento DTF:**\n\n` +
+        `- Imagens por linha: **${imagesPerRow}**\n` +
+        `- Total de linhas: **${totalRows}**\n` +
+        `- Metragem linear necessária: **${totalMeters.toFixed(2)} ML**\n` +
+        `- Rendimento médio: **${Math.floor(imagesPerMeter)} logos/metro**\n` +
+        `- Aproveitamento da largura: **${Math.round(efficiency)}%**\n\n` +
+        `O orçamento total para **${quantity}** unidades de **${imageWidth}x${imageHeight}cm** é de **${totalMeters.toFixed(2)} metros lineares**.`;
+
+      return {
+        type: 'dtf_calculation',
+        data: {
+          imageWidth,
+          imageHeight,
+          quantity,
+          rollWidth,
+          separation,
+          margin,
+          results: {
+            imagesPerRow,
+            totalRows,
+            totalMeters,
+            imagesPerMeter: Math.floor(imagesPerMeter),
+            efficiency: Math.round(efficiency)
+          }
+        },
+        message: message
+      };
+    } catch (error: any) {
+      console.error("❌ Erro no cálculo de packing:", error);
+      throw new Error(`❌ Erro ao calcular aproveitamento DTF: ${error.message}`);
+    }
   }
 
   console.error(`❌ [callOpenAIFunction] Função desconhecida: ${name}`);
