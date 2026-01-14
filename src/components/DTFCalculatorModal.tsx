@@ -193,27 +193,27 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
             <Tooltip delayDuration={300}>
                 <TooltipTrigger asChild>
                     <div
-                        className={cn("flex items-center gap-1 cursor-help group", className)}
+                        className={cn("flex items-start gap-1 cursor-help group w-fit", className)}
                         onMouseEnter={() => setHoveredField(fieldId)}
                         onMouseLeave={() => setHoveredField(null)}
                     >
                         <Label
                             htmlFor={id}
                             className={cn(
-                                "text-xs decoration-dotted underline-offset-4 group-hover:underline transition-all cursor-help",
+                                "text-[11px] leading-tight decoration-dotted underline-offset-4 group-hover:underline transition-all cursor-help",
                                 hoveredField === fieldId ? "text-primary underline" : "text-muted-foreground"
                             )}
                         >
                             {label}
                         </Label>
                         <HelpCircle className={cn(
-                            "h-3 w-3 transition-colors",
-                            hoveredField === fieldId ? "text-primary" : "text-muted-foreground"
+                            "h-3 w-3 mt-0.5 shrink-0 transition-colors",
+                            hoveredField === fieldId ? "text-primary" : "text-muted-foreground/50"
                         )} />
                     </div>
                 </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-[200px] text-xs">
-                    <p>{content}</p>
+                <TooltipContent side="top" className="max-w-[200px] text-[11px] bg-slate-900 text-white border-primary/20">
+                    {content}
                 </TooltipContent>
             </Tooltip>
         </TooltipProvider>
@@ -347,14 +347,16 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                             <Ruler className="h-3 w-3" /> Configurações do Material (Rolo)
                                         </div>
                                     </Label>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div className="space-y-1">
-                                            <InfoTooltip
-                                                id="rollWidth"
-                                                fieldId="rollWidth"
-                                                label="Largura do Rolo (cm)"
-                                                content="A largura útil do rolo de DTF que você está usando (comum: 30cm ou 58cm)."
-                                            />
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-1.5 p-0.5">
+                                            <div className="min-h-[32px] flex items-end pb-1">
+                                                <InfoTooltip
+                                                    id="rollWidth"
+                                                    fieldId="rollWidth"
+                                                    label="Largura do Rolo (cm)"
+                                                    content="A largura útil do rolo de DTF que você está usando (comum: 30cm ou 58cm)."
+                                                />
+                                            </div>
                                             <NumberInput
                                                 id="rollWidth"
                                                 value={rollWidth}
@@ -370,7 +372,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                         key={w}
                                                         variant="outline"
                                                         size="sm"
-                                                        className={`h-7 text-xs px-2.5 touch-manipulation ${rollWidth === w ? 'bg-primary/20 border-primary text-primary font-bold' : 'text-muted-foreground'}`}
+                                                        className={`h-7 text-[10px] flex-1 touch-manipulation transition-all ${rollWidth === w ? 'bg-primary/20 border-primary text-primary font-bold' : 'text-muted-foreground'}`}
                                                         onClick={() => setRollWidth(w)}
                                                     >
                                                         {w}cm
@@ -379,26 +381,26 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                             </div>
                                         </div>
                                         {/* Configuração de Margens de Segurança */}
-                                        <div className="space-y-3">
-                                            <div className="space-y-1">
+                                        <div className="space-y-1.5 p-0.5">
+                                            <div className="min-h-[32px] flex items-end pb-1">
                                                 <InfoTooltip
                                                     id="margin"
                                                     fieldId="margin"
                                                     label="Margem de Segurança (cm)"
                                                     content="Espaço de segurança nas bordas (topo, fundo e laterais)."
                                                 />
-                                                <NumberInput
-                                                    id="margin"
-                                                    value={margin}
-                                                    onChange={setMargin}
-                                                    min={0}
-                                                    max={10}
-                                                    step={0.5}
-                                                    fieldId="margin"
-                                                    highlight={hoveredField === 'margin'}
-                                                />
                                             </div>
-                                            <div className="flex gap-1">
+                                            <NumberInput
+                                                id="margin"
+                                                value={margin}
+                                                onChange={setMargin}
+                                                min={0}
+                                                max={10}
+                                                step={0.5}
+                                                fieldId="margin"
+                                                highlight={hoveredField === 'margin'}
+                                            />
+                                            <div className="flex gap-1 pt-1">
                                                 {[0.5, 1, 1.5, 2].map((m) => (
                                                     <Button
                                                         key={m}
@@ -421,14 +423,16 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                     <Label className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-1">
                                         <Layers className="h-3 w-3" /> Tamanho da sua Logo
                                     </Label>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div className="space-y-1">
-                                            <InfoTooltip
-                                                id="imageWidth"
-                                                fieldId="imageSize"
-                                                label="Largura da Logo (cm)"
-                                                content="A largura final da logo que você desenhou."
-                                            />
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-1.5 p-0.5">
+                                            <div className="min-h-[32px] flex items-end pb-1">
+                                                <InfoTooltip
+                                                    id="imageWidth"
+                                                    fieldId="imageSize"
+                                                    label="Largura da Logo (cm)"
+                                                    content="A largura final da logo que você desenhou."
+                                                />
+                                            </div>
                                             <NumberInput
                                                 id="imageWidth"
                                                 value={imageWidth}
@@ -439,13 +443,15 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                 fieldId="imageSize"
                                             />
                                         </div>
-                                        <div className="space-y-1">
-                                            <InfoTooltip
-                                                id="imageHeight"
-                                                fieldId="imageSize"
-                                                label="Altura da Logo (cm)"
-                                                content="A altura final da logo que você desenhou."
-                                            />
+                                        <div className="space-y-1.5 p-0.5">
+                                            <div className="min-h-[32px] flex items-end pb-1">
+                                                <InfoTooltip
+                                                    id="imageHeight"
+                                                    fieldId="imageSize"
+                                                    label="Altura da Logo (cm)"
+                                                    content="A altura final da logo que você desenhou."
+                                                />
+                                            </div>
                                             <NumberInput
                                                 id="imageHeight"
                                                 value={imageHeight}
@@ -457,14 +463,16 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                             />
                                         </div>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-3 pt-1">
-                                        <div className="space-y-1">
-                                            <InfoTooltip
-                                                id="separation"
-                                                fieldId="separation"
-                                                label="Espaço entre Logos (cm)"
-                                                content="Distância mínima entre um adesivo e outro para facilitar o corte manual (recomendado: 0.5cm)."
-                                            />
+                                    <div className="grid grid-cols-2 gap-4 pt-1">
+                                        <div className="space-y-1.5 p-0.5">
+                                            <div className="min-h-[32px] flex items-end pb-1">
+                                                <InfoTooltip
+                                                    id="separation"
+                                                    fieldId="separation"
+                                                    label="Espaço entre Logos (cm)"
+                                                    content="Distância mínima entre um adesivo e outro para facilitar o corte manual (recomendado: 0.5cm)."
+                                                />
+                                            </div>
                                             <NumberInput
                                                 id="separation"
                                                 value={separation}
@@ -480,7 +488,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                         key={s}
                                                         variant="outline"
                                                         size="sm"
-                                                        className={`h-7 text-xs px-2.5 touch-manipulation ${separation === s ? 'bg-primary/20 border-primary text-primary font-bold' : 'text-muted-foreground'}`}
+                                                        className={`h-7 text-[10px] flex-1 touch-manipulation transition-all ${separation === s ? 'bg-primary/20 border-primary text-primary font-bold' : 'text-muted-foreground'}`}
                                                         onClick={() => setSeparation(s)}
                                                     >
                                                         {s}cm
@@ -488,14 +496,16 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                 ))}
                                             </div>
                                         </div>
-                                        <div className="space-y-1">
-                                            <InfoTooltip
-                                                id="quantity"
-                                                fieldId="quantity"
-                                                label="Quantas Logos Precisa?"
-                                                content="O total de adesivos que você deseja produzir nesse pedido."
-                                                className="font-bold text-primary"
-                                            />
+                                        <div className="space-y-1.5 p-0.5">
+                                            <div className="min-h-[32px] flex items-end pb-1">
+                                                <InfoTooltip
+                                                    id="quantity"
+                                                    fieldId="quantity"
+                                                    label="Quantas Logos Precisa?"
+                                                    content="O total de adesivos que você deseja produzir nesse pedido."
+                                                    className="font-bold text-primary"
+                                                />
+                                            </div>
                                             <NumberInput
                                                 id="quantity"
                                                 value={quantity}
@@ -512,28 +522,32 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
 
                                     {/* Novo: Calcular por Metragem */}
                                     <div className="pt-2">
-                                        <div className="flex items-center gap-2 mb-1.5">
-                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Ou preencher por metragem</span>
-                                            <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Ou preencher por metragem</span>
+                                            <div className="h-px w-full bg-slate-200 dark:bg-slate-800" />
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <div className="relative flex-1">
                                                 <Input
-                                                    type="number"
+                                                    type="text"
+                                                    inputMode="decimal"
                                                     placeholder="Ex: 4 metros"
                                                     value={targetMeters || ''}
-                                                    onChange={(e) => handleTargetMetersChange(Number(e.target.value))}
-                                                    className="h-8 text-xs pr-7 bg-primary/5 border-dashed"
+                                                    onChange={(e) => {
+                                                        const val = e.target.value.replace(',', '.');
+                                                        handleTargetMetersChange(Number(val));
+                                                    }}
+                                                    className="h-9 text-xs pr-7 bg-primary/5 border-dashed border-primary/20 focus:border-primary/50 transition-all"
                                                 />
                                                 <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-muted-foreground">m</span>
                                             </div>
                                             <Button
                                                 variant="ghost"
                                                 size="sm"
-                                                className="h-8 text-[10px] font-bold text-primary hover:bg-primary/10"
+                                                className="h-9 px-3 text-[10px] font-bold text-primary hover:bg-primary/10 transition-colors"
                                                 onClick={() => setTargetMeters(0)}
                                             >
-                                                Limpar
+                                                LIMPAR
                                             </Button>
                                         </div>
                                     </div>
@@ -651,62 +665,99 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                         </div>
                                     </div>
 
-                                    {/* Overlays de MARGEM - Topo (Largura Total) */}
-                                    <div
-                                        className={cn(
-                                            "absolute top-0 inset-x-0 transition-all duration-300 pointer-events-none z-10 border-b border-emerald-500/20",
-                                            hoveredField === 'margin' ? "bg-emerald-500/60" : "bg-emerald-500/10"
+                                    {/* Margens Laterais - Container que ocupa toda a sobra real */}
+                                    <div className="absolute inset-y-0 left-0 pointer-events-none z-10 flex" style={{ width: `${(results.realSideMargin / rollWidth) * 100}%` }}>
+                                        {/* Segmento 1: Margem de Segurança Definida (Verde) */}
+                                        {margin > 0 && (
+                                            <div
+                                                className={cn(
+                                                    "h-full transition-all duration-300 border-r border-emerald-500/20 flex items-center justify-center",
+                                                    hoveredField === 'margin' ? "bg-emerald-500/40" : "bg-emerald-500/20"
+                                                )}
+                                                style={{ width: `${(margin / results.realSideMargin) * 100}%` }}
+                                            >
+                                                <div className="[writing-mode:vertical-lr] rotate-180">
+                                                    <span className="text-[7px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-widest leading-none">
+                                                        {margin}cm
+                                                    </span>
+                                                </div>
+                                            </div>
                                         )}
-                                        style={{ height: `${(margin / results.totalHeightCm) * 100}%` }}
-                                    >
-                                        <div className="absolute inset-0 flex items-center justify-center">
-                                            <span className="text-[7px] font-bold text-emerald-600/50 uppercase tracking-widest">{margin}cm</span>
-                                        </div>
-                                    </div>
-                                    {/* Fundo (Largura Total) */}
-                                    <div
-                                        className={cn(
-                                            "absolute bottom-0 inset-x-0 transition-all duration-300 pointer-events-none z-10 border-t border-emerald-500/20",
-                                            hoveredField === 'margin' ? "bg-emerald-500/60" : "bg-emerald-500/10"
+                                        {/* Segmento 2: Sobra Técnica (Cinza) */}
+                                        {results.realSideMargin > margin && (
+                                            <div
+                                                className="h-full flex-1 bg-slate-500/5 dark:bg-slate-400/5 transition-all duration-300 flex items-center justify-center border-r border-slate-500/10"
+                                            >
+                                                {results.realSideMargin - margin > 0.1 && (
+                                                    <div className="[writing-mode:vertical-lr] rotate-180 opacity-40">
+                                                        <span className="text-[6px] font-medium text-slate-500 uppercase tracking-tighter leading-none">
+                                                            +{(results.realSideMargin - margin).toFixed(1)}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </div>
                                         )}
-                                        style={{ height: `${(margin / results.totalHeightCm) * 100}%` }}
-                                    >
-                                        <div className="absolute inset-0 flex items-center justify-center">
-                                            <span className="text-[7px] font-bold text-emerald-600/50 uppercase tracking-widest">{margin}cm</span>
-                                        </div>
                                     </div>
-                                    {/* Esquerda - MOSTRA A SOBRA REAL DO ROLO (FAITHFUL) */}
-                                    <div
-                                        className={cn(
-                                            "absolute left-0 transition-all duration-300 pointer-events-none z-10 border-r border-emerald-500/20",
-                                            hoveredField === 'margin' ? "bg-emerald-500/60" : "bg-emerald-500/10"
+
+                                    <div className="absolute inset-y-0 right-0 pointer-events-none z-10 flex flex-row-reverse" style={{ width: `${(results.realSideMargin / rollWidth) * 100}%` }}>
+                                        {/* Segmento 1: Margem de Segurança Definida (Verde) */}
+                                        {margin > 0 && (
+                                            <div
+                                                className={cn(
+                                                    "h-full transition-all duration-300 border-l border-emerald-500/20 flex items-center justify-center",
+                                                    hoveredField === 'margin' ? "bg-emerald-500/40" : "bg-emerald-500/20"
+                                                )}
+                                                style={{ width: `${(margin / results.realSideMargin) * 100}%` }}
+                                            >
+                                                <div className="[writing-mode:vertical-lr]">
+                                                    <span className="text-[7px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-widest leading-none">
+                                                        {margin}cm
+                                                    </span>
+                                                </div>
+                                            </div>
                                         )}
-                                        style={{
-                                            width: `${(results.realSideMargin / rollWidth) * 100}%`,
-                                            top: `${(margin / results.totalHeightCm) * 100}%`,
-                                            bottom: `${(margin / results.totalHeightCm) * 100}%`
-                                        }}
-                                    >
-                                        <div className="absolute inset-0 flex items-center justify-center [writing-mode:vertical-lr] rotate-180">
-                                            <span className="text-[7px] font-bold text-emerald-600/50 uppercase tracking-widest">{results.realSideMargin.toFixed(1)}cm</span>
-                                        </div>
-                                    </div>
-                                    {/* Direita - MOSTRA A SOBRA REAL DO ROLO (FAITHFUL) */}
-                                    <div
-                                        className={cn(
-                                            "absolute right-0 transition-all duration-300 pointer-events-none z-10 border-l border-emerald-500/20",
-                                            hoveredField === 'margin' ? "bg-emerald-500/60" : "bg-emerald-500/10"
+                                        {/* Segmento 2: Sobra Técnica (Cinza) */}
+                                        {results.realSideMargin > margin && (
+                                            <div
+                                                className="h-full flex-1 bg-slate-500/5 dark:bg-slate-400/5 transition-all duration-300 flex items-center justify-center border-l border-slate-500/10"
+                                            >
+                                                {results.realSideMargin - margin > 0.1 && (
+                                                    <div className="[writing-mode:vertical-lr] opacity-40">
+                                                        <span className="text-[6px] font-medium text-slate-500 uppercase tracking-tighter leading-none">
+                                                            +{(results.realSideMargin - margin).toFixed(1)}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </div>
                                         )}
-                                        style={{
-                                            width: `${(results.realSideMargin / rollWidth) * 100}%`,
-                                            top: `${(margin / results.totalHeightCm) * 100}%`,
-                                            bottom: `${(margin / results.totalHeightCm) * 100}%`
-                                        }}
-                                    >
-                                        <div className="absolute inset-0 flex items-center justify-center [writing-mode:vertical-lr]">
-                                            <span className="text-[7px] font-bold text-emerald-600/50 uppercase tracking-widest">{results.realSideMargin.toFixed(1)}cm</span>
-                                        </div>
                                     </div>
+
+                                    {/* Overlays de MARGEM - Topo (Só aparece se configurado > 0) */}
+                                    {margin > 0 && (
+                                        <div
+                                            className={cn(
+                                                "absolute top-0 inset-x-0 transition-all duration-300 pointer-events-none z-30 border-b border-emerald-500/20 bg-emerald-500/20"
+                                            )}
+                                            style={{ height: `${(margin / results.totalHeightCm) * 100}%` }}
+                                        >
+                                            <div className="absolute inset-0 flex items-center justify-center">
+                                                <span className="text-[7px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-widest leading-none">{margin}cm</span>
+                                            </div>
+                                        </div>
+                                    )}
+                                    {/* Fundo (Só aparece se configurado > 0) */}
+                                    {margin > 0 && (
+                                        <div
+                                            className={cn(
+                                                "absolute bottom-0 inset-x-0 transition-all duration-300 pointer-events-none z-30 border-t border-emerald-500/20 bg-emerald-500/20"
+                                            )}
+                                            style={{ height: `${(margin / results.totalHeightCm) * 100}%` }}
+                                        >
+                                            <div className="absolute inset-0 flex items-center justify-center">
+                                                <span className="text-[7px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-widest leading-none">{margin}cm</span>
+                                            </div>
+                                        </div>
+                                    )}
 
                                     {quantity > results.imagesPerRow * 20 && (
                                         <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-white to-transparent flex items-end justify-center pb-4 z-30">
