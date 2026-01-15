@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Calculator, LayoutGrid, Ruler, Layers, ChevronRight, Info, HelpCircle, AlertTriangle, Plus, Minus, Maximize2, RotateCcw, MessageSquare, Share2, Copy, Download, Image as ImageIcon, Loader2, Sparkles } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { showSuccess, showError } from "@/utils/toast";
 import { toPng, toBlob } from 'html-to-image';
@@ -192,7 +193,7 @@ const NumberInput = ({
                     type="button"
                     variant="outline"
                     size="icon"
-                    className="h-10 w-10 rounded-r-none border-r-0 bg-slate-50 dark:bg-muted hover:bg-primary/10 dark:hover:bg-primary/20 hover:text-primary active:scale-95 transition-all touch-manipulation flex-shrink-0"
+                    className="h-12 w-12 rounded-r-none border-r-0 bg-slate-50 dark:bg-muted hover:bg-primary/10 dark:hover:bg-primary/20 hover:text-primary active:scale-95 transition-all touch-manipulation flex-shrink-0"
                     onClick={decrement}
                     disabled={value !== undefined && value !== null && value <= min}
                 >
@@ -213,9 +214,9 @@ const NumberInput = ({
                     }}
                     onBlur={handleBlur}
                     className={cn(
-                        "h-10 text-center font-semibold text-base",
-                        showButtons ? "rounded-none border-x-0" : "rounded-md",
-                        suffix ? "pr-8" : "",
+                        "h-12 text-center font-black",
+                        showButtons ? "rounded-none border-x-0 px-1" : "rounded-md px-2",
+                        suffix ? "pr-7" : "",
                         className.replace("w-full", "")
                     )}
                 />
@@ -230,7 +231,7 @@ const NumberInput = ({
                     type="button"
                     variant="outline"
                     size="icon"
-                    className="h-10 w-10 rounded-l-none border-l-0 bg-slate-50 dark:bg-muted hover:bg-primary/10 dark:hover:bg-primary/20 hover:text-primary active:scale-95 transition-all touch-manipulation flex-shrink-0"
+                    className="h-12 w-12 rounded-l-none border-l-0 bg-slate-50 dark:bg-muted hover:bg-primary/10 dark:hover:bg-primary/20 hover:text-primary active:scale-95 transition-all touch-manipulation flex-shrink-0"
                     onClick={increment}
                     disabled={value !== undefined && value !== null && value >= max}
                 >
@@ -242,13 +243,49 @@ const NumberInput = ({
 };
 
 export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculatorModalProps) => {
-    // Inputs
+    // Inputs (Modo Simples)
     const [rollWidth, setRollWidth] = useState(initialData?.rollWidth || 58);
     const [imageWidth, setImageWidth] = useState(initialData?.imageWidth || 5);
     const [imageHeight, setImageHeight] = useState(initialData?.imageHeight || 5);
     const [separation, setSeparation] = useState(0.5);
     const [margin, setMargin] = useState(1);
     const [quantity, setQuantity] = useState(initialData?.quantity || 100);
+
+    // --- MULTI-ITEM MODE ---
+    type CalculatorMode = 'simple' | 'multi';
+    interface MultiItem {
+        id: string;
+        width: number;
+        height: number;
+        quantity: number;
+    }
+
+    const [mode, setMode] = useState<CalculatorMode>('simple');
+    const [items, setItems] = useState<MultiItem[]>([
+        { id: crypto.randomUUID(), width: 5, height: 5, quantity: 100 }
+    ]);
+
+    const addItem = () => {
+        setItems([...items, {
+            id: crypto.randomUUID(),
+            width: 5,
+            height: 5,
+            quantity: 50
+        }]);
+    };
+
+    const removeItem = (id: string) => {
+        if (items.length > 1) {
+            setItems(items.filter(item => item.id !== id));
+        }
+    };
+
+    const updateItem = (id: string, field: keyof Omit<MultiItem, 'id'>, value: number) => {
+        setItems(items.map(item =>
+            item.id === id ? { ...item, [field]: value } : item
+        ));
+    };
+    // --- END MULTI-ITEM MODE ---
 
     // UX State
     const [hoveredField, setHoveredField] = useState<string | null>(null);
@@ -304,6 +341,44 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
             totalHeightCm
         };
     }, [rollWidth, imageWidth, imageHeight, separation, margin, quantity]);
+
+    // Multi-Item Results calculation
+    const multiResults = useMemo(() => {
+        const usableWidth = rollWidth - (margin * 2);
+
+        const itemsCalculated = items.map(item => {
+            const totalImageWidth = item.width + separation;
+            const totalImageHeight = item.height + separation;
+            const imagesPerRow = Math.max(1, Math.floor((usableWidth + separation) / totalImageWidth));
+            const totalRows = Math.ceil(item.quantity / imagesPerRow);
+            const contentHeight = (totalRows * item.height) + ((totalRows - 1) * separation);
+            const heightCm = contentHeight + separation; // Add separation between item types
+            const meters = heightCm / 100;
+
+            return {
+                ...item,
+                imagesPerRow,
+                totalRows,
+                meters,
+                heightCm,
+                label: `${item.width}x${item.height}cm`
+            };
+        });
+
+        // Total meters = sum of all items + top/bottom margins
+        const totalContentHeight = itemsCalculated.reduce((acc, item) => acc + item.heightCm, 0);
+        const totalHeightCm = totalContentHeight + (margin * 2) - separation; // Remove extra separation at end
+        const totalMeters = totalHeightCm / 100;
+        const totalQuantity = items.reduce((acc, item) => acc + item.quantity, 0);
+
+        return {
+            items: itemsCalculated,
+            totalMeters: Math.max(0, totalMeters),
+            totalQuantity,
+            totalHeightCm,
+            usableWidth
+        };
+    }, [rollWidth, margin, separation, items]);
 
     const handleTargetMetersChange = (meters: number) => {
         setTargetMeters(meters);
@@ -408,6 +483,34 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                     </div>
                 </DialogHeader>
 
+                {/* Mode Toggle */}
+                <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800/50 rounded-lg w-fit mt-2">
+                    <button
+                        onClick={() => setMode('simple')}
+                        className={cn(
+                            "px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2",
+                            mode === 'simple'
+                                ? "bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white"
+                                : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                        )}
+                    >
+                        <Ruler className="h-4 w-4" />
+                        Simples
+                    </button>
+                    <button
+                        onClick={() => setMode('multi')}
+                        className={cn(
+                            "px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2",
+                            mode === 'multi'
+                                ? "bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white"
+                                : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                        )}
+                    >
+                        <Layers className="h-4 w-4" />
+                        Multi-Itens
+                    </button>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-4 md:gap-6 mt-4 items-start">
                     {/* Formulário - 5 colunas */}
                     <div className="md:col-span-5 space-y-4 md:sticky md:top-0">
@@ -497,120 +600,222 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
 
                                 <Separator className="bg-primary/10" />
 
-                                <div className="space-y-2">
-                                    <Label className="text-[10px] font-bold uppercase text-slate-500 dark:text-muted-foreground flex items-center gap-1 tracking-wider">
-                                        <Layers className="h-3 w-3 text-amber-500 dark:text-primary" /> Tamanho da sua Logo
-                                    </Label>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="space-y-1.5 p-0.5">
-                                            <div className="min-h-[32px] flex items-end pb-1">
-                                                <InfoTooltip
+                                {/* SIMPLE MODE: Single Item Inputs */}
+                                {mode === 'simple' && (
+                                    <div className="space-y-2">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <Label className="text-[10px] font-bold uppercase text-slate-500 dark:text-muted-foreground flex items-center gap-1 tracking-wider">
+                                                <Layers className="h-3 w-3 text-amber-500 dark:text-primary" /> Tamanho da sua Logo
+                                            </Label>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="space-y-1">
+                                                <div className="h-4 flex items-center justify-between px-0.5">
+                                                    <Label className="text-[9px] uppercase font-bold text-slate-500">Largura (cm)</Label>
+                                                </div>
+                                                <NumberInput
                                                     id="imageWidth"
+                                                    value={imageWidth}
+                                                    onChange={setImageWidth}
+                                                    min={0.5}
+                                                    max={50}
+                                                    step={0.5}
                                                     fieldId="imageSize"
-                                                    label="Largura da Logo (cm)"
-                                                    content="A largura final da logo que você desenhou."
-                                                    hoveredField={hoveredField}
+                                                    showButtons={false}
+                                                    placeholder="L"
+                                                    className="h-11 text-xl font-bold bg-white dark:bg-slate-900 border-slate-200"
                                                     setHoveredField={setHoveredField}
                                                 />
                                             </div>
-                                            <NumberInput
-                                                id="imageWidth"
-                                                value={imageWidth}
-                                                onChange={setImageWidth}
-                                                min={0.5}
-                                                max={50}
-                                                step={0.5}
-                                                fieldId="imageSize"
-                                                setHoveredField={setHoveredField}
-                                            />
-                                        </div>
-                                        <div className="space-y-1.5 p-0.5">
-                                            <div className="min-h-[32px] flex items-end pb-1">
-                                                <InfoTooltip
+                                            <div className="space-y-1">
+                                                <div className="h-4 flex items-center justify-between px-0.5">
+                                                    <Label className="text-[9px] uppercase font-bold text-slate-500">Altura (cm)</Label>
+                                                </div>
+                                                <NumberInput
                                                     id="imageHeight"
+                                                    value={imageHeight}
+                                                    onChange={setImageHeight}
+                                                    min={0.5}
+                                                    max={50}
+                                                    step={0.5}
                                                     fieldId="imageSize"
-                                                    label="Altura da Logo (cm)"
-                                                    content="A altura final da logo que você desenhou."
-                                                    hoveredField={hoveredField}
+                                                    showButtons={false}
+                                                    placeholder="A"
+                                                    className="h-11 text-xl font-bold bg-white dark:bg-slate-900 border-slate-200"
                                                     setHoveredField={setHoveredField}
                                                 />
                                             </div>
-                                            <NumberInput
-                                                id="imageHeight"
-                                                value={imageHeight}
-                                                onChange={setImageHeight}
-                                                min={0.5}
-                                                max={50}
-                                                step={0.5}
-                                                fieldId="imageSize"
-                                                setHoveredField={setHoveredField}
-                                            />
                                         </div>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-4 pt-1">
-                                        <div className="space-y-1.5 p-0.5">
-                                            <div className="min-h-[32px] flex items-end pb-1">
-                                                <InfoTooltip
+                                        <div className="grid grid-cols-2 gap-4 pt-2">
+                                            <div className="space-y-1">
+                                                <div className="h-4 flex items-center justify-between px-0.5">
+                                                    <Label className="text-[9px] uppercase font-bold text-slate-500">Espaço (cm)</Label>
+                                                </div>
+                                                <NumberInput
                                                     id="separation"
+                                                    value={separation}
+                                                    onChange={setSeparation}
+                                                    min={0}
+                                                    max={3}
+                                                    step={0.1}
                                                     fieldId="separation"
-                                                    label="Espaço entre Logos (cm)"
-                                                    content="Distância mínima entre um adesivo e outro para facilitar o corte manual (recomendado: 0.5cm)."
-                                                    hoveredField={hoveredField}
+                                                    showButtons={false}
+                                                    className="h-11 text-lg font-bold bg-white dark:bg-slate-900 border-slate-200"
                                                     setHoveredField={setHoveredField}
                                                 />
+                                                <div className="flex gap-1 pt-1">
+                                                    {[0.3, 0.5, 1].map((s) => (
+                                                        <Button
+                                                            key={s}
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className={`h-6 text-[10px] flex-1 ${separation === s ? 'bg-yellow-600 border-yellow-700 text-white font-bold' : 'text-slate-500'}`}
+                                                            onClick={() => setSeparation(s)}
+                                                        >
+                                                            {s}
+                                                        </Button>
+                                                    ))}
+                                                </div>
                                             </div>
-                                            <NumberInput
-                                                id="separation"
-                                                value={separation}
-                                                onChange={setSeparation}
-                                                min={0}
-                                                max={3}
-                                                step={0.1}
-                                                fieldId="separation"
-                                                setHoveredField={setHoveredField}
-                                            />
-                                            <div className="flex gap-1 pt-1">
-                                                {[0.3, 0.5, 1].map((s) => (
-                                                    <Button
-                                                        key={s}
-                                                        variant="outline"
-                                                        size="sm"
-                                                        className={`h-7 text-[10px] flex-1 touch-manipulation transition-all ${separation === s ? 'bg-yellow-600 border-yellow-700 text-white font-bold shadow-md' : 'text-slate-500 dark:text-muted-foreground hover:bg-slate-100 dark:hover:bg-slate-800'}`}
-                                                        onClick={() => setSeparation(s)}
-                                                    >
-                                                        {s}cm
-                                                    </Button>
-                                                ))}
-                                            </div>
-                                        </div>
-                                        <div className="space-y-1.5 p-0.5">
-                                            <div className="min-h-[32px] flex items-end pb-1">
-                                                <InfoTooltip
+                                            <div className="space-y-1">
+                                                <div className="h-4 flex items-center justify-between px-0.5">
+                                                    <Label className="text-[9px] uppercase font-black text-primary">Quantidade</Label>
+                                                </div>
+                                                <NumberInput
                                                     id="quantity"
+                                                    value={quantity}
+                                                    onChange={setQuantity}
+                                                    min={1}
+                                                    max={10000}
+                                                    step={1}
                                                     fieldId="quantity"
-                                                    label="Quantas Logos Precisa?"
-                                                    content="O total de adesivos que você deseja produzir nesse pedido."
-                                                    className="font-bold text-primary"
-                                                    hoveredField={hoveredField}
+                                                    highlight={true}
+                                                    className="h-11 text-xl font-black"
                                                     setHoveredField={setHoveredField}
                                                 />
                                             </div>
-                                            <NumberInput
-                                                id="quantity"
-                                                value={quantity}
-                                                onChange={setQuantity}
-                                                min={1}
-                                                max={10000}
-                                                step={1}
-                                                fieldId="quantity"
-                                                highlight={true}
-                                                className="font-bold text-slate-950 dark:text-primary"
-                                                setHoveredField={setHoveredField}
-                                            />
                                         </div>
                                     </div>
+                                )}
 
-                                    {/* Novo: Calcular por Metragem */}
+                                {/* MULTI MODE: Item List */}
+                                {mode === 'multi' && (
+                                    <div className="space-y-4">
+                                        <Label className="text-[10px] font-bold uppercase text-slate-500 dark:text-muted-foreground flex items-center gap-1 tracking-wider">
+                                            <Layers className="h-3 w-3 text-amber-500 dark:text-primary" /> Itens do Orçamento
+                                        </Label>
+
+                                        {/* Item List */}
+                                        <div className="space-y-4 max-h-[360px] overflow-y-auto pr-1">
+                                            {items.map((item, index) => (
+                                                <div
+                                                    key={item.id}
+                                                    className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700 space-y-4 shadow-sm"
+                                                >
+                                                    <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-2">
+                                                        <span className="text-xs font-black text-slate-400">ITEM {index + 1}</span>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-8 w-8 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                                            onClick={() => removeItem(item.id)}
+                                                            disabled={items.length <= 1}
+                                                        >
+                                                            <Minus className="h-4 w-4" />
+                                                        </Button>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        {/* Tamanho */}
+                                                        <div className="space-y-1">
+                                                            <Label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Tamanho (cm)</Label>
+                                                            <div className="flex items-center gap-2">
+                                                                <NumberInput
+                                                                    id={`width-${item.id}`}
+                                                                    value={item.width}
+                                                                    onChange={(val) => updateItem(item.id, 'width', val)}
+                                                                    min={0.5}
+                                                                    max={50}
+                                                                    step={0.5}
+                                                                    fieldId="itemWidth"
+                                                                    showButtons={false}
+                                                                    placeholder="L"
+                                                                    className="h-10 text-base font-bold bg-white dark:bg-slate-900 border-slate-200"
+                                                                    setHoveredField={setHoveredField}
+                                                                />
+                                                                <span className="text-slate-300 font-bold mb-1">×</span>
+                                                                <NumberInput
+                                                                    id={`height-${item.id}`}
+                                                                    value={item.height}
+                                                                    onChange={(val) => updateItem(item.id, 'height', val)}
+                                                                    min={0.5}
+                                                                    max={50}
+                                                                    step={0.5}
+                                                                    fieldId="itemHeight"
+                                                                    showButtons={false}
+                                                                    placeholder="A"
+                                                                    className="h-10 text-base font-bold bg-white dark:bg-slate-900 border-slate-200"
+                                                                    setHoveredField={setHoveredField}
+                                                                />
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Quantidade */}
+                                                        <div className="space-y-1">
+                                                            <Label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Qtd</Label>
+                                                            <NumberInput
+                                                                id={`quantity-${item.id}`}
+                                                                value={item.quantity}
+                                                                onChange={(val) => updateItem(item.id, 'quantity', val)}
+                                                                min={1}
+                                                                max={10000}
+                                                                step={1}
+                                                                fieldId="itemQuantity"
+                                                                showButtons={false}
+                                                                highlight={true}
+                                                                className="h-10 text-base"
+                                                                setHoveredField={setHoveredField}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        {/* Add Item Button */}
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="w-full h-10 text-xs border-dashed border-primary/30 text-primary hover:bg-primary/5 font-bold"
+                                            onClick={addItem}
+                                        >
+                                            <Plus className="h-4 w-4 mr-1" /> Adicionar Item
+                                        </Button>
+
+                                        {/* Separation (shared across all items) */}
+                                        <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
+                                            <div className="flex items-center justify-between">
+                                                <Label className="text-[10px] text-slate-500">Espaço entre logos:</Label>
+                                                <div className="flex gap-1">
+                                                    {[0.3, 0.5, 1].map((s) => (
+                                                        <Button
+                                                            key={s}
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className={`h-6 px-2 text-[10px] ${separation === s ? 'bg-yellow-600 border-yellow-700 text-white' : ''}`}
+                                                            onClick={() => setSeparation(s)}
+                                                        >
+                                                            {s}cm
+                                                        </Button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Calcular por Metragem - Only in Simple Mode */}
+                                {mode === 'simple' && (
                                     <div className="pt-2">
                                         <div className="flex items-center gap-2 mb-2">
                                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Ou preencher por metragem</span>
@@ -643,10 +848,9 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                             </Button>
                                         </div>
                                     </div>
-                                </div>
+                                )}
                             </CardContent>
                         </Card>
-
 
                         {/* Alerta de Erro se não couber */}
                         {imageWidth + (margin * 2) > rollWidth && (
@@ -660,339 +864,335 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                         <div className="grid grid-cols-2 gap-3">
                             <div className="p-3 bg-primary text-primary-foreground rounded-xl shadow-lg shadow-primary/20 ring-4 ring-primary/10 flex flex-col items-center justify-center text-center scale-105 transition-transform">
                                 <span className="text-[10px] uppercase font-bold opacity-90 tracking-wider">Metragem Necessária</span>
-                                <span className="text-3xl font-black tracking-tight">{results.totalMeters.toFixed(2)}m</span>
+                                <span className="text-3xl font-black tracking-tight">
+                                    {mode === 'simple' ? results.totalMeters.toFixed(2) : multiResults.totalMeters.toFixed(2)}m
+                                </span>
                             </div>
                             <div className="p-3 bg-sky-50 dark:bg-secondary text-sky-950 dark:text-secondary-foreground rounded-xl shadow-sm border border-sky-100 dark:border-primary/20 flex flex-col items-center justify-center text-center">
-                                <span className="text-[10px] uppercase font-bold text-sky-800 dark:opacity-70 tracking-wider">Logos por Metro</span>
-                                <span className="text-2xl font-black tracking-tight">{results.imagesPerMeter} un</span>
+                                <span className="text-[10px] uppercase font-bold text-sky-800 dark:opacity-70 tracking-wider">
+                                    {mode === 'simple' ? 'Logos por Metro' : 'Total de Itens'}
+                                </span>
+                                <span className="text-2xl font-black tracking-tight">
+                                    {mode === 'simple' ? `${results.imagesPerMeter} un` : `${multiResults.totalQuantity} un`}
+                                </span>
                             </div>
                         </div>
 
-                        <div className="bg-slate-50 dark:bg-muted p-3 rounded-lg flex items-start gap-2 border border-slate-200 dark:border-slate-800">
-                            <Info className="h-4 w-4 text-amber-500 dark:text-primary mt-0.5 shrink-0" />
-                            <div className="text-[11px] leading-tight text-slate-600 dark:text-muted-foreground font-medium">
-                                <strong className="text-slate-900 dark:text-slate-200">Resumo:</strong> Cabem <strong>{results.imagesPerRow} logos</strong> por linha.
-                                Sua produção terá <strong>{results.totalRows} linhas</strong> de imagens.
-                                Aproveitamento de <strong>{results.efficiency}%</strong> da largura útil.
+                        {/* Resumo - mode specific */}
+                        {mode === 'simple' ? (
+                            <div className="bg-slate-50 dark:bg-muted p-3 rounded-lg flex items-start gap-2 border border-slate-200 dark:border-slate-800">
+                                <Info className="h-4 w-4 text-amber-500 dark:text-primary mt-0.5 shrink-0" />
+                                <div className="text-[11px] leading-tight text-slate-600 dark:text-muted-foreground font-medium">
+                                    <strong className="text-slate-900 dark:text-slate-200">Resumo:</strong> Cabem <strong>{results.imagesPerRow} logos</strong> por linha.
+                                    Sua produção terá <strong>{results.totalRows} linhas</strong> de imagens.
+                                    Aproveitamento de <strong>{results.efficiency}%</strong> da largura útil.
+                                </div>
                             </div>
-                        </div>
+                        ) : (
+                            <div className="bg-slate-50 dark:bg-muted p-3 rounded-lg border border-slate-200 dark:border-slate-800 space-y-2">
+                                <div className="flex items-center gap-2">
+                                    <Info className="h-4 w-4 text-amber-500 dark:text-primary shrink-0" />
+                                    <span className="text-[11px] font-bold text-slate-900 dark:text-slate-200">Detalhamento por Item:</span>
+                                </div>
+                                <div className="space-y-1">
+                                    {multiResults.items.map((item, idx) => (
+                                        <div key={item.id} className="flex items-center justify-between text-[10px] text-slate-600 dark:text-slate-400 py-1 border-b border-slate-200 dark:border-slate-700 last:border-0">
+                                            <span><strong className="text-slate-800 dark:text-slate-200">{idx + 1}. {item.label}</strong> × {item.quantity}un</span>
+                                            <span className="font-mono text-amber-600 dark:text-primary">{item.meters.toFixed(2)}m ({item.imagesPerRow}/linha)</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
-                    {/* Preview Visual - 7 colunas */}
-                    <div className="md:col-span-7 flex flex-col h-full min-h-[400px]">
-                        <div className="flex items-center justify-between mb-2">
-                            <Label className="text-[10px] font-bold uppercase text-slate-500 dark:text-muted-foreground flex items-center gap-1 tracking-wider">
-                                <LayoutGrid className="h-3 w-3 text-amber-500 dark:text-primary" /> Preview de Impressão
-                            </Label>
-                            <span className="text-[10px] bg-amber-100 dark:bg-primary/10 text-amber-900 dark:text-primary px-2 py-0.5 rounded-full font-black border border-amber-200 dark:border-primary/20 animate-pulse">
-                                Mesa de Impressão: {rollWidth}cm
-                            </span>
-                        </div>
+                    {/* Área de Preview (Lado Direito) */}
+                    <div className="md:col-span-7 lg:col-span-7 h-[500px] lg:h-auto sticky top-4">
+                        <div className="h-full flex flex-col bg-slate-100/50 dark:bg-slate-900/50 rounded-xl border border-slate-200/60 dark:border-slate-800 overflow-hidden shadow-inner relative">
 
-                        <div className="flex-1 bg-slate-200/50 dark:bg-slate-900 rounded-xl border-2 border-slate-300 dark:border-slate-800 p-2 overflow-hidden relative flex flex-col shadow-inner">
-                            {/* Régua de largura em cima */}
-                            <div className={cn(
-                                "relative h-6 border-b border-slate-300 dark:border-slate-700 mx-2 flex items-end transition-colors",
-                                hoveredField === 'rollWidth' ? "bg-primary/10 border-primary" : ""
-                            )}>
-                                <div className={cn("absolute left-0 bottom-0 w-px h-2 bg-slate-400 dark:bg-slate-500", hoveredField === 'rollWidth' ? "bg-primary" : "")} />
-                                <div className={cn("absolute right-0 bottom-0 w-px h-2 bg-slate-400 dark:bg-slate-500", hoveredField === 'rollWidth' ? "bg-primary" : "")} />
+                            {/* Header Minimalista (Ruler Externo Tipo Imagem 3) */}
+                            <div className="bg-slate-900 border-b border-slate-800 p-6 flex flex-col items-center justify-center relative overflow-hidden group">
+                                <div className="absolute inset-0 bg-gradient-to-r from-slate-900 via-slate-800/50 to-slate-900 pointer-events-none" />
+
+                                {/* Régua Principal Superior */}
                                 <div className={cn(
-                                    "w-full text-center text-[9px] font-mono mb-1 tracking-widest",
-                                    hoveredField === 'rollWidth' ? "text-primary font-black scale-105" : "text-slate-500 dark:text-slate-400 font-bold"
+                                    "w-full max-w-xl relative flex flex-col items-center transition-all duration-300",
+                                    hoveredField === 'rollWidth' ? "scale-[1.02] drop-shadow-[0_0_15px_rgba(250,204,21,0.4)]" : "opacity-80"
                                 )}>
-                                    &larr; {rollWidth} cm &rarr;
-                                </div>
-                            </div>
-
-                            {/* Rolo de Impressão */}
-                            <div className="flex-1 relative overflow-y-auto scrollbar-hide p-2 bg-slate-50 dark:bg-slate-800/50 rounded-lg m-2 border border-slate-300 dark:border-slate-700/50">
-                                <div
-                                    ref={previewRef}
-                                    className="mx-auto bg-white shadow-2xl relative transition-all duration-300 ring-8 ring-slate-400/10 dark:ring-slate-400/5"
-                                    style={{
-                                        width: '100%',
-                                        aspectRatio: `${rollWidth} / ${results.totalHeightCm}`,
-                                    }}
-                                >
-                                    {/* Área útil central (entre as margens laterais) */}
-                                    <div
-                                        className="absolute transition-all duration-300"
-                                        style={{
-                                            left: `${(results.realSideMargin / rollWidth) * 100}%`,
-                                            right: `${(results.realSideMargin / rollWidth) * 100}%`,
-                                            top: `${(margin / (results.totalHeightCm)) * 100}%`,
-                                            bottom: `${(margin / (results.totalHeightCm)) * 100}%`,
-                                        }}
-                                    >
-                                        {/* Grid de Logos */}
-                                        {/* Grid de Logos */}
-                                        <div
-                                            className="w-full h-full grid content-start justify-center"
-                                            style={{
-                                                gridTemplateColumns: `repeat(${results.imagesPerRow}, minmax(0, 1fr))`,
-                                                columnGap: `${(separation / results.contentWidth) * 100}%`,
-                                                rowGap: `${(separation / results.contentHeight) * 100}%`,
-                                                backgroundColor: hoveredField === 'separation' ? 'rgba(244, 114, 182, 0.4)' : 'transparent', // Aumentei a opacidade para ficar mais visível sem o outline
-                                                transition: 'background-color 0.2s ease-in-out'
-                                            }}
-                                        >
-
-                                            {/* Logos reais - Limite aumentado para 500 para performance, mas mostrando todos se possível */}
-                                            {Array.from({ length: Math.min(500, quantity) }).map((_, i) => (
-                                                <div
-                                                    key={`logo-${i}`}
-                                                    className={cn(
-                                                        "border rounded-sm flex items-center justify-center overflow-hidden shadow-[inset_0_1px_2px_rgba(0,0,0,0.1)] transition-all duration-300",
-                                                        (hoveredField === 'imageSize' || hoveredField === 'quantity')
-                                                            ? "bg-yellow-500 border-yellow-700 scale-95 shadow-lg z-20"
-                                                            : "bg-yellow-400 border-yellow-600/50"
-                                                    )}
-                                                    style={{ aspectRatio: `${imageWidth} / ${imageHeight}` }}
-                                                >
-                                                    <span className={cn(
-                                                        "text-[6px] font-black pointer-events-none",
-                                                        (hoveredField === 'imageSize' || hoveredField === 'quantity') ? "text-yellow-950 scale-125" : "text-yellow-900/60"
-                                                    )}>
-                                                        {imageWidth}x{imageHeight}
-                                                    </span>
-                                                </div>
-                                            ))}
-
-
-                                            {/* Placeholder Visual (Dentro do Grid para empurrar o layout) */}
-                                            {quantity > 500 && (() => {
-                                                const renderedCount = 500;
-                                                const remainingLogos = quantity - renderedCount;
-                                                const renderedRows = Math.ceil(renderedCount / results.imagesPerRow);
-                                                const totalRows = results.totalRows;
-                                                const remainingRows = totalRows - renderedRows;
-
-                                                if (remainingLogos > 0 && remainingRows > 0) {
-                                                    // Altura exata em CM usando a mesma lógica do gap
-                                                    const gapCm = separation; // Gap em CM
-                                                    const heightCm = remainingRows * (imageHeight + gapCm);
-
-                                                    // Converter CM para % relativo ao container (contentHeight)
-                                                    const heightPercent = (heightCm / results.contentHeight) * 100;
-
-                                                    return (
-                                                        <div
-                                                            className="col-span-full w-full rounded-sm border border-yellow-500/30 flex items-center justify-center relative overflow-hidden my-1"
-                                                            style={{
-                                                                height: `${heightPercent}%`,
-                                                                minHeight: '40px' // Garantir visibilidade mínima
-                                                            }}
-                                                        >
-                                                            <div className="absolute inset-0 opacity-20"
-                                                                style={{
-                                                                    background: 'repeating-linear-gradient(45deg, #EAB308, #EAB308 10px, transparent 10px, transparent 20px)'
-                                                                }}
-                                                            />
-                                                            <div className="bg-white/90 dark:bg-slate-900/90 px-3 py-1.5 rounded-full border border-yellow-500/50 shadow-sm z-10 flex items-center gap-2">
-                                                                <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
-                                                                <span className="text-[10px] font-bold text-yellow-700 dark:text-yellow-500 uppercase tracking-wide">
-                                                                    + {remainingLogos} logos ocultas
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                }
-                                                return null;
-                                            })()}
-
-                                            {/* Slots de Sobra Técnica (Espaços vazios no grid) */}
-                                            {quantity < results.totalRows * results.imagesPerRow &&
-                                                /* Só renderiza se não estivermos no modo simplificado de muito volume? 
-                                                   Na verdade, se quantity > 500, o placeholder já ocupa o espeço dos missing logos. 
-                                                   Os waste slots são SÓ para o finalzinho do rolo (última linha incompleta).
-                                                   Mas se quantity > 500, a gente não desenha a última linha real...
-                                                   Mas o placeholder vai até o fim das linhas de logos.
-                                                   A última linha incompleta estaria DEPOIS do placeholder?
-                                                   Sim.
-                                                */
-                                                Array.from({ length: Math.min(results.imagesPerRow * 5, results.totalRows * results.imagesPerRow - quantity) }).map((_, i) => (
-                                                    <div
-                                                        key={`waste-${i}`}
-                                                        className="border border-slate-200/50 opacity-20 flex items-center justify-center overflow-hidden"
-                                                        style={{
-                                                            aspectRatio: `${imageWidth} / ${imageHeight}`,
-                                                            background: 'repeating-linear-gradient(45deg, rgba(0,0,0,0.02), rgba(0,0,0,0.02) 2px, transparent 2px, transparent 4px)'
-                                                        }}
-                                                    />
-                                                ))}
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <div className="flex items-center gap-1.5 px-3 py-1 bg-slate-800/80 rounded-full border border-slate-700 shadow-xl backdrop-blur-md">
+                                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Escala Real</span>
+                                            <div className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse shadow-[0_0_8px_rgba(250,204,21,0.6)]" />
                                         </div>
                                     </div>
-                                    {margin > 0 && (
-                                        <>
-                                            {/* Margem Topo */}
-                                            <div
-                                                className={cn(
-                                                    "absolute top-0 inset-x-0 z-20 transition-all duration-300 border-b border-emerald-500/20 flex items-center justify-center overflow-hidden pointer-events-none",
-                                                    hoveredField === 'margin' ? "bg-emerald-500/40" : "bg-emerald-500/20"
-                                                )}
-                                                style={{ height: `${(margin / results.totalHeightCm) * 100}%` }}
-                                            >
-                                                <span className="text-[6px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-widest opacity-60">
-                                                    Margem Topo {margin}cm
-                                                </span>
-                                            </div>
-                                            {/* Margem Fundo */}
-                                            <div
-                                                className={cn(
-                                                    "absolute bottom-0 inset-x-0 z-20 transition-all duration-300 border-t border-emerald-500/20 flex items-center justify-center overflow-hidden pointer-events-none",
-                                                    hoveredField === 'margin' ? "bg-emerald-500/40" : "bg-emerald-500/20"
-                                                )}
-                                                style={{ height: `${(margin / results.totalHeightCm) * 100}%` }}
-                                            >
-                                                <span className="text-[6px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-widest opacity-60">
-                                                    Margem Fundo {margin}cm
-                                                </span>
-                                            </div>
-                                        </>
-                                    )}
 
-                                    {/* Margens Laterais - Encapsuladas para tocar o conteúdo */}
-                                    <div className="absolute inset-y-0 left-0 pointer-events-none z-10 flex" style={{ width: `${(results.realSideMargin / rollWidth) * 100}%` }}>
-                                        {/* Segmento 1: Margem de Segurança Definida (Verde) */}
-                                        {margin > 0 && (
-                                            <div
-                                                className={cn(
-                                                    "h-full transition-all duration-300 border-r border-emerald-500/20 flex items-center justify-center",
-                                                    hoveredField === 'margin' ? "bg-emerald-500/40" : "bg-emerald-500/20"
-                                                )}
-                                                style={{ width: `${(margin / results.realSideMargin) * 100}%` }}
-                                            >
-                                                <div className="[writing-mode:vertical-lr] rotate-180">
-                                                    <span className="text-[7px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-widest leading-none">
-                                                        M. Seg {margin}cm
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        )}
-                                        {/* Segmento 2: Sobra Técnica (Área de Desperdício) - Preenche o gap até o logo */}
-                                        {results.realSideMargin > margin && (
-                                            <div
-                                                className="h-full flex-1 transition-all duration-300 flex items-center justify-center border-r-0 border-amber-500/20"
-                                                style={{
-                                                    background: 'repeating-linear-gradient(45deg, rgba(245, 158, 11, 0.05), rgba(245, 158, 11, 0.05) 10px, rgba(245, 158, 11, 0.1) 10px, rgba(245, 158, 11, 0.1) 20px)'
-                                                }}
-                                            >
-                                                {results.realSideMargin - margin > 0.1 && (
-                                                    <div className="[writing-mode:vertical-lr] rotate-180 opacity-60">
-                                                        <span className="text-[6px] font-bold text-amber-700 dark:text-amber-500 uppercase tracking-tighter leading-none">
-                                                            Sobra +{(results.realSideMargin - margin).toFixed(1)}cm
-                                                        </span>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
+                                    <div className="w-full h-12 flex flex-col items-center justify-end relative">
+                                        <div className="text-[11px] font-mono font-bold text-slate-300 mb-3 flex items-center gap-3 tracking-widest">
+                                            <span className="text-slate-600">←</span>
+                                            <span className={cn(
+                                                "transition-colors duration-300",
+                                                hoveredField === 'rollWidth' ? "text-yellow-400" : "text-slate-300"
+                                            )}>
+                                                {rollWidth} CM
+                                            </span>
+                                            <span className="text-slate-600">→</span>
+                                        </div>
 
-                                    <div className="absolute inset-y-0 right-0 pointer-events-none z-10 flex flex-row-reverse" style={{ width: `${(results.realSideMargin / rollWidth) * 100}%` }}>
-                                        {/* Segmento 1: Margem de Segurança Definida (Verde) */}
-                                        {margin > 0 && (
-                                            <div
-                                                className={cn(
-                                                    "h-full transition-all duration-300 border-l border-emerald-500/20 flex items-center justify-center",
-                                                    hoveredField === 'margin' ? "bg-emerald-500/40" : "bg-emerald-500/20"
-                                                )}
-                                                style={{ width: `${(margin / results.realSideMargin) * 100}%` }}
-                                            >
-                                                <div className="[writing-mode:vertical-lr]">
-                                                    <span className="text-[7px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-widest leading-none">
-                                                        M. Seg {margin}cm
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        )}
-                                        {/* Segmento 2: Sobra Técnica (Área de Desperdício) - Preenche o gap até o logo */}
-                                        {results.realSideMargin > margin && (
-                                            <div
-                                                className="h-full flex-1 transition-all duration-300 flex items-center justify-center border-l-0 border-amber-500/20"
-                                                style={{
-                                                    background: 'repeating-linear-gradient(-45deg, rgba(245, 158, 11, 0.05), rgba(245, 158, 11, 0.05) 10px, rgba(245, 158, 11, 0.1) 10px, rgba(245, 158, 11, 0.1) 20px)'
-                                                }}
-                                            >
-                                                {results.realSideMargin - margin > 0.1 && (
-                                                    <div className="[writing-mode:vertical-lr] opacity-60">
-                                                        <span className="text-[6px] font-bold text-amber-700 dark:text-amber-500 uppercase tracking-tighter leading-none">
-                                                            Sobra +{(results.realSideMargin - margin).toFixed(1)}cm
-                                                        </span>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
+                                        {/* Linha da Régua */}
+                                        <div className={cn(
+                                            "w-full h-px relative transition-all duration-500",
+                                            hoveredField === 'rollWidth' ? "bg-yellow-400 shadow-[0_0_10px_rgba(250,204,21,0.5)]" : "bg-slate-700"
+                                        )}>
+                                            <div className={cn("absolute -top-2 left-0 w-px h-4 transition-colors", hoveredField === 'rollWidth' ? "bg-yellow-400" : "bg-slate-700")} />
+                                            <div className={cn("absolute -top-2 right-0 w-px h-4 transition-colors", hoveredField === 'rollWidth' ? "bg-yellow-400" : "bg-slate-700")} />
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                        {/* Line 993 removed (was closing col-7 early) */}
 
-                        {/* Legenda (Ajustada para modo claro/escuro) */}
-                        <div className="p-2 flex flex-wrap justify-center gap-x-4 gap-y-1 border-t border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/80 rounded-b-xl">
-                            <div className="flex items-center gap-1.5">
-                                <div className="w-2.5 h-2.5 bg-yellow-400 border border-yellow-600/50" />
-                                <span className="text-[9px] text-slate-500 dark:text-slate-400 font-medium">Logos</span>
+                            {/* Scrollable Canvas Area */}
+                            <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 custom-scrollbar">
+                                <div
+                                    ref={previewRef}
+                                    id="dtf-preview-paper"
+                                    className="bg-white shadow-2xl relative transition-all duration-300 origin-top mx-auto overflow-hidden border border-slate-300"
+                                    style={{
+                                        width: '100%',
+                                        maxWidth: '100%',
+                                        aspectRatio: `${rollWidth} / ${mode === 'simple' ? results.totalHeightCm : multiResults.totalHeightCm}`,
+                                    }}
+                                >
+                                    {/* Regua de Medida do Topo (Ruler) */}
+                                    <div className="absolute top-0 inset-x-0 h-10 flex flex-col items-center pointer-events-none z-30 opacity-60">
+                                        <div className="w-full h-px bg-slate-300 relative mt-4">
+                                            <div className="absolute -top-1 left-0 w-[1px] h-3 bg-slate-400" />
+                                            <div className="absolute -top-1 right-0 w-[1px] h-3 bg-slate-400" />
+                                            <div className="absolute inset-0 flex items-center justify-center">
+                                                <span className="bg-white px-2 py-0.5 text-[8px] font-mono font-bold text-slate-500 tracking-tighter">
+                                                    ← {rollWidth} cm →
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Área Útil (Clipada e com labels de margem) */}
+                                    <div
+                                        className={cn(
+                                            "absolute border border-dashed transition-all duration-300",
+                                            hoveredField === 'quantity' ? "bg-yellow-400/5 border-yellow-400/30" : "border-slate-200"
+                                        )}
+                                        style={{
+                                            left: `${(margin / rollWidth) * 100}%`,
+                                            right: `${(margin / rollWidth) * 100}%`,
+                                            top: `${(margin / (mode === 'simple' ? results.totalHeightCm : multiResults.totalHeightCm)) * 100}%`,
+                                            bottom: `${(margin / (mode === 'simple' ? results.totalHeightCm : multiResults.totalHeightCm)) * 100}%`,
+                                        }}
+                                    >
+                                        {/* Grid labels */}
+                                        {margin > 0 && (
+                                            <>
+                                                <div className={cn(
+                                                    "absolute -top-3 left-1/2 -translate-x-1/2 text-[6px] font-bold uppercase tracking-widest whitespace-nowrap transition-colors",
+                                                    hoveredField === 'margin' ? "text-emerald-500 scale-110" : "text-emerald-600/60"
+                                                )}>MARGEM TOPO {margin}CM</div>
+                                                <div className={cn(
+                                                    "absolute -bottom-3 left-1/2 -translate-x-1/2 text-[6px] font-bold uppercase tracking-widest whitespace-nowrap transition-colors",
+                                                    hoveredField === 'margin' ? "text-emerald-500 scale-110" : "text-emerald-600/60"
+                                                )}>MARGEM FUNDO {margin}CM</div>
+                                            </>
+                                        )}
+
+                                        <div className="w-full h-full relative">
+                                            {mode === 'simple' ? (
+                                                <div
+                                                    className="mx-auto h-full"
+                                                    style={{ width: `${(results.contentWidth / results.usableWidth) * 100}%` }}
+                                                >
+                                                    <div
+                                                        className={cn(
+                                                            "grid content-start w-full transition-all duration-300",
+                                                            hoveredField === 'separation' ? "bg-purple-500/5 ring-1 ring-purple-500/20" : ""
+                                                        )}
+                                                        style={{
+                                                            gridTemplateColumns: `repeat(${results.imagesPerRow}, 1fr)`,
+                                                            columnGap: `${(separation / results.contentWidth) * 100}%`,
+                                                            rowGap: `${(separation / results.contentHeight) * 100}%`,
+                                                            aspectRatio: `${results.contentWidth} / ${results.contentHeight}`
+                                                        }}
+                                                    >
+                                                        {Array.from({ length: Math.min(500, quantity) }).map((_, i) => (
+                                                            <div key={`logo-${i}`}
+                                                                className={cn(
+                                                                    "bg-yellow-400 border border-yellow-600/50 rounded-sm flex items-center justify-center overflow-hidden transition-all duration-300",
+                                                                    hoveredField === 'imageSize' ? "scale-105 shadow-[0_0_12px_rgba(250,204,21,0.8)] z-20 border-yellow-400" : "hover:bg-yellow-500"
+                                                                )}
+                                                                style={{ aspectRatio: `${imageWidth} / ${imageHeight}` }}
+                                                            >
+                                                                <span className="text-[5px] sm:text-[6px] font-black text-yellow-900/40 select-none">
+                                                                    {imageWidth}x{imageHeight}
+                                                                </span>
+                                                            </div>
+                                                        ))}
+
+                                                        {/* Sobra Técnica Visual */}
+                                                        {quantity < results.totalRows * results.imagesPerRow &&
+                                                            Array.from({ length: Math.min(results.imagesPerRow, results.totalRows * results.imagesPerRow - quantity) }).map((_, i) => (
+                                                                <div key={`waste-${i}`}
+                                                                    className="border border-dotted border-slate-200 bg-slate-50/30 flex items-center justify-center transition-opacity"
+                                                                    style={{ aspectRatio: `${imageWidth} / ${imageHeight}`, opacity: hoveredField === 'imageSize' ? 0.2 : 1 }}
+                                                                >
+                                                                    <Layers className="h-2 w-2 text-slate-200" />
+                                                                </div>
+                                                            ))
+                                                        }
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="w-full h-full flex flex-col items-center">
+                                                    {multiResults.items.map((item, itemIdx) => {
+                                                        const groupContentWidthCm = (item.width * item.imagesPerRow) + (separation * (item.imagesPerRow - 1));
+                                                        const isLast = itemIdx === multiResults.items.length - 1;
+                                                        return (
+                                                            <div key={item.id}
+                                                                className="flex flex-col items-center"
+                                                                style={{
+                                                                    width: `${(groupContentWidthCm / multiResults.usableWidth) * 100}%`,
+                                                                    marginBottom: isLast ? 0 : `${(separation / (multiResults.totalHeightCm - (margin * 2))) * 100}%`
+                                                                }}
+                                                            >
+                                                                <div className={cn(
+                                                                    "grid content-start w-full transition-all duration-300",
+                                                                    hoveredField === 'separation' ? "bg-purple-500/5 ring-1 ring-purple-500/20" : ""
+                                                                )}
+                                                                    style={{
+                                                                        gridTemplateColumns: `repeat(${item.imagesPerRow}, 1fr)`,
+                                                                        columnGap: `${(separation / groupContentWidthCm) * 100}%`,
+                                                                        rowGap: `${(separation / item.heightCm) * 100}%`,
+                                                                        aspectRatio: `${groupContentWidthCm} / ${item.heightCm}`
+                                                                    }}
+                                                                >
+                                                                    {Array.from({ length: Math.min(100, item.quantity) }).map((_, i) => (
+                                                                        <div key={`item-${item.id}-${i}`}
+                                                                            className={cn(
+                                                                                "bg-sky-400 border border-sky-600/30 rounded-sm flex items-center justify-center transition-all duration-300",
+                                                                                (hoveredField === 'itemWidth' || hoveredField === 'itemHeight' || hoveredField === 'itemQuantity') ? "scale-[1.05] shadow-[0_0_12px_rgba(30,150,255,0.6)] z-20 border-sky-300" : ""
+                                                                            )}
+                                                                            style={{ aspectRatio: `${item.width} / ${item.height}` }}
+                                                                        >
+                                                                            <span className="text-[5px] font-bold text-sky-900/50">{itemIdx + 1}</span>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Margens Overlay Dinâmicas */}
+                                    <div className={cn(
+                                        "absolute inset-y-0 left-0 pointer-events-none z-10 flex transition-all duration-300",
+                                        hoveredField === 'margin' ? "bg-emerald-500/20 shadow-[inset_-10px_0_15px_rgba(16,185,129,0.2)]" : ""
+                                    )}
+                                        style={{ width: `${((mode === 'simple' ? results.realSideMargin : margin) / rollWidth) * 100}%` }}>
+                                        <div className={cn(
+                                            "h-full border-r flex items-center justify-center transition-all",
+                                            hoveredField === 'margin' ? "bg-emerald-500/30 border-emerald-500" : "bg-emerald-500/5 border-emerald-500/10"
+                                        )} style={{ width: mode === 'simple' ? `${(margin / results.realSideMargin) * 100}%` : '100% ' }}>
+                                            <div className="[writing-mode:vertical-lr] rotate-180 opacity-40">
+                                                <span className={cn("text-[5px] font-bold uppercase tracking-widest", hoveredField === 'margin' ? "text-emerald-900" : "text-emerald-800")}>M. SEG {margin}CM</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className={cn(
+                                        "absolute inset-y-0 right-0 pointer-events-none z-10 flex flex-row-reverse transition-all duration-300",
+                                        hoveredField === 'margin' ? "bg-emerald-500/20 shadow-[inset_10px_0_15px_rgba(16,185,129,0.2)]" : ""
+                                    )}
+                                        style={{ width: `${((mode === 'simple' ? results.realSideMargin : margin) / rollWidth) * 100}%` }}>
+                                        <div className={cn(
+                                            "h-full border-l flex items-center justify-center transition-all",
+                                            hoveredField === 'margin' ? "bg-emerald-500/30 border-emerald-500" : "bg-emerald-500/5 border-emerald-500/10"
+                                        )} style={{ width: mode === 'simple' ? `${(margin / results.realSideMargin) * 100}%` : '100%' }}>
+                                            <div className="[writing-mode:vertical-lr] opacity-40">
+                                                <span className={cn("text-[5px] font-bold uppercase tracking-widest", hoveredField === 'margin' ? "text-emerald-900" : "text-emerald-800")}>M. SEG {margin}CM</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                            <div className="flex items-center gap-1.5">
-                                <div className="w-2.5 h-2.5 bg-white border border-slate-200 shadow-sm" />
-                                <span className="text-[9px] text-slate-500 dark:text-slate-400 font-medium">Área Útil</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                                <div className="w-2.5 h-2.5 bg-emerald-400/50 border border-emerald-500" />
-                                <span className="text-[9px] text-slate-500 dark:text-slate-400 font-medium">Margem (M)</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                                <div className="w-2.5 h-2.5 bg-fuchsia-400/50 border border-fuchsia-500" />
-                                <span className="text-[9px] text-slate-500 dark:text-slate-400 font-medium">Espaço (S)</span>
+
+                            {/* Legenda e Status (Estilo Imagem 4) */}
+                            <div className="px-4 py-3 border-t border-slate-200 bg-slate-900 flex flex-wrap items-center justify-between rounded-b-xl gap-4">
+                                <div className="flex flex-wrap gap-x-6 gap-y-2">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-3 h-3 bg-yellow-400 rounded-sm shadow-[0_0_5px_rgba(250,204,21,0.5)]" />
+                                        <span className="text-[10px] text-slate-400 font-black uppercase tracking-wider">Logos</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-3 h-3 bg-white border border-slate-700 rounded-sm" />
+                                        <span className="text-[10px] text-slate-400 font-black uppercase tracking-wider">Área Útil</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-3 h-3 bg-emerald-500 rounded-sm" />
+                                        <span className="text-[10px] text-slate-400 font-black uppercase tracking-wider">Margem (M)</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-3 h-3 bg-purple-500 rounded-sm" />
+                                        <span className="text-[10px] text-slate-400 font-black uppercase tracking-wider">Espaço (S)</span>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-2 px-3 py-1 bg-slate-800/50 rounded-full border border-slate-700/50 ml-auto">
+                                    <Badge variant="outline" className="bg-transparent text-slate-300 font-bold text-[9px] border-slate-700 px-2 py-0">
+                                        TOTAL: {(mode === 'simple' ? results.totalHeightCm : multiResults.totalHeightCm).toFixed(1)}cm
+                                    </Badge>
+                                    <div className="h-3 w-px bg-slate-700" />
+                                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">1:{Math.round(100 / (mode === 'simple' ? results.totalHeightCm : multiResults.totalHeightCm) * 10)}</span>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
+                {/* Footer profissional */}
                 <div className="flex justify-between items-center mt-6 pt-4 border-t sticky bottom-0 bg-background/95 backdrop-blur-sm z-50 pb-2">
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                        <Calculator className="h-4 w-4" />
-                        <span className="text-xs font-semibold">DIRECT-AI CALC v2.0</span>
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center border border-emerald-100 dark:bg-emerald-500/10 dark:border-emerald-500/20">
+                            <Calculator className="h-5 w-5 text-emerald-600" />
+                        </div>
+                        <div>
+                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-tighter leading-none">Cálculo Preciso</div>
+                            <div className="text-xs font-bold text-slate-900 dark:text-slate-100">DIRECT-AI ENGINE v2.8</div>
+                        </div>
                     </div>
-                    <div className="flex gap-2">
-                        <Button variant="outline" onClick={onClose}>Cancelar</Button>
+                    <div className="flex gap-3">
+                        <Button variant="ghost" size="sm" onClick={onClose} className="font-bold text-slate-500">Voltar</Button>
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                                <Button
-                                    disabled={isExporting}
-                                    className="gap-2 shrink-0 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20"
-                                >
-                                    {isExporting ? (
-                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                    ) : (
-                                        <Share2 className="h-4 w-4" />
-                                    )}
-                                    Enviar Orçamento <ChevronRight className="h-4 w-4" />
+                                <Button size="sm" className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/20 font-bold px-4">
+                                    <Share2 className="h-4 w-4" /> Finalizar Orçamento
                                 </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-56 p-2">
-                                <div className="px-2 py-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Formato Texto</div>
+                                <div className="px-2 py-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Enviar Dados</div>
+                                <DropdownMenuItem onClick={handleShareWhatsApp} className="gap-2 cursor-pointer text-green-600 font-bold py-2">
+                                    <MessageSquare className="h-4 w-4" /> WhatsApp
+                                </DropdownMenuItem>
                                 <DropdownMenuItem onClick={handleCopyToClipboard} className="gap-2 cursor-pointer py-2">
                                     <Copy className="h-4 w-4" /> Copiar Resumo
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={handleShareWhatsApp} className="gap-2 cursor-pointer text-green-600 focus:text-green-600 focus:bg-green-50 py-2">
-                                    <MessageSquare className="h-4 w-4" /> Enviar p/ WhatsApp
-                                </DropdownMenuItem>
                                 <DropdownMenuSeparator />
-                                <div className="px-2 py-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Exportar Preview</div>
+                                <div className="px-2 py-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Exportar</div>
                                 <DropdownMenuItem onClick={handleDownloadImage} className="gap-2 cursor-pointer py-2">
-                                    <Download className="h-4 w-4" /> Baixar Imagem (PNG)
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={handleCopyImageToClipboard} className="gap-2 cursor-pointer py-2">
-                                    <ImageIcon className="h-4 w-4" /> Copiar Imagem Layout
+                                    <Download className="h-4 w-4" /> Baixar PNG
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
                     </div>
                 </div>
             </DialogContent>
-        </Dialog >
+        </Dialog>
     );
 };

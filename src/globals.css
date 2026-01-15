@@ -139,6 +139,17 @@
   * {
     -webkit-overflow-scrolling: touch;
   }
+
+  /* Remover setas de input number (Spin Buttons) */
+  input::-webkit-outer-spin-button,
+  input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  input[type=number] {
+    -moz-appearance: textfield;
+  }
 }
 
 /* Custom Scrollbar - Amarelo DIRECT AI */
