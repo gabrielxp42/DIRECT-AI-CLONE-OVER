@@ -1582,3 +1582,304 @@ h1 {
         grid-template-columns: 1fr;
     }
 }
+
+/* Calculator Section Styles */
+.calculator-section {
+    padding: 100px 0;
+    position: relative;
+    overflow: hidden;
+}
+
+.calculator-grid {
+    display: grid;
+    /* Alterado para dar mais destaque a imagem (1.4fr) e menos ao texto (0.9fr) */
+    grid-template-columns: 1.4fr 0.9fr;
+    gap: 4rem;
+    align-items: center;
+}
+
+.compact-title {
+    font-size: 2.2rem;
+    /* Reduzido de 3rem */
+    line-height: 1.1;
+    margin-bottom: 1rem;
+}
+
+.section-description {
+    font-size: 1rem;
+    line-height: 1.5;
+    margin-bottom: 1.5rem;
+}
+
+.compact-list {
+    margin-bottom: 1.5rem;
+}
+
+.compact-list li {
+    margin-bottom: 0.8rem;
+}
+
+/* Gabi AI Glass Bubble (Pink/Coral Gradient Border) */
+.gabi-glass-bubble {
+    position: relative;
+    border-radius: 16px;
+    margin-bottom: 2rem;
+    /* Fundo rosado translúcido - LIQUID GLASS */
+    background: rgba(255, 200, 180, 0.12);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow: 0 8px 32px rgba(236, 72, 153, 0.15);
+}
+
+/* Borda Gradiente via ::before */
+.gabi-glass-bubble::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 16px;
+    padding: 2px;
+    /* Espessura da borda */
+    background: linear-gradient(135deg, #FBBF24 0%, #F472B6 50%, #EC4899 100%);
+    -webkit-mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+}
+
+.gabi-glass-bubble .bubble-content {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1.2rem 1.5rem;
+}
+
+.bubble-sparkles {
+    position: absolute;
+    top: -10px;
+    left: 8px;
+    font-size: 1.2rem;
+    color: #F472B6;
+    text-shadow: 0 0 12px rgba(244, 114, 182, 0.9);
+    animation: sparkle 2s ease-in-out infinite;
+    z-index: 2;
+}
+
+@keyframes sparkle {
+
+    0%,
+    100% {
+        opacity: 1;
+        transform: scale(1) rotate(0deg);
+    }
+
+    50% {
+        opacity: 0.7;
+        transform: scale(1.3) rotate(15deg);
+    }
+}
+
+.bubble-icon {
+    background: linear-gradient(135deg, #FBBF24, #EC4899);
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 0 20px rgba(236, 72, 153, 0.6);
+}
+
+.bubble-icon i {
+    width: 20px;
+    height: 20px;
+    color: #fff;
+}
+
+.bubble-text strong {
+    display: block;
+    color: #fff;
+    font-size: 0.95rem;
+    margin-bottom: 0.4rem;
+}
+
+.bubble-text p {
+    margin: 0;
+    font-size: 0.88rem;
+    line-height: 1.5;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.bubble-text em {
+    color: #fff;
+    font-style: italic;
+}
+
+.calc-visual {
+    position: relative;
+    /* Zoom leve na imagem pra preencher melhor */
+    transform: scale(1.05);
+}
+
+.calc-preview-card {
+    padding: 0;
+    border-radius: 1.5rem;
+    overflow: hidden;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: transform 0.5s ease;
+}
+
+.calc-preview-card:hover {
+    transform: scale(1.02);
+    border-color: var(--primary);
+    box-shadow: 0 0 40px rgba(255, 242, 0, 0.15);
+}
+
+.calc-img {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+.calc-glow {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(circle at center, rgba(255, 242, 0, 0.05), transparent 70%);
+}
+
+.floating-badge {
+    position: absolute;
+    background: rgba(15, 23, 42, 0.95);
+    /* Menos transparente para leitura */
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #fff;
+    padding: 0.8rem 1.4rem;
+    border-radius: 50px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
+    /* Sombra mais forte para destacar */
+    z-index: 20;
+    /* Garantir que fique acima do card */
+    animation: float-badge 6s ease-in-out infinite;
+    white-space: nowrap;
+}
+
+.floating-badge i {
+    color: var(--primary);
+    width: 20px;
+    height: 20px;
+}
+
+.badge-top-right {
+    top: -15px;
+    /* Caindo para fora (entre dentro e fora) */
+    right: -25px;
+    animation-delay: 0s;
+}
+
+.badge-bottom-left {
+    bottom: 25px;
+    left: -35px;
+    /* Caindo para fora violentamente */
+    animation-delay: 3s;
+}
+
+@keyframes float-badge {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-10px);
+    }
+}
+
+.bg-yellow {
+    background: rgba(255, 242, 0, 0.15);
+    color: var(--primary);
+    border-color: var(--primary);
+}
+
+.lead-text {
+    font-size: 1.4rem;
+    color: #fff;
+    font-weight: 600;
+    line-height: 1.3;
+    margin-bottom: 1rem;
+}
+
+.section-description {
+    color: rgba(255, 255, 255, 0.7);
+    margin-bottom: 2rem;
+    font-size: 1.1rem;
+}
+
+.section-description strong {
+    color: #fff;
+}
+
+.feature-checklist {
+    list-style: none;
+    margin-bottom: 2.5rem;
+}
+
+.feature-checklist li {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1.2rem;
+}
+
+.feature-checklist li i {
+    background: var(--primary);
+    color: #000;
+    border-radius: 50%;
+    padding: 3px;
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+}
+
+.feature-checklist li span {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 1rem;
+}
+
+.feature-checklist li strong {
+    color: #fff;
+    display: block;
+    margin-bottom: 0.2rem;
+}
+
+@media (max-width: 992px) {
+    .calculator-grid {
+        grid-template-columns: 1fr;
+        gap: 3rem;
+    }
+
+    .calc-visual {
+        order: -1;
+        /* Image first on mobile */
+    }
+
+    .badge-top-right {
+        right: 0;
+    }
+
+    .badge-bottom-left {
+        left: 0;
+    }
+}
