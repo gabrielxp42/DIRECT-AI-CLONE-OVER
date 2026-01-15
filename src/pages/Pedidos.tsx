@@ -61,8 +61,41 @@ import { PEDIDOS_TOUR } from '@/utils/tours';
 import { useCompanyProfile, getCompanyInfoForPDF } from '@/hooks/useCompanyProfile';
 import { printThermalReceipt } from '@/utils/thermalPrinter';
 import { motion } from 'framer-motion';
+import { toPng, toBlob } from 'html-to-image';
+import { Share2, Copy, Download, Image as ImageIcon } from 'lucide-react';
 
 const ITEMS_PER_PAGE_OPTIONS = [10, 20, 50, 100];
+
+const generateOrderSummary = (pedido: Pedido) => {
+  const date = format(new Date(pedido.created_at), 'dd/MM/yyyy HH:mm', { locale: ptBR });
+  const total = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pedido.valor_total);
+  const cliente = pedido.clientes?.nome || 'Cliente Desconhecido';
+
+  let summary = `*PEDIDO #${pedido.order_number}*\n`;
+  summary += `👤 Cliente: ${cliente}\n`;
+  summary += `📅 Data: ${date}\n`;
+  summary += `💰 Total: ${total}\n\n`;
+  summary += `*ITENS DO PEDIDO:*\n`;
+
+  if (pedido.pedido_items && pedido.pedido_items.length > 0) {
+    pedido.pedido_items.forEach(item => {
+      const tipo = (item.tipo || 'produto').toUpperCase();
+      const qtd = Number(item.quantidade);
+      const unidade = ['unidade', 'un'].includes(item.unidade_medida?.toLowerCase() || '') ? 'un' : 'm';
+      summary += `• ${tipo}: ${qtd.toFixed(2)}${unidade}\n`;
+    });
+  } else {
+    summary += `• (Sem itens registrados)\n`;
+  }
+
+  summary += `\nSTATUS: ${pedido.status.toUpperCase()}`;
+
+  if (pedido.latest_status_observation) {
+    summary += `\nObs: ${pedido.latest_status_observation}`;
+  }
+
+  return summary;
+};
 
 const PedidosPage: React.FC = () => {
   const { session, profile, isLoading: sessionLoading } = useSession();
@@ -264,6 +297,77 @@ const PedidosPage: React.FC = () => {
     }
   };
   // --- Fim Funções de PDF ---
+
+  // --- Funções de Compartilhamento ---
+  const handleCopySummary = (pedido: Pedido) => {
+    const summary = generateOrderSummary(pedido);
+    navigator.clipboard.writeText(summary).then(() => {
+      showSuccess("Resumo copiado para a área de transferência!");
+    }).catch(() => {
+      showError("Erro ao copiar resumo.");
+    });
+  };
+
+  const handleShareWhatsApp = (pedido: Pedido) => {
+    const summary = generateOrderSummary(pedido);
+    const encodedText = encodeURIComponent(summary);
+
+    // Tentar usar o telefone do cliente, se disponível
+    let phone = pedido.clientes?.telefone || '';
+    // Limpar telefone (manter apenas números)
+    phone = phone.replace(/\D/g, '');
+
+    const url = phone
+      ? `https://wa.me/55${phone}?text=${encodedText}`
+      : `https://wa.me/?text=${encodedText}`;
+
+    window.open(url, '_blank');
+  };
+
+  const handleDownloadCardImage = async (pedidoId: string, orderNumber: number) => {
+    const element = document.getElementById(`order-card-${pedidoId}`);
+    if (!element) {
+      showError("Erro ao localizar o card do pedido.");
+      return;
+    }
+
+    try {
+      // Pequeno hack para garantir que estilos carreguem
+      const dataUrl = await toPng(element, { cacheBust: true, pixelRatio: 2 });
+      const link = document.createElement('a');
+      link.download = `pedido-${orderNumber}.png`;
+      link.href = dataUrl;
+      link.click();
+      showSuccess("Imagem do card baixada!");
+    } catch (err) {
+      console.error(err);
+      showError("Erro ao gerar imagem do card.");
+    }
+  };
+
+  const handleCopyCardImage = async (pedidoId: string) => {
+    const element = document.getElementById(`order-card-${pedidoId}`);
+    if (!element) {
+      showError("Erro ao localizar o card do pedido.");
+      return;
+    }
+
+    try {
+      const blob = await toBlob(element, { cacheBust: true, pixelRatio: 2 });
+      if (blob) {
+        await navigator.clipboard.write([
+          new ClipboardItem({ 'image/png': blob })
+        ]);
+        showSuccess("Imagem do card copiada!");
+      } else {
+        throw new Error("Falha ao gerar blob da imagem");
+      }
+    } catch (err) {
+      console.error(err);
+      showError("Erro ao copiar imagem. Navegador não suportado?");
+    }
+  };
+  // --- Fim Funções de Compartilhamento ---
 
 
   // --- Mutações ---
@@ -989,8 +1093,8 @@ const PedidosPage: React.FC = () => {
             {filteredPedidos.map((pedido, index) => (
               <Card
                 key={pedido.id}
-                id={index === 0 ? "first-order-card" : undefined}
-                className="touch-manipulation cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-[1.02] hover:border-primary/50"
+                id={`order-card-${pedido.id}`}
+                className="touch-manipulation cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-[1.02] hover:border-primary/50 group"
                 onClick={() => handleViewPedido(pedido.id)}
               >
                 <CardHeader className="pb-3">
@@ -1098,7 +1202,7 @@ const PedidosPage: React.FC = () => {
                             e.stopPropagation();
                             handleDownloadPDF(pedido);
                           }}
-                          className="h-9 w-9"
+                          className="h-8 w-8 text-slate-500 hover:text-primary hover:bg-primary/5"
                         >
                           <FileText className="h-4 w-4" />
                         </Button>
@@ -1111,27 +1215,52 @@ const PedidosPage: React.FC = () => {
                         <Button
                           variant="outline"
                           size="icon"
-                          className="h-9 w-9"
+                          className="h-8 w-8 text-slate-500 hover:text-primary hover:bg-primary/5"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Share2 className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-56 p-2">
+                        <DropdownMenuLabel className="text-xs uppercase font-bold text-muted-foreground tracking-wider mb-1">
+                          Compartilhar Pedido
+                        </DropdownMenuLabel>
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleCopySummary(pedido); }} className="cursor-pointer">
+                          <Copy className="h-4 w-4 mr-2 text-amber-500" />
+                          Copiar Resumo
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleShareWhatsApp(pedido); }} className="cursor-pointer">
+                          <MessageSquare className="h-4 w-4 mr-2 text-green-500" />
+                          Enviar no WhatsApp
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDownloadCardImage(pedido.id, pedido.order_number); }} className="cursor-pointer">
+                          <Download className="h-4 w-4 mr-2 text-blue-500" />
+                          Baixar Imagem (Card)
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleCopyCardImage(pedido.id); }} className="cursor-pointer">
+                          <ImageIcon className="h-4 w-4 mr-2 text-purple-500" />
+                          Copiar Imagem (Card)
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8 text-slate-500 hover:text-primary hover:bg-primary/5"
                           onClick={(e) => e.stopPropagation()}
                         >
                           <Printer className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Opções de Impressão</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={(e) => {
-                          e.stopPropagation();
-                          handlePrintPDF(pedido);
-                        }}>
-                          <Printer className="h-4 w-4 mr-2" />
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handlePrintPDF(pedido); }}>
                           Nota (A4)
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={(e) => {
-                          e.stopPropagation();
-                          printThermalReceipt(pedido);
-                        }}>
-                          <ScrollText className="h-4 w-4 mr-2" />
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); printThermalReceipt(pedido); }}>
                           Cupom (80mm)
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -1143,7 +1272,7 @@ const PedidosPage: React.FC = () => {
                           variant="outline"
                           size="icon"
                           onClick={(e) => { e.stopPropagation(); handleStatusChange(pedido); }}
-                          className="h-9 w-9"
+                          className="h-8 w-8 text-slate-500 hover:text-primary hover:bg-primary/5"
                         >
                           <Wrench className="h-4 w-4" />
                         </Button>
@@ -1157,7 +1286,7 @@ const PedidosPage: React.FC = () => {
                           variant="outline"
                           size="icon"
                           onClick={(e) => e.stopPropagation()}
-                          className="h-9 w-9"
+                          className="h-8 w-8 text-slate-500 hover:text-primary hover:bg-primary/5"
                         >
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>

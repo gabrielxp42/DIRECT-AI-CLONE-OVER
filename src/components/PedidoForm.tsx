@@ -43,7 +43,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { NewPedido, Pedido } from "@/types/pedido";
 import { Cliente } from "@/types/cliente";
 import { Produto } from "@/types/produto";
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { Trash2, Plus, Search, Edit3, X, User, Package, Wrench, Save, Zap, CalendarIcon, Ruler, ChevronDown, Loader2, FileText, Copy, GripVertical, Sparkles, Printer, Scissors, Settings, Bike, Star } from "lucide-react";
 import {
   Tooltip,
@@ -343,18 +343,31 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
 
 
 
-  // Auto-save do rascunho - Usando useWatch para evitar re-renders globais no componente
+  // Auto-save do rascunho - Otimizado para não interromper digitação
   const allValues = form.watch(); // Monitora tudo mas apenas para o draft
+  const saveTimerRef = useRef<NodeJS.Timeout>();
+
   useEffect(() => {
     if (isOpen && !isEditing && !isSubmitting) {
-      const timer = setTimeout(() => {
+      // Limpa timer anterior para resetar debounce
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+      }
+
+      // Agenda novo save com debounce maior para evitar interrupções
+      saveTimerRef.current = setTimeout(() => {
         // Só salvar se não estiver submetendo
         if (!isSubmitInProgress.current) {
           localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(allValues));
         }
-      }, 500); // Debounce de 500ms
-      return () => clearTimeout(timer);
+      }, 2000); // Debounce de 2 segundos (antes: 500ms)
     }
+
+    return () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+      }
+    };
   }, [allValues, isOpen, isEditing, isSubmitting]);
 
   const handleValidSubmit = (data: PedidoFormValues) => {
@@ -693,21 +706,32 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
     }
   };
 
-  // Cálculo de totais otimizado usando useWatch seletivo
-  const watchedItems = form.watch('items') || [];
-  const watchedServicos = form.watch('servicos') || [];
+  // Cálculo de totais otimizado - Usa itemFields/servicoFields em vez de watch()
+  // Apenas watch nos valores de desconto para evitar re-renders excessivos
   const watchedDescontoValor = form.watch('desconto_valor') || 0;
   const watchedDescontoPercentual = form.watch('desconto_percentual') || 0;
 
-  const calculateTotal = () => {
-    const subtotalProdutos = watchedItems.reduce((sum, item) => sum + (Number(item.quantidade) * Number(item.preco_unitario)), 0);
-    const subtotalServicos = watchedServicos.reduce((sum, servico) => sum + (Number(servico.quantidade) * Number(servico.valor_unitario)), 0);
+  const calculateTotal = useCallback(() => {
+    // Usar itemFields em vez de watchedItems para melhor performance
+    const subtotalProdutos = itemFields.reduce((sum, _field, index) => {
+      const item = form.getValues(`items.${index}`);
+      if (!item) return sum;
+      return sum + (Number(item.quantidade) * Number(item.preco_unitario));
+    }, 0);
+
+    const subtotalServicos = servicoFields.reduce((sum, _field, index) => {
+      const servico = form.getValues(`servicos.${index}`);
+      if (!servico) return sum;
+      return sum + (Number(servico.quantidade) * Number(servico.valor_unitario));
+    }, 0);
+
     const subtotal = subtotalProdutos + subtotalServicos;
 
     const descontoPercentualValor = subtotal * (watchedDescontoPercentual / 100);
     const valorTotal = Math.max(0, subtotal - watchedDescontoValor - descontoPercentualValor);
 
-    const totalMetros = watchedItems.reduce((sum, item) => {
+    const totalMetros = itemFields.reduce((sum, _field, index) => {
+      const item = form.getValues(`items.${index}`);
       if (!item || !item.tipo) return sum;
       const tipoInfo = tiposProducao?.find(t => t?.nome?.toLowerCase() === item.tipo?.toLowerCase());
       if (tipoInfo && tipoInfo.unidade_medida === 'unidade') return sum;
@@ -721,7 +745,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
       valorTotal,
       totalMetros: totalMetros
     };
-  };
+  }, [itemFields, servicoFields, watchedDescontoValor, watchedDescontoPercentual, tiposProducao, form]);
 
   const { valorTotal, totalMetros } = calculateTotal();
 
@@ -993,7 +1017,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                     )}
 
                     <div className="space-y-3 mt-4">
-                      {watchedItems.length === 0 ? (
+                      {itemFields.length === 0 ? (
                         <p id="empty-items-message" className="text-center text-muted-foreground py-10 bg-muted/20 border-2 border-dashed rounded-xl transition-all duration-300">
                           Nenhum produto adicionado. Clique em "Adicionar Item" para começar.
                         </p>
