@@ -303,10 +303,13 @@ h1 {
 }
 
 .btn-primary {
-    background: var(--primary);
+    background: rgba(255, 242, 0, 0.85);
+    background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.01) 50%, rgba(0, 0, 0, 0.05) 100%);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.4);
     color: #000000 !important;
-    /* Total black for maximum contrast */
-    box-shadow: 0 0 20px rgba(255, 242, 0, 0.3);
+    box-shadow: 0 8px 32px 0 rgba(255, 242, 0, 0.25);
 }
 
 .btn-primary:hover {
@@ -1884,6 +1887,62 @@ h1 {
 
     .badge-bottom-left {
         left: 0;
+    }
+
+    /* Calculator Mobile Fixes */
+    .calculator-modal {
+        width: 100%;
+        height: 100%;
+        border-radius: 0;
+        max-width: none;
+    }
+
+    .calc-main-split {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto 1fr;
+        /* Input area auto, preview takes rest */
+    }
+
+    .calc-left {
+        max-height: 50vh;
+        /* Limit input area height on mobile */
+        border-right: none;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 1rem;
+    }
+
+    .calc-right {
+        display: none;
+        /* Optional: Hide preview on very small screens or make it toggleable? 
+           Actually, let's keep it but handle the layout better. 
+           If the user wants it Usable, maybe stacking is better.
+        */
+        height: 50vh;
+    }
+
+    .calc-top-banner {
+        flex-direction: column;
+        gap: 0.75rem;
+        padding: 1rem;
+        text-align: center;
+    }
+
+    .banner-content {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .calc-results-footer {
+        padding: 0.75rem 1rem;
+    }
+
+    .results-grid {
+        gap: 0.5rem;
+    }
+
+    .result-card .res-value {
+        font-size: 1.5rem;
+        /* Smaller font for mobile */
     }
 }
 
