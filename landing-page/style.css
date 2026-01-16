@@ -541,14 +541,14 @@ h1 {
     width: 220px;
     height: 220px;
     background: radial-gradient(circle at 30% 30%, #FFF200, #b21fef);
-    mask: radial-gradient(circle at 100% 0%, black, transparent 100%);
-    mask: radial-gradient(circle at 100% 0%, black, transparent 100%);
-    -webkit-mask: radial-gradient(circle at 100% 0%, black, transparent 100%);
+    /* Subtle mask - just a hint of transparency to let smoke show through */
+    mask: radial-gradient(circle, black 60%, rgba(0, 0, 0, 0.7) 100%);
+    -webkit-mask: radial-gradient(circle, black 60%, rgba(0, 0, 0, 0.7) 100%);
     border-radius: 50%;
     display: flex;
     justify-content: center;
     align-items: center;
-    box-shadow: 0 0 60px rgba(124, 58, 237, 0.4), inset 0 0 30px rgba(255, 255, 255, 0.3);
+    box-shadow: 0 0 80px rgba(124, 58, 237, 0.5), 0 0 120px rgba(255, 242, 0, 0.3), inset 0 0 40px rgba(255, 255, 255, 0.4);
     z-index: 2;
     position: relative;
 }
@@ -559,10 +559,10 @@ h1 {
     height: 36px !important;
     color: #ffffff !important;
     stroke: #ffffff !important;
-    filter: drop-shadow(0 0 10px rgba(255, 242, 0, 0.6));
+    filter: drop-shadow(0 0 15px rgba(255, 242, 0, 0.8));
     z-index: 3;
     stroke-width: 2.5;
-    opacity: 0.8;
+    opacity: 1;
 }
 
 /* Floating Dialog Bubbles */
@@ -1889,63 +1889,88 @@ h1 {
         left: 0;
     }
 
-    /* Calculator Mobile Fixes */
+    /* Calculator Mobile Fixes - TRUE FULL SCREEN */
+    .modal-overlay {
+        padding: 0 !important;
+        align-items: flex-start !important;
+    }
+
     .calculator-modal {
-        width: 100%;
-        height: 100%;
-        max-height: 100dvh;
-        border-radius: 0;
-        max-width: none;
+        width: 100vw !important;
+        height: 100dvh !important;
+        max-width: none !important;
+        max-height: none !important;
+        margin: 0 !important;
+        border: none !important;
+        border-radius: 0 !important;
+        position: fixed !important;
+        inset: 0 !important;
+        background: #0f172a;
     }
 
     .calc-modal-content {
         height: 100%;
-        overflow: hidden;
-    }
-
-    .calc-main-split {
-        grid-template-columns: 1fr;
-        grid-template-rows: 1fr;
-        height: 100%;
-        overflow: hidden;
-    }
-
-    .calc-left {
-        height: 100%;
-        max-height: none;
-        border-right: none;
-        padding: 0.75rem;
         display: flex;
         flex-direction: column;
         overflow: hidden;
     }
 
+    /* Hide banner entirely on mobile */
+    .calc-top-banner {
+        display: none !important;
+    }
+
+    .calc-main-split {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
+        /* Critical for nested flex scrolling */
+        overflow: hidden;
+    }
+
+    .calc-left {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        /* Critical for nested flex scrolling */
+        padding: 0;
+        /* Remove padding from container, move to children */
+        overflow: hidden;
+    }
+
     .calc-header {
+        padding: 1rem 1rem 0 1rem;
         flex-shrink: 0;
-        margin-bottom: 0.5rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .calc-title {
+        gap: 0.5rem;
     }
 
     .calc-tabs {
-        margin-bottom: 0.75rem;
+        margin: 0.5rem 1rem;
         flex-shrink: 0;
     }
 
     .calc-form-scroll {
         flex: 1;
-        min-height: 0;
         overflow-y: auto;
-        overflow-x: hidden;
+        padding: 0 1rem 1rem 1rem;
         -webkit-overflow-scrolling: touch;
-        padding-right: 0.25rem;
-        margin-bottom: 0;
     }
 
     .calc-results-footer {
         flex-shrink: 0;
-        padding: 0.75rem;
-        margin-top: 0;
-        position: relative;
-        z-index: 30;
+        padding: 1rem;
+        background: rgba(15, 17, 26, 0.98);
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        z-index: 50;
+        box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
     }
 
     .results-grid {
@@ -1984,13 +2009,6 @@ h1 {
         display: none;
     }
 
-    .calc-top-banner {
-        flex-direction: column;
-        gap: 0.5rem;
-        padding: 0.75rem;
-        text-align: center;
-    }
-
     .banner-content {
         flex-direction: column;
         gap: 0.25rem;
@@ -2016,8 +2034,22 @@ h1 {
 
 /* Extra small screens */
 @media (max-width: 480px) {
+    .calc-left {
+        padding: 0.5rem;
+    }
+
     .calc-header {
         margin-bottom: 0.25rem;
+    }
+
+    .calc-title {
+        gap: 0.5rem;
+    }
+
+    .calc-title i,
+    .calc-title svg {
+        width: 24px !important;
+        height: 24px !important;
     }
 
     .calc-title h2 {
@@ -2025,34 +2057,93 @@ h1 {
     }
 
     .calc-title p {
-        font-size: 0.65rem;
+        font-size: 0.6rem;
     }
 
     .calc-ai-tips {
         display: none;
     }
 
-    .tab-btn {
-        font-size: 0.7rem;
-        padding: 0.5rem;
-    }
-
-    .group-label {
-        font-size: 0.6rem;
+    .calc-tabs {
+        gap: 0.25rem;
+        padding: 0.25rem;
         margin-bottom: 0.5rem;
     }
 
-    .field label {
+    .tab-btn {
         font-size: 0.65rem;
+        padding: 0.4rem 0.5rem;
+        gap: 0.25rem;
+    }
+
+    .tab-btn i,
+    .tab-btn svg {
+        width: 14px !important;
+        height: 14px !important;
+    }
+
+    .form-group {
+        padding: 0.5rem;
+        margin-bottom: 0.4rem;
+        border-radius: 10px;
+    }
+
+    .group-label {
+        font-size: 0.55rem;
+        margin-bottom: 0.4rem;
+    }
+
+    .input-grid {
+        gap: 0.4rem;
+    }
+
+    .field label {
+        font-size: 0.6rem;
+    }
+
+    .num-input-wrap {
+        height: 36px;
+        border-radius: 8px;
+    }
+
+    .num-input-wrap input {
+        font-size: 0.85rem;
+    }
+
+    .ctrl-btn {
+        width: 36px;
+    }
+
+    .ctrl-btn i {
+        width: 12px;
+        height: 12px;
     }
 
     .q-btn {
-        font-size: 0.6rem;
-        padding: 0.25rem;
+        font-size: 0.55rem;
+        padding: 0.2rem;
+    }
+
+    .quick-btns {
+        margin-top: 0.3rem;
+    }
+
+    /* Results footer - compact for mobile */
+    .calc-results-footer {
+        padding: 0.5rem;
+    }
+
+    .results-grid {
+        gap: 0.4rem;
+    }
+
+    .result-card {
+        padding: 0.5rem !important;
+        border-radius: 10px;
     }
 
     .result-card .res-label {
-        font-size: 0.55rem;
+        font-size: 0.5rem;
     }
 
     .result-card .res-value {
@@ -2061,13 +2152,43 @@ h1 {
 
     .gabi-summary {
         padding: 0.5rem;
+        gap: 0.5rem;
+        margin-top: 0.25rem;
+        border-radius: 10px;
+    }
+
+    .gabi-icon {
+        width: 24px;
+        height: 24px;
+    }
+
+    .gabi-icon i {
+        width: 14px;
+        height: 14px;
     }
 
     .gabi-title {
-        font-size: 0.7rem;
+        font-size: 0.65rem;
     }
 
     .gabi-text {
+        font-size: 0.6rem;
+        line-height: 1.3;
+    }
+
+    /* Multi-item mode */
+    .multi-item-row {
+        padding: 0.5rem;
+        border-radius: 10px;
+    }
+
+    .item-badge {
+        font-size: 0.5rem;
+        padding: 1px 6px;
+    }
+
+    .add-item-btn {
+        padding: 0.5rem;
         font-size: 0.65rem;
     }
 }
