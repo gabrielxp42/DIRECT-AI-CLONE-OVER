@@ -260,6 +260,19 @@ const Calculator = {
         this.resSecondaryValue.innerText = res.secondaryValue;
         this.rulerRollValue.innerText = this.rollWidth;
 
+        // Update Gabi Summary
+        const gabiText = document.getElementById('gabiSummaryText');
+        if (gabiText) {
+            if (res.mode === 'simple') {
+                const usableWidth = this.rollWidth - (this.margin * 2);
+                const efficiency = Math.round((res.contentWidth / usableWidth) * 100);
+                gabiText.innerHTML = `Cabem <strong>${res.imagesPerRow} logos</strong> por linha. Sua produção terá <strong>${res.totalRows} linhas</strong> de imagens. Aproveitamento de <strong>${efficiency}%</strong> da largura útil.`;
+            } else {
+                const totalItems = this.multiItems.reduce((acc, i) => acc + i.quantity, 0);
+                gabiText.innerHTML = `Otimizei <strong>${totalItems} itens</strong> diferentes no seu rolo de ${this.rollWidth}cm. A produção total ocupará <strong>${res.totalMeters.toFixed(2)}m</strong> com alta eficiência.`;
+            }
+        }
+
         // Paper Scaling - Proportional to real consumption
         const visualHeightCm = Math.max(5, res.totalHeightCm);
 

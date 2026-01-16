@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { Calculator, LayoutGrid, Ruler, Layers, ChevronRight, Info, HelpCircle, AlertTriangle, Plus, Minus, Maximize2, RotateCcw, MessageSquare, Share2, Copy, Download, Image as ImageIcon, Loader2, Sparkles } from "lucide-react";
+import { Calculator, LayoutGrid, Ruler, Layers, ChevronRight, Info, HelpCircle, AlertTriangle, Plus, Minus, Maximize2, RotateCcw, MessageSquare, Share2, Copy, Download, Image as ImageIcon, Loader2, Sparkles, Bot } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -927,27 +927,43 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                             </div>
                         </div>
 
-                        {/* Resumo - mode specific */}
-                        {mode === 'simple' ? (
-                            <div className="bg-slate-50 dark:bg-muted p-3 rounded-lg flex items-start gap-2 border border-slate-200 dark:border-slate-800">
-                                <Info className="h-4 w-4 text-amber-500 dark:text-primary mt-0.5 shrink-0" />
-                                <div className="text-[11px] leading-tight text-slate-600 dark:text-muted-foreground font-medium">
-                                    <strong className="text-slate-900 dark:text-slate-200">Resumo:</strong> Cabem <strong>{results.imagesPerRow} logos</strong> por linha.
-                                    Sua produção terá <strong>{results.totalRows} linhas</strong> de imagens.
-                                    Aproveitamento de <strong>{results.efficiency}%</strong> da largura útil.
+                        {/* Resumo Gabi - Universal Mode */}
+                        <div className="relative group rounded-xl p-[1px] bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] shadow-lg shadow-purple-500/10 mt-2">
+                            <div className="absolute inset-0 bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] opacity-20 blur-md rounded-xl" />
+                            <div className="relative bg-slate-950/90 backdrop-blur-xl rounded-[10px] p-3 flex gap-3 items-start">
+                                <div className="h-8 w-8 rounded-full bg-gradient-to-br from-[#FF6B6B] to-[#ffd93d] flex items-center justify-center shrink-0 shadow-lg shadow-orange-500/20">
+                                    <Bot className="h-4 w-4 text-white" />
+                                </div>
+                                <div className="space-y-0.5">
+                                    <div className="text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent flex items-center gap-1">
+                                        Resumo da Gabi
+                                    </div>
+                                    <p className="text-[11px] text-slate-300 leading-relaxed font-medium">
+                                        {mode === 'simple' ? (
+                                            <>
+                                                Cabem <strong className="text-white">{results.imagesPerRow} logos</strong> por linha.
+                                                Sua produção terá <strong className="text-white">{results.totalRows} linhas</strong> de imagens.
+                                                Aproveitamento de <strong className="text-white">{results.efficiency}%</strong> da largura útil.
+                                            </>
+                                        ) : (
+                                            <>
+                                                Otimizei <strong className="text-white">{multiResults.totalQuantity} itens</strong> diferentes no rolo de {rollWidth}cm.
+                                                Produção total de <strong className="text-white">{multiResults.totalMeters.toFixed(2)}m</strong>.
+                                            </>
+                                        )}
+                                    </p>
                                 </div>
                             </div>
-                        ) : (
-                            <div className="bg-slate-50 dark:bg-muted p-3 rounded-lg border border-slate-200 dark:border-slate-800 space-y-2">
-                                <div className="flex items-center gap-2">
-                                    <Info className="h-4 w-4 text-amber-500 dark:text-primary shrink-0" />
-                                    <span className="text-[11px] font-bold text-slate-900 dark:text-slate-200">Detalhamento por Item:</span>
-                                </div>
-                                <div className="space-y-1">
+                        </div>
+
+                        {/* Listagem detalhada apenas para multi-itens abaixo do resumo */}
+                        {mode === 'multi' && (
+                            <div className="bg-slate-50 dark:bg-muted p-2 rounded-lg border border-slate-200 dark:border-slate-800 space-y-1 mt-2">
+                                <div className="space-y-1 max-h-[150px] overflow-y-auto pr-1 custom-scrollbar">
                                     {multiResults.items.map((item, idx) => {
                                         const color = itemColors[idx % itemColors.length];
                                         return (
-                                            <div key={item.id} className="flex items-center justify-between text-[10px] text-slate-600 dark:text-slate-400 py-1.5 border-b border-slate-200 dark:border-slate-700 last:border-0 group">
+                                            <div key={item.id} className="flex items-center justify-between text-[10px] text-slate-600 dark:text-slate-400 py-1 border-b border-slate-200 dark:border-slate-700 last:border-0 group">
                                                 <div className="flex items-center gap-2">
                                                     <div className={cn("w-1 h-3 rounded-full", color.dot)} />
                                                     <span><strong className="text-slate-800 dark:text-slate-200">{idx + 1}. {item.label}</strong> × {item.quantity}un</span>

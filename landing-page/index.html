@@ -560,13 +560,27 @@
                         </div>
 
                         <div class="calc-results-footer">
-                            <div class="result-card primary">
-                                <span class="res-label">Metragem Total</span>
-                                <span class="res-value" id="resTotalMeters">0.00m</span>
+                            <div class="results-grid">
+                                <div class="result-card primary">
+                                    <span class="res-label">Metragem Total</span>
+                                    <span class="res-value" id="resTotalMeters">0.00m</span>
+                                </div>
+                                <div class="result-card secondary">
+                                    <span class="res-label" id="resSecondaryLabel">Logos por Metro</span>
+                                    <span class="res-value" id="resSecondaryValue">0 un</span>
+                                </div>
                             </div>
-                            <div class="result-card secondary">
-                                <span class="res-label" id="resSecondaryLabel">Logos por Metro</span>
-                                <span class="res-value" id="resSecondaryValue">0 un</span>
+
+                            <div class="gabi-summary" id="gabiSummaryBox">
+                                <div class="gabi-icon">
+                                    <i data-lucide="bot"></i>
+                                </div>
+                                <div class="gabi-content">
+                                    <div class="gabi-title">Resumo da Gabi</div>
+                                    <div class="gabi-text" id="gabiSummaryText">
+                                        Calculando a melhor otimização para você...
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
