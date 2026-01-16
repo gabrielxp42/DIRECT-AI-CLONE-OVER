@@ -1893,56 +1893,182 @@ h1 {
     .calculator-modal {
         width: 100%;
         height: 100%;
+        max-height: 100dvh;
         border-radius: 0;
         max-width: none;
     }
 
+    .calc-modal-content {
+        height: 100%;
+        overflow: hidden;
+    }
+
     .calc-main-split {
         grid-template-columns: 1fr;
-        grid-template-rows: auto 1fr;
-        /* Input area auto, preview takes rest */
+        grid-template-rows: 1fr;
+        height: 100%;
+        overflow: hidden;
     }
 
     .calc-left {
-        max-height: 50vh;
-        /* Limit input area height on mobile */
+        height: 100%;
+        max-height: none;
         border-right: none;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        padding: 1rem;
-    }
-
-    .calc-right {
-        display: none;
-        /* Optional: Hide preview on very small screens or make it toggleable? 
-           Actually, let's keep it but handle the layout better. 
-           If the user wants it Usable, maybe stacking is better.
-        */
-        height: 50vh;
-    }
-
-    .calc-top-banner {
+        padding: 0.75rem;
+        display: flex;
         flex-direction: column;
-        gap: 0.75rem;
-        padding: 1rem;
-        text-align: center;
+        overflow: hidden;
     }
 
-    .banner-content {
-        flex-direction: column;
-        gap: 0.5rem;
+    .calc-header {
+        flex-shrink: 0;
+        margin-bottom: 0.5rem;
+    }
+
+    .calc-tabs {
+        margin-bottom: 0.75rem;
+        flex-shrink: 0;
+    }
+
+    .calc-form-scroll {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        overflow-x: hidden;
+        -webkit-overflow-scrolling: touch;
+        padding-right: 0.25rem;
+        margin-bottom: 0;
     }
 
     .calc-results-footer {
-        padding: 0.75rem 1rem;
+        flex-shrink: 0;
+        padding: 0.75rem;
+        margin-top: 0;
+        position: relative;
+        z-index: 30;
     }
 
     .results-grid {
         gap: 0.5rem;
     }
 
+    .result-card {
+        padding: 0.75rem !important;
+    }
+
     .result-card .res-value {
         font-size: 1.5rem;
-        /* Smaller font for mobile */
+    }
+
+    .gabi-summary {
+        padding: 0.75rem;
+        gap: 0.75rem;
+        margin-top: 0.25rem;
+    }
+
+    .gabi-icon {
+        width: 28px;
+        height: 28px;
+    }
+
+    .gabi-icon i {
+        width: 16px;
+        height: 16px;
+    }
+
+    .gabi-text {
+        font-size: 0.7rem;
+    }
+
+    .calc-right {
+        display: none;
+    }
+
+    .calc-top-banner {
+        flex-direction: column;
+        gap: 0.5rem;
+        padding: 0.75rem;
+        text-align: center;
+    }
+
+    .banner-content {
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    .banner-text {
+        font-size: 0.75rem;
+    }
+
+    .form-group {
+        padding: 0.75rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .input-grid {
+        gap: 0.5rem;
+    }
+
+    .num-input-wrap {
+        height: 40px;
+    }
+}
+
+/* Extra small screens */
+@media (max-width: 480px) {
+    .calc-header {
+        margin-bottom: 0.25rem;
+    }
+
+    .calc-title h2 {
+        font-size: 1rem;
+    }
+
+    .calc-title p {
+        font-size: 0.65rem;
+    }
+
+    .calc-ai-tips {
+        display: none;
+    }
+
+    .tab-btn {
+        font-size: 0.7rem;
+        padding: 0.5rem;
+    }
+
+    .group-label {
+        font-size: 0.6rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .field label {
+        font-size: 0.65rem;
+    }
+
+    .q-btn {
+        font-size: 0.6rem;
+        padding: 0.25rem;
+    }
+
+    .result-card .res-label {
+        font-size: 0.55rem;
+    }
+
+    .result-card .res-value {
+        font-size: 1.25rem;
+    }
+
+    .gabi-summary {
+        padding: 0.5rem;
+    }
+
+    .gabi-title {
+        font-size: 0.7rem;
+    }
+
+    .gabi-text {
+        font-size: 0.65rem;
     }
 }
 
