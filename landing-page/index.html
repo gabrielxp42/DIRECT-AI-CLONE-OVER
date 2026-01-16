@@ -260,9 +260,15 @@
                         </div>
                     </div>
 
-                    <button class="btn btn-lg btn-primary open-subscription-modal">
-                        ASSUMIR O CONTROLE AGORA
-                    </button>
+                    <div class="calc-actions">
+                        <button class="btn btn-lg btn-primary open-calculator-modal">
+                            TESTAR AGORA
+                            <i data-lucide="calculator"></i>
+                        </button>
+                        <button class="btn btn-lg btn-ghost open-subscription-modal">
+                            ASSUMIR O CONTROLE AGORA
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -402,8 +408,214 @@
     </footer>
 
     <!-- Subscription Modal -->
+    <!-- DTF Calculator Modal -->
+    <div class="modal-overlay" id="calculatorModal">
+        <div class="calculator-modal glass-card">
+            <button class="modal-close" id="closeCalculatorModal">
+                <i data-lucide="x"></i>
+            </button>
+
+            <div class="calc-modal-content">
+                <!-- Top Sales Banner -->
+                <div class="calc-top-banner">
+                    <div class="banner-content">
+                        <span class="banner-badge">OFERTA LIMITADA</span>
+                        <span class="banner-text">Pare de perder dinheiro! Organize seu DTF com IA por apenas R$
+                            47/mês</span>
+                    </div>
+                    <a href="https://direct-ai-dun.vercel.app/login" class="banner-cta">EU QUERO AGORA</a>
+                </div>
+
+                <div class="calc-main-split">
+                    <div class="calc-left">
+                        <div class="calc-header">
+                            <div class="calc-title">
+                                <i data-lucide="calculator" class="icon-yellow"></i>
+                                <div>
+                                    <h2>Calculadora DTF Pro</h2>
+                                    <p>Simulação técnica em tempo real</p>
+                                </div>
+                            </div>
+                            <div class="calc-ai-tips" id="calcAiTips">
+                                <i data-lucide="sparkles" class="h-3 w-3"></i>
+                                <span id="tipText">Carregando dicas da Gabi...</span>
+                            </div>
+                        </div>
+
+                        <div class="calc-tabs">
+                            <button class="tab-btn active" data-mode="simple">
+                                <i data-lucide="layout-grid"></i> Item Único
+                            </button>
+                            <button class="tab-btn" data-mode="multi">
+                                <i data-lucide="layers"></i> Multi-Itens
+                            </button>
+                        </div>
+
+                        <div class="calc-form-scroll custom-scrollbar">
+                            <!-- Material Settings -->
+                            <div class="form-group">
+                                <label class="group-label">Configurações do Rolo</label>
+                                <div class="input-grid">
+                                    <div class="field">
+                                        <label>Largura do Rolo (cm)</label>
+                                        <div class="num-input-wrap">
+                                            <button class="ctrl-btn" data-action="minus" data-target="calcRollWidth"><i
+                                                    data-lucide="minus"></i></button>
+                                            <input type="number" id="calcRollWidth" value="58" min="20" max="120">
+                                            <button class="ctrl-btn" data-action="plus" data-target="calcRollWidth"><i
+                                                    data-lucide="plus"></i></button>
+                                        </div>
+                                        <div class="quick-btns">
+                                            <button class="q-btn" data-value="30">30cm</button>
+                                            <button class="q-btn active" data-value="58">58cm</button>
+                                        </div>
+                                    </div>
+                                    <div class="field" data-hover="margin">
+                                        <label>Margem (cm)</label>
+                                        <div class="num-input-wrap">
+                                            <button class="ctrl-btn" data-action="minus" data-target="calcMargin"><i
+                                                    data-lucide="minus"></i></button>
+                                            <input type="number" id="calcMargin" value="0.5" step="0.5" min="0"
+                                                max="10">
+                                            <button class="ctrl-btn" data-action="plus" data-target="calcMargin"><i
+                                                    data-lucide="plus"></i></button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="calcErrorAlert" class="calc-error-alert" style="display: none;">
+                                <i data-lucide="alert-circle"></i>
+                                <span>Logo mais larga que o rolo!</span>
+                            </div>
+
+                            <!-- Simple Mode Fields -->
+                            <div id="simpleModeFields">
+                                <div class="form-group">
+                                    <label class="group-label">Dimensões da Imagem</label>
+                                    <div class="input-grid">
+                                        <div class="field" data-hover="imageSize">
+                                            <label>Largura (cm)</label>
+                                            <div class="num-input-wrap">
+                                                <button class="ctrl-btn" data-action="minus"
+                                                    data-target="calcImgWidth"><i data-lucide="minus"></i></button>
+                                                <input type="number" id="calcImgWidth" value="10" step="0.5">
+                                                <button class="ctrl-btn" data-action="plus"
+                                                    data-target="calcImgWidth"><i data-lucide="plus"></i></button>
+                                            </div>
+                                        </div>
+                                        <div class="field" data-hover="imageSize">
+                                            <label>Altura (cm)</label>
+                                            <div class="num-input-wrap">
+                                                <button class="ctrl-btn" data-action="minus"
+                                                    data-target="calcImgHeight"><i data-lucide="minus"></i></button>
+                                                <input type="number" id="calcImgHeight" value="10" step="0.5">
+                                                <button class="ctrl-btn" data-action="plus"
+                                                    data-target="calcImgHeight"><i data-lucide="plus"></i></button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="group-label">Quantidade</label>
+                                    <div class="input-grid">
+                                        <div class="field" data-hover="quantity">
+                                            <div class="num-input-wrap">
+                                                <button class="ctrl-btn" data-action="minus"
+                                                    data-target="calcQuantity"><i data-lucide="minus"></i></button>
+                                                <input type="number" id="calcQuantity" value="10" min="1">
+                                                <button class="ctrl-btn" data-action="plus"
+                                                    data-target="calcQuantity"><i data-lucide="plus"></i></button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Multi Mode Fields -->
+                            <div id="multiModeFields" style="display: none;">
+                                <div class="multi-items-container" id="multiItemsList">
+                                    <!-- Multi items will be rendered here -->
+                                </div>
+                                <button class="btn btn-outline btn-sm w-full mt-2" id="addMultiItem">
+                                    <i data-lucide="plus"></i> Adicionar Outro Item
+                                </button>
+                            </div>
+
+                            <!-- Shared Footer Fields -->
+                            <div class="form-group pt-4 border-t border-white/10 mt-4">
+                                <div class="input-grid">
+                                    <div class="field" data-hover="separation">
+                                        <label>Espaçamento entre logos (cm)</label>
+                                        <div class="num-input-wrap">
+                                            <button class="ctrl-btn" data-action="minus" data-target="calcSeparation"
+                                                data-step="0.1"><i data-lucide="minus"></i></button>
+                                            <input type="number" id="calcSeparation" value="0.5" step="0.1" min="0">
+                                            <button class="ctrl-btn" data-action="plus" data-target="calcSeparation"
+                                                data-step="0.1"><i data-lucide="plus"></i></button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="calc-results-footer">
+                            <div class="result-card primary">
+                                <span class="res-label">Metragem Total</span>
+                                <span class="res-value" id="resTotalMeters">0.00m</span>
+                            </div>
+                            <div class="result-card secondary">
+                                <span class="res-label" id="resSecondaryLabel">Logos por Metro</span>
+                                <span class="res-value" id="resSecondaryValue">0 un</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="calc-right">
+                        <div class="preview-container glass-card">
+                            <div class="calc-ruler-top">
+                                <div class="ruler-info">
+                                    <div class="pulse-dot"></div>
+                                    <span>Rolo Selecionado (cm)</span>
+                                </div>
+                                <div class="ruler-line-wrap">
+                                    <div class="ruler-value"><span id="rulerRollValue">58</span> CM</div>
+                                    <div class="ruler-line"></div>
+                                </div>
+                            </div>
+
+                            <div class="preview-scroll custom-scrollbar" id="previewContainer">
+                                <div id="perfWarning" class="perf-warning" style="display: none;">
+                                    <i data-lucide="zap"></i>
+                                    <span>Preview limitado a 200 itens para fluidez</span>
+                                </div>
+                                <div id="calcPaper" class="preview-paper">
+                                    <!-- Usable Area -->
+                                    <div id="calcUsableArea" class="usable-area">
+                                        <!-- Dynamic items will be rendered here -->
+                                    </div>
+
+                                    <!-- Margin Overlays -->
+                                    <div id="calcMarginLeft" class="margin-overlay left"></div>
+                                    <div id="calcMarginRight" class="margin-overlay right"></div>
+                                </div>
+                            </div>
+
+                            <div class="preview-legend">
+                                <div class="legend-item"><span class="dot yellow"></span> Logos</div>
+                                <div class="legend-item"><span class="dot emerald"></span> Margem</div>
+                                <div class="legend-item"><span class="dot purple"></span> Espaço (S)</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Separate Subscription Modal -->
     <div class="modal-overlay" id="subscriptionModal">
-        <div class="subscription-modal">
+        <div class="subscription-modal glass-card">
             <button class="modal-close" id="closeModal">
                 <i data-lucide="x"></i>
             </button>

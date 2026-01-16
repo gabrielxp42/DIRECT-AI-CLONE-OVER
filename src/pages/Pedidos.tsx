@@ -67,32 +67,69 @@ import { Share2, Copy, Download, Image as ImageIcon } from 'lucide-react';
 const ITEMS_PER_PAGE_OPTIONS = [10, 20, 50, 100];
 
 const generateOrderSummary = (pedido: Pedido) => {
-  const date = format(new Date(pedido.created_at), 'dd/MM/yyyy HH:mm', { locale: ptBR });
-  const total = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pedido.valor_total);
-  const cliente = pedido.clientes?.nome || 'Cliente Desconhecido';
+  const formatDate = (dateString: string) => {
+    return format(new Date(dateString), "dd/MM - HH:mm", { locale: ptBR });
+  };
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(value);
+  };
+
+  const separator = "------------------------------------------";
+  const dashedSeparator = "        ------------------";
+
+  const statusText = pedido.status === 'pago' ? 'PAGO' : 'NÃO PAGO';
 
   let summary = `*PEDIDO #${pedido.order_number}*\n`;
-  summary += `👤 Cliente: ${cliente}\n`;
-  summary += `📅 Data: ${date}\n`;
-  summary += `💰 Total: ${total}\n\n`;
-  summary += `*ITENS DO PEDIDO:*\n`;
+  summary += `${formatDate(pedido.created_at)}\n\n`;
+  summary += `${separator}\n`;
+  summary += `*${pedido.clientes?.nome?.toUpperCase() || 'CLIENTE NÃO IDENTIFICADO'}*\n`;
+  summary += `Tel: ${pedido.clientes?.telefone || '-'}\n`;
+  summary += `${separator}\n\n`;
 
+  // Itens
   if (pedido.pedido_items && pedido.pedido_items.length > 0) {
-    pedido.pedido_items.forEach(item => {
-      const tipo = (item.tipo || 'produto').toUpperCase();
-      const qtd = Number(item.quantidade);
-      const unidade = ['unidade', 'un'].includes(item.unidade_medida?.toLowerCase() || '') ? 'un' : 'm';
-      summary += `• ${tipo}: ${qtd.toFixed(2)}${unidade}\n`;
+    pedido.pedido_items.forEach((item, index) => {
+      const isLinear = item.tipo === 'dtf' || item.tipo === 'vinil';
+      const unitFull = isLinear ? 'Metros' : 'Unid.';
+      const unitSingular = isLinear ? 'metro' : 'unid.';
+      const quantityDisplay = isLinear
+        ? item.quantidade.toFixed(2).replace('.', ',')
+        : item.quantidade;
+
+      summary += `*Produto:* ${item.produto_nome} ${(item.tipo) ? `(${item.tipo.toUpperCase()})` : ''}\n`;
+      summary += `*Tamanho:* ${quantityDisplay} ${unitFull}\n`;
+      summary += `*Valor unitário:* ${formatCurrency(item.preco_unitario)}/${unitSingular}\n`;
+      summary += `*Total:* ${formatCurrency(item.preco_unitario * item.quantidade)}\n`;
+      if (item.observacao) {
+        summary += `_Obs: ${item.observacao}_\n`;
+      }
+
+      if (index < pedido.pedido_items.length - 1 || (pedido.servicos && pedido.servicos.length > 0)) {
+        summary += `${dashedSeparator}\n\n`;
+      }
     });
-  } else {
-    summary += `• (Sem itens registrados)\n`;
   }
 
-  summary += `\nSTATUS: ${pedido.status.toUpperCase()}`;
-
-  if (pedido.latest_status_observation) {
-    summary += `\nObs: ${pedido.latest_status_observation}`;
+  // Serviços
+  if (pedido.servicos && pedido.servicos.length > 0) {
+    summary += `*SERVIÇOS EXTRAS*\n`;
+    pedido.servicos.forEach(servico => {
+      const lineTotal = formatCurrency(servico.valor_unitario * servico.quantidade);
+      const namePart = `${servico.nome} (${servico.quantidade}x)`;
+      summary += `${namePart}\nTotal: ${lineTotal}\n`;
+    });
+    summary += `${separator}\n\n`;
+  } else if (pedido.pedido_items && pedido.pedido_items.length > 0) {
+    summary += `${separator}\n\n`;
   }
+
+  summary += `*TOTAL: ${formatCurrency(pedido.valor_total)}*\n`;
+  summary += `Status: ${statusText}\n\n`;
+  summary += `*** AGRADECEMOS A PREFERÊNCIA ***`;
 
   return summary;
 };
