@@ -21,6 +21,7 @@ const Calculator = {
         this.cacheDOM();
         this.bindEvents();
         this.initTips();
+        this.initMobileView();
         this.update();
     },
 
@@ -155,6 +156,73 @@ const Calculator = {
         document.getElementById('simpleModeFields').style.display = mode === 'simple' ? 'block' : 'none';
         document.getElementById('multiModeFields').style.display = mode === 'multi' ? 'block' : 'none';
         this.update();
+    },
+
+    initMobileView() {
+        const viewBtns = document.querySelectorAll('.view-btn');
+        if (!viewBtns.length) return;
+
+        // Default to edit view
+        document.body.classList.add('mobile-view-edit');
+        document.body.classList.remove('mobile-view-preview');
+
+        viewBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const view = e.currentTarget.dataset.view;
+
+                // Toggle active class on buttons
+                viewBtns.forEach(b => b.classList.remove('active'));
+                e.currentTarget.classList.add('active');
+
+                // Toggle body classes
+                if (view === 'edit') {
+                    document.body.classList.add('mobile-view-edit');
+                    document.body.classList.remove('mobile-view-preview');
+                } else {
+                    document.body.classList.remove('mobile-view-edit');
+                    document.body.classList.add('mobile-view-preview');
+                    // Force render update when switching to preview to ensure layout is correct
+                    this.update();
+                }
+            });
+        });
+
+        // Reset to desktop view on resize
+        window.addEventListener('resize', () => {
+            this.teleportFooter();
+            if (window.innerWidth > 992) {
+                document.body.classList.remove('mobile-view-edit', 'mobile-view-preview');
+            } else {
+                // Restore previous state or default to edit
+                if (!document.body.classList.contains('mobile-view-preview')) {
+                    document.body.classList.add('mobile-view-edit');
+                }
+            }
+        });
+
+        // Initial check
+        this.teleportFooter();
+    },
+
+    teleportFooter() {
+        const footer = document.querySelector('.calc-results-footer');
+        const modalContent = document.querySelector('.calc-modal-content');
+        const calcLeft = document.querySelector('.calc-left');
+        const isMobile = window.innerWidth <= 992;
+
+        if (!footer || !modalContent || !calcLeft) return;
+
+        if (isMobile) {
+            // Move to modal content (main container)
+            if (footer.parentElement !== modalContent) {
+                modalContent.appendChild(footer);
+            }
+        } else {
+            // Move back to calc-left (desktop location)
+            if (footer.parentElement !== calcLeft) {
+                calcLeft.appendChild(footer);
+            }
+        }
     },
 
     update() {

@@ -1889,6 +1889,11 @@ h1 {
         left: 0;
     }
 
+    /* Default state for toggle */
+    .mobile-view-toggle {
+        display: none;
+    }
+
     /* Calculator Mobile Fixes - TRUE FULL SCREEN */
     .modal-overlay {
         padding: 0 !important;
@@ -1920,13 +1925,47 @@ h1 {
         display: none !important;
     }
 
+    /* Mobile View Toggle Styling */
+    .mobile-view-toggle {
+        display: flex;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        padding: 4px;
+        margin: 0 1rem 0.5rem 1rem;
+        gap: 0.5rem;
+    }
+
+    .view-btn {
+        flex: 1;
+        padding: 0.6rem;
+        border: none;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.5);
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.85rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        transition: all 0.3s;
+    }
+
+    .view-btn.active {
+        background: var(--primary);
+        color: #000;
+        box-shadow: 0 4px 12px rgba(255, 242, 0, 0.3);
+    }
+
+    /* Logic for switching views */
     .calc-main-split {
         display: flex;
         flex-direction: column;
         flex: 1;
         min-height: 0;
-        /* Critical for nested flex scrolling */
         overflow: hidden;
+        position: relative;
     }
 
     .calc-left {
@@ -1934,14 +1973,69 @@ h1 {
         display: flex;
         flex-direction: column;
         min-height: 0;
-        /* Critical for nested flex scrolling */
         padding: 0;
-        /* Remove padding from container, move to children */
+        overflow: hidden;
+        /* Default: Visible in Edit Mode */
+    }
+
+    .calc-right {
+        display: none;
+        /* Hidden by default on mobile */
+        flex: 1;
+        background: #0f172a;
         overflow: hidden;
     }
 
+    /* View: EDIT */
+    body.mobile-view-edit .calc-left {
+        display: flex !important;
+    }
+
+    body.mobile-view-edit .calc-right {
+        display: none !important;
+    }
+
+    /* View: PREVIEW */
+    body.mobile-view-preview .calc-left {
+        display: none !important;
+    }
+
+    body.mobile-view-preview .calc-header {
+        display: flex !important;
+        /* Keep header visible */
+    }
+
+    body.mobile-view-preview .mobile-view-toggle {
+        display: flex !important;
+        /* Keep toggle visible */
+    }
+
+    body.mobile-view-preview .calc-right {
+        display: flex !important;
+        flex-direction: column;
+        height: 100%;
+    }
+
+    /* Adjust Preview Container for Mobile */
+    body.mobile-view-preview .preview-container {
+        height: 100%;
+        border-radius: 0;
+        background: transparent;
+        border: none;
+        display: flex;
+        flex-direction: column;
+    }
+
+    body.mobile-view-preview .preview-scroll {
+        flex: 1;
+        background: #1a1f2e;
+        /* Slightly lighter bg for contrast */
+        margin: 0.5rem;
+        border-radius: 12px;
+    }
+
     .calc-header {
-        padding: 1rem 1rem 0 1rem;
+        padding: 0.75rem 1rem 0 1rem;
         flex-shrink: 0;
         display: flex;
         justify-content: space-between;
@@ -1953,8 +2047,10 @@ h1 {
     }
 
     .calc-tabs {
-        margin: 0.5rem 1rem;
+        margin: 0 1rem 0.5rem 1rem;
         flex-shrink: 0;
+        background: rgba(255, 255, 255, 0.03);
+        /* Subtle bg for inputs mode */
     }
 
     .calc-form-scroll {
@@ -1964,9 +2060,22 @@ h1 {
         -webkit-overflow-scrolling: touch;
     }
 
+    /* Results footer - compact for mobile */
+    /* When teleported to main container */
+    .calc-modal-content>.calc-results-footer {
+        flex-shrink: 0;
+        padding: 0.75rem 1rem;
+        background: rgba(15, 17, 26, 0.98);
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        z-index: 50;
+        box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
+        order: 10;
+        /* Ensure it stays at bottom */
+    }
+
     .calc-results-footer {
         flex-shrink: 0;
-        padding: 1rem;
+        padding: 0.75rem 1rem;
         background: rgba(15, 17, 26, 0.98);
         border-top: 1px solid rgba(255, 255, 255, 0.1);
         z-index: 50;

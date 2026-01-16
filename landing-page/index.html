@@ -20,7 +20,7 @@
         rel="stylesheet">
 
     <!-- Styles -->
-    <link rel="stylesheet" href="style.css?v=20240116_1740">
+    <link rel="stylesheet" href="style.css?v=20240116_1755">
 
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -446,6 +446,16 @@
                             </div>
                         </div>
 
+                        <!-- Mobile View Toggle (Only visible on mobile) -->
+                        <div class="mobile-view-toggle">
+                            <button class="view-btn active" data-view="edit">
+                                <i data-lucide="edit-3"></i> Editar
+                            </button>
+                            <button class="view-btn" data-view="preview">
+                                <i data-lucide="eye"></i> Visualizar
+                            </button>
+                        </div>
+
                         <div class="calc-tabs">
                             <button class="tab-btn active" data-mode="simple">
                                 <i data-lucide="layout-grid"></i> Item Único
@@ -693,7 +703,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=20240116_1740"></script>
+    <script src="script.js?v=20240116_1755"></script>
     <script>
         window.addEventListener('load', () => {
             lucide.createIcons();
