@@ -304,8 +304,7 @@ export const SubscriptionModal = ({ open, onOpenChange }: SubscriptionModalProps
                                     </h2>
 
                                     <p className="text-xs sm:text-sm text-white/40 font-medium leading-relaxed max-w-[280px] md:max-w-[250px]">
-                                        Sua empresa merece um gerente inteligente.
-                                        <span className="hidden sm:inline"> O sistema que trabalha enquanto você imprime.</span>
+                                        Uma funcionária que não dorme, não erra e organiza sua produção 24h por dia.
                                     </p>
                                 </div>
 
@@ -321,7 +320,7 @@ export const SubscriptionModal = ({ open, onOpenChange }: SubscriptionModalProps
                                         <div className="flex items-center gap-2 mt-1">
                                             <span className="text-white/40 font-bold text-sm">/mês</span>
                                             <div className="h-1 w-1 rounded-full bg-white/20" />
-                                            <span className="text-emerald-400 font-bold text-xs uppercase tracking-wide">Cancele quando quiser</span>
+                                            <span className="text-emerald-400 font-bold text-xs uppercase tracking-wide">7 dias de garantia total</span>
                                         </div>
                                     </div>
 
@@ -401,7 +400,7 @@ export const SubscriptionModal = ({ open, onOpenChange }: SubscriptionModalProps
                                         <ArrowRight className="w-4 h-4" />
                                     </Button>
                                     <p className="text-[9px] text-center text-white/20 mt-2 font-medium">
-                                        Cancele quando quiser • Acesso imediato
+                                        7 dias de garantia total • Acesso imediato
                                     </p>
                                 </div>
                             </motion.div>

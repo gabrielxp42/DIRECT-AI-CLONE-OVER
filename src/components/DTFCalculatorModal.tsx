@@ -30,6 +30,16 @@ import {
     TooltipTrigger,
 } from "@/components/ui/tooltip";
 
+const itemColors = [
+    { bg: "bg-emerald-400/90", border: "border-emerald-600/30", text: "text-emerald-950", dot: "bg-emerald-500", shadow: "rgba(16,185,129,0.4)" },
+    { bg: "bg-purple-400/90", border: "border-purple-600/30", text: "text-purple-950", dot: "bg-purple-500", shadow: "rgba(168,85,247,0.4)" },
+    { bg: "bg-amber-400/90", border: "border-amber-600/30", text: "text-amber-950", dot: "bg-amber-500", shadow: "rgba(245,158,11,0.4)" },
+    { bg: "bg-pink-400/90", border: "border-pink-600/30", text: "text-pink-950", dot: "bg-pink-500", shadow: "rgba(236,72,153,0.4)" },
+    { bg: "bg-cyan-400/90", border: "border-cyan-600/30", text: "text-cyan-950", dot: "bg-cyan-500", shadow: "rgba(6,182,212,0.4)" },
+    { bg: "bg-rose-400/90", border: "border-rose-600/30", text: "text-rose-950", dot: "bg-rose-500", shadow: "rgba(244,63,94,0.4)" },
+    { bg: "bg-indigo-400/90", border: "border-indigo-600/30", text: "text-indigo-950", dot: "bg-indigo-500", shadow: "rgba(99,102,241,0.4)" },
+];
+
 interface DTFCalculatorModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -328,6 +338,15 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
         // Sobra lateral real (Margem configurada + espaço vazio que sobrou por não caber mais uma logo)
         const realSideMargin = (rollWidth - currentContentWidth) / 2;
 
+        // Preview rendering values
+        const previewLimit = 500;
+        const previewQuantity = Math.min(previewLimit, quantity);
+        const previewRows = Math.ceil(previewQuantity / imagesPerRow);
+        const hasWarning = quantity > previewLimit;
+
+        const previewContentHeight = (previewRows * imageHeight) + (Math.max(0, previewRows - 1) * separation);
+        const previewTotalHeightCm = previewContentHeight + (margin * 2);
+
         return {
             imagesPerRow,
             totalRows,
@@ -338,22 +357,37 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
             contentHeight,
             contentWidth: currentContentWidth,
             realSideMargin,
-            totalHeightCm
+            totalHeightCm,
+            previewContentHeight,
+            previewTotalHeightCm,
+            hasWarning
         };
     }, [rollWidth, imageWidth, imageHeight, separation, margin, quantity]);
 
     // Multi-Item Results calculation
     const multiResults = useMemo(() => {
         const usableWidth = rollWidth - (margin * 2);
+        const previewLimit = 500;
+        let renderedCount = 0;
 
         const itemsCalculated = items.map(item => {
             const totalImageWidth = item.width + separation;
-            const totalImageHeight = item.height + separation;
             const imagesPerRow = Math.max(1, Math.floor((usableWidth + separation) / totalImageWidth));
             const totalRows = Math.ceil(item.quantity / imagesPerRow);
-            const contentHeight = (totalRows * item.height) + ((totalRows - 1) * separation);
-            const heightCm = contentHeight + separation; // Add separation between item types
-            const meters = heightCm / 100;
+            const contentHeight = (totalRows * item.height) + (Math.max(0, totalRows - 1) * separation);
+            const heightCm = contentHeight + separation; // block height including gap to next
+            const meters = (contentHeight + separation) / 100;
+
+            // Preview calc - we limit based on TOTAL items rendered in preview
+            const remainingPreviewSpace = Math.max(0, previewLimit - renderedCount);
+            const previewQuantity = Math.min(item.quantity, remainingPreviewSpace);
+            renderedCount += previewQuantity;
+
+            const previewRows = Math.ceil(previewQuantity / imagesPerRow);
+            const previewContentHeight = previewQuantity > 0
+                ? (previewRows * item.height) + (Math.max(0, previewRows - 1) * separation)
+                : 0;
+            const previewHeightCm = previewQuantity > 0 ? previewContentHeight + separation : 0;
 
             return {
                 ...item,
@@ -361,24 +395,41 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                 totalRows,
                 meters,
                 heightCm,
+                contentHeight,
+                previewContentHeight,
+                previewHeightCm,
+                previewQuantity,
                 label: `${item.width}x${item.height}cm`
             };
         });
 
-        // Total meters = sum of all items + top/bottom margins
-        const totalContentHeight = itemsCalculated.reduce((acc, item) => acc + item.heightCm, 0);
-        const totalHeightCm = totalContentHeight + (margin * 2) - separation; // Remove extra separation at end
-        const totalMeters = totalHeightCm / 100;
         const totalQuantity = items.reduce((acc, item) => acc + item.quantity, 0);
+        const hasWarning = totalQuantity > previewLimit;
+
+        // Total heights
+        const totalContentHeight = itemsCalculated.reduce((acc, item) => acc + item.heightCm, 0) - separation;
+        const totalHeightCm = totalContentHeight + (margin * 2);
+        const totalMeters = totalHeightCm / 100;
+
+        // Preview Total
+        const previewContentHeight = itemsCalculated.reduce((acc, item) => acc + item.previewHeightCm, 0) - (renderedCount > 0 ? separation : 0);
+        const previewTotalHeightCm = previewContentHeight + (margin * 2);
 
         return {
             items: itemsCalculated,
             totalMeters: Math.max(0, totalMeters),
             totalQuantity,
             totalHeightCm,
-            usableWidth
+            previewTotalHeightCm,
+            usableWidth,
+            hasWarning
         };
     }, [rollWidth, margin, separation, items]);
+
+    const visualTotalHeightCm = useMemo(() => {
+        if (isExporting) return mode === 'simple' ? results.totalHeightCm : multiResults.totalHeightCm;
+        return mode === 'simple' ? results.previewTotalHeightCm : multiResults.previewTotalHeightCm;
+    }, [isExporting, mode, results, multiResults]);
 
     const handleTargetMetersChange = (meters: number) => {
         setTargetMeters(meters);
@@ -466,7 +517,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="max-w-4xl max-h-[95vh] overflow-y-auto bg-background/95 backdrop-blur-xl border-primary/20 shadow-2xl p-4 sm:p-6">
+            <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto bg-background/95 backdrop-blur-xl border-primary/20 shadow-2xl p-4 sm:p-6 custom-scrollbar">
                 <DialogHeader>
                     <div className="flex items-center gap-2">
                         <Calculator className="h-6 w-6 text-amber-500 dark:text-primary" />
@@ -494,8 +545,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                 : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
                         )}
                     >
-                        <Ruler className="h-4 w-4" />
-                        Simples
+                        <Ruler className="h-4 w-4" /> Simples
                     </button>
                     <button
                         onClick={() => setMode('multi')}
@@ -506,8 +556,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                 : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
                         )}
                     >
-                        <Layers className="h-4 w-4" />
-                        Multi-Itens
+                        <Layers className="h-4 w-4" /> Multi-Itens
                     </button>
                 </div>
 
@@ -895,12 +944,18 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                     <span className="text-[11px] font-bold text-slate-900 dark:text-slate-200">Detalhamento por Item:</span>
                                 </div>
                                 <div className="space-y-1">
-                                    {multiResults.items.map((item, idx) => (
-                                        <div key={item.id} className="flex items-center justify-between text-[10px] text-slate-600 dark:text-slate-400 py-1 border-b border-slate-200 dark:border-slate-700 last:border-0">
-                                            <span><strong className="text-slate-800 dark:text-slate-200">{idx + 1}. {item.label}</strong> × {item.quantity}un</span>
-                                            <span className="font-mono text-amber-600 dark:text-primary">{item.meters.toFixed(2)}m ({item.imagesPerRow}/linha)</span>
-                                        </div>
-                                    ))}
+                                    {multiResults.items.map((item, idx) => {
+                                        const color = itemColors[idx % itemColors.length];
+                                        return (
+                                            <div key={item.id} className="flex items-center justify-between text-[10px] text-slate-600 dark:text-slate-400 py-1.5 border-b border-slate-200 dark:border-slate-700 last:border-0 group">
+                                                <div className="flex items-center gap-2">
+                                                    <div className={cn("w-1 h-3 rounded-full", color.dot)} />
+                                                    <span><strong className="text-slate-800 dark:text-slate-200">{idx + 1}. {item.label}</strong> × {item.quantity}un</span>
+                                                </div>
+                                                <span className="font-mono text-amber-600 dark:text-primary font-bold">{item.meters.toFixed(2)}m</span>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         )}
@@ -959,9 +1014,18 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                     style={{
                                         width: '100%',
                                         maxWidth: '100%',
-                                        aspectRatio: `${rollWidth} / ${mode === 'simple' ? results.totalHeightCm : multiResults.totalHeightCm}`,
+                                        aspectRatio: `${rollWidth} / ${visualTotalHeightCm}`,
                                     }}
                                 >
+                                    {/* Alerta de Performance Único e Flutuante */}
+                                    {!isExporting && (mode === 'simple' ? results.hasWarning : multiResults.hasWarning) && (
+                                        <div className="absolute top-12 right-4 z-40">
+                                            <div className="flex items-center gap-2 px-3 py-1.5 bg-white/90 backdrop-blur-md border border-amber-200 shadow-xl rounded-full">
+                                                <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                                                <span className="text-[9px] font-black text-amber-600 uppercase tracking-widest text-center">Preview Limitado</span>
+                                            </div>
+                                        </div>
+                                    )}
                                     {/* Regua de Medida do Topo (Ruler) */}
                                     <div className="absolute top-0 inset-x-0 h-10 flex flex-col items-center pointer-events-none z-30 opacity-60">
                                         <div className="w-full h-px bg-slate-300 relative mt-4">
@@ -984,8 +1048,8 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                         style={{
                                             left: `${(margin / rollWidth) * 100}%`,
                                             right: `${(margin / rollWidth) * 100}%`,
-                                            top: `${(margin / (mode === 'simple' ? results.totalHeightCm : multiResults.totalHeightCm)) * 100}%`,
-                                            bottom: `${(margin / (mode === 'simple' ? results.totalHeightCm : multiResults.totalHeightCm)) * 100}%`,
+                                            top: `${(margin / visualTotalHeightCm) * 100}%`,
+                                            bottom: `${(margin / visualTotalHeightCm) * 100}%`,
                                         }}
                                     >
                                         {/* Grid labels */}
@@ -1016,11 +1080,11 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                         style={{
                                                             gridTemplateColumns: `repeat(${results.imagesPerRow}, 1fr)`,
                                                             columnGap: `${(separation / results.contentWidth) * 100}%`,
-                                                            rowGap: `${(separation / results.contentHeight) * 100}%`,
-                                                            aspectRatio: `${results.contentWidth} / ${results.contentHeight}`
+                                                            rowGap: `${(separation / (isExporting ? results.contentHeight : results.previewContentHeight)) * 100}%`,
+                                                            aspectRatio: `${results.contentWidth} / ${isExporting ? results.contentHeight : results.previewContentHeight}`
                                                         }}
                                                     >
-                                                        {Array.from({ length: Math.min(500, quantity) }).map((_, i) => (
+                                                        {Array.from({ length: isExporting ? quantity : Math.min(500, quantity) }).map((_, i) => (
                                                             <div key={`logo-${i}`}
                                                                 className={cn(
                                                                     "bg-yellow-400 border border-yellow-600/50 rounded-sm flex items-center justify-center overflow-hidden transition-all duration-300",
@@ -1057,7 +1121,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                                 className="flex flex-col items-center"
                                                                 style={{
                                                                     width: `${(groupContentWidthCm / multiResults.usableWidth) * 100}%`,
-                                                                    marginBottom: isLast ? 0 : `${(separation / (multiResults.totalHeightCm - (margin * 2))) * 100}%`
+                                                                    marginBottom: isLast ? 0 : `${(separation / (visualTotalHeightCm - (margin * 2))) * 100}%`
                                                                 }}
                                                             >
                                                                 <div className={cn(
@@ -1067,21 +1131,26 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                                     style={{
                                                                         gridTemplateColumns: `repeat(${item.imagesPerRow}, 1fr)`,
                                                                         columnGap: `${(separation / groupContentWidthCm) * 100}%`,
-                                                                        rowGap: `${(separation / item.heightCm) * 100}%`,
-                                                                        aspectRatio: `${groupContentWidthCm} / ${item.heightCm}`
+                                                                        rowGap: `${(separation / (isExporting ? item.contentHeight : item.previewContentHeight)) * 100}%`,
+                                                                        aspectRatio: `${groupContentWidthCm} / ${isExporting ? item.contentHeight : item.previewContentHeight}`
                                                                     }}
                                                                 >
-                                                                    {Array.from({ length: Math.min(100, item.quantity) }).map((_, i) => (
-                                                                        <div key={`item-${item.id}-${i}`}
-                                                                            className={cn(
-                                                                                "bg-sky-400 border border-sky-600/30 rounded-sm flex items-center justify-center transition-all duration-300",
-                                                                                (hoveredField === 'itemWidth' || hoveredField === 'itemHeight' || hoveredField === 'itemQuantity') ? "scale-[1.05] shadow-[0_0_12px_rgba(30,150,255,0.6)] z-20 border-sky-300" : ""
-                                                                            )}
-                                                                            style={{ aspectRatio: `${item.width} / ${item.height}` }}
-                                                                        >
-                                                                            <span className="text-[5px] font-bold text-sky-900/50">{itemIdx + 1}</span>
-                                                                        </div>
-                                                                    ))}
+                                                                    {Array.from({ length: isExporting ? item.quantity : item.previewQuantity }).map((_, i) => {
+                                                                        const color = itemColors[itemIdx % itemColors.length];
+                                                                        return (
+                                                                            <div key={`item-${item.id}-${i}`}
+                                                                                className={cn(
+                                                                                    "border rounded-sm flex items-center justify-center transition-all duration-300",
+                                                                                    color.bg,
+                                                                                    color.border,
+                                                                                    (hoveredField === 'itemWidth' || hoveredField === 'itemHeight' || hoveredField === 'itemQuantity') ? "scale-[1.05] shadow-[0_0_12px_rgba(30,150,255,0.6)] z-20" : ""
+                                                                                )}
+                                                                                style={{ aspectRatio: `${item.width} / ${item.height}` }}
+                                                                            >
+                                                                                <span className={cn("text-[5px] font-bold opacity-40", color.text)}>{itemIdx + 1}</span>
+                                                                            </div>
+                                                                        );
+                                                                    })}
                                                                 </div>
                                                             </div>
                                                         );
@@ -1149,7 +1218,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                         TOTAL: {(mode === 'simple' ? results.totalHeightCm : multiResults.totalHeightCm).toFixed(1)}cm
                                     </Badge>
                                     <div className="h-3 w-px bg-slate-700" />
-                                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">1:{Math.round(100 / (mode === 'simple' ? results.totalHeightCm : multiResults.totalHeightCm) * 10)}</span>
+                                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">ESCALA: 1:{Math.round(100 / visualTotalHeightCm * 10)}</span>
                                 </div>
                             </div>
                         </div>
