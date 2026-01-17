@@ -49,6 +49,7 @@ export interface Pedido {
   status: PedidoStatus; // Tipos de status atualizados
   observacoes: string | null;
   created_at: string;
+  pago_at: string | null;
   order_number: number;
   clientes: Cliente;
   pedido_items: PedidoItem[];
@@ -83,6 +84,7 @@ export interface NewPedido {
   total_metros_dtf: number;
   total_metros_vinil: number;
   status: PedidoStatus; // Status de pagamento/geral
+  pago_at?: string | null;
   observacoes?: string;
   items: NewPedidoItem[];
   servicos?: NewServico[];

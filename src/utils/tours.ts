@@ -234,7 +234,97 @@ export const PRODUTOS_SERVICOS_TOUR: TutorialStep[] = [
     {
         targetId: 'card-sugestoes-automaticas',
         title: 'Inteligência Artificial',
-        description: 'O sistema monitora o que você digita nos pedidos e sugere automaticamente novos atalhos baseados na sua produtividade.',
+        description: 'O sistema monitora o que você digita nos pedidos e sugere automaticamente novos atalhos',
+        position: 'top'
+    }
+];
+
+/*
+# Task: Budget Calculator Analysis & Optimization
+
+- [x] Integrate Tutorial System in DTF Calculator
+    - [x] Create `CALCULADORA_TOUR` steps
+    - [x] Add "Learn how to use" button to calculator header
+    - [x] Trigger tutorial automatically on first access
+    - [x] Implement visual anchors for all tutorial steps
+    - [x] Implement dynamic mode switching during tutorial (Simple <=> Multi)
+- [x] Deep analysis of `DTFCalculatorModal.tsx` logic
+    - [x] Analyze multi-item stacking vs nesting
+    - [x] Identify bugs in summary generation
+    - [x] Identify UI/UX imperfections
+- [ ] Implement fixes for identified bugs
+    - [ ] Fix multi-item WhatsApp/Copy summary
+    - [ ] Add per-item overflow validation in multi-mode
+    - [ ] Add global efficiency metric for multi-item
+- [ ] Enhance Multi-Item features
+    - [ ] Add names/labels to items
+    - [ ] Improve "Fill by Meters" logic
+- [ ] Propose/Implement integration with `PedidoForm.tsx`
+
+# Task: Login System & Launch Readiness Audit
+
+- [x] Line-by-line analysis of `Login.tsx`
+- [x] Analysis of `SessionProvider.tsx` and session management stability
+- [x] Review of payment systems (Stripe integration, Edge Functions)
+- [/] Develop Launch Readiness Plan
+    - [x] Identify security vulnerabilities (RLS, token management)
+    - [x] Identify UX/UX missing pieces (Subscription management)
+    - [x] Audit cross-user data isolation (RLS audit)
+- [ ] Implement priority launch fixes
+    - [ ] Update `tokenGuard.ts` for session storage compatibility
+    - [ ] Enhance Stripe webhook error handling and cancellation logic
+    - [ ] Add "Manage Subscription" capability via Stripe Customer Portal
+*/
+
+export const CALCULADORA_TOUR: TutorialStep[] = [
+    {
+        targetId: 'calculator-title',
+        title: 'Bem-vindo à Calculadora 2.0',
+        description: 'Nossa ferramenta foi reconstruída para ser a mais precisa do mercado. Agora você pode simular layouts complexos com vários itens de uma vez.',
+        position: 'bottom'
+    },
+    {
+        targetId: 'calculator-mode-switch',
+        title: 'Modos de Trabalho',
+        description: 'Alterne entre o modo SIMPLES (uma logo repetida) ou MULTI (várias logos diferentes no mesmo rolo).',
+        position: 'bottom'
+    },
+    {
+        targetId: 'calculator-main-input',
+        title: 'Modo Simples',
+        description: 'Ideal para quando você tem apenas um arquivo e quer repetir ele várias vezes no rolo.',
+        position: 'top',
+        onEnter: () => { window.dispatchEvent(new CustomEvent('tour-set-mode', { detail: 'simple' })); }
+    },
+    {
+        targetId: 'calculator-main-input',
+        title: 'Poder do Multi-Itens',
+        description: 'Agora a parte incrível: no modo Multi-Itens você pode adicionar DIFERENTES logos e tamanhos no mesmo orçamento.',
+        position: 'top',
+        onEnter: () => { window.dispatchEvent(new CustomEvent('tour-set-mode', { detail: 'multi' })); }
+    },
+    {
+        targetId: 'calculator-material-settings',
+        title: 'Configurações de Material',
+        description: 'Defina a largura do seu rolo e a margem de segurança. O sistema recalcula tudo em tempo real.',
+        position: 'bottom'
+    },
+    {
+        targetId: 'calculator-efficiency-badge',
+        title: 'Eficiência de Material',
+        description: 'Este indicador diz quanto do seu material está sendo aproveitado. Economize material e aumente seu lucro!',
+        position: 'bottom'
+    },
+    {
+        targetId: 'calculator-item-actions',
+        title: 'Recursos Avançados',
+        description: 'Use o botão "Preencher" para completar o rolo automaticamente ou deixe o sistema sugerir a melhor rotação.',
+        position: 'left'
+    },
+    {
+        targetId: 'calculator-finalize',
+        title: 'Finalização e Rapidez',
+        description: 'Gere um resumo detalhado para o WhatsApp ou baixe a imagem do preview para o seu cliente.',
         position: 'top'
     }
 ];

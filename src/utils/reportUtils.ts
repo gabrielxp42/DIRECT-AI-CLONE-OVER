@@ -201,12 +201,7 @@ export const fetchReportData = async (
         doFetch('pedidos', new URLSearchParams({
             select: '*,clientes(nome),pedido_items(*,produtos(nome,insumo_id,consumo_insumo)),pedido_servicos(*)',
             created_at: `gte.${periodStart.toISOString()}`,
-            // Add 'and' logic for lte? Supabase handles multiple params with same key as AND
-            // Using query string construction carefully:
         }), effectiveToken, true).then(data => {
-            // Server-side filtering via URLSearchParams with duplicates is tricky in simple object construction
-            // So we keep ensuring client side filter for 'lte' to be 100% precise with microseconds,
-            // BUT we fetched ALL pages effectively, so we won't miss data.
             return data.filter((d: any) => new Date(d.created_at) <= periodEnd);
         }),
 
@@ -271,18 +266,25 @@ export const fetchReportData = async (
     const allServices: any[] = [];
 
     periodOrders.forEach((order: any) => {
-        // Totals
-        totalRevenue += order.valor_total || 0;
-        totalCost += calculateOrderCost(order);
-        totalMeters += (order.total_metros || 0);
+        const createdDate = new Date(order.created_at);
+        const paidDate = order.pago_at ? new Date(order.pago_at) : null;
 
-        // Meters by Type
-        if (order.pedido_items) {
+        const createdInRange = createdDate >= periodStart && createdDate <= periodEnd;
+        const paidInRange = paidDate && paidDate >= periodStart && paidDate <= periodEnd;
+
+        // Totals based on creation (Gross Revenue)
+        if (createdInRange) {
+            totalRevenue += order.valor_total || 0;
+            totalCost += calculateOrderCost(order);
+            totalMeters += (order.total_metros || 0);
+        }
+
+        // Meters and Product Sales (based on creation)
+        if (createdInRange && order.pedido_items) {
             order.pedido_items.forEach((item: any) => {
                 const tipo = (item.tipo || 'dtf').toLowerCase();
                 totalsByType[tipo] = (totalsByType[tipo] || 0) + (Number(item.quantidade) || 0);
 
-                // Product Sales
                 const productName = item.produtos?.nome || item.produto_nome || 'Produto não encontrado';
                 const existingProd = productSales.get(productName) || { totalSold: 0, revenue: 0 };
                 productSales.set(productName, {
@@ -292,35 +294,44 @@ export const fetchReportData = async (
             });
         }
 
-        // Customer Spending
-        const customerName = order.clientes?.nome || 'Cliente Anônimo';
-        const existingCust = customerSpending.get(customerName) || { totalOrders: 0, totalSpent: 0 };
-        customerSpending.set(customerName, {
-            totalOrders: existingCust.totalOrders + 1,
-            totalSpent: existingCust.totalSpent + (order.valor_total || 0)
-        });
-
-        // Financial Report
-        const status = order.status || 'desconhecido';
-        const existingFin = financialStats.get(status) || { count: 0, value: 0, status };
-        financialStats.set(status, {
-            count: existingFin.count + 1,
-            value: existingFin.value + (order.valor_total || 0),
-            status
-        });
-
-        // Services
-        if (order.pedido_servicos) {
-            order.pedido_servicos.forEach((servico: any) => {
-                allServices.push({
-                    ...servico,
-                    pedido_id: order.id,
-                    cliente_nome: customerName,
-                    data_pedido: order.created_at,
-                    status_pedido: order.status,
-                    total_value: servico.quantidade * servico.valor_unitario
-                });
+        // Customer Spending (based on creation)
+        if (createdInRange) {
+            const customerName = order.clientes?.nome || 'Cliente Anônimo';
+            const existingCust = customerSpending.get(customerName) || { totalOrders: 0, totalSpent: 0 };
+            customerSpending.set(customerName, {
+                totalOrders: existingCust.totalOrders + 1,
+                totalSpent: existingCust.totalSpent + (order.valor_total || 0)
             });
+        }
+
+        // Financial Report (status snapshot for orders in period)
+        if (createdInRange) {
+            const status = order.status || 'desconhecido';
+            const existingFin = financialStats.get(status) || { count: 0, value: 0, status };
+            financialStats.set(status, {
+                count: existingFin.count + 1,
+                value: existingFin.value + (order.valor_total || 0),
+                status
+            });
+        }
+
+        // Services (for commission, we usually care about when they were paid IF we want to match Stripe)
+        // If the goal is reconciliation, we might want to include services from orders paid in range
+        if (paidInRange || createdInRange) {
+            if (order.pedido_servicos) {
+                order.pedido_servicos.forEach((servico: any) => {
+                    allServices.push({
+                        ...servico,
+                        pedido_id: order.id,
+                        cliente_nome: order.clientes?.nome || 'Cliente Anônimo',
+                        data_pedido: order.created_at,
+                        status_pedido: order.status,
+                        total_value: servico.quantidade * servico.valor_unitario,
+                        // Adicionar flag para sabermos se foi pago no período
+                        pago_no_periodo: paidInRange
+                    });
+                });
+            }
         }
     });
 
@@ -456,19 +467,28 @@ export const fetchReportData = async (
         });
 
         const rev = ordersInBucket.reduce((sum: number, o: any) => sum + (o.valor_total || 0), 0);
-        const met = ordersInBucket.reduce((sum: number, o: any) => sum + (o.total_metros || 0), 0);
+
+        // Somar metros apenas de pedidos NÃO cancelados
+        const productionOrders = ordersInBucket.filter((o: any) => o.status !== 'cancelado');
+        const met = Number(productionOrders.reduce((sum: number, o: any) => sum + (o.total_metros || 0), 0).toFixed(2));
+        const cost = productionOrders.reduce((sum: number, o: any) => sum + calculateOrderCost(o), 0);
+        const profit = Number((rev - cost).toFixed(2));
 
         const bucketTotals: Record<string, number> = {};
-        ordersInBucket.forEach((o: any) => {
+        productionOrders.forEach((o: any) => {
             if (o.pedido_items) {
                 o.pedido_items.forEach((item: any) => {
-                    const tipo = (item.tipo || 'dtf').toLowerCase();
-                    bucketTotals[tipo] = (bucketTotals[tipo] || 0) + (Number(item.quantidade) || 0);
+                    const tipoRaw = (item.tipo || '').toLowerCase().trim();
+                    // Apenas tipos conhecidos de produção para o gráfico de metros
+                    if (['dtf', 'uv', 'vinil', 'papel'].includes(tipoRaw)) {
+                        const tipo = tipoRaw || 'dtf';
+                        bucketTotals[tipo] = Number(((bucketTotals[tipo] || 0) + (Number(item.quantidade) || 0)).toFixed(2));
+                    }
                 });
             }
         });
 
-        revenueByPeriod.push({ period: bucket.label, revenue: rev });
+        revenueByPeriod.push({ period: bucket.label, revenue: rev, profit: profit });
         metersByPeriod.push({ period: bucket.label, meters: met, ...bucketTotals });
     });
 

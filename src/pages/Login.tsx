@@ -4,7 +4,7 @@ import { useSession } from '@/contexts/SessionProvider'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { APP_VERSION } from '@/utils/version'
-import { Loader2, Mail, Lock, AlertCircle, ArrowRight } from 'lucide-react'
+import { Loader2, Mail, Lock, AlertCircle, ArrowRight, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
@@ -14,6 +14,8 @@ const Login = () => {
   const [rememberMe, setRememberMe] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [mode, setMode] = useState<'signin' | 'signup' | 'forgot'>('signin');
 
   // Form states
@@ -40,6 +42,7 @@ const Login = () => {
     e.preventDefault();
     setLoading(true);
     setAuthError(null);
+    setSuccessMsg(null);
 
     try {
       if (mode === 'signin') {
@@ -54,15 +57,15 @@ const Login = () => {
           password,
         });
         if (error) throw error;
-        setAuthError('Verifique seu e-mail para confirmar o cadastro!');
+        setSuccessMsg('Verifique seu e-mail para confirmar o cadastro!');
         setLoading(false);
-        return; // Don't clear loading immediately if success message is shown
+        return;
       } else if (mode === 'forgot') {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: window.location.origin + '/reset-password',
         });
         if (error) throw error;
-        setAuthError('Instruções enviadas para seu e-mail!');
+        setSuccessMsg('Instruções enviadas para seu e-mail!');
         setLoading(false);
         return;
       }
@@ -74,6 +77,27 @@ const Login = () => {
       setAuthError(msg);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResendConfirmation = async () => {
+    if (!email) {
+      setAuthError('Por favor, informe seu e-mail.');
+      return;
+    }
+    setResending(true);
+    setAuthError(null);
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: email,
+      });
+      if (error) throw error;
+      setSuccessMsg('E-mail de confirmação reenviado!');
+    } catch (error: any) {
+      setAuthError(error.message);
+    } finally {
+      setResending(false);
     }
   };
 
@@ -148,7 +172,29 @@ const Login = () => {
           {authError && (
             <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-200 text-sm flex items-start gap-4 animate-in slide-in-from-top-2">
               <AlertCircle className="h-5 w-5 shrink-0 text-red-400 mt-0.5" />
-              <span>{authError}</span>
+              <div className="flex flex-col gap-1">
+                <span>{authError}</span>
+                {authError.includes('Email not confirmed') && (
+                  <button
+                    type="button"
+                    onClick={handleResendConfirmation}
+                    disabled={resending}
+                    className="text-[#FFF200] text-xs font-bold text-left hover:underline"
+                  >
+                    {resending ? 'Reenviando...' : 'Reenviar e-mail de confirmação'}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {successMsg && (
+            <div className="p-4 rounded-2xl bg-[#FFF200]/10 border border-[#FFF200]/20 text-[#FFF200] text-sm flex items-start gap-4 animate-in slide-in-from-top-2">
+              <CheckCircle2 className="h-5 w-5 shrink-0 text-[#FFF200] mt-0.5" />
+              <div className="flex flex-col gap-1">
+                <span className="font-bold">Sucesso!</span>
+                <span>{successMsg}</span>
+              </div>
             </div>
           )}
 
@@ -196,6 +242,15 @@ const Login = () => {
               </span>
             )}
           </Button>
+
+          {mode === 'signup' && (
+            <p className="px-8 text-center text-xs text-zinc-500 leading-relaxed animate-in fade-in duration-1000">
+              Ao se cadastrar, você concorda com nossos{' '}
+              <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-zinc-400 hover:text-[#FFF200] underline underline-offset-4 transition-colors">Termos de Uso</a>
+              {' '}e{' '}
+              <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-zinc-400 hover:text-[#FFF200] underline underline-offset-4 transition-colors">Política de Privacidade</a>.
+            </p>
+          )}
         </form>
 
         {/* Footer */}

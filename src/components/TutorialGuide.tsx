@@ -13,6 +13,7 @@ export interface TutorialStep {
     title: string;
     description: string;
     position?: 'top' | 'bottom' | 'left' | 'right' | 'center';
+    onEnter?: () => void;
 }
 
 interface TutorialGuideProps {
@@ -49,6 +50,17 @@ export const TutorialGuide: React.FC<TutorialGuideProps> = ({
         }
     }, [isOpen, mounted]);
 
+    // Handle Escape key to close tutorial
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape' && isOpen) {
+                onClose(false);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isOpen, onClose]);
+
     const step = steps[currentStep];
 
     useEffect(() => {
@@ -82,8 +94,13 @@ export const TutorialGuide: React.FC<TutorialGuideProps> = ({
         }
 
         updateRect();
-        window.addEventListener('resize', updateRect);
 
+        // Trigger onEnter logic for the current step if it exists
+        if (isOpen && step?.onEnter) {
+            step.onEnter();
+        }
+
+        window.addEventListener('resize', updateRect);
         // Polling é suficiente para manter a posição quando o scroll está travado
         const interval = setInterval(updateRect, 100);
 

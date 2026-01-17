@@ -6,21 +6,28 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
-    Loader2,
+    User,
+    Shield,
     CreditCard,
-    Calendar,
+    LogOut,
+    Loader2,
+    AlertCircle,
+    Mail,
+    DollarSign,
+    Users,
+    Package,
+    History,
+    FileText,
+    TrendingUp,
+    ChevronRight,
+    Sparkles,
+    MessageSquare,
+    Settings,
     Zap,
     ShieldCheck,
-    Mail,
-    User,
-    Star,
-    Award,
-    TrendingUp,
-    LogOut,
-    ArrowRight,
-    Sparkles,
-    MessageSquare
+    ArrowRight
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useState } from "react";
@@ -59,6 +66,36 @@ export default function Profile() {
 
     const handleWhatsAppSupport = () => {
         window.open("https://wa.me/5521986243396?text=Olá! Preciso de suporte com minha conta no Direct AI.", "_blank");
+    };
+
+    const handleManageSubscription = async () => {
+        if (!session?.access_token) return;
+
+        try {
+            toast.loading("Redirecionando para o portal de pagamento...", { id: 'portal-loader' });
+
+            const response = await fetch('https://zdbjzrpgliqicwvncfpc.supabase.co/functions/v1/create-portal-session', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`
+                },
+                body: JSON.stringify({
+                    returnUrl: window.location.href
+                })
+            });
+
+            const data = await response.json();
+            toast.dismiss('portal-loader');
+
+            if (data.error) throw new Error(data.error);
+            if (data.url) {
+                window.location.href = data.url;
+            }
+        } catch (error: any) {
+            toast.dismiss('portal-loader');
+            toast.error("Erro ao abrir portal: " + error.message);
+        }
     };
 
     return (
@@ -193,18 +230,65 @@ export default function Profile() {
                                         </div>
                                     </div>
 
-                                    {!subscription.isActive && (
-                                        <Button
-                                            onClick={() => setIsUpgradeModalOpen(true)}
-                                            className="w-full mt-12 mb-4 h-18 md:h-20 bg-primary hover:bg-[#ffe600] text-primary-foreground font-black uppercase tracking-[0.2em] text-md md:text-lg rounded-3xl shadow-2xl group overflow-hidden border-none"
-                                        >
-                                            <span className="relative z-10 flex items-center gap-3">
-                                                DESBLOQUEAR PODER ELITE <ArrowRight className="w-6 h-6" />
-                                            </span>
-                                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent -translate-x-full group-hover:animate-shimmer" />
-                                        </Button>
-                                    )}
+                                    <div className="flex flex-col gap-4 mt-8">
+                                        {subscription.isActive && (
+                                            <Button
+                                                onClick={handleManageSubscription}
+                                                variant="outline"
+                                                className="w-full h-14 bg-white/5 border-white/10 hover:bg-white/10 text-white font-black uppercase tracking-widest text-xs rounded-2xl gap-3"
+                                            >
+                                                <CreditCard className="w-4 h-4 text-primary" />
+                                                Gerenciar Pagamentos e Assinatura
+                                            </Button>
+                                        )}
+
+                                        {!subscription.isActive && (
+                                            <Button
+                                                onClick={() => setIsUpgradeModalOpen(true)}
+                                                className="w-full h-18 md:h-20 bg-primary hover:bg-[#ffe600] text-primary-foreground font-black uppercase tracking-[0.2em] text-md md:text-lg rounded-3xl shadow-2xl group overflow-hidden border-none"
+                                            >
+                                                <span className="relative z-10 flex items-center gap-3">
+                                                    DESBLOQUEAR PODER ELITE <ArrowRight className="w-6 h-6" />
+                                                </span>
+                                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent -translate-x-full group-hover:animate-shimmer" />
+                                            </Button>
+                                        )}
+                                    </div>
                                 </CardContent>
+                            </div>
+
+                            {/* Support Section */}
+                            <div className="rounded-3xl border border-white/10 bg-black/20 p-6 md:p-8 space-y-6">
+                                <div className="flex items-center gap-4">
+                                    <div className="p-3 rounded-2xl bg-[#FFF200]/10 border border-[#FFF200]/20 text-[#FFF200]">
+                                        <AlertCircle className="h-6 w-6" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-bold text-white tracking-tight">Precisa de Ajuda?</h3>
+                                        <p className="text-sm text-zinc-500 font-medium tracking-tight">Suporte técnico e comercial</p>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <Button
+                                        variant="outline"
+                                        className="h-14 rounded-2xl border-white/10 bg-white/5 text-zinc-300 hover:bg-[#FFF200] hover:text-black gap-2 font-bold px-6"
+                                        asChild
+                                    >
+                                        <a href="mailto:gabrielxp45@gmail.com">
+                                            <Mail className="h-5 w-5" />
+                                            E-MAIL DE SUPORTE
+                                        </a>
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        className="h-14 rounded-2xl border-white/10 bg-white/5 text-zinc-300 hover:bg-green-500 hover:text-white hover:border-green-500 gap-2 font-bold px-6"
+                                        onClick={() => window.open('https://wa.me/5521995560196', '_blank')}
+                                    >
+                                        <img src="https://cdn-icons-png.flaticon.com/512/124/124034.png" alt="WhatsApp" className="h-5 w-5 invert hover:invert-0" />
+                                        WHATSAPP DIRETO
+                                    </Button>
+                                </div>
                             </div>
                         </Card>
                     </motion.div>

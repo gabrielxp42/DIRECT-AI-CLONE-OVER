@@ -1,4 +1,7 @@
 import { useState } from "react";
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -26,6 +29,7 @@ interface StatusChangeDialogProps {
   onStatusChange: (newStatus: string, observacao?: string) => void;
   isLoading?: boolean;
   orderNumber?: number;
+  pagoAt?: string | null;
 }
 
 const orderStatuses = [
@@ -44,7 +48,8 @@ export const StatusChangeDialog = ({
   currentStatus,
   onStatusChange,
   isLoading = false,
-  orderNumber
+  orderNumber,
+  pagoAt
 }: StatusChangeDialogProps) => {
   const [selectedStatus, setSelectedStatus] = useState(currentStatus);
   const [observacao, setObservacao] = useState("");
@@ -79,8 +84,14 @@ export const StatusChangeDialog = ({
         <div className="space-y-4 py-4">
           <div className="space-y-2">
             <Label>Status Atual</Label>
-            <div className="flex items-center">
+            <div className="flex items-center justify-between">
               <OrderStatusBadge status={currentStatus} />
+              {pagoAt && currentStatus === 'pago' && (
+                <div className="flex items-center text-[10px] text-green-600 font-bold bg-green-50 px-2 py-1 rounded-md border border-green-100">
+                  <CheckCircle className="h-3 w-3 mr-1" />
+                  PAGO EM: {format(new Date(pagoAt), 'dd/MM/yy HH:mm', { locale: ptBR })}
+                </div>
+              )}
             </div>
           </div>
 
@@ -138,8 +149,8 @@ export const StatusChangeDialog = ({
           <Button variant="outline" onClick={handleCancel} disabled={isLoading}>
             Cancelar
           </Button>
-          <Button 
-            onClick={handleSubmit} 
+          <Button
+            onClick={handleSubmit}
             disabled={!isStatusChanged || isLoading}
           >
             {isLoading ? "Alterando..." : "Alterar Status"}

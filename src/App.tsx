@@ -17,6 +17,8 @@ import Reports from "./pages/Reports";
 import Insumos from "./pages/Insumos";
 import Settings from "./pages/Settings";
 import Admin from "./pages/Admin";
+import ResetPassword from "./pages/ResetPassword";
+import Legal from "./pages/Legal";
 import Profile from "./pages/Profile";
 import { AIAssistantProvider } from "./contexts/AIAssistantProvider";
 import { useEffect, useRef } from "react";
@@ -67,6 +69,9 @@ const App = () => (
               <ErrorBoundary>
                 <Routes>
                   <Route path="/login" element={<Login />} />
+                  <Route path="/reset-password" element={<ResetPassword />} />
+                  <Route path="/terms" element={<Legal />} />
+                  <Route path="/privacy" element={<Legal />} />
                   <Route element={<ProtectedRoute />}>
                     <Route element={<Layout />}>
                       <Route path="/" element={<Index />} />

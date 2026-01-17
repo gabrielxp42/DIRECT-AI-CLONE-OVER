@@ -67,40 +67,99 @@ serve(async (req) => {
         // 3. Processamento do Evento
         console.log(`Evento Recebido: ${event.type}`);
 
-        if (event.type === 'checkout.session.completed') {
-            const session = event.data.object;
-            const userId = session.client_reference_id;
-            const customerEmail = session.customer_details?.email;
+        const supabaseAdmin = createClient(
+            Deno.env.get("SUPABASE_URL") ?? "",
+            Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+        );
 
-            console.log(`Dados do Checkout -> UserID: ${userId}, Email: ${customerEmail}, CustomerID: ${session.customer}`);
+        switch (event.type) {
+            case 'checkout.session.completed': {
+                const session = event.data.object;
+                const userId = session.client_reference_id;
+                const customerEmail = session.customer_details?.email;
 
-            if (userId) {
-                const supabaseAdmin = createClient(
-                    Deno.env.get("SUPABASE_URL") ?? "",
-                    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
-                );
+                console.log(`Dados do Checkout -> UserID: ${userId}, Email: ${customerEmail}, CustomerID: ${session.customer}`);
 
-                // Tenta atualizar e LOGA o resultado
-                const { data, error } = await supabaseAdmin
+                if (userId) {
+                    const { data, error } = await supabaseAdmin
+                        .from('profiles')
+                        .update({
+                            subscription_status: 'active',
+                            subscription_tier: 'pro',
+                            trial_start_date: new Date().toISOString(),
+                            stripe_customer_id: session.customer as string
+                        })
+                        .eq('id', userId);
+
+                    if (error) {
+                        console.error('ERRO AO ATUALIZAR BANCO (checkout.session.completed):', error);
+                    } else {
+                        console.log('Sucesso! Perfil Atualizado via Checkout Session');
+                    }
+                }
+                break;
+            }
+
+            case 'customer.subscription.deleted': {
+                const subscription = event.data.object;
+                const customerId = subscription.customer;
+
+                console.log(`Assinatura Cancelada -> CustomerID: ${customerId}`);
+
+                const { error } = await supabaseAdmin
                     .from('profiles')
-                    .update({
-                        subscription_status: 'active',
-                        subscription_tier: 'pro',
-                        trial_start_date: new Date().toISOString(),
-                        stripe_customer_id: session.customer as string
-                    })
-                    .eq('id', userId)
-                    .select();
+                    .update({ subscription_status: 'expired' })
+                    .eq('stripe_customer_id', customerId);
 
                 if (error) {
-                    console.error('ERRO AO ATUALIZAR BANCO:', error);
-                    return new Response("Database Error", { status: 500 });
+                    console.error('ERRO AO ATUALIZAR BANCO (customer.subscription.deleted):', error);
                 }
-
-                console.log('Sucesso! Perfil Atualizado:', data);
-            } else {
-                console.warn('ALERTA: Checkout sem client_reference_id (ID do usuário). O link foi gerado corretamente?');
+                break;
             }
+
+            case 'customer.subscription.updated': {
+                const subscription = event.data.object;
+                const customerId = subscription.customer;
+                const status = subscription.status;
+
+                console.log(`Assinatura Atualizada -> CustomerID: ${customerId}, Status: ${status}`);
+
+                // Mapear status do Stripe para o nosso sistema
+                let subStatus = 'trial';
+                if (['active', 'trialing'].includes(status)) subStatus = 'active';
+                if (['past_due', 'unpaid', 'incomplete_expired'].includes(status)) subStatus = 'expired';
+                if (status === 'canceled') subStatus = 'expired';
+
+                const { error } = await supabaseAdmin
+                    .from('profiles')
+                    .update({ subscription_status: subStatus })
+                    .eq('stripe_customer_id', customerId);
+
+                if (error) {
+                    console.error('ERRO AO ATUALIZAR BANCO (customer.subscription.updated):', error);
+                }
+                break;
+            }
+
+            case 'invoice.payment_failed': {
+                const invoice = event.data.object;
+                const customerId = invoice.customer;
+
+                console.log(`Falha no Pagamento -> CustomerID: ${customerId}`);
+
+                const { error } = await supabaseAdmin
+                    .from('profiles')
+                    .update({ subscription_status: 'expired' })
+                    .eq('stripe_customer_id', customerId);
+
+                if (error) {
+                    console.error('ERRO AO ATUALIZAR BANCO (invoice.payment_failed):', error);
+                }
+                break;
+            }
+
+            default:
+                console.log(`Evento não tratado: ${event.type}`);
         }
 
         return new Response(JSON.stringify({ received: true }), {

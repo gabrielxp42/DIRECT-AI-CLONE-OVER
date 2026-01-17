@@ -16,6 +16,10 @@ type Profile = {
   is_admin?: boolean;
   subscription_gift_viewed?: boolean;
   is_gifted_plan?: boolean;
+  first_name?: string | null;
+  last_name?: string | null;
+  avatar_url?: string | null;
+  created_at?: string | null;
 };
 
 type SessionContextType = {
@@ -76,9 +80,17 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
         if (token) {
           console.log('✅ [SessionProvider] Valid token found via TokenGuard');
 
-          // Recuperar o resto da sessão do localStorage para ter o objeto Session completo
-          const authKey = Object.keys(localStorage).find(key => key.includes('auth-token'));
-          const storedData = authKey ? localStorage.getItem(authKey) : null;
+          // Recuperar o resto da sessão do storage correto para ter o objeto Session completo
+          const getAuthKey = (storage: Storage) => Object.keys(storage).find(key => key.includes('auth-token'));
+          let authKey = getAuthKey(localStorage);
+          let storage = localStorage;
+
+          if (!authKey) {
+            authKey = getAuthKey(sessionStorage);
+            storage = sessionStorage;
+          }
+
+          const storedData = authKey ? storage.getItem(authKey) : null;
           const fullSession = storedData ? JSON.parse(storedData) : null;
 
           if (fullSession && fullSession.user) {

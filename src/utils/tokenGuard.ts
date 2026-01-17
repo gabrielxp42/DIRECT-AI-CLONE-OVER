@@ -6,14 +6,23 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/integrations/supabase/client'
  */
 export const getValidToken = async (): Promise<string | null> => {
     try {
-        // 1. Pegar sessão do localStorage
-        const authKey = Object.keys(localStorage).find(key => key.includes('auth-token'));
+        // 1. Pegar sessão do localStorage ou sessionStorage
+        const getAuthKey = (storage: Storage) => Object.keys(storage).find(key => key.includes('auth-token'));
+
+        let authKey = getAuthKey(localStorage);
+        let storage = localStorage;
+
         if (!authKey) {
-            console.warn('[TokenGuard] No auth key found');
+            authKey = getAuthKey(sessionStorage);
+            storage = sessionStorage;
+        }
+
+        if (!authKey) {
+            console.warn('[TokenGuard] No auth key found in any storage');
             return null;
         }
 
-        const authData = localStorage.getItem(authKey);
+        const authData = storage.getItem(authKey);
         if (!authData) {
             console.warn('[TokenGuard] No auth data found');
             return null;
@@ -79,7 +88,7 @@ export const getValidToken = async (): Promise<string | null> => {
             user: data.user || session.user
         };
 
-        localStorage.setItem(authKey, JSON.stringify(newSession));
+        storage.setItem(authKey, JSON.stringify(newSession));
         console.log('✅ [TokenGuard] Token refreshed successfully');
 
         return data.access_token;

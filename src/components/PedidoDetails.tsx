@@ -50,7 +50,8 @@ import {
   History,
   Ruler,
   Loader2,
-  ScrollText
+  ScrollText,
+  CheckCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTiposProducao, deductInsumosFromPedido, restoreInsumosFromPedido, isInventoryConsumingStatus } from '@/hooks/useDataFetch';
@@ -244,10 +245,14 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
 
     try {
       const statusAnterior = pedido.status;
+      const pago_at = newStatus === 'pago' ? new Date().toISOString() : (statusAnterior === 'pago' ? null : undefined);
+
+      const updatePayload: any = { status: newStatus };
+      if (pago_at !== undefined) updatePayload.pago_at = pago_at;
 
       const { error } = await supabase
         .from('pedidos')
-        .update({ status: newStatus }) // Usando a coluna 'status'
+        .update(updatePayload) // Usando a coluna 'status' e 'pago_at'
         .eq('id', pedido.id);
 
       if (error) throw error;
@@ -410,6 +415,12 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
               <span>{format(new Date(pedido.created_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}</span>
             </div>
             {getStatusBadge(pedido.status)}
+            {pedido.pago_at && pedido.status === 'pago' && (
+              <div className="flex items-center text-sm text-green-600 font-medium bg-green-50 dark:bg-green-900/20 px-3 py-1 rounded-full border border-green-200 dark:border-green-800">
+                <CheckCircle className="h-4 w-4 mr-2" />
+                Pago em: {format(new Date(pedido.pago_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
+              </div>
+            )}
           </div>
         </DialogHeader>
 
@@ -637,6 +648,7 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
           currentStatus={pedido.status}
           onStatusChange={handleSubmitStatusChange}
           orderNumber={pedido.order_number}
+          pagoAt={pedido.pago_at}
         />
       )}
 

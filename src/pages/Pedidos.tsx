@@ -421,12 +421,17 @@ const PedidosPage: React.FC = () => {
         'Prefer': 'return=representation'
       };
 
-      // Atualizar status do pedido
+      // Atualizar status do pedido e data de pagamento se necessário
+      const pago_at = newStatus === 'pago' ? new Date().toISOString() : (statusAnterior === 'pago' ? null : undefined);
+
       const updateUrl = `${SUPABASE_URL}/rest/v1/pedidos?id=eq.${id}`;
+      const updateBody: any = { status: newStatus };
+      if (pago_at !== undefined) updateBody.pago_at = pago_at;
+
       const updateResponse = await fetch(updateUrl, {
         method: 'PATCH',
         headers,
-        body: JSON.stringify({ status: newStatus })
+        body: JSON.stringify(updateBody)
       });
 
       if (!updateResponse.ok) {
@@ -577,10 +582,14 @@ const PedidosPage: React.FC = () => {
 
       if (pedidoId) {
         // Update existing pedido
+        const isNowPago = (editingPedido?.status || 'pendente') !== 'pago' && data.status === 'pago';
+        const wasPago = (editingPedido?.status || 'pendente') === 'pago' && data.status !== 'pago';
+
         const updateData = {
           ...pedidoData,
           created_at,
-          status: editingPedido?.status || 'pendente'
+          status: editingPedido?.status || 'pendente',
+          pago_at: isNowPago ? new Date().toISOString() : (wasPago ? null : editingPedido?.pago_at)
         };
 
         const updateUrl = `${SUPABASE_URL}/rest/v1/pedidos?id=eq.${pedidoId}`;
@@ -649,12 +658,14 @@ const PedidosPage: React.FC = () => {
         return { type: 'update' };
       } else {
         // Create new pedido
+        const isPago = data.status === 'pago';
         const newPedidoData = {
           ...pedidoData,
           user_id: session.user.id,
           organization_id: profile?.organization_id,
           status: 'pendente',
-          created_at: created_at
+          created_at: created_at,
+          pago_at: isPago ? new Date().toISOString() : null
         };
 
         const createUrl = `${SUPABASE_URL}/rest/v1/pedidos`;
@@ -1173,6 +1184,12 @@ const PedidosPage: React.FC = () => {
                     <CalendarIcon className="h-4 w-4 mr-2 text-muted-foreground" />
                     <span>{format(new Date(pedido.created_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}</span>
                   </div>
+                  {pedido.pago_at && pedido.status === 'pago' && (
+                    <div className="flex items-center text-[10px] text-green-600 font-medium">
+                      <CheckCircle className="h-3 w-3 mr-1.5" />
+                      Pago em: {format(new Date(pedido.pago_at), 'dd/MM/yy HH:mm', { locale: ptBR })}
+                    </div>
+                  )}
                   <div className="flex items-center text-base font-medium text-gray-900 dark:text-gray-50">
                     <DollarSign className="h-4 w-4 mr-2 text-primary" />
                     <span>Total: {formatCurrency(pedido.valor_total)}</span>
@@ -1436,6 +1453,7 @@ const PedidosPage: React.FC = () => {
           onStatusChange={handleSubmitStatusChange}
           isLoading={updateStatusMutation.isPending}
           orderNumber={statusChangePedido.order_number}
+          pagoAt={statusChangePedido.pago_at}
         />
       )}
 

@@ -86,6 +86,7 @@ export const MetersBarChart: React.FC<MetersBarChartProps> = ({ data, title, des
                     fontSize: '12px'
                   }}
                   itemStyle={{ padding: '0px' }}
+                  formatter={(value: number) => [`${value.toFixed(2)}m`, '']}
                 />
                 {(() => {
                   const types = new Set<string>();
