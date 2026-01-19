@@ -114,7 +114,7 @@ const Index = () => {
         </div>
       </div>
 
-      <div id="quick-actions-container" className="mb-8">
+      <div id="quick-actions-container" className="mb-8 hidden md:block">
         <DashboardQuickActions />
       </div>
 
