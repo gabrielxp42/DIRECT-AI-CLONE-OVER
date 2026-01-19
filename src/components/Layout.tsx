@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { Home, ShoppingCart, Users, BarChart3, Package, MessageSquare, Menu, Layers } from 'lucide-react';
+import { Home, ShoppingCart, Users, BarChart3, Package, MessageSquare, Layers, Sparkles } from 'lucide-react';
 import { AIAssistant } from './AIAssistant';
 import { ThemeToggle } from './ThemeToggle';
 import { UserNav } from './UserNav';
@@ -15,6 +15,8 @@ import { APP_VERSION } from '@/utils/version';
 import { cn } from '@/lib/utils';
 import { CommandMenu } from './CommandMenu';
 import { GiftPlanModal } from './GiftPlanModal';
+import { DTFCalculatorModal } from './DTFCalculatorModal';
+import { SidebarShortcuts } from './SidebarShortcuts';
 
 const navItems = [
   { href: '/', icon: Home, label: 'Dashboard' },
@@ -30,6 +32,7 @@ const Layout = () => {
   const isMobile = useIsMobile();
   const location = useLocation();
   const { data: insumos } = useInsumos();
+  const [isCalculatorOpen, setIsCalculatorOpen] = React.useState(false);
 
   // Verificar se há insumos em estoque baixo (uso de <= para precisão)
   const hasLowStock = React.useMemo(() => {
@@ -50,7 +53,7 @@ const Layout = () => {
       {/* Sidebar - Desktop (Primeira Coluna do Grid) */}
       <div
         className={cn(
-          "hidden border-r bg-sidebar transition-all duration-300 ease-in-out md:flex flex-col h-full shadow-lg hover:shadow-xl", // Adicionado shadow
+          "hidden border-r bg-sidebar transition-all duration-300 ease-in-out md:flex flex-col h-full shadow-lg hover:shadow-xl",
           sidebarWidth
         )}
         onMouseEnter={() => setIsExpanded(true)}
@@ -70,7 +73,7 @@ const Layout = () => {
             </Link>
           </div>
 
-          {/* Navegação */}
+          {/* Navegação e Ferramentas */}
           <div className="flex-1 overflow-y-auto p-2 lg:p-3">
             <nav className="grid items-start gap-1 text-sm font-medium">
               {navItems.map((item) => {
@@ -85,7 +88,7 @@ const Layout = () => {
                       "flex items-center gap-4 rounded-lg px-3 py-2 transition-all duration-300 ease-in-out relative group",
                       isActive
                         ? "bg-primary text-primary-foreground shadow-md hover:bg-primary/90"
-                        : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:scale-[1.02]" // Adicionado hover:scale
+                        : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:scale-[1.02]"
                     )}
                   >
                     <div className="relative">
@@ -99,7 +102,7 @@ const Layout = () => {
                     </div>
 
                     <span className={cn(
-                      "whitespace-nowrap transition-opacity duration-300 delay-100 flex items-center gap-2", // Aumentei a duração da opacidade para 300ms e adicionei um pequeno delay
+                      "whitespace-nowrap transition-opacity duration-300 delay-100 flex items-center gap-2",
                       isExpanded ? "opacity-100" : "opacity-0"
                     )}>
                       {item.label}
@@ -111,12 +114,18 @@ const Layout = () => {
                 );
               })}
             </nav>
+
+            {/* Seção de Ferramentas Dinâmica - Desktop */}
+            <SidebarShortcuts
+              isExpanded={isExpanded}
+              onOpenCalculator={() => setIsCalculatorOpen(true)}
+            />
           </div>
 
           {/* Footer do Sidebar */}
           <div className="p-4 border-t border-sidebar-border overflow-hidden">
             <p className={cn(
-              "text-xs text-sidebar-foreground/50 text-center transition-opacity duration-300 delay-100", // Aumentei a duração da opacidade e adicionei um pequeno delay
+              "text-xs text-sidebar-foreground/50 text-center transition-opacity duration-300 delay-100",
               isExpanded ? "opacity-100" : "opacity-0"
             )}>
               Versão: {APP_VERSION}
@@ -136,22 +145,39 @@ const Layout = () => {
           <ThemeToggle />
           <UserNav />
         </header>
-        <main className="flex flex-1 flex-col gap-3 p-3 sm:gap-4 sm:p-4 lg:gap-6 lg:p-6">
+
+        <main className="flex flex-1 flex-col gap-3 p-3 sm:gap-4 sm:p-4 lg:gap-6 lg:p-6 w-full max-w-[100vw] overflow-x-hidden">
           <Outlet />
         </main>
-        {location.pathname !== '/settings' && <MobileBottomNav />}
+        {location.pathname !== '/settings' && (
+          <MobileBottomNav onOpenCalculator={() => setIsCalculatorOpen(true)} />
+        )}
       </div>
+
       <AILowStockAlert />
       <AIAssistant />
       <CommandMenu />
       <GiftPlanModal />
+      <DTFCalculatorModal
+        isOpen={isCalculatorOpen}
+        onClose={() => setIsCalculatorOpen(false)}
+      />
       {!isOpen && !isMobile && (
-        <Button
-          className="fixed bottom-4 right-4 h-16 w-16 rounded-full shadow-xl z-50 transition-all duration-300 hover:scale-110"
+        <button
+          className="fixed bottom-4 right-4 h-16 w-16 rounded-full shadow-[0_0_30px_rgba(255,165,0,0.4)] z-50 transition-all duration-300 hover:scale-110 active:scale-95 flex items-center justify-center overflow-hidden group"
           onClick={openAIAssistant}
         >
-          <MessageSquare className="h-8 w-8" />
-        </Button>
+          {/* Gradient Background */}
+          <div className="absolute inset-0 bg-gradient-to-br from-yellow-400 via-orange-500 to-pink-500 animate-gradient-slow" />
+
+          {/* Subtle Glass Overlay */}
+          <div className="absolute inset-0.5 rounded-full bg-black/10 backdrop-blur-[2px] border border-white/20" />
+
+          <Sparkles className="h-8 w-8 text-white relative z-10 transition-transform group-hover:rotate-12" />
+
+          {/* Notification Dot */}
+          <div className="absolute top-3 right-3 h-3 w-3 rounded-full bg-red-500 border-2 border-white dark:border-zinc-950 z-20 animate-pulse" />
+        </button>
       )}
     </div>
   );

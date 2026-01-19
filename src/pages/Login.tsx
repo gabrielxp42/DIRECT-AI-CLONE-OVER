@@ -21,6 +21,7 @@ const Login = () => {
   // Form states
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   useEffect(() => {
     // Sincroniza o estado inicial do checkbox com o sessionStorage
@@ -43,6 +44,11 @@ const Login = () => {
     setLoading(true);
     setAuthError(null);
     setSuccessMsg(null);
+    if (mode === 'signup' && !acceptedTerms) {
+      setAuthError('Você precisa aceitar os Termos de Uso.');
+      setLoading(false);
+      return;
+    }
 
     try {
       if (mode === 'signin') {
@@ -244,12 +250,22 @@ const Login = () => {
           </Button>
 
           {mode === 'signup' && (
-            <p className="px-8 text-center text-xs text-zinc-500 leading-relaxed animate-in fade-in duration-1000">
-              Ao se cadastrar, você concorda com nossos{' '}
-              <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-zinc-400 hover:text-[#FFF200] underline underline-offset-4 transition-colors">Termos de Uso</a>
-              {' '}e{' '}
-              <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-zinc-400 hover:text-[#FFF200] underline underline-offset-4 transition-colors">Política de Privacidade</a>.
-            </p>
+            <div className="space-y-4">
+              <div className="flex items-start space-x-3 px-2">
+                <Checkbox
+                  id="accept-terms"
+                  checked={acceptedTerms}
+                  onCheckedChange={(checked) => setAcceptedTerms(checked as boolean)}
+                  className="mt-1 h-5 w-5 border-zinc-600 data-[state=checked]:bg-[#FFF200] data-[state=checked]:text-black data-[state=checked]:border-[#FFF200] rounded-md"
+                />
+                <Label htmlFor="accept-terms" className="text-zinc-500 text-xs leading-relaxed cursor-pointer">
+                  Eu li e aceito os{' '}
+                  <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-zinc-400 hover:text-[#FFF200] underline underline-offset-4 transition-colors">Termos de Uso</a>
+                  {' '}e a{' '}
+                  <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-zinc-400 hover:text-[#FFF200] underline underline-offset-4 transition-colors">Política de Privacidade</a> da Direct AI.
+                </Label>
+              </div>
+            </div>
           )}
         </form>
 

@@ -39,7 +39,7 @@ export interface CompanyProfileUpdate {
     company_address_complement?: string;
     company_pix_key?: string;
     company_pix_key_type?: string;
-    company_logo_url?: string;
+    company_logo_url?: string | null;
 }
 
 // Helper to format full address

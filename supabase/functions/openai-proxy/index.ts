@@ -19,14 +19,8 @@ Deno.serve(async (req: Request) => {
         const { messages, functions, function_call, model, temperature, max_tokens, type, input } = payload;
 
         let url = "https://api.openai.com/v1/chat/completions";
-        let body: any = {
-            model: model || 'gpt-4o-mini',
-            messages,
-            functions,
-            function_call: function_call || (functions && functions.length > 0 ? 'auto' : undefined),
-            temperature: temperature || 0.7,
-            max_tokens: max_tokens || 2000,
-        };
+        let body: any = {};
+        let isAudio = type === 'audio';
 
         if (type === 'embeddings') {
             url = "https://api.openai.com/v1/embeddings";
@@ -34,16 +28,47 @@ Deno.serve(async (req: Request) => {
                 model: 'text-embedding-3-small',
                 input: input || (messages && messages[0] ? messages[0].content : ""),
             };
+        } else if (isAudio) {
+            url = "https://api.openai.com/v1/audio/transcriptions";
+        } else {
+            body = {
+                model: model || 'gpt-4o-mini',
+                messages,
+                functions,
+                function_call: function_call || (functions && functions.length > 0 ? 'auto' : undefined),
+                temperature: temperature || 0.7,
+                max_tokens: max_tokens || 2000,
+            };
         }
 
-        const response = await fetch(url, {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${API_KEY}`,
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify(body),
-        });
+        let response;
+        if (isAudio) {
+            const { audio, model: audioModel, language } = payload;
+            const binaryString = atob(audio);
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            const formData = new FormData();
+            formData.append('file', new Blob([bytes], { type: 'audio/webm' }), 'audio.webm');
+            formData.append('model', audioModel || 'whisper-1');
+            if (language) formData.append('language', language);
+
+            response = await fetch(url, {
+                method: "POST",
+                headers: { "Authorization": `Bearer ${API_KEY}` },
+                body: formData,
+            });
+        } else {
+            response = await fetch(url, {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${API_KEY}`,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(body),
+            });
+        }
 
         const data = await response.json();
 

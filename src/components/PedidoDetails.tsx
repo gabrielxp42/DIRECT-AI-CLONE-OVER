@@ -239,6 +239,48 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
     }
   };
 
+  const handleWhatsAppShare = () => {
+    if (!pedido) return;
+
+    const clienteNome = pedido.clientes?.nome || getClienteNome(pedido.cliente_id);
+    const orderNum = pedido.order_number;
+    const total = formatCurrency(pedido.valor_total);
+    const status = pedido.status.toUpperCase();
+
+    let message = `*RESUMO DO PEDIDO #${orderNum}*\n\n`;
+    message += `👤 *Cliente:* ${clienteNome}\n`;
+    message += `📊 *Status:* ${status}\n`;
+    message += `💰 *Total:* ${total}\n\n`;
+
+    if (pedido.pedido_items && pedido.pedido_items.length > 0) {
+      message += `📦 *ITENS:*\n`;
+      pedido.pedido_items.forEach(item => {
+        message += `- ${item.quantidade}x ${item.produto_nome || getProdutoNome(item.produto_id)} (${formatCurrency(item.preco_unitario)})\n`;
+      });
+      message += `\n`;
+    }
+
+    if (pedido.servicos && pedido.servicos.length > 0) {
+      message += `🛠️ *SERVIÇOS:*\n`;
+      pedido.servicos.forEach(s => {
+        message += `- ${s.quantidade}x ${s.nome} (${formatCurrency(s.valor_unitario)})\n`;
+      });
+      message += `\n`;
+    }
+
+    message += `🔗 _Enviado via Direct AI_`;
+
+    const encodedMessage = encodeURIComponent(message);
+    const telephone = pedido.clientes?.telefone || '';
+    const phoneStr = telephone.replace(/\D/g, '');
+
+    const whatsappUrl = phoneStr
+      ? `https://api.whatsapp.com/send?phone=55${phoneStr}&text=${encodedMessage}`
+      : `https://api.whatsapp.com/send?text=${encodedMessage}`;
+
+    window.open(whatsappUrl, '_blank');
+  };
+
 
   const handleSubmitStatusChange = async (newStatus: string, observacao?: string) => {
     if (!pedido || !supabase) return;
@@ -344,6 +386,11 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
               <Button variant="outline" size="sm" onClick={handleDownloadPDF}>
                 <FileText className="h-4 w-4 mr-2" />
                 Baixar PDF
+              </Button>
+
+              <Button variant="outline" size="sm" className="bg-green-50 text-green-700 hover:bg-green-100 border-green-200" onClick={handleWhatsAppShare}>
+                <MessageSquare className="h-4 w-4 mr-2" />
+                WhatsApp
               </Button>
 
               <DropdownMenu>

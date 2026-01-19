@@ -42,9 +42,9 @@ export const DashboardQuickActions = () => {
     ];
 
     return (
-        <div className="mb-8 hidden md:block">
-            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                <span className="bg-primary/10 p-1 rounded text-primary">⚡</span> Acesso Rápido
+        <div className="mb-8">
+            <h2 className="text-lg md:text-xl font-black mb-4 flex items-center gap-2 uppercase italic tracking-tighter">
+                <span className="bg-primary/10 p-1 rounded text-primary border border-primary/20">⚡</span> Acesso Rápido
             </h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {actions.map((action, index) => (

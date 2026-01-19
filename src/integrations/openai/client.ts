@@ -121,26 +121,70 @@ export class OpenAIClient {
   }
 
   async transcribeAudio(audioBlob: Blob): Promise<string | null> {
-    const formData = new FormData();
-    formData.append('file', audioBlob, 'audio.webm');
-    formData.append('model', 'whisper-1');
-    formData.append('language', 'pt');
+    const token = await getValidToken();
+    console.log('🎙️ [OpenAIClient] Transcrevendo áudio via Proxy...');
 
-    const response = await fetch(`${this.baseURL}/audio/transcriptions`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${this.apiKey}`,
-      },
-      body: formData,
-    });
+    try {
+      // Converter Blob para Base64 para passar pelo JSON do Proxy
+      const reader = new FileReader();
+      const base64Promise = new Promise<string>((resolve) => {
+        reader.onloadend = () => {
+          const base64String = (reader.result as string).split(',')[1];
+          resolve(base64String);
+        };
+      });
+      reader.readAsDataURL(audioBlob);
+      const base64Audio = await base64Promise;
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(`OpenAI Whisper API Error: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
+      const response = await fetch(this.proxyURL, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'apikey': SUPABASE_ANON_KEY,
+          'Content-Type': 'application/json',
+        },
+        mode: 'cors',
+        body: JSON.stringify({
+          type: 'audio',
+          audio: base64Audio,
+          model: 'whisper-1',
+          language: 'pt'
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        return data.text || null;
+      } else {
+        const errorText = await response.text();
+        console.error('❌ [OpenAIClient] Erro no Proxy Audio:', response.status, errorText);
+        throw new Error(`Proxy Audio error: ${response.status}`);
+      }
+    } catch (error) {
+      console.error('🚨 [OpenAIClient] Erro na transcrição via Proxy:', error);
+
+      // Fallback direto apenas se o proxy falhar e as chaves permitirem (risco de CORS)
+      console.warn('⚠️ [OpenAIClient] Tentando fallback direto para Whisper...');
+      const formData = new FormData();
+      formData.append('file', audioBlob, 'audio.webm');
+      formData.append('model', 'whisper-1');
+      formData.append('language', 'pt');
+
+      const response = await fetch(`${this.baseURL}/audio/transcriptions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Whisper direct fallback failed: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.text || null;
     }
-
-    const data = await response.json();
-    return data.text || null;
   }
 
   async generateEmbedding(text: string): Promise<number[]> {

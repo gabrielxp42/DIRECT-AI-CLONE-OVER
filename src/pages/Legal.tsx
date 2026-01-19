@@ -63,42 +63,42 @@ const Legal = () => {
                             <section className="space-y-4">
                                 <h1 className="text-3xl font-bold text-white">Política de Privacidade</h1>
                                 <p className="text-zinc-400 leading-relaxed">
-                                    A sua privacidade é importante para nós. É política da Direct AI respeitar a sua privacidade em relação a qualquer informação sua que possamos coletar no site Direct AI e em outros sites que possuímos e operamos.
+                                    A sua privacidade é prioridade na Direct AI. Esta política descreve como coletamos, usamos e protegemos seus dados em conformidade com a Lei Geral de Proteção de Dados (LGPD - Lei nº 13.709/2018).
                                 </p>
                             </section>
 
                             <div className="space-y-6">
                                 <div className="p-6 rounded-2xl bg-white/5 border border-white/5">
-                                    <h3 className="text-lg font-bold text-[#FFF200] mb-3">1. Coleta de Informações</h3>
+                                    <h3 className="text-lg font-bold text-[#FFF200] mb-3">1. Coleta e Finalidade</h3>
                                     <p className="text-sm leading-relaxed">
-                                        Solicitamos informações pessoais apenas quando realmente precisamos delas para lhe fornecer um serviço. Fazemo-lo por meios justos e legais, com o seu conhecimento e consentimento. Também informamos por que estamos coletando e como será usado.
+                                        Coletamos dados como e-mail, nome da empresa e informações de uso para fornecer acesso ao sistema, processar pagamentos e permitir as funcionalidades de inteligência artificial. Seus dados são processados com base na execução de contrato ou legítimo interesse.
                                     </p>
                                 </div>
 
                                 <div className="p-6 rounded-2xl bg-white/5 border border-white/5">
-                                    <h3 className="text-lg font-bold text-[#FFF200] mb-3">2. Uso de Dados</h3>
+                                    <h3 className="text-lg font-bold text-[#FFF200] mb-3">2. Segurança e Retenção</h3>
                                     <p className="text-sm leading-relaxed">
-                                        Apenas retemos as informações coletadas pelo tempo necessário para fornecer o serviço solicitado. Quando armazenamos dados, os protegemos dentro de meios comercialmente aceitáveis ​​para evitar perdas e roubos, bem como acesso, divulgação, cópia, uso ou modificação não autorizados.
+                                        Retemos informações apenas pelo tempo necessário para cumprir as finalidades descritas. Utilizamos criptografia e práticas de segurança de ponta para evitar acessos não autorizados. Dados financeiros são processados por parceiros certificados (Stripe/Asaas) e não residem em nossos servidores.
                                     </p>
                                 </div>
 
                                 <div className="p-6 rounded-2xl bg-white/5 border border-white/5">
-                                    <h3 className="text-lg font-bold text-[#FFF200] mb-3">3. Compartilhamento com Terceiros</h3>
+                                    <h3 className="text-lg font-bold text-[#FFF200] mb-3">3. Uso de IA e Gabriel</h3>
                                     <p className="text-sm leading-relaxed">
-                                        Não compartilhamos informações de identificação pessoal publicamente ou com terceiros, exceto quando exigido por lei ou para processamento de pagamentos através do Stripe. Seus dados de cartão de crédito nunca são armazenados em nossos servidores.
+                                        Nossa inteligência artificial (Gabriel) analisa dados de faturamento e vendas para gerar insights. Estes dados são processados de forma privada e nunca são compartilhados ou utilizados para treinar modelos externos com informações identificáveis de sua empresa.
                                     </p>
                                 </div>
 
                                 <div className="p-6 rounded-2xl bg-white/5 border border-white/5">
-                                    <h3 className="text-lg font-bold text-[#FFF200] mb-3">4. Direitos do Usuário</h3>
+                                    <h3 className="text-lg font-bold text-[#FFF200] mb-3">4. Seus Direitos</h3>
                                     <p className="text-sm leading-relaxed">
-                                        Você é livre para recusar a nossa solicitação de informações pessoais, entendendo que talvez não possamos fornecer alguns dos serviços desejados. O uso continuado de nosso site será considerado como aceitação de nossas práticas em torno de privacidade e informações pessoais.
+                                        Conforme a LGPD, você tem direito a confirmar a existência de tratamento, acessar seus dados, corrigir informações incompletas e solicitar a exclusão de seus dados pessoais a qualquer momento através de nosso suporte.
                                     </p>
                                 </div>
                             </div>
 
                             <div className="pt-8 border-t border-white/5 text-center">
-                                <p className="text-xs text-zinc-500">Última atualização: 17 de Janeiro de 2026</p>
+                                <p className="text-xs text-zinc-500">Versão 2.4 &bull; Atualizada em: 17 de Janeiro de 2026</p>
                             </div>
                         </TabsContent>
 
@@ -106,42 +106,42 @@ const Legal = () => {
                             <section className="space-y-4">
                                 <h1 className="text-3xl font-bold text-white">Termos de Uso</h1>
                                 <p className="text-zinc-400 leading-relaxed">
-                                    Ao acessar o site Direct AI, você concorda em cumprir estes termos de serviço, todas as leis e regulamentos aplicáveis ​​e concorda que é responsável pelo cumprimento de todas as leis locais aplicáveis.
+                                    Ao utilizar a Direct AI, você concorda legalmente com estes termos. O serviço consiste em uma plataforma SaaS de gestão para gráficas e estamparias com auxílio de inteligência artificial.
                                 </p>
                             </section>
 
                             <div className="space-y-6">
                                 <div className="p-6 rounded-2xl bg-white/5 border border-white/5">
-                                    <h3 className="text-lg font-bold text-[#FFF200] mb-3">1. Licença de Uso</h3>
+                                    <h3 className="text-lg font-bold text-[#FFF200] mb-3">1. Licença e Uso do Sistema</h3>
                                     <p className="text-sm leading-relaxed">
-                                        É concedida permissão para baixar temporariamente uma cópia dos materiais (informações ou software) no site Direct AI, apenas para visualização transitória pessoal e não comercial. Esta é a concessão de uma licença, não uma transferência de título.
+                                        Concedemos uma licença de uso pessoal, intransferível e revogável. O usuário é responsável pela veracidade dos dados inseridos e pelo uso ético das ferramentas de IA. É proibido o uso do sistema para atividades ilícitas ou extração automatizada de dados (scraping).
                                     </p>
                                 </div>
 
                                 <div className="p-6 rounded-2xl bg-white/5 border border-white/5">
-                                    <h3 className="text-lg font-bold text-[#FFF200] mb-3">2. Isenção de Responsabilidade</h3>
+                                    <h3 className="text-lg font-bold text-[#FFF200] mb-3">2. Isenção e Responsabilidade Técnica</h3>
                                     <p className="text-sm leading-relaxed italic">
-                                        Os materiais no site da Direct AI são fornecidos 'como estão'. A Direct AI não oferece garantias, expressas ou implícitas, e por este meio isenta e nega todas as outras garantias. Além disso, a Direct AI não garante que os resultados obtidos pela calculadora de DTF sejam 100% livres de variações físicas de impressão, sendo estas de responsabilidade do operador.
+                                        A Direct AI fornece ferramentas de cálculo (DTF) e insights via IA. Devido à natureza da tecnologia, a IA pode gerar aproximações. Os resultados devem ser validados pelo operador técnico. Não nos responsabilizamos por perdas de material decorrentes de configurações incorretas feitas pelo usuário.
                                     </p>
                                 </div>
 
                                 <div className="p-6 rounded-2xl bg-white/5 border border-white/5">
-                                    <h3 className="text-lg font-bold text-[#FFF200] mb-3">3. Pagamentos e Assinaturas</h3>
+                                    <h3 className="text-lg font-bold text-[#FFF200] mb-3">3. Assinaturas e CDC (Direito de Arrependimento)</h3>
                                     <p className="text-sm leading-relaxed">
-                                        As assinaturas são processadas pelo Stripe. O cancelamento pode ser feito a qualquer momento através do painel de perfil, interrompendo cobranças futuras. Reembolsos são regidos pela política de cada plano, conforme detalhado no momento da compra.
+                                        Em conformidade com o Art. 49 do Código de Defesa do Consumidor (Brasil), garantimos o direito de arrependimento com reembolso total em até 7 dias após a primeira contratação. Após este período, o cancelamento interrompe cobranças futuras, mantendo o acesso até o fim do ciclo pago.
                                     </p>
                                 </div>
 
                                 <div className="p-6 rounded-2xl bg-white/5 border border-white/5">
-                                    <h3 className="text-lg font-bold text-[#FFF200] mb-3">4. Modificações</h3>
+                                    <h3 className="text-lg font-bold text-[#FFF200] mb-3">4. Modificações e Suspensão</h3>
                                     <p className="text-sm leading-relaxed">
-                                        A Direct AI pode revisar estes termos de serviço do site a qualquer momento, sem aviso prévio. Ao usar este site, você concorda em ficar vinculado à versão atual desses termos de serviço.
+                                        Podemos atualizar estes termos ou as funcionalidades do sistema para melhoria contínua. O uso excessivo ou abusivo das APIs de IA que comprometa a estabilidade do sistema poderá resultar em limitação temporária do recurso no perfil do usuário.
                                     </p>
                                 </div>
                             </div>
 
                             <div className="pt-8 border-t border-white/5 text-center">
-                                <p className="text-xs text-zinc-500">Última atualização: 17 de Janeiro de 2026</p>
+                                <p className="text-xs text-zinc-500">Versão 2.4 &bull; Atualizada em: 17 de Janeiro de 2026</p>
                             </div>
                         </TabsContent>
                     </Tabs>

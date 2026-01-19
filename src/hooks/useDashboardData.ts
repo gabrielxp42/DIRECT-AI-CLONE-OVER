@@ -22,9 +22,14 @@ export interface DashboardStats {
   totalMetersVinil: number;
   productionTotals: Record<string, number>;
   metersGrowth: number;
+  // Onboarding fields
+  hasCompanyProfile: boolean;
+  productsCount: number;
+  customersCount: number;
+  totalOrders: number;
 }
 
-const fetchDashboardData = async (): Promise<DashboardStats> => {
+const fetchDashboardData = async (userId: string | undefined): Promise<DashboardStats> => {
   const accessToken = await getValidToken();
   if (!accessToken) {
     throw new Error("Sem token de acesso para fetch.");
@@ -72,7 +77,12 @@ const fetchDashboardData = async (): Promise<DashboardStats> => {
     processingOrdersCount,
     awaitingPickupOrdersCount,
     deliveredOrdersCount,
-    pendingPaymentCount
+    pendingPaymentCount,
+    // Onboarding fetches
+    companyProfile,
+    productsCount,
+    totalCustomersCount,
+    totalOrdersCount
   ] = await Promise.all([
     // Current Month Orders (needed for calculations)
     doFetch('pedidos', new URLSearchParams({
@@ -90,10 +100,7 @@ const fetchDashboardData = async (): Promise<DashboardStats> => {
     doCount('clientes', new URLSearchParams({ created_at: `gte.${firstDayCurrentMonth.toISOString()}` })),
     doCount('clientes', new URLSearchParams({
       created_at: `gte.${firstDayPreviousMonth.toISOString()}`,
-      // Need upper bound filter in param or handle logic? 
-      // created_at <= lastDayPreviousMonth is hard in simple URL params if using `and` with same key?
-      // Actually supabase supports `created_at=gte.X&created_at=lte.Y`.
-    })), // We'll simple fetch count for previous month with lte constraint if possible or accept approximation
+    })),
 
     // Status Counts
     doCount('pedidos', new URLSearchParams({ status: 'eq.pendente' })),
@@ -101,7 +108,12 @@ const fetchDashboardData = async (): Promise<DashboardStats> => {
     doCount('pedidos', new URLSearchParams({ status: 'eq.aguardando retirada' })),
     doCount('pedidos', new URLSearchParams({ status: 'eq.entregue' })),
     // Pending Payment: not paid, not cancelled, not delivered
-    doCount('pedidos', new URLSearchParams({ status: 'not.in.(pago,cancelado,entregue)' }))
+    doCount('pedidos', new URLSearchParams({ status: 'not.in.(pago,cancelado,entregue)' })),
+    // Onboarding counts
+    userId ? doFetch('profiles', new URLSearchParams({ id: `eq.${userId}`, select: 'company_name', limit: '1' })) : Promise.resolve([]),
+    doCount('produtos', new URLSearchParams({})),
+    doCount('clientes', new URLSearchParams({})),
+    doCount('pedidos', new URLSearchParams({}))
   ]);
 
   // Refine previousCustomersCount if needed (we used only gte above, need lte)
@@ -192,6 +204,10 @@ const fetchDashboardData = async (): Promise<DashboardStats> => {
     pendingPaymentOrdersCount: pendingPaymentCount,
     awaitingPickupOrdersCount,
     deliveredOrdersCount,
+    hasCompanyProfile: Array.isArray(companyProfile) && companyProfile.length > 0 && !!companyProfile[0].company_name,
+    productsCount,
+    customersCount: totalCustomersCount,
+    totalOrders: totalOrdersCount
   };
 };
 
@@ -201,8 +217,8 @@ export const useDashboardData = () => {
   const isEnabled = !sessionLoading && !!accessToken;
 
   return useQuery<DashboardStats>({
-    queryKey: ["dashboard-stats"],
-    queryFn: () => fetchDashboardData(),
+    queryKey: ["dashboard-stats", session?.user?.id],
+    queryFn: () => fetchDashboardData(session?.user?.id),
     enabled: !!accessToken && !sessionLoading,
     staleTime: 1000 * 60 * 5, // 5 minutos
     refetchInterval: 5 * 60 * 1000, // Refetch every 5 minutes

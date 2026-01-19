@@ -503,9 +503,25 @@ export const openAIFunctions = [
           type: "boolean",
           description: "Se verdadeiro, retorna a contagem total de pedidos que correspondem aos filtros, além dos pedidos listados. Use para perguntas como 'quantos pedidos temos no total?' ou 'quantos pedidos este mês?'"
         },
-        allTime: { // NEW PARAMETER
+        allTime: {
           type: "boolean",
           description: "Se verdadeiro, ignora startDate e endDate e busca pedidos desde o início."
+        },
+        statuses: {
+          type: "array",
+          items: {
+            type: "string",
+            enum: ["pendente", "processando", "enviado", "entregue", "cancelado", "pago", "aguardando retirada"]
+          },
+          description: "Uma lista de status para INCLUIR nos resultados (ex: ['pago'])."
+        },
+        exclude_statuses: {
+          type: "array",
+          items: {
+            type: "string",
+            enum: ["pendente", "processando", "enviado", "entregue", "cancelado", "pago", "aguardando retirada"]
+          },
+          description: "Uma lista de status para EXCLUIR dos resultados."
         }
       },
       required: []
@@ -620,10 +636,15 @@ export const openAIFunctions = [
   },
   {
     name: "calculate_dtf_packing",
-    description: "Calcula o aproveitamento (packing) de imagens em um rolo de DTF e a metragem necessária. Use quando o usuário perguntar 'quantas logos cabem', 'quantos metros vou gastar', ou solicitar um orçamento baseado em dimensões. Retorna imagens por linha, total de metros e rendimento.",
+    description: "OBRIGATÓRIO: Use esta ferramenta para QUALQUER cálculo de aproveitamento (packing) de imagens ou metragem de DTF. IMPORTANTE: Esta ferramenta ativa o componente visual interativo e o botão de 'Ver Preview' na interface. Mesmo que você saiba o resultado matemático, você DEVE chamá-la para que o usuário possa ver o preview visual. Use para perguntas como 'quantas cabem', 'quantos metros consome', 'orçamento de X unidades'.",
     parameters: {
       type: "object",
       properties: {
+        calculation_mode: {
+          type: "string",
+          enum: ["quantity_in_meters", "meters_for_quantity"],
+          description: "O que o usuário quer saber? 'quantity_in_meters' para saber quantas cabem em X metros (ex: 'quantas cabem em 1m?'). 'meters_for_quantity' para saber quantos metros consome X unidades (ex: 'quantos metros para 1000 logos?')."
+        },
         imageWidth: {
           type: "number",
           description: "Largura da imagem individual em centímetros (cm)."
@@ -634,7 +655,7 @@ export const openAIFunctions = [
         },
         quantity: {
           type: "number",
-          description: "Quantidade total de imagens/logos desejada."
+          description: "Quantidade total de imagens/logos desejada (se o modo for 'meters_for_quantity') OU a metragem do rolo em METROS (se o modo for 'quantity_in_meters')."
         },
         rollWidth: {
           type: "number",
@@ -652,7 +673,7 @@ export const openAIFunctions = [
           default: 1.0
         }
       },
-      required: ["imageWidth", "imageHeight", "quantity"]
+      required: ["calculation_mode", "imageWidth", "imageHeight", "quantity"]
     }
   }
 ];
@@ -923,9 +944,11 @@ export const list_orders = async (args: {
   limit?: number;
   orderBy?: "created_at_asc" | "created_at_desc" | "valor_total_desc";
   includeTotalCount?: boolean;
-  allTime?: boolean; // NEW
+  allTime?: boolean;
+  statuses?: string[];
+  exclude_statuses?: string[];
 }) => {
-  let { startDate, endDate, limit = 10, orderBy = 'created_at_desc', includeTotalCount, allTime } = args;
+  let { startDate, endDate, limit = 10, orderBy = 'created_at_desc', includeTotalCount, allTime, statuses, exclude_statuses } = args;
   const TIME_ZONE = 'America/Sao_Paulo';
   const dateInfo = getCurrentDateTime();
   let periodDescription = "em todo o período";
@@ -975,13 +998,23 @@ export const list_orders = async (args: {
     }
 
     const queryParams = new URLSearchParams();
-    queryParams.append('select', 'id,order_number,status,valor_total,total_metros,total_metros_dtf,total_metros_vinil,created_at,clientes(nome)');
+    queryParams.append('select', 'id,order_number,status,valor_total,total_metros,total_metros_dtf,total_metros_vinil,created_at,clientes(nome),pedido_status_history(*)');
 
     if (startDate) {
       queryParams.append('created_at', `gte.${startDate}`);
     }
     if (endDate) {
       queryParams.append('created_at', `lte.${endDate}`);
+    }
+
+    if (statuses && statuses.length > 0) {
+      const statusList = statuses.map(s => `"${s}"`).join(',');
+      queryParams.append('status', `in.(${statusList})`);
+    }
+
+    if (exclude_statuses && exclude_statuses.length > 0) {
+      const statusList = exclude_statuses.map(s => `"${s}"`).join(',');
+      queryParams.append('status', `not.in.(${statusList})`);
     }
 
     let orderField: string = 'created_at';
@@ -1058,10 +1091,28 @@ export const list_orders = async (args: {
     }));
 
     // FIX 2, 3: Casting para OrderWithClient[]
-    const totalValue = (orders as unknown as OrderWithClient[]).reduce((sum, order) => sum + order.valor_total, 0);
+    // Calcule o valor total seguindo a lógica estrita do dashboard:
+    // Apenas 'pago', 'entregue' OU 'aguardando retirada' (se já passou por pago)
+    const paidOrders = (orders as any[]).filter(o => {
+      const status = o.status?.toLowerCase();
+      const isPaidStatus = ['pago', 'entregue'].includes(status);
+      const isAwaitingPickup = status === 'aguardando retirada';
+      let wasPaid = false;
+
+      if (isAwaitingPickup && o.pedido_status_history && Array.isArray(o.pedido_status_history)) {
+        wasPaid = o.pedido_status_history.some((h: any) =>
+          h.status_novo?.toLowerCase() === 'pago' || h.status_anterior?.toLowerCase() === 'pago'
+        );
+      }
+
+      return isPaidStatus || (isAwaitingPickup && wasPaid);
+    });
+
+    const totalValue = paidOrders.reduce((sum, order) => sum + order.valor_total, 0);
     const totalMetros = (orders as unknown as OrderWithClient[]).reduce((sum, order) => sum + (order.total_metros || 0), 0);
     const totalMetrosDTF = (orders as unknown as OrderWithClient[]).reduce((sum, order) => sum + (order.total_metros_dtf || 0), 0);
     const totalMetrosVinil = (orders as unknown as OrderWithClient[]).reduce((sum, order) => sum + (order.total_metros_vinil || 0), 0);
+
     const totalValueFormatted = new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL'
@@ -1186,6 +1237,16 @@ export const list_services = async (args: {
     }
     if (endDate) {
       queryParams.append('pedidos.created_at', `lte.${endDate}`);
+    }
+
+    if (statuses && statuses.length > 0) {
+      const statusList = statuses.map(s => `"${s}"`).join(',');
+      queryParams.append('pedidos.status', `in.(${statusList})`);
+    }
+
+    if (exclude_statuses && exclude_statuses.length > 0) {
+      const statusList = exclude_statuses.map(s => `"${s}"`).join(',');
+      queryParams.append('pedidos.status', `not.in.(${statusList})`);
     }
 
     if (statuses && statuses.length > 0) {
@@ -1384,14 +1445,36 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
 
     console.log(`✅ [get_client_orders] Cliente(s) encontrado(s):`, foundClients.map((c: any) => c.nome));
 
-    const clientIds = foundClients.map((c: any) => c.id);
-    const clientIdsString = clientIds.map((id: string) => `"${id}"`).join(',');
+    // SE encontrar múltiplos clientes, vamos ser mais rígidos para evitar ALUCINAÇÃO
+    // Se o nome for uma correspondência exata de um deles, pegamos apenas esse.
+    // Caso contrário, informamos ao assistente os múltiplos nomes para ele pedir clarificação.
+
+    let targetClient = foundClients[0];
+    const exactMatch = foundClients.find((c: any) => c.nome.toLowerCase() === clientName.toLowerCase().trim());
+
+    if (exactMatch) {
+      targetClient = exactMatch;
+      console.log(`🎯 [get_client_orders] Encontrada correspondência EXATA: ${targetClient.nome}`);
+    } else if (foundClients.length > 1) {
+      console.log(`⚠️ [get_client_orders] Múltiplos clientes encontrados, retornando lista para clarificação.`);
+      const clientNames = foundClients.map((c: any) => c.nome).join(', ');
+      return {
+        orders: [],
+        summary: {
+          foundMultipleClients: true,
+          clientOptions: foundClients.map((c: any) => ({ id: c.id, nome: c.nome }))
+        },
+        message: `🔍 Encontrei mais de um cliente com o nome parecido: **${clientNames}**.\n\n❓ **Por favor, me diga exatamente qual deles você quer consultar?**`
+      };
+    }
+
+    const clientId = targetClient.id;
 
     try {
       const token = await getValidToken();
       if (!token) throw new Error("Token inválido");
 
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?select=id,order_number,status,valor_total,total_metros,total_metros_dtf,total_metros_vinil,created_at,clientes(nome)&cliente_id=in.(${clientIdsString})&order=created_at.desc`, {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?select=id,order_number,status,valor_total,total_metros,total_metros_dtf,total_metros_vinil,created_at,clientes(nome)&cliente_id=eq.${clientId}&order=created_at.desc`, {
         method: 'GET',
         headers: {
           'apikey': SUPABASE_ANON_KEY,
@@ -1408,16 +1491,14 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       const orders = await response.json();
 
       if (!orders || orders.length === 0) {
-        const clientNames = foundClients.map((c: any) => c.nome).join(', ');
-        console.log(`❌ [get_client_orders] Nenhum pedido encontrado para: ${clientNames}`);
+        console.log(`❌ [get_client_orders] Nenhum pedido encontrado para: ${targetClient.nome}`);
         return {
-          message: `✅ Cliente encontrado: **${clientNames}**\n\n❌ Porém, este cliente ainda não possui nenhum pedido registrado no sistema.`
+          message: `✅ Cliente encontrado: **${targetClient.nome}**\n\n❌ Porém, este cliente ainda não possui nenhum pedido registrado no sistema.`
         };
       }
 
-      console.log(`✅ [get_client_orders] Encontrados ${orders.length} pedidos`);
+      console.log(`✅ [get_client_orders] Encontrados ${orders.length} pedidos para ${targetClient.nome}`);
 
-      // FIX 6: Casting para OrderWithClient[]
       const formattedOrders = (orders as unknown as OrderWithClient[]).map((order, index) => ({
         index: index + 1,
         order_number: order.order_number,
@@ -1430,25 +1511,23 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
         cliente: order.clientes?.nome
       }));
 
-      // FIX 7, 8: Casting para OrderWithClient[]
       const totalValue = (orders as unknown as OrderWithClient[]).reduce((sum, order) => sum + order.valor_total, 0);
       const totalMetros = (orders as unknown as OrderWithClient[]).reduce((sum, order) => sum + (order.total_metros || 0), 0);
       const totalMetrosDTF = (orders as unknown as OrderWithClient[]).reduce((sum, order) => sum + (order.total_metros_dtf || 0), 0);
       const totalMetrosVinil = (orders as unknown as OrderWithClient[]).reduce((sum, order) => sum + (order.total_metros_vinil || 0), 0);
-      const clientNames = foundClients.map((c: any) => c.nome).join(', ');
 
       return {
         orders: formattedOrders,
         summary: {
-          clientName: clientNames,
+          clientName: targetClient.nome,
           totalOrders: orders.length,
           totalValue: totalValue,
           totalMetros: totalMetros,
           totalMetrosDTF: totalMetrosDTF,
           totalMetrosVinil: totalMetrosVinil,
-          foundMultipleClients: foundClients.length > 1
+          foundMultipleClients: false
         },
-        message: `✅ Encontrei **${orders.length} pedido(s)** para o cliente: **${clientNames}**${foundClients.length > 1 ? ' (encontrei múltiplos clientes similares)' : ''}\n\n💰 Valor total: **R$ ${totalValue.toFixed(2)}**\n📏 Total de Metros: **${totalMetros.toFixed(2)} ML** (🖨️ ${totalMetrosDTF.toFixed(2)}m DTF | ✂️ ${totalMetrosVinil.toFixed(2)}m Vinil)`
+        message: `✅ Encontrei **${orders.length} pedido(s)** para o cliente: **${targetClient.nome}**\n\n💰 Valor total: **R$ ${totalValue.toFixed(2)}**\n📏 Total de Metros: **${totalMetros.toFixed(2)} ML** (🖨️ ${totalMetrosDTF.toFixed(2)}m DTF | ✂️ ${totalMetrosVinil.toFixed(2)}m Vinil)`
       };
 
     } catch (orderError: any) {
@@ -1887,52 +1966,114 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
   }
 
   if (name === "calculate_dtf_packing") {
-    const { imageWidth, imageHeight, quantity, rollWidth = 58, separation = 0.5, margin = 1.0 } = args;
+    let { calculation_mode, imageWidth, imageHeight, quantity, rollWidth = 58, separation = 0.5, margin = 1.0 } = args;
 
     try {
+      // 1. Garantir que as dimensões são números válidos e maiores que zero
+      imageWidth = Math.abs(parseFloat(imageWidth as any));
+      imageHeight = Math.abs(parseFloat(imageHeight as any));
       const usableWidth = rollWidth - (margin * 2);
-      const totalImageWidth = imageWidth + separation;
-      const totalImageHeight = imageHeight + separation;
 
-      const imagesPerRow = Math.max(1, Math.floor((usableWidth + separation) / totalImageWidth));
-      const totalRows = Math.ceil(quantity / imagesPerRow);
-      const totalHeightCm = totalRows * totalImageHeight;
-      const totalMeters = totalHeightCm / 100;
+      if (imageWidth > usableWidth && imageHeight > usableWidth) {
+        throw new Error(`❌ Imagem muito larga! As dimensões (${imageWidth}x${imageHeight}cm) excedem a largura útil do rolo de ${usableWidth}cm.`);
+      }
 
-      const imagesPerMeter = (100 / totalImageHeight) * imagesPerRow;
-      const usedWidth = imagesPerRow * totalImageWidth - separation;
-      const efficiency = (usedWidth / usableWidth) * 100;
+      // 2. Tentar as duas orientações para ver qual cabe mais na largura
+      const orient1_imagesPerRow = Math.max(1, Math.floor((usableWidth + separation) / (imageWidth + separation))); // Added Math.max(1) to always fit at least one if it fits width
 
-      const message = `📏 **Resultado do Orçamento DTF:**\n\n` +
-        `- Imagens por linha: **${imagesPerRow}**\n` +
-        `- Total de linhas: **${totalRows}**\n` +
-        `- Metragem linear necessária: **${totalMeters.toFixed(2)} ML**\n` +
-        `- Rendimento médio: **${Math.floor(imagesPerMeter)} logos/metro**\n` +
-        `- Aproveitamento da largura: **${Math.round(efficiency)}%**\n\n` +
-        `O orçamento total para **${quantity}** unidades de **${imageWidth}x${imageHeight}cm** é de **${totalMeters.toFixed(2)} metros lineares**.`;
+      // Orientação Rotacionada
+      const orient2_imagesPerRow = Math.max(1, Math.floor((usableWidth + separation) / (imageHeight + separation)));
+
+      let finalImagesPerRow = orient1_imagesPerRow;
+      let finalImgH = imageHeight;
+      let finalImgW = imageWidth;
+      let bestOrientation = 'original';
+
+      // Verificar rotação apenas se a imagem rodada couber no papel
+      // Se width > usableWidth, nem tenta. Mas já checamos isso acima para ambos.
+      // O que precisamos ver é: qual rende mais por METRO (menor altura vertical gasta por linha) ?
+      // Per row A vs Per row B.
+
+      // Logic Simplification:
+      // Option A (Original): Width used: imageWidth. Height used: imageHeight.
+      // Option B (Rotated): Width used: imageHeight. Height used: imageWidth.
+
+      // Per Row A: floor(usable / W_A)
+      // Per Row B: floor(usable / W_B)
+
+      // Total Density A = PerRowA / H_A
+      // Total Density B = PerRowB / H_B
+
+      const densityA = orient1_imagesPerRow / (imageHeight + separation);
+      const densityB = orient2_imagesPerRow / (imageWidth + separation); // Rotated height is Width
+
+      if (densityB > densityA) {
+        if (imageHeight <= usableWidth) { // Can only rotate if height fits in width
+          finalImagesPerRow = orient2_imagesPerRow;
+          finalImgH = imageWidth;
+          finalImgW = imageHeight;
+          bestOrientation = 'rotated';
+          console.log(`🔄 [calculate_dtf_packing] Rotacionando logo para melhor encaixe: ${finalImgW}x${finalImgH}`);
+        }
+      }
+
+      if (finalImagesPerRow <= 0) {
+        throw new Error(`❌ A logo é maior que a largura útil (${usableWidth}cm).`);
+      }
+
+      let totalMeters = 0;
+      let totalQuantity = 0;
+
+      // 3. SELECTION MODE based on 'calculation_mode' parameter (or inference fallback)
+      // If user didn't supply mode (legacy/mistake), try to infer from quantity magnitude?
+      // No, let's trust the input or default to meters_for_quantity.
+
+      // If mode is 'quantity_in_meters', input 'quantity' IS the meterage.
+      if (calculation_mode === 'quantity_in_meters') {
+        const requestedMeters = quantity;
+        const availableHeightCm = (requestedMeters * 100);
+        // Rows fitting in this height
+        const rows = Math.floor(availableHeightCm / (finalImgH + separation));
+        totalQuantity = Math.max(0, rows * finalImagesPerRow);
+        totalMeters = requestedMeters;
+      } else {
+        // Default: 'meters_for_quantity'
+        const requestedQuantity = quantity;
+        totalQuantity = requestedQuantity;
+        const rowsNeeded = Math.ceil(requestedQuantity / finalImagesPerRow);
+        const totalHeightCm = (rowsNeeded * finalImgH) + ((rowsNeeded - 1) * separation);
+        totalMeters = Math.max(0.1, totalHeightCm / 100);
+      }
+
+      const efficiency = ((finalImagesPerRow * finalImgW) / usableWidth) * 100;
+      const imagesPerMeter = Math.floor((100 + separation) / (finalImgH + separation)) * finalImagesPerRow;
+
+      const message = calculation_mode === 'quantity_in_meters'
+        ? `🔥 **Resultado:** Em **${totalMeters}m** lineares cabem aproximadamente **${totalQuantity}** unidades!\n\n` +
+        `ℹ️ *Detalhes: ${finalImagesPerRow} por linha • ${Math.floor(imagesPerMeter)} un/m*`
+        : `🔥 **Resultado:** Para **${totalQuantity}** unidades, você vai precisar de **${totalMeters.toFixed(2)}m** lineares.\n\n` +
+        `ℹ️ *Detalhes: ${finalImagesPerRow} por linha • Aproveitamento ${efficiency.toFixed(1)}%*`;
 
       return {
         type: 'dtf_calculation',
         data: {
           imageWidth,
           imageHeight,
-          quantity,
+          quantity: totalQuantity,
           rollWidth,
-          separation,
-          margin,
           results: {
-            imagesPerRow,
-            totalRows,
-            totalMeters,
+            imagesPerRow: finalImagesPerRow,
+            totalMeters: parseFloat(totalMeters.toFixed(2)),
             imagesPerMeter: Math.floor(imagesPerMeter),
-            efficiency: Math.round(efficiency)
+            efficiency: Math.round(efficiency),
+            bestOrientation
           }
         },
-        message: message
+        message
       };
     } catch (error: any) {
       console.error("❌ Erro no cálculo de packing:", error);
-      throw new Error(`❌ Erro ao calcular aproveitamento DTF: ${error.message}`);
+      throw new Error(error.message || "Erro ao calcular aproveitamento DTF.");
     }
   }
 

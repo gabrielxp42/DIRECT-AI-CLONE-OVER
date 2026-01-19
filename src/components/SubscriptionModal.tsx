@@ -238,14 +238,14 @@ export const SubscriptionModal = ({ open, onOpenChange }: SubscriptionModalProps
         try {
             toast.loading("Criando checkout seguro...", { id: 'checkout-loader' });
 
-            const response = await fetch('https://zdbjzrpgliqicwvncfpc.supabase.co/functions/v1/create-checkout', {
+            // Alterado para a função do Asaas
+            const response = await fetch('https://zdbjzrpgliqicwvncfpc.supabase.co/functions/v1/asaas-checkout', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${session.access_token}`
                 },
                 body: JSON.stringify({
-                    priceId: 'price_1SnPXqQ1NJXG7xxhCmM22cIR', // Profissional DTF (R$ 59,90) - Confirmado na lista de preços
                     userId: session.user.id,
                     email: session.user.email,
                     returnUrl: window.location.href.split('?')[0]
@@ -255,9 +255,9 @@ export const SubscriptionModal = ({ open, onOpenChange }: SubscriptionModalProps
             const data = await response.json();
             toast.dismiss('checkout-loader');
 
-            // Log attempt to Admin Panel
-            logPaymentEvent(`Usuário iniciou checkout: ${session.user.email}`, {
-                price_id: 'price_1SnPXqQ1NJXG7xxhCmM22cIR',
+            logPaymentEvent(`Usuário iniciou checkout Asaas: ${session.user.email}`, {
+                provider: 'asaas',
+                mode: 'sandbox',
                 email: session.user.email
             }, session.user.id);
 

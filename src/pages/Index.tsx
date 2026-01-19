@@ -10,7 +10,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { DollarSign, Users, Activity, Ruler, Clock, Scissors, Printer, Wrench, Package, CheckSquare, ChevronDown, Sparkles } from "lucide-react";
+import { DollarSign, Users, Activity, Ruler, Clock, Scissors, Printer, Wrench, Package, CheckSquare, ChevronDown, Sparkles, Trophy } from "lucide-react";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { useTiposProducao } from "@/hooks/useDataFetch";
 import { cn } from "@/lib/utils";
@@ -23,6 +23,8 @@ import { useState, useEffect } from "react";
 
 import { DashboardQuickActions } from "@/components/DashboardQuickActions";
 import { DailySummaryCard } from "@/components/DailySummaryCard";
+// import { MagicOnboarding } from '@/components/MagicOnboarding';
+import { SmartGoalCard } from '@/components/SmartGoalCard';
 import { AIAttentionBubble } from "@/components/AIAttentionBubble";
 import { AILowStockAlert } from "@/components/AILowStockAlert";
 import { useSession } from "@/contexts/SessionProvider";
@@ -30,6 +32,7 @@ import { TutorialGuide } from "@/components/TutorialGuide";
 import { useTour } from "@/hooks/useTour";
 import { WELCOME_TOUR } from "@/utils/tours";
 import { Button } from "@/components/ui/button";
+// import { MagicOnboarding } from "@/components/MagicOnboarding";
 
 const Index = () => {
   const { data: stats, isLoading, error } = useDashboardData();
@@ -83,84 +86,99 @@ const Index = () => {
   }
 
   return (
-    <div>
-      <h1 className="text-3xl font-bold mb-6 text-left">Dashboard</h1>
+    <div className="pb-24 overflow-x-hidden">
+      <h1 className="text-xl md:text-3xl font-black mb-6 text-left uppercase tracking-tighter italic">
+        Dashboard
+      </h1>
 
-      <div id="ai-assistant-widget" className="grid gap-6 md:grid-cols-2 mb-6">
-        <div className="relative">
-          <AILowStockAlert />
-          <AIAttentionBubble />
-          <AIMessagesWidget />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8 items-start">
+        <div id="ai-assistant-widget" className="flex flex-col gap-4">
+          <div className="relative space-y-4">
+            <AILowStockAlert />
+            <AIAttentionBubble />
+            <AIMessagesWidget />
+          </div>
         </div>
 
-        <Accordion
-          type="single"
-          collapsible
-          value={accordionValue}
-          onValueChange={setAccordionValue}
-          className="w-full"
-        >
-          <AccordionItem value="resumo" className="border-none">
-            <AccordionTrigger className="py-2 hover:no-underline">
-              <span className="text-lg font-semibold flex items-center gap-2">
-                <span className="bg-yellow-100 text-yellow-700 p-1 rounded">💰</span> Resumo Rápido
-              </span>
-            </AccordionTrigger>
-            <AccordionContent>
-              <DailySummaryCard />
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
+        <div id="onboarding-container" className="h-full">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20">
+              <Trophy className="h-4 w-4 text-primary" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold">Minhas Metas</p>
+              <p className="text-xs text-muted-foreground">Evolução do seu negócio</p>
+            </div>
+          </div>
+          <SmartGoalCard stats={stats} />
+        </div>
       </div>
 
-      <div id="quick-actions-container">
+      <div id="quick-actions-container" className="mb-8">
         <DashboardQuickActions />
       </div>
 
-      <div id="status-charts-container" className="mb-8">
-        <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-          <span className="bg-blue-100 text-blue-600 p-1 rounded">📊</span> Status dos Pedidos
+      <div id="status-charts-container" className="mb-10">
+        <h2 className="text-lg md:text-xl font-black mb-4 flex items-center gap-2 uppercase italic tracking-tighter">
+          <span className="bg-blue-500/10 text-blue-500 p-1 rounded border border-blue-500/20">📊</span> Status dos Pedidos
         </h2>
-        <div className="grid grid-cols-3 sm:grid-cols-5 gap-4">
-          <QuickActionCard
-            title="Pendentes"
-            icon={Clock}
-            to="/pedidos"
-            filterState={{ filterStatus: 'pendente' }}
-            count={isLoading ? '...' : stats?.pendingOrdersCount}
-          />
-          <QuickActionCard
-            title="Processando"
-            icon={Wrench}
-            to="/pedidos"
-            filterState={{ filterStatus: 'processando' }}
-            count={isLoading ? '...' : stats?.processingOrdersCount}
-          />
-          <QuickActionCard
-            title="Faltam Pagar"
-            icon={DollarSign}
-            to="/pedidos"
-            filterState={{ filterStatus: 'pendente-pagamento' }}
-            count={isLoading ? '...' : stats?.pendingPaymentOrdersCount}
-          />
-          <QuickActionCard
-            title="Aguardando"
-            icon={Package}
-            to="/pedidos"
-            filterState={{ filterStatus: 'aguardando retirada' }}
-            count={isLoading ? '...' : stats?.awaitingPickupOrdersCount}
-          />
-          <QuickActionCard
-            title="Entregues"
-            icon={CheckSquare}
-            to="/pedidos"
-            filterState={{ filterStatus: 'entregue' }}
-            count={isLoading ? '...' : stats?.deliveredOrdersCount}
-          />
+
+        {/* Usando o mesmo estilo de scroll horizontal do onboarding para os status se for mobile */}
+        <div className="flex md:grid md:grid-cols-5 gap-3 overflow-x-auto no-scrollbar -mx-3 px-3 pb-2 snap-x snap-mandatory w-full max-w-full">
+          <div className="flex-shrink-0 w-32 md:w-auto snap-start">
+            <QuickActionCard
+              title="Pendentes"
+              icon={Clock}
+              to="/pedidos"
+              filterState={{ filterStatus: 'pendente' }}
+              count={isLoading ? '...' : stats?.pendingOrdersCount}
+              className="bg-zinc-900/50 border-white/5"
+            />
+          </div>
+          <div className="flex-shrink-0 w-32 md:w-auto snap-start">
+            <QuickActionCard
+              title="Processando"
+              icon={Wrench}
+              to="/pedidos"
+              filterState={{ filterStatus: 'processando' }}
+              count={isLoading ? '...' : stats?.processingOrdersCount}
+              className="bg-zinc-900/50 border-white/5"
+            />
+          </div>
+          <div className="flex-shrink-0 w-32 md:w-auto snap-start">
+            <QuickActionCard
+              title="Faltam Pagar"
+              icon={DollarSign}
+              to="/pedidos"
+              filterState={{ filterStatus: 'pendente-pagamento' }}
+              count={isLoading ? '...' : stats?.pendingPaymentOrdersCount}
+              className="bg-zinc-900/50 border-white/5"
+            />
+          </div>
+          <div className="flex-shrink-0 w-32 md:w-auto snap-start">
+            <QuickActionCard
+              title="Aguardando"
+              icon={Package}
+              to="/pedidos"
+              filterState={{ filterStatus: 'aguardando retirada' }}
+              count={isLoading ? '...' : stats?.awaitingPickupOrdersCount}
+              className="bg-zinc-900/50 border-white/5"
+            />
+          </div>
+          <div className="flex-shrink-0 w-32 md:w-auto snap-start">
+            <QuickActionCard
+              title="Entregues"
+              icon={CheckSquare}
+              to="/pedidos"
+              filterState={{ filterStatus: 'entregue' }}
+              count={isLoading ? '...' : stats?.deliveredOrdersCount}
+              className="bg-zinc-900/50 border-white/5"
+            />
+          </div>
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
         <DashboardShortcutCard
           title="Vendas Totais"
           icon={DollarSign}

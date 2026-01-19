@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { Calculator, LayoutGrid, Ruler, Layers, ChevronRight, Info, HelpCircle, AlertTriangle, Plus, Minus, Maximize2, RotateCcw, RotateCw, MessageSquare, Share2, Copy, Download, Image as ImageIcon, Loader2, Sparkles, Bot } from "lucide-react";
+import { Calculator, LayoutGrid, Ruler, Layers, ChevronRight, Info, HelpCircle, AlertTriangle, Plus, Minus, Maximize2, RotateCcw, RotateCw, MessageSquare, Share2, Copy, Download, Image as ImageIcon, Loader2, Sparkles, Bot, Settings2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -32,6 +32,7 @@ import {
 import { TutorialGuide } from './TutorialGuide';
 import { useTour } from '@/hooks/useTour';
 import { CALCULADORA_TOUR } from '@/utils/tours';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 const itemColors = [
     { bg: "bg-emerald-400/90", border: "border-emerald-600/30", text: "text-emerald-950", dot: "bg-emerald-500", shadow: "rgba(16,185,129,0.4)" },
@@ -93,15 +94,13 @@ const InfoTooltip = ({
                 <div
                     className={cn("flex items-start gap-1 cursor-help group w-fit", className)}
                     onMouseEnter={() => setHoveredField(fieldId)}
-                    onMouseLeave={() => setHoveredField(null)}
-                >
+                    onMouseLeave={() => setHoveredField(null)}>
                     <Label
                         htmlFor={id}
                         className={cn(
                             "text-[11px] leading-tight decoration-dotted underline-offset-4 group-hover:underline transition-all cursor-help",
                             hoveredField === fieldId ? "text-primary underline" : "text-muted-foreground"
-                        )}
-                    >
+                        )}>
                         {label}
                     </Label>
                     <HelpCircle className={cn(
@@ -182,9 +181,9 @@ const NumberInput = ({
         const val = e.target.value.replace(',', '.');
         setDisplayValue(val);
 
-        // Tenta atualizar em tempo real apenas se for um número válido e completo
+        // Tenta atualizar em tempo real
         const num = parseFloat(val);
-        if (!isNaN(num) && !val.endsWith('.') && !val.endsWith('0')) {
+        if (!isNaN(num)) {
             const clamped = Math.max(min, Math.min(max, num));
             onChange(clamped);
         }
@@ -216,8 +215,7 @@ const NumberInput = ({
                 className
             )}
             onMouseEnter={() => setHoveredField(fieldId)}
-            onMouseLeave={() => setHoveredField(null)}
-        >
+            onMouseLeave={() => setHoveredField(null)}>
             {showButtons && (
                 <Button
                     type="button"
@@ -225,8 +223,7 @@ const NumberInput = ({
                     size="icon"
                     className="h-12 w-12 rounded-r-none border-r-0 bg-slate-50 dark:bg-muted hover:bg-primary/10 dark:hover:bg-primary/20 hover:text-primary active:scale-95 transition-all touch-manipulation flex-shrink-0"
                     onClick={decrement}
-                    disabled={value !== undefined && value !== null && value <= min}
-                >
+                    disabled={value !== undefined && value !== null && value <= min}>
                     <Minus className="h-4 w-4" />
                 </Button>
             )}
@@ -263,8 +260,7 @@ const NumberInput = ({
                     size="icon"
                     className="h-12 w-12 rounded-l-none border-l-0 bg-slate-50 dark:bg-muted hover:bg-primary/10 dark:hover:bg-primary/20 hover:text-primary active:scale-95 transition-all touch-manipulation flex-shrink-0"
                     onClick={increment}
-                    disabled={value !== undefined && value !== null && value >= max}
-                >
+                    disabled={value !== undefined && value !== null && value >= max}>
                     <Plus className="h-4 w-4" />
                 </Button>
             )}
@@ -273,16 +269,22 @@ const NumberInput = ({
 };
 
 export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculatorModalProps) => {
-    // Inputs (Modo Simples)
+    const isMobile = useIsMobile();
+    // --- MODO RÁPIDO (WIZARD) ---
+    type CalculatorMode = 'quick' | 'multi';
+    const [mode, setMode] = useState<CalculatorMode>('quick');
+    const [quickGoal, setQuickGoal] = useState<'quantity' | 'meters'>('meters'); // 'quantity' = quanto cabe em X metros, 'meters' = quantos metros para X logos
+    const [quickMetersInput, setQuickMetersInput] = useState(1);
+
+    // Inputs (Modo Rápido/Simples)
     const [rollWidth, setRollWidth] = useState(initialData?.rollWidth || 58);
-    const [imageWidth, setImageWidth] = useState(initialData?.imageWidth || 5);
-    const [imageHeight, setImageHeight] = useState(initialData?.imageHeight || 5);
-    const [separation, setSeparation] = useState(0.5);
-    const [margin, setMargin] = useState(1);
-    const [quantity, setQuantity] = useState(initialData?.quantity || 100);
+    const [imageWidth, setImageWidth] = useState(initialData?.imageWidth || 10);
+    const [imageHeight, setImageHeight] = useState(initialData?.imageHeight || 10);
+    const [separation, setSeparation] = useState(0.4);
+    const [margin, setMargin] = useState(0.5);
+    const [quantity, setQuantity] = useState(initialData?.quantity || 50);
 
     // --- MULTI-ITEM MODE ---
-    type CalculatorMode = 'simple' | 'multi';
     interface MultiItem {
         id: string;
         name: string;
@@ -291,9 +293,8 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
         quantity: number;
     }
 
-    const [mode, setMode] = useState<CalculatorMode>('simple');
     const [items, setItems] = useState<MultiItem[]>([
-        { id: crypto.randomUUID(), name: 'Item 1', width: 5, height: 5, quantity: 100 }
+        { id: crypto.randomUUID(), name: 'Item 1', width: 10, height: 10, quantity: 50 }
     ]);
     const [isFillDialogOpen, setIsFillDialogOpen] = useState(false);
     const [activeFillingItemId, setActiveFillingItemId] = useState<string | null>(null);
@@ -312,7 +313,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
     useEffect(() => {
         const handleTourMode = (e: any) => {
             if (e.detail === 'simple' || e.detail === 'multi') {
-                setMode(e.detail);
+                setMode(e.detail === 'simple' ? 'quick' : 'multi');
             }
         };
         window.addEventListener('tour-set-mode', handleTourMode);
@@ -375,7 +376,16 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
         const totalImageHeight = imageHeight + separation;
 
         const imagesPerRow = Math.max(1, Math.floor((usableWidth + separation) / totalImageWidth));
-        const totalRows = Math.ceil(quantity / imagesPerRow);
+
+        // Se estiver no modo "Quanto cabe em X metros", recalcula a quantidade
+        let finalQuantity = quantity;
+        if (mode === 'quick' && quickGoal === 'quantity') {
+            const usableHeight = (quickMetersInput * 100) - (margin * 2);
+            const totalRows = Math.floor((usableHeight + separation) / totalImageHeight);
+            finalQuantity = Math.max(1, totalRows * imagesPerRow);
+        }
+
+        const totalRows = Math.ceil(finalQuantity / imagesPerRow);
 
         // Altura total = (linhas * altura_logo) + (espaçamentos entre elas) + Margens Topo/Fundo
         const contentHeight = (totalRows * imageHeight) + ((totalRows - 1) * separation);
@@ -390,10 +400,10 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
         const realSideMargin = (rollWidth - currentContentWidth) / 2;
 
         // Preview rendering values
-        const previewLimit = 500;
-        const previewQuantity = Math.min(previewLimit, quantity);
+        const previewLimit = 200;
+        const previewQuantity = Math.min(previewLimit, finalQuantity);
         const previewRows = Math.ceil(previewQuantity / imagesPerRow);
-        const hasWarning = quantity > previewLimit;
+        const hasWarning = finalQuantity > previewLimit;
 
         const previewContentHeight = (previewRows * imageHeight) + (Math.max(0, previewRows - 1) * separation);
         const previewTotalHeightCm = previewContentHeight + (margin * 2);
@@ -411,14 +421,15 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
             totalHeightCm,
             previewContentHeight,
             previewTotalHeightCm,
-            hasWarning
+            hasWarning,
+            finalQuantity
         };
-    }, [rollWidth, imageWidth, imageHeight, separation, margin, quantity]);
+    }, [rollWidth, imageWidth, imageHeight, separation, margin, quantity, mode, quickGoal, quickMetersInput]);
 
     // Multi-Item Results calculation
     const multiResults = useMemo(() => {
         const usableWidth = rollWidth - (margin * 2);
-        const previewLimit = 500;
+        const previewLimit = 200;
         let renderedCount = 0;
 
         const itemsCalculated = items.map(item => {
@@ -498,15 +509,15 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
     }, [rollWidth, margin, separation, items]);
 
     const visualTotalHeightCm = useMemo(() => {
-        if (isExporting) return mode === 'simple' ? results.totalHeightCm : multiResults.totalHeightCm;
-        return mode === 'simple' ? results.previewTotalHeightCm : multiResults.previewTotalHeightCm;
+        if (isExporting) return mode === 'quick' ? results.totalHeightCm : multiResults.totalHeightCm;
+        return mode === 'quick' ? results.previewTotalHeightCm : multiResults.previewTotalHeightCm;
     }, [isExporting, mode, results, multiResults]);
 
     const handleTargetMetersChange = (meters: number, itemId?: string) => {
         setTargetMeters(meters);
         if (meters <= 0) return;
 
-        if (mode === 'simple') {
+        if (mode === 'quick') {
             const usableHeight = (meters * 100) - (margin * 2);
             if (usableHeight <= 0) return;
             const rowHeightWithGap = imageHeight + separation;
@@ -531,10 +542,10 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
     };
 
     const generateQuoteSummary = () => {
-        if (mode === 'simple') {
+        if (mode === 'quick') {
             return `📝 *Orçamento DTF - Direct AI*\n\n` +
                 `📐 *Logo:* ${imageWidth}x${imageHeight}cm\n` +
-                `🔢 *Qtde:* ${quantity} un\n` +
+                `🔢 *Qtde:* ${results.finalQuantity} un\n` +
                 `📏 *Rolo:* ${rollWidth}cm\n` +
                 `↔️ *Espaço:* ${separation}cm | *Margem:* ${margin}cm\n\n` +
                 `✅ *TOTAL:* ${results.totalMeters.toFixed(2)}m\n` +
@@ -581,8 +592,8 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                 pixelRatio: isVeryLarge ? 1.5 : 2
             });
             const link = document.createElement('a');
-            const filename = mode === 'simple'
-                ? `orcamento-dtf-${quantity}un-${imageWidth}x${imageHeight}cm.png`
+            const filename = mode === 'quick'
+                ? `orcamento-dtf-${results.finalQuantity}un-${imageWidth}x${imageHeight}cm.png`
                 : `orcamento-dtf-multi-${multiResults.totalQuantity}itens-${multiResults.totalMeters.toFixed(2)}m.png`;
             link.download = filename;
             link.href = dataUrl;
@@ -625,8 +636,10 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                     onPointerDownOutside={(e) => isTourOpen && e.preventDefault()}
                     onInteractOutside={(e) => isTourOpen && e.preventDefault()}
                     onEscapeKeyDown={(e) => isTourOpen && e.preventDefault()}
-                    className="max-w-4xl max-h-[92vh] overflow-y-auto bg-background/95 backdrop-blur-xl border-primary/20 shadow-2xl p-4 sm:p-6 custom-scrollbar"
-                >
+                    className={cn(
+                        "max-h-[96vh] overflow-y-auto bg-background/95 backdrop-blur-xl border-primary/20 shadow-2xl custom-scrollbar transition-all duration-300",
+                        isMobile ? "max-w-[100vw] w-full p-3 rounded-t-[2rem] rounded-b-none bottom-0 top-auto translate-y-0" : "max-w-4xl p-6 rounded-3xl"
+                    )}>
                     <DialogHeader>
                         <div id="calculator-title" className="flex items-center justify-between w-full">
                             <div className="flex items-center gap-2">
@@ -637,8 +650,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                 variant="ghost"
                                 size="sm"
                                 onClick={startTour}
-                                className="text-[10px] font-black uppercase tracking-widest text-primary hover:bg-primary/10 gap-1.5 rounded-full px-3 py-1 h-8 animate-in fade-in slide-in-from-right-2 duration-700"
-                            >
+                                className="text-[10px] font-black uppercase tracking-widest text-primary hover:bg-primary/10 gap-1.5 rounded-full px-3 py-1 h-8 animate-in fade-in slide-in-from-right-2 duration-700">
                                 <HelpCircle className="h-3.5 w-3.5" /> Aprenda a usar
                             </Button>
                         </div>
@@ -654,220 +666,337 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                     </DialogHeader>
 
                     {/* Mode Toggle */}
-                    <div id="calculator-mode-switch" className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800/50 rounded-lg w-fit mt-2">
+                    <div id="calculator-mode-switch" className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800/50 rounded-xl w-fit mt-2">
                         <button
-                            onClick={() => setMode('simple')}
+                            onClick={() => {
+                                setMode('quick');
+                            }}
                             className={cn(
-                                "px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2",
-                                mode === 'simple'
-                                    ? "bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white"
+                                "px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2",
+                                mode === 'quick'
+                                    ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
                                     : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
-                            )}
-                        >
-                            <Ruler className="h-4 w-4" /> Simples
+                            )}>
+                            <Sparkles className="h-4 w-4" /> Modo Rápido
                         </button>
                         <button
                             onClick={() => setMode('multi')}
                             className={cn(
-                                "px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2",
+                                "px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2",
                                 mode === 'multi'
-                                    ? "bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white"
+                                    ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
                                     : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
-                            )}
-                        >
-                            <Layers className="h-4 w-4" /> Multi-Itens
+                            )}>
+                            <Layers className="h-4 w-4" /> Lista de Itens
                         </button>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-12 gap-4 md:gap-6 mt-4 items-start">
                         {/* Formulário - 5 colunas */}
                         <div id="calculator-material-settings" className="md:col-span-5 space-y-4 md:sticky md:top-0">
-                            <Card className="border-primary/10 bg-slate-50/50 dark:bg-primary/5">
-                                <CardContent className="p-4 space-y-4">
-                                    <div className="space-y-2">
-                                        <Label className="text-[10px] font-bold uppercase text-slate-500 dark:text-muted-foreground flex items-center justify-between tracking-wider">
-                                            <div className="flex items-center gap-1">
-                                                <Ruler className="h-3 w-3 text-amber-500 dark:text-primary" /> Configurações do Material (Rolo)
+                            {mode === 'quick' ? (
+                                <Card className="border-primary/10 bg-slate-50/50 dark:bg-primary/5 flex flex-col overflow-hidden">
+                                    <div className="p-4 flex-1 space-y-6 max-h-[600px] overflow-y-auto custom-scrollbar">
+                                        {/* SEÇÃO 1: Largura do Material */}
+                                        <div className="space-y-3">
+                                            <div className="space-y-1">
+                                                <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+                                                    <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center font-black">1</div>
+                                                    Largura da Folha (Rolo)
+                                                </h3>
                                             </div>
-                                        </Label>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="space-y-1.5 p-0.5">
-                                                <div className="min-h-[32px] flex items-end pb-1">
-                                                    <InfoTooltip
-                                                        id="rollWidth"
-                                                        fieldId="rollWidth"
-                                                        label="Largura do Rolo (cm)"
-                                                        content="A largura útil do rolo de DTF que você está usando (comum: 30cm ou 58cm)."
-                                                        hoveredField={hoveredField}
-                                                        setHoveredField={setHoveredField}
-                                                    />
-                                                </div>
+                                            <div className="space-y-2">
                                                 <NumberInput
-                                                    id="rollWidth"
+                                                    id="quickRollWidth"
                                                     value={rollWidth}
                                                     onChange={setRollWidth}
-                                                    min={20}
+                                                    min={10}
                                                     max={120}
                                                     step={1}
                                                     fieldId="rollWidth"
+                                                    suffix="cm"
+                                                    showButtons={false}
+                                                    className="h-10 text-xl font-black rounded-xl bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800"
                                                     setHoveredField={setHoveredField}
                                                 />
-                                                <div className="flex gap-1 pt-1">
+                                                <div className="grid grid-cols-2 gap-2">
                                                     {[30, 58].map((w) => (
-                                                        <Button
+                                                        <button
                                                             key={w}
-                                                            variant="outline"
-                                                            size="sm"
-                                                            className={`h-7 text-[10px] flex-1 touch-manipulation transition-all ${rollWidth === w ? 'bg-yellow-600 border-yellow-700 text-white font-bold shadow-md' : 'text-slate-500 dark:text-muted-foreground hover:bg-slate-100 dark:hover:bg-slate-800'}`}
                                                             onClick={() => setRollWidth(w)}
-                                                        >
-                                                            {w}cm
-                                                        </Button>
+                                                            className={cn(
+                                                                "py-1.5 rounded-lg text-[10px] font-black transition-all border",
+                                                                rollWidth === w
+                                                                    ? "bg-primary border-primary text-primary-foreground shadow-sm"
+                                                                    : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500"
+                                                            )}>
+                                                            {w}CM {w === 58 ? '(PADRÃO)' : '(PEQUENO)'}
+                                                        </button>
                                                     ))}
                                                 </div>
                                             </div>
-                                            {/* Configuração de Margens de Segurança */}
-                                            <div className="space-y-1.5 p-0.5">
-                                                <div className="min-h-[32px] flex items-end pb-1">
-                                                    <InfoTooltip
-                                                        id="margin"
-                                                        fieldId="margin"
-                                                        label="Margem de Segurança (cm)"
-                                                        content="Espaço de segurança nas bordas (topo, fundo e laterais)."
-                                                        hoveredField={hoveredField}
+                                        </div>
+
+                                        <Separator className="bg-primary/5" />
+
+                                        {/* SEÇÃO 2: Tamanho da Logo */}
+                                        <div className="space-y-3">
+                                            <div className="space-y-1">
+                                                <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+                                                    <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center font-black">2</div>
+                                                    Tamanho do Adesivo
+                                                </h3>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div className="space-y-1.5">
+                                                    <Label className="text-[9px] uppercase font-black text-slate-400">Largura (cm)</Label>
+                                                    <NumberInput
+                                                        id="quickWidth"
+                                                        value={imageWidth}
+                                                        onChange={setImageWidth}
+                                                        min={0.5}
+                                                        max={rollWidth - 2}
+                                                        step={0.5}
+                                                        fieldId="imageSize"
+                                                        showButtons={false}
+                                                        className="h-10 text-xl font-black rounded-xl bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800"
                                                         setHoveredField={setHoveredField}
                                                     />
                                                 </div>
-                                                <NumberInput
-                                                    id="margin"
-                                                    value={margin}
-                                                    onChange={setMargin}
-                                                    min={0}
-                                                    max={10}
-                                                    step={0.5}
-                                                    fieldId="margin"
-                                                    highlight={hoveredField === 'margin'}
-                                                    setHoveredField={setHoveredField}
-                                                />
-                                                <div className="flex gap-1 pt-1">
-                                                    {[0.5, 1, 1.5].map((m) => (
-                                                        <Button
-                                                            key={m}
-                                                            variant="outline"
-                                                            size="sm"
-                                                            className={`h-7 flex-1 text-[10px] uppercase font-bold transition-all ${margin === m ? 'bg-yellow-600 border-yellow-700 text-white font-bold shadow-md' : 'text-slate-500 dark:text-muted-foreground hover:bg-slate-100 dark:hover:bg-slate-800'}`}
-                                                            onClick={() => setMargin(m)}
-                                                        >
-                                                            {m}cm
-                                                        </Button>
-                                                    ))}
+                                                <div className="space-y-1.5">
+                                                    <Label className="text-[9px] uppercase font-black text-slate-400">Altura (cm)</Label>
+                                                    <NumberInput
+                                                        id="quickHeight"
+                                                        value={imageHeight}
+                                                        onChange={setImageHeight}
+                                                        min={0.5}
+                                                        max={100}
+                                                        step={0.5}
+                                                        fieldId="imageSize"
+                                                        showButtons={false}
+                                                        className="h-10 text-xl font-black rounded-xl bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800"
+                                                        setHoveredField={setHoveredField}
+                                                    />
                                                 </div>
+                                            </div>
+                                        </div>
+
+                                        <Separator className="bg-primary/5" />
+
+                                        {/* SEÇÃO 3: Objetivo */}
+                                        <div className="space-y-3 pb-2">
+                                            <div className="space-y-1">
+                                                <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+                                                    <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center font-black">3</div>
+                                                    O que deseja calcular?
+                                                </h3>
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <button
+                                                    onClick={() => setQuickGoal('meters')}
+                                                    className={cn(
+                                                        "p-3 rounded-xl border-2 transition-all flex flex-col items-center text-center gap-1 min-h-[80px] justify-center",
+                                                        quickGoal === 'meters' ? "border-primary bg-primary/10" : "border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900"
+                                                    )}>
+                                                    <Ruler className={cn("h-4 w-4", quickGoal === 'meters' ? "text-primary" : "text-slate-400")} />
+                                                    <div className={cn("font-black text-[10px] leading-tight", quickGoal === 'meters' ? "text-slate-900 dark:text-white" : "text-slate-500")}>Saber quanto material vou usar</div>
+                                                </button>
+
+                                                <button
+                                                    onClick={() => setQuickGoal('quantity')}
+                                                    className={cn(
+                                                        "p-3 rounded-xl border-2 transition-all flex flex-col items-center text-center gap-1 min-h-[80px] justify-center",
+                                                        quickGoal === 'quantity' ? "border-primary bg-primary/10" : "border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900"
+                                                    )}>
+                                                    <Layers className={cn("h-4 w-4", quickGoal === 'quantity' ? "text-primary" : "text-slate-400")} />
+                                                    <div className={cn("font-black text-[10px] leading-tight", quickGoal === 'quantity' ? "text-slate-900 dark:text-white" : "text-slate-500")}>Saber quantas logos cabem no metro</div>
+                                                </button>
+                                            </div>
+
+                                            <div className="mt-2 space-y-4">
+                                                {quickGoal === 'meters' ? (
+                                                    <div className="space-y-2">
+                                                        <Label className="text-[9px] uppercase font-black text-primary">Quantas logos no total?</Label>
+                                                        <NumberInput
+                                                            id="quickQuantity"
+                                                            value={quantity}
+                                                            onChange={setQuantity}
+                                                            min={1}
+                                                            max={10000}
+                                                            step={10}
+                                                            fieldId="quantity"
+                                                            className="h-12 text-2xl font-black rounded-xl"
+                                                            setHoveredField={setHoveredField}
+                                                        />
+                                                    </div>
+                                                ) : (
+                                                    <div className="space-y-2">
+                                                        <Label className="text-[9px] uppercase font-black text-primary">Quantos metros de rolo?</Label>
+                                                        <NumberInput
+                                                            id="quickMeters"
+                                                            value={quickMetersInput}
+                                                            onChange={setQuickMetersInput}
+                                                            min={0.5}
+                                                            max={50}
+                                                            step={0.5}
+                                                            fieldId="meters"
+                                                            suffix="m"
+                                                            className="h-12 text-2xl font-black rounded-xl"
+                                                            setHoveredField={setHoveredField}
+                                                        />
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
 
-                                    <Separator className="bg-primary/10" />
-
-                                    {/* SIMPLE MODE: Single Item Inputs */}
-                                    {mode === 'simple' && (
-                                        <div id="calculator-main-input" className="space-y-2">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <Label className="text-[10px] font-bold uppercase text-slate-500 dark:text-muted-foreground flex items-center gap-1 tracking-wider">
-                                                    <Layers className="h-3 w-3 text-amber-500 dark:text-primary" /> Tamanho da sua Logo
-                                                </Label>
-                                            </div>
+                                    {/* Configurações Simplificadas de Margem e Espaço (Botões Únicos) */}
+                                    <div className="px-4 py-3 bg-slate-100/50 dark:bg-slate-800/20 border-t border-slate-200 dark:border-slate-800">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <Label className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
+                                                Ajustes de Impressão
+                                            </Label>
+                                            <InfoTooltip
+                                                fieldId="printAdjust"
+                                                label="Ajuda"
+                                                content="Econômico (M:0.2cm, E:0.2cm) | Padrão (M:0.5cm, E:0.4cm) | Folgado (M:1.0cm, E:0.6cm)"
+                                                hoveredField={hoveredField}
+                                                setHoveredField={setHoveredField}
+                                            />
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-2">
+                                            {[
+                                                { label: 'Econômico', m: 0.2, s: 0.2 },
+                                                { label: 'Padrão', m: 0.5, s: 0.4 },
+                                                { label: 'Folgado', m: 1.0, s: 0.6 }
+                                            ].map((config) => (
+                                                <button
+                                                    key={config.label}
+                                                    onClick={() => {
+                                                        setMargin(config.m);
+                                                        setSeparation(config.s);
+                                                    }}
+                                                    className={cn(
+                                                        "py-2 px-1 rounded-xl text-[10px] font-black transition-all",
+                                                        (margin === config.m && separation === config.s)
+                                                            ? "bg-amber-500 text-white shadow-md shadow-amber-500/20"
+                                                            : "bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-800"
+                                                    )}>
+                                                    {config.label.toUpperCase()}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </Card>
+                            ) : (
+                                <Card className="border-primary/10 bg-slate-50/50 dark:bg-primary/5">
+                                    <CardContent className="p-4 space-y-4">
+                                        <div className="space-y-2">
+                                            <Label className="text-[10px] font-bold uppercase text-slate-500 dark:text-muted-foreground flex items-center justify-between tracking-wider">
+                                                <div className="flex items-center gap-1">
+                                                    <Settings2 className="h-3 w-3 text-amber-500 dark:text-primary" /> Configurações do Rolo
+                                                </div>
+                                                <div className="flex items-center gap-4">
+                                                    {[
+                                                        { label: 'Eco', m: 0.2, s: 0.2 },
+                                                        { label: 'Padrão', m: 0.5, s: 0.4 },
+                                                        { label: 'Folgado', m: 1.0, s: 0.6 }
+                                                    ].map((config) => (
+                                                        <button
+                                                            key={config.label}
+                                                            onClick={(e) => {
+                                                                e.preventDefault();
+                                                                setMargin(config.m);
+                                                                setSeparation(config.s);
+                                                            }}
+                                                            className={cn(
+                                                                "text-[9px] font-black transition-all hover:text-primary",
+                                                                (margin === config.m && separation === config.s)
+                                                                    ? "text-amber-500 underline underline-offset-4"
+                                                                    : "text-slate-400"
+                                                            )}>
+                                                            {config.label.toUpperCase()}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </Label>
                                             <div className="grid grid-cols-2 gap-4">
-                                                <div className="space-y-1">
-                                                    <div className="h-4 flex items-center justify-between px-0.5">
-                                                        <Label className="text-[9px] uppercase font-bold text-slate-500">Largura (cm)</Label>
+                                                <div className="space-y-1.5 p-0.5">
+                                                    <div className="min-h-[32px] flex items-end pb-1">
+                                                        <InfoTooltip
+                                                            id="rollWidth"
+                                                            fieldId="rollWidth"
+                                                            label="Largura do Rolo (cm)"
+                                                            content="A largura útil do rolo de DTF que você está usando (comum: 30cm ou 58cm)."
+                                                            hoveredField={hoveredField}
+                                                            setHoveredField={setHoveredField}
+                                                        />
                                                     </div>
                                                     <NumberInput
-                                                        id="imageWidth"
-                                                        value={imageWidth}
-                                                        onChange={setImageWidth}
-                                                        min={0.5}
-                                                        max={50}
-                                                        step={0.5}
-                                                        fieldId="imageSize"
-                                                        showButtons={false}
-                                                        placeholder="L"
-                                                        className="h-11 text-xl font-bold bg-white dark:bg-slate-900 border-slate-200"
-                                                        setHoveredField={setHoveredField}
-                                                    />
-                                                </div>
-                                                <div className="space-y-1">
-                                                    <div className="h-4 flex items-center justify-between px-0.5">
-                                                        <Label className="text-[9px] uppercase font-bold text-slate-500">Altura (cm)</Label>
-                                                    </div>
-                                                    <NumberInput
-                                                        id="imageHeight"
-                                                        value={imageHeight}
-                                                        onChange={setImageHeight}
-                                                        min={0.5}
-                                                        max={50}
-                                                        step={0.5}
-                                                        fieldId="imageSize"
-                                                        showButtons={false}
-                                                        placeholder="A"
-                                                        className="h-11 text-xl font-bold bg-white dark:bg-slate-900 border-slate-200"
-                                                        setHoveredField={setHoveredField}
-                                                    />
-                                                </div>
-                                            </div>
-                                            <div className="grid grid-cols-2 gap-4 pt-2">
-                                                <div className="space-y-1">
-                                                    <div className="h-4 flex items-center justify-between px-0.5">
-                                                        <Label className="text-[9px] uppercase font-bold text-slate-500">Espaço (cm)</Label>
-                                                    </div>
-                                                    <NumberInput
-                                                        id="separation"
-                                                        value={separation}
-                                                        onChange={setSeparation}
-                                                        min={0}
-                                                        max={3}
-                                                        step={0.1}
-                                                        fieldId="separation"
-                                                        showButtons={false}
-                                                        className="h-11 text-lg font-bold bg-white dark:bg-slate-900 border-slate-200"
+                                                        id="rollWidth"
+                                                        value={rollWidth}
+                                                        onChange={setRollWidth}
+                                                        min={20}
+                                                        max={120}
+                                                        step={1}
+                                                        fieldId="rollWidth"
                                                         setHoveredField={setHoveredField}
                                                     />
                                                     <div className="flex gap-1 pt-1">
-                                                        {[0.3, 0.5, 1].map((s) => (
+                                                        {[30, 58].map((w) => (
                                                             <Button
-                                                                key={s}
+                                                                key={w}
                                                                 variant="outline"
                                                                 size="sm"
-                                                                className={`h-6 text-[10px] flex-1 ${separation === s ? 'bg-yellow-600 border-yellow-700 text-white font-bold' : 'text-slate-500'}`}
-                                                                onClick={() => setSeparation(s)}
-                                                            >
-                                                                {s}
+                                                                className={`h-7 text-[10px] flex-1 touch-manipulation transition-all ${rollWidth === w ? 'bg-yellow-600 border-yellow-700 text-white font-bold shadow-md' : 'text-slate-500 dark:text-muted-foreground hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                                                                onClick={() => setRollWidth(w)}>
+                                                                {w}cm
                                                             </Button>
                                                         ))}
                                                     </div>
                                                 </div>
-                                                <div className="space-y-1">
-                                                    <div className="h-4 flex items-center justify-between px-0.5">
-                                                        <Label className="text-[9px] uppercase font-black text-primary">Quantidade</Label>
+                                                {/* Configuração de Margens de Segurança */}
+                                                <div className="space-y-1.5 p-0.5">
+                                                    <div className="min-h-[32px] flex items-end pb-1">
+                                                        <InfoTooltip
+                                                            id="margin"
+                                                            fieldId="margin"
+                                                            label="Margem de Segurança (cm)"
+                                                            content="Espaço de segurança nas bordas (topo, fundo e laterais)."
+                                                            hoveredField={hoveredField}
+                                                            setHoveredField={setHoveredField}
+                                                        />
                                                     </div>
                                                     <NumberInput
-                                                        id="quantity"
-                                                        value={quantity}
-                                                        onChange={setQuantity}
-                                                        min={1}
-                                                        max={10000}
-                                                        step={1}
-                                                        fieldId="quantity"
-                                                        highlight={true}
-                                                        className="h-11 text-xl font-black"
+                                                        id="margin"
+                                                        value={margin}
+                                                        onChange={setMargin}
+                                                        min={0}
+                                                        max={10}
+                                                        step={0.5}
+                                                        fieldId="margin"
+                                                        highlight={hoveredField === 'margin'}
                                                         setHoveredField={setHoveredField}
                                                     />
+                                                    <div className="flex gap-1 pt-1">
+                                                        {[0.2, 0.5, 1.0].map((m) => (
+                                                            <Button
+                                                                key={m}
+                                                                variant="outline"
+                                                                size="sm"
+                                                                className={`h-7 flex-1 text-[10px] uppercase font-bold transition-all ${margin === m ? 'bg-yellow-600 border-yellow-700 text-white font-bold shadow-md' : 'text-slate-500 dark:text-muted-foreground hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                                                                onClick={() => setMargin(m)}>
+                                                                {m}cm
+                                                            </Button>
+                                                        ))}
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
-                                    )}
 
-                                    {/* MULTI MODE: Item List */}
-                                    {mode === 'multi' && (
+                                        <Separator className="bg-primary/10" />
+
                                         <div id="calculator-main-input" className="space-y-4">
                                             <Label className="text-[10px] font-bold uppercase text-slate-500 dark:text-muted-foreground flex items-center gap-1 tracking-wider">
                                                 <Layers className="h-3 w-3 text-amber-500 dark:text-primary" /> Itens do Orçamento
@@ -882,8 +1011,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                             "p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border space-y-4 shadow-sm transition-all duration-300",
                                                             item.isOverflowing ? "border-red-500/50 bg-red-500/5" : "border-slate-200 dark:border-slate-700",
                                                             item.shouldRotate ? "ring-2 ring-amber-500/30 border-amber-500/40" : ""
-                                                        )}
-                                                    >
+                                                        )}>
                                                         <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-2">
                                                             <div className="flex items-center gap-2 flex-1 mr-2">
                                                                 <span className="text-[10px] font-black text-slate-400 bg-slate-200 dark:bg-slate-700 w-5 h-5 rounded-md flex items-center justify-center shrink-0">
@@ -896,40 +1024,32 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                                     placeholder="Nome do Item"
                                                                 />
                                                             </div>
-                                                            <div className="flex items-center gap-1">
+                                                            <div className="flex items-center gap-1.5 ml-auto">
                                                                 {item.shouldRotate && (
-                                                                    <GlassTooltip content="Girar item vai economizar material!">
-                                                                        <Badge variant="outline" className="h-6 bg-amber-500/10 text-amber-600 border-amber-500/20 text-[8px] font-black animate-pulse cursor-help">
-                                                                            <Sparkles className="h-2 w-2 mr-1" /> OTIMIZAR
-                                                                        </Badge>
-                                                                    </GlassTooltip>
+                                                                    <Badge variant="outline" className="h-6 bg-amber-500/10 text-amber-600 border-amber-500/20 text-[8px] font-black animate-pulse">
+                                                                        <Sparkles className="h-2 w-2 mr-1" /> OTIMIZAR
+                                                                    </Badge>
                                                                 )}
-                                                                <GlassTooltip content="Girar Item (Inverter L x A)">
-                                                                    <Button
-                                                                        variant="ghost"
-                                                                        size="icon"
-                                                                        className={cn(
-                                                                            "h-7 w-7 transition-all duration-500 rounded-lg",
-                                                                            item.width < item.height ? "text-amber-500 bg-amber-500/10" : "text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700",
-                                                                            item.shouldRotate && "bg-amber-500/20 text-amber-600 ring-2 ring-amber-500/50 shadow-[0_0_10px_rgba(245,158,11,0.3)]"
-                                                                        )}
-                                                                        onClick={() => rotateItem(item.id)}
-                                                                    >
-                                                                        <RotateCw className={cn("h-3 w-3 transition-transform duration-500", item.width < item.height && "rotate-180")} />
-                                                                    </Button>
-                                                                </GlassTooltip>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className={cn(
+                                                                        "h-8 w-8 transition-all duration-300 rounded-lg",
+                                                                        item.width < item.height ? "text-amber-500 bg-amber-500/10" : "text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700",
+                                                                        item.shouldRotate && "bg-amber-500/20 text-amber-600 ring-2 ring-amber-500/50"
+                                                                    )}
+                                                                    onClick={() => rotateItem(item.id)}>
+                                                                    <RotateCw className={cn("h-4 w-4 transition-transform duration-500", item.width < item.height && "rotate-180")} />
+                                                                </Button>
                                                                 <div className="w-px h-4 bg-slate-200 dark:border-slate-700 mx-0.5" />
-                                                                <GlassTooltip content="Remover este item">
-                                                                    <Button
-                                                                        variant="ghost"
-                                                                        size="icon"
-                                                                        className="h-7 w-7 text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                                                                        onClick={() => removeItem(item.id)}
-                                                                        disabled={items.length <= 1}
-                                                                    >
-                                                                        <Minus className="h-4 w-4" />
-                                                                    </Button>
-                                                                </GlassTooltip>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="h-8 w-8 text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                                                    onClick={() => removeItem(item.id)}
+                                                                    disabled={items.length <= 1}>
+                                                                    <Minus className="h-4 w-4" />
+                                                                </Button>
                                                             </div>
                                                         </div>
 
@@ -984,8 +1104,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                                             setIsFillDialogOpen(true);
                                                                         }}
                                                                         id="calculator-item-actions"
-                                                                        className="text-[9px] font-black text-primary hover:underline flex items-center gap-0.5"
-                                                                    >
+                                                                        className="text-[9px] font-black text-primary hover:underline flex items-center gap-0.5">
                                                                         <Maximize2 className="h-2 w-2" /> PREENCHER
                                                                     </button>
                                                                 </div>
@@ -1015,8 +1134,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                         variant="outline"
                                                         size="sm"
                                                         className="flex-1 h-10 text-xs border-dashed border-primary/30 text-primary hover:bg-primary/5 font-bold rounded-xl"
-                                                        onClick={addItem}
-                                                    >
+                                                        onClick={addItem}>
                                                         <Plus className="h-4 w-4 mr-1" /> Adicionar Item
                                                     </Button>
                                                 </GlassTooltip>
@@ -1027,14 +1145,13 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                 <div className="flex items-center justify-between">
                                                     <Label className="text-[10px] text-slate-500">Espaço entre logos:</Label>
                                                     <div className="flex gap-1">
-                                                        {[0.3, 0.5, 1].map((s) => (
+                                                        {[0.2, 0.4, 0.6].map((s) => (
                                                             <Button
                                                                 key={s}
                                                                 variant="outline"
                                                                 size="sm"
-                                                                className={`h-6 px-2 text-[10px] ${separation === s ? 'bg-yellow-600 border-yellow-700 text-white' : ''}`}
-                                                                onClick={() => setSeparation(s)}
-                                                            >
+                                                                className={`h-6 px-2 text-[10px] ${separation === s ? 'bg-yellow-600 border-yellow-700 text-white font-bold' : 'text-slate-500 dark:text-muted-foreground hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                                                                onClick={() => setSeparation(s)}>
                                                                 {s}cm
                                                             </Button>
                                                         ))}
@@ -1042,45 +1159,12 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                 </div>
                                             </div>
                                         </div>
-                                    )}
 
-                                    {/* Calcular por Metragem - Only in Simple Mode */}
-                                    {mode === 'simple' && (
-                                        <div className="pt-2">
-                                            <div className="flex items-center gap-2 mb-2">
-                                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Ou preencher por metragem</span>
-                                                <div className="h-px w-full bg-slate-200 dark:bg-slate-800" />
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <NumberInput
-                                                    id="targetMeters"
-                                                    value={targetMeters}
-                                                    onChange={handleTargetMetersChange}
-                                                    min={0}
-                                                    max={100}
-                                                    step={1}
-                                                    fieldId="targetMeters"
-                                                    placeholder="Ex: 4 metros"
-                                                    suffix="m"
-                                                    showButtons={false}
-                                                    className="h-9 text-xs bg-primary/5 border-dashed border-primary/20 focus:border-primary/50 transition-all"
-                                                    setHoveredField={setHoveredField}
-                                                />
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="h-9 px-3 text-[10px] font-bold text-primary hover:bg-primary/10 transition-colors"
-                                                    onClick={() => {
-                                                        setTargetMeters(0);
-                                                    }}
-                                                >
-                                                    LIMPAR
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    )}
-                                </CardContent>
-                            </Card>
+
+
+                                    </CardContent>
+                                </Card>
+                            )}
 
                             {/* Alerta de Erro se não couber */}
                             {imageWidth + (margin * 2) > rollWidth && (
@@ -1091,19 +1175,22 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                             )}
 
                             {/* Resultados Rápidos */}
-                            <div className="grid grid-cols-2 gap-3">
-                                <div className="p-3 bg-primary text-primary-foreground rounded-xl shadow-lg shadow-primary/20 ring-4 ring-primary/10 flex flex-col items-center justify-center text-center scale-105 transition-transform">
-                                    <span className="text-[10px] uppercase font-bold opacity-90 tracking-wider">Metragem Necessária</span>
-                                    <span className="text-3xl font-black tracking-tight">
-                                        {(mode === 'simple' ? results.totalMeters : multiResults.totalMeters).toFixed(2)}m
+                            <div className={cn("grid gap-3", isMobile ? "grid-cols-2" : "grid-cols-2")}>
+                                <div className={cn(
+                                    "p-3 bg-primary text-primary-foreground rounded-xl shadow-lg shadow-primary/20 ring-4 ring-primary/10 flex flex-col items-center justify-center text-center transition-transform",
+                                    !isMobile && "scale-105"
+                                )}>
+                                    <span className="text-[10px] uppercase font-bold opacity-90 tracking-wider">Metragem</span>
+                                    <span className={cn("font-black tracking-tight", isMobile ? "text-2xl" : "text-3xl")}>
+                                        {(mode === 'quick' ? results.totalMeters : multiResults.totalMeters).toFixed(2)}m
                                     </span>
                                 </div>
-                                <div id="calculator-efficiency-badge" className="p-3 bg-sky-50 dark:bg-secondary text-sky-950 dark:text-secondary-foreground rounded-xl shadow-sm border border-sky-100 dark:border-primary/20 flex flex-col items-center justify-center text-center">
-                                    <span className="text-[10px] uppercase font-bold text-sky-800 dark:opacity-70 tracking-wider">
-                                        Eficiência Real
+                                <div id="calculator-efficiency-badge" className="p-3 bg-sky-50 dark:bg-slate-800 text-sky-950 dark:text-slate-100 rounded-xl shadow-sm border border-sky-100 dark:border-white/5 flex flex-col items-center justify-center text-center">
+                                    <span className="text-[10px] uppercase font-bold text-sky-800 dark:text-slate-400 tracking-wider">
+                                        Eficiência
                                     </span>
-                                    <span className="text-2xl font-black tracking-tight">
-                                        {mode === 'simple' ? results.efficiency : multiResults.efficiency}%
+                                    <span className={cn("font-black tracking-tight", isMobile ? "text-xl" : "text-2xl")}>
+                                        {mode === 'quick' ? results.efficiency : multiResults.efficiency}%
                                     </span>
                                 </div>
                             </div>
@@ -1120,11 +1207,11 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                             Resumo da Gabi
                                         </div>
                                         <p className="text-[11px] text-slate-300 leading-relaxed font-medium">
-                                            {mode === 'simple' ? (
+                                            {mode === 'quick' ? (
                                                 <>
-                                                    Cabem <strong className="text-white">{results.imagesPerRow} logos</strong> por linha.
-                                                    Sua produção terá <strong className="text-white">{results.totalRows} linhas</strong> de imagens.
-                                                    Aproveitamento de <strong className="text-white">{results.efficiency}%</strong> da largura útil.
+                                                    Cabem <strong className="text-white">{results.imagesPerRow} marcas</strong> por linha.
+                                                    Dá para imprimir <strong className="text-white">{results.finalQuantity} unidades</strong> no total.
+                                                    Aproveitamento de <strong className="text-white">{results.efficiency}%</strong> do material.
                                                 </>
                                             ) : (
                                                 <>
@@ -1136,31 +1223,45 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                     </div>
                                 </div>
                             </div>
-
-                            {/* Listagem detalhada apenas para multi-itens abaixo do resumo */}
-                            {mode === 'multi' && (
-                                <div className="bg-slate-50 dark:bg-muted p-2 rounded-lg border border-slate-200 dark:border-slate-800 space-y-1 mt-2">
-                                    <div className="space-y-1 max-h-[150px] overflow-y-auto pr-1 custom-scrollbar">
-                                        {multiResults.items.map((item, idx) => {
-                                            const color = itemColors[idx % itemColors.length];
-                                            return (
-                                                <div key={item.id} className="flex items-center justify-between text-[10px] text-slate-600 dark:text-slate-400 py-1 border-b border-slate-200 dark:border-slate-700 last:border-0 group">
-                                                    <div className="flex items-center gap-2">
-                                                        <div className={cn("w-1 h-3 rounded-full", color.dot)} />
-                                                        <span><strong className="text-slate-800 dark:text-slate-200">{idx + 1}. {item.label}</strong> × {item.quantity}un</span>
-                                                    </div>
-                                                    <span className="font-mono text-amber-600 dark:text-primary font-bold">{item.meters.toFixed(2)}m</span>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            )}
+                            {/* Ações de Compartilhamento Integradas ao Fluxo de Resultados */}
+                            <div className="mt-4 flex gap-2">
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button
+                                            variant="default"
+                                            size="sm"
+                                            disabled={mode === 'quick' ? imageWidth + (margin * 2) > rollWidth : multiResults.totalItemsOverflowing > 0}
+                                            className="flex-1 h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-lg shadow-emerald-500/10 active:scale-95 transition-all gap-2">
+                                            <Share2 className="h-4 w-4" /> COMPARTILHAR RESULTADOS
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="w-56 p-2">
+                                        <div className="px-2 py-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Enviar Dados</div>
+                                        <DropdownMenuItem onClick={handleShareWhatsApp} className="gap-2 cursor-pointer text-green-600 font-bold py-2">
+                                            <MessageSquare className="h-4 w-4" /> WhatsApp
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={handleCopyToClipboard} className="gap-2 cursor-pointer py-2">
+                                            <Copy className="h-4 w-4" /> Copiar Resumo
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <div className="px-2 py-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Exportar</div>
+                                        <DropdownMenuItem onClick={handleDownloadImage} className="gap-2 cursor-pointer py-2">
+                                            <Download className="h-4 w-4" /> Baixar PNG
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            </div>
                         </div>
 
+                        {/* Botão de Compartilhar Orçamento (Posicionado abaixo do Resumo) */}
+                        {/* The original button was removed as per instruction to relocate */}
+
                         {/* Área de Preview (Lado Direito) */}
-                        <div className="md:col-span-7 lg:col-span-7 h-[500px] lg:h-auto sticky top-4">
-                            <div className="h-full flex flex-col bg-slate-100/50 dark:bg-slate-900/50 rounded-xl border border-slate-200/60 dark:border-slate-800 overflow-hidden shadow-inner relative">
+                        <div className={cn(
+                            "md:col-span-7 lg:col-span-7 flex flex-col",
+                            isMobile ? "h-[450px] mt-4" : "sticky top-4 h-full"
+                        )}>
+                            <div className="h-full flex flex-col bg-slate-100/50 dark:bg-slate-900/50 rounded-2xl border border-slate-200/60 dark:border-slate-800 overflow-hidden shadow-inner relative">
 
                                 {/* Header Minimalista (Ruler Externo Tipo Imagem 3) */}
                                 <div className="bg-slate-900 border-b border-slate-800 p-6 flex flex-col items-center justify-center relative overflow-hidden group">
@@ -1203,19 +1304,19 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                 </div>
 
                                 {/* Scrollable Canvas Area */}
-                                <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 custom-scrollbar">
+                                <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 custom-scrollbar relative flex flex-col">
                                     <div
                                         ref={previewRef}
                                         id="dtf-preview-paper"
-                                        className="bg-white shadow-2xl relative transition-all duration-300 origin-top mx-auto overflow-hidden border border-slate-300"
+                                        className="bg-white shadow-2xl relative transition-all duration-300 origin-top mx-auto my-auto overflow-hidden border border-slate-300"
                                         style={{
                                             width: '100%',
                                             maxWidth: '100%',
                                             aspectRatio: `${rollWidth} / ${visualTotalHeightCm}`,
-                                        }}
-                                    >
+                                            flexShrink: 0 // Prevent shrinking in flex container
+                                        }}>
                                         {/* Alerta de Performance Único e Flutuante */}
-                                        {!isExporting && (mode === 'simple' ? results.hasWarning : multiResults.hasWarning) && (
+                                        {!isExporting && (mode === 'quick' ? results.hasWarning : multiResults.hasWarning) && (
                                             <div className="absolute top-12 right-4 z-40">
                                                 <div className="flex items-center gap-2 px-3 py-1.5 bg-white/90 backdrop-blur-md border border-amber-200 shadow-xl rounded-full">
                                                     <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
@@ -1247,8 +1348,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                 right: `${(margin / rollWidth) * 100}%`,
                                                 top: `${(margin / visualTotalHeightCm) * 100}%`,
                                                 bottom: `${(margin / visualTotalHeightCm) * 100}%`,
-                                            }}
-                                        >
+                                            }}>
                                             {/* Grid labels */}
                                             {margin > 0 && (
                                                 <>
@@ -1264,11 +1364,10 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                             )}
 
                                             <div className="w-full h-full relative">
-                                                {mode === 'simple' ? (
+                                                {mode === 'quick' ? (
                                                     <div
                                                         className="mx-auto h-full"
-                                                        style={{ width: `${(results.contentWidth / results.usableWidth) * 100}%` }}
-                                                    >
+                                                        style={{ width: `${(results.contentWidth / results.usableWidth) * 100}%` }}>
                                                         <div
                                                             className={cn(
                                                                 "grid content-start w-full transition-all duration-300",
@@ -1279,16 +1378,14 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                                 columnGap: `${(separation / results.contentWidth) * 100}%`,
                                                                 rowGap: `${(separation / (isExporting ? results.contentHeight : results.previewContentHeight)) * 100}%`,
                                                                 aspectRatio: `${results.contentWidth} / ${isExporting ? results.contentHeight : results.previewContentHeight}`
-                                                            }}
-                                                        >
-                                                            {Array.from({ length: isExporting ? quantity : Math.min(500, quantity) }).map((_, i) => (
+                                                            }}>
+                                                            {Array.from({ length: isExporting ? results.finalQuantity : Math.min(500, results.finalQuantity) }).map((_, i) => (
                                                                 <div key={`logo-${i}`}
                                                                     className={cn(
                                                                         "bg-yellow-400 border border-yellow-600/50 rounded-sm flex items-center justify-center overflow-hidden transition-all duration-300",
                                                                         hoveredField === 'imageSize' ? "scale-105 shadow-[0_0_12px_rgba(250,204,21,0.8)] z-20 border-yellow-400" : "hover:bg-yellow-500"
                                                                     )}
-                                                                    style={{ aspectRatio: `${imageWidth} / ${imageHeight}` }}
-                                                                >
+                                                                    style={{ aspectRatio: `${imageWidth} / ${imageHeight}` }}>
                                                                     <span className="text-[5px] sm:text-[6px] font-black text-yellow-900/40 select-none">
                                                                         {imageWidth}x{imageHeight}
                                                                     </span>
@@ -1296,12 +1393,11 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                             ))}
 
                                                             {/* Sobra Técnica Visual */}
-                                                            {quantity < results.totalRows * results.imagesPerRow &&
-                                                                Array.from({ length: Math.min(results.imagesPerRow, results.totalRows * results.imagesPerRow - quantity) }).map((_, i) => (
+                                                            {results.finalQuantity < results.totalRows * results.imagesPerRow &&
+                                                                Array.from({ length: Math.min(results.imagesPerRow, results.totalRows * results.imagesPerRow - results.finalQuantity) }).map((_, i) => (
                                                                     <div key={`waste-${i}`}
                                                                         className="border border-dotted border-slate-200 bg-slate-50/30 flex items-center justify-center transition-opacity"
-                                                                        style={{ aspectRatio: `${imageWidth} / ${imageHeight}`, opacity: hoveredField === 'imageSize' ? 0.2 : 1 }}
-                                                                    >
+                                                                        style={{ aspectRatio: `${imageWidth} / ${imageHeight}`, opacity: hoveredField === 'imageSize' ? 0.2 : 1 }}>
                                                                         <Layers className="h-2 w-2 text-slate-200" />
                                                                     </div>
                                                                 ))
@@ -1319,8 +1415,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                                     style={{
                                                                         width: `${(groupContentWidthCm / multiResults.usableWidth) * 100}%`,
                                                                         marginBottom: isLast ? 0 : `${(separation / (visualTotalHeightCm - (margin * 2))) * 100}%`
-                                                                    }}
-                                                                >
+                                                                    }}>
                                                                     <div className={cn(
                                                                         "grid content-start w-full transition-all duration-300",
                                                                         hoveredField === 'separation' ? "bg-purple-500/5 ring-1 ring-purple-500/20" : ""
@@ -1330,8 +1425,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                                             columnGap: `${(separation / groupContentWidthCm) * 100}%`,
                                                                             rowGap: `${(separation / (isExporting ? item.contentHeight : item.previewContentHeight)) * 100}%`,
                                                                             aspectRatio: `${groupContentWidthCm} / ${isExporting ? item.contentHeight : item.previewContentHeight}`
-                                                                        }}
-                                                                    >
+                                                                        }}>
                                                                         {Array.from({ length: isExporting ? item.quantity : item.previewQuantity }).map((_, i) => {
                                                                             const color = itemColors[itemIdx % itemColors.length];
                                                                             return (
@@ -1342,8 +1436,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                                                         color.border,
                                                                                         (hoveredField === 'itemWidth' || hoveredField === 'itemHeight' || hoveredField === 'itemQuantity') ? "scale-[1.05] shadow-[0_0_12px_rgba(30,150,255,0.6)] z-20" : ""
                                                                                     )}
-                                                                                    style={{ aspectRatio: `${item.width} / ${item.height}` }}
-                                                                                >
+                                                                                    style={{ aspectRatio: `${item.width} / ${item.height}` }}>
                                                                                     <span className={cn("text-[5px] font-bold opacity-40", color.text)}>{itemIdx + 1}</span>
                                                                                 </div>
                                                                             );
@@ -1362,11 +1455,11 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                             "absolute inset-y-0 left-0 pointer-events-none z-10 flex transition-all duration-300",
                                             hoveredField === 'margin' ? "bg-emerald-500/20 shadow-[inset_-10px_0_15px_rgba(16,185,129,0.2)]" : ""
                                         )}
-                                            style={{ width: `${((mode === 'simple' ? results.realSideMargin : margin) / rollWidth) * 100}%` }}>
+                                            style={{ width: `${((mode === 'quick' ? results.realSideMargin : margin) / rollWidth) * 100}%` }}>
                                             <div className={cn(
                                                 "h-full border-r flex items-center justify-center transition-all",
                                                 hoveredField === 'margin' ? "bg-emerald-500/30 border-emerald-500" : "bg-emerald-500/5 border-emerald-500/10"
-                                            )} style={{ width: mode === 'simple' ? `${(margin / results.realSideMargin) * 100}%` : '100% ' }}>
+                                            )} style={{ width: mode === 'quick' ? `${(margin / results.realSideMargin) * 100}%` : '100% ' }}>
                                                 <div className="[writing-mode:vertical-lr] rotate-180 opacity-40">
                                                     <span className={cn("text-[5px] font-bold uppercase tracking-widest", hoveredField === 'margin' ? "text-emerald-900" : "text-emerald-800")}>M. SEG {margin}CM</span>
                                                 </div>
@@ -1376,11 +1469,11 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                             "absolute inset-y-0 right-0 pointer-events-none z-10 flex flex-row-reverse transition-all duration-300",
                                             hoveredField === 'margin' ? "bg-emerald-500/20 shadow-[inset_10px_0_15px_rgba(16,185,129,0.2)]" : ""
                                         )}
-                                            style={{ width: `${((mode === 'simple' ? results.realSideMargin : margin) / rollWidth) * 100}%` }}>
+                                            style={{ width: `${((mode === 'quick' ? results.realSideMargin : margin) / rollWidth) * 100}%` }}>
                                             <div className={cn(
                                                 "h-full border-l flex items-center justify-center transition-all",
                                                 hoveredField === 'margin' ? "bg-emerald-500/30 border-emerald-500" : "bg-emerald-500/5 border-emerald-500/10"
-                                            )} style={{ width: mode === 'simple' ? `${(margin / results.realSideMargin) * 100}%` : '100%' }}>
+                                            )} style={{ width: mode === 'quick' ? `${(margin / results.realSideMargin) * 100}%` : '100%' }}>
                                                 <div className="[writing-mode:vertical-lr] opacity-40">
                                                     <span className={cn("text-[5px] font-bold uppercase tracking-widest", hoveredField === 'margin' ? "text-emerald-900" : "text-emerald-800")}>M. SEG {margin}CM</span>
                                                 </div>
@@ -1412,7 +1505,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
 
                                     <div className="flex items-center gap-2 px-3 py-1 bg-slate-800/50 rounded-full border border-slate-700/50 ml-auto">
                                         <Badge variant="outline" className="bg-transparent text-slate-300 font-bold text-[9px] border-slate-700 px-2 py-0">
-                                            TOTAL: {(mode === 'simple' ? results.totalHeightCm : multiResults.totalHeightCm).toFixed(1)}cm
+                                            TOTAL: {(mode === 'quick' ? results.totalHeightCm : multiResults.totalHeightCm).toFixed(1)}cm
                                         </Badge>
                                         <div className="h-3 w-px bg-slate-700" />
                                         <span className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">ESCALA: 1:{Math.round(100 / visualTotalHeightCm * 10)}</span>
@@ -1423,55 +1516,32 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                     </div>
 
                     {/* Footer profissional */}
-                    <div className="flex justify-between items-center mt-6 pt-4 border-t sticky bottom-0 bg-background/95 backdrop-blur-sm z-50 pb-2">
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center border border-emerald-100 dark:bg-emerald-500/10 dark:border-emerald-500/20">
-                                <Calculator className="h-5 w-5 text-emerald-600" />
+                    <div className={cn(
+                        "flex justify-between items-center mt-6 pt-4 border-t bg-background/50 backdrop-blur-sm pb-2",
+                        isMobile && "flex-col gap-4"
+                    )}>
+                        {!isMobile && (
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center border border-emerald-100 dark:bg-emerald-500/10 dark:border-emerald-500/20">
+                                    <Calculator className="h-5 w-5 text-emerald-600" />
+                                </div>
+                                <div>
+                                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-tighter leading-none">Cálculo Preciso</div>
+                                    <div className="text-xs font-bold text-slate-900 dark:text-slate-100">DIRECT-AI ENGINE v2.8</div>
+                                </div>
                             </div>
-                            <div>
-                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-tighter leading-none">Cálculo Preciso</div>
-                                <div className="text-xs font-bold text-slate-900 dark:text-slate-100">DIRECT-AI ENGINE v2.8</div>
-                            </div>
-                        </div>
-                        <div id="calculator-finalize" className="flex gap-3">
-                            <GlassTooltip content="Fechar esta janela">
-                                <Button variant="ghost" size="sm" onClick={onClose} className="font-bold text-slate-500 rounded-xl">Voltar</Button>
-                            </GlassTooltip>
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button
-                                        size="sm"
-                                        disabled={mode === 'simple' ? imageWidth + (margin * 2) > rollWidth : multiResults.totalItemsOverflowing > 0}
-                                        className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/20 font-bold px-4 rounded-xl transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        <Share2 className="h-4 w-4" /> Finalizar Orçamento
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-56 p-2">
-                                    <div className="px-2 py-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Enviar Dados</div>
-                                    <DropdownMenuItem onClick={handleShareWhatsApp} className="gap-2 cursor-pointer text-green-600 font-bold py-2">
-                                        <MessageSquare className="h-4 w-4" /> WhatsApp
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={handleCopyToClipboard} className="gap-2 cursor-pointer py-2">
-                                        <Copy className="h-4 w-4" /> Copiar Resumo
-                                    </DropdownMenuItem>
-                                    <DropdownMenuSeparator />
-                                    <div className="px-2 py-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Exportar</div>
-                                    <DropdownMenuItem onClick={handleDownloadImage} className="gap-2 cursor-pointer py-2">
-                                        <Download className="h-4 w-4" /> Baixar PNG
-                                    </DropdownMenuItem>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
+                        )}
+                        <div id="calculator-finalize" className={cn("flex gap-3", isMobile ? "w-full" : "")}>
+                            <Button variant="ghost" size="sm" onClick={onClose} className="font-bold text-slate-500 rounded-xl">Voltar</Button>
                         </div>
                     </div>
                 </DialogContent>
-            </Dialog>
+            </Dialog >
 
             {/* Custom Liquid Glass Fill Dialog */}
-            <Dialog open={isFillDialogOpen} onOpenChange={setIsFillDialogOpen}>
+            < Dialog open={isFillDialogOpen} onOpenChange={setIsFillDialogOpen} >
                 <DialogContent className="max-w-[320px] p-0 border-none bg-transparent shadow-none overflow-hidden">
                     <div className="relative p-6 bg-slate-900/40 backdrop-blur-2xl border border-white/10 rounded-3xl shadow-2xl overflow-hidden group">
-                        {/* Abstract Background Shapes */}
                         <div className="absolute -top-10 -right-10 w-32 h-32 bg-primary/20 rounded-full blur-3xl group-hover:bg-primary/30 transition-colors duration-500" />
                         <div className="absolute -bottom-10 -left-10 w-24 h-24 bg-sky-500/10 rounded-full blur-2xl" />
 
@@ -1502,8 +1572,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                     <Button
                                         variant="ghost"
                                         className="h-12 text-xs font-black uppercase tracking-widest text-slate-400 hover:text-white hover:bg-white/5 rounded-2xl border border-white/5"
-                                        onClick={() => setIsFillDialogOpen(false)}
-                                    >
+                                        onClick={() => setIsFillDialogOpen(false)}>
                                         Cancelar
                                     </Button>
                                     <Button
@@ -1514,8 +1583,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                 setIsFillDialogOpen(false);
                                                 showSuccess(`${fillTargetMeters} metros preenchidos com sucesso!`);
                                             }
-                                        }}
-                                    >
+                                        }}>
                                         Confirmar
                                     </Button>
                                 </div>
@@ -1536,3 +1604,6 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
         </>
     );
 };
+
+
+

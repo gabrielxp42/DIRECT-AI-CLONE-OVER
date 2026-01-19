@@ -52,12 +52,14 @@ import {
   FileText,
   Filter,
   ChevronDown,
-  Loader2
+  Loader2,
+  Share2
 } from "lucide-react";
 
 import { MetersBarChart } from '@/components/MetersBarChart';
 import { RevenueLineChart } from '@/components/RevenueLineChart';
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as DatePicker } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
@@ -70,6 +72,7 @@ import { useTour } from "@/hooks/useTour";
 import { REPORTS_TOUR } from "@/utils/tours";
 import { TutorialGuide } from "@/components/TutorialGuide";
 import { fetchReportData, SalesReport } from "@/utils/reportUtils";
+import { ReportsGabiInsight } from "@/components/ReportsGabiInsight";
 
 const Reports: React.FC = () => {
   const { session, isLoading: sessionLoading } = useSession();
@@ -182,231 +185,302 @@ const Reports: React.FC = () => {
         </div>
       </div>
 
-      {/* SELEÇÃO DE PERÍODO REIMAGINADA */}
-      <div id="reports-period-selector" className="flex flex-col md:flex-row md:items-center gap-3">
-        {/* Botões de período com scroll horizontal no mobile */}
-        <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
-          <ToggleGroup
-            type="single"
-            value={selectedPeriod}
-            onValueChange={(value) => {
-              if (value && value !== 'custom') {
-                setSelectedPeriod(value);
-                setCustomDateRange(undefined);
+      {/* SELEÇÃO DE PERÍODO UNIFICADA (CIRÚRGICO) */}
+      <div id="reports-period-selector" className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-2">
+        <h2 className="text-base md:text-xl font-semibold flex items-center gap-2">
+          <Clock className="h-4 w-4 md:h-5 md:w-5 text-muted-foreground" />
+          <span className="text-sm md:text-base">Período:</span>
+
+          <div className="flex flex-col sm:flex-row gap-1 sm:gap-2 sm:items-center bg-background/50 dark:bg-slate-900/50 p-1 rounded-xl border border-border/50 backdrop-blur-md w-full sm:w-auto shadow-sm">
+            <ToggleGroup
+              type="single"
+              value={selectedPeriod}
+              onValueChange={(value) => {
+                if (value) setSelectedPeriod(value);
+              }}
+              className="w-full sm:w-auto grid grid-cols-4 sm:flex gap-1"
+            >
+              <ToggleGroupItem value="today" size="sm" className="data-[state=on]:bg-white dark:data-[state=on]:bg-slate-800 data-[state=on]:shadow-sm text-[10px] sm:text-xs font-bold transition-all px-2 sm:px-3 rounded-lg h-7 sm:h-8">
+                Hoje
+              </ToggleGroupItem>
+              <ToggleGroupItem value="week" size="sm" className="data-[state=on]:bg-white dark:data-[state=on]:bg-slate-800 data-[state=on]:shadow-sm text-[10px] sm:text-xs font-bold transition-all px-2 sm:px-3 rounded-lg h-7 sm:h-8">
+                Semana
+              </ToggleGroupItem>
+              <ToggleGroupItem value="month" size="sm" className="data-[state=on]:bg-white dark:data-[state=on]:bg-slate-800 data-[state=on]:shadow-sm text-[10px] sm:text-xs font-bold transition-all px-2 sm:px-3 rounded-lg h-7 sm:h-8">
+                Mês
+              </ToggleGroupItem>
+              <ToggleGroupItem value="year" size="sm" className="data-[state=on]:bg-white dark:data-[state=on]:bg-slate-800 data-[state=on]:shadow-sm text-[10px] sm:text-xs font-bold transition-all px-2 sm:px-3 rounded-lg h-7 sm:h-8">
+                Ano
+              </ToggleGroupItem>
+            </ToggleGroup>
+
+            <div className="h-4 w-px bg-border/40 hidden sm:block" />
+
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={cn(
+                    "justify-center sm:justify-start text-left font-semibold h-7 sm:h-8 text-[10px] sm:text-xs w-full sm:w-auto",
+                    !customDateRange && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-3 w-3" />
+                  {customDateRange?.from ? (
+                    customDateRange.to ? (
+                      <>
+                        {format(customDateRange.from, "dd/MM", { locale: ptBR })} -{" "}
+                        {format(customDateRange.to, "dd/MM", { locale: ptBR })}
+                      </>
+                    ) : (
+                      format(customDateRange.from, "dd/MM", { locale: ptBR })
+                    )
+                  ) : (
+                    <span>Personalizar</span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="end">
+                <DatePicker
+                  initialFocus
+                  mode="range"
+                  defaultMonth={customDateRange?.from}
+                  selected={customDateRange}
+                  onSelect={(range) => {
+                    setCustomDateRange(range);
+                    if (range?.from) {
+                      setSelectedPeriod('custom');
+                    }
+                  }}
+                  numberOfMonths={1}
+                  locale={ptBR}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+        </h2>
+
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="hidden md:flex gap-2 text-xs"
+            onClick={() => window.print()}
+          >
+            <Printer className="h-3.5 w-3.5" />
+            Imprimir
+          </Button>
+          <Button
+            size="sm"
+            onClick={(e) => {
+              if (!reportData) return;
+              const summary = `📊 *Resumo Direct AI*
+📅 Período: ${getPeriodLabel(selectedPeriod)}
+💰 Receita: ${formatCurrency(reportData.totalRevenue)}
+📦 Pedidos: ${reportData.totalOrders}
+📏 Metragem: ${formatMeters(reportData.metersReport.totalMeters)}
+${reportData.topCustomers?.[0] ? `🏆 Top Cliente: ${reportData.topCustomers[0].nome}` : ''}
+
+_Gerado por Direct AI_`;
+              navigator.clipboard.writeText(summary);
+              // Feedback visual simples
+              const btn = e.currentTarget;
+              const icon = btn.querySelector('svg');
+              const textSpan = btn.querySelector('span') || btn.lastChild;
+
+              if (textSpan) {
+                const originalText = textSpan.textContent;
+                textSpan.textContent = "Copiado!";
+                setTimeout(() => textSpan.textContent = originalText, 2000);
               }
             }}
-            className="flex gap-2 w-max md:w-auto md:flex-wrap"
+            className="gap-2 text-xs bg-green-600 hover:bg-green-700 text-white shadow-sm shadow-green-600/20"
           >
-            <ToggleGroupItem value="today" aria-label="Hoje" className="h-9 px-3 text-sm whitespace-nowrap">
-              Hoje
-            </ToggleGroupItem>
-            <ToggleGroupItem value="week" aria-label="Esta Semana" className="h-9 px-3 text-sm whitespace-nowrap">
-              Semana
-            </ToggleGroupItem>
-            <ToggleGroupItem value="month" aria-label="Este Mês" className="h-9 px-3 text-sm whitespace-nowrap">
-              Mês
-            </ToggleGroupItem>
-            <ToggleGroupItem value="year" aria-label="Este Ano" className="h-9 px-3 text-sm whitespace-nowrap">
-              Ano
-            </ToggleGroupItem>
-          </ToggleGroup>
+            <Share2 className="h-3.5 w-3.5" />
+            <span>Compartilhar Resumo</span>
+          </Button>
         </div>
-
-        {/* Seletor de Ano (Visível apenas se 'year' selecionado) */}
-        {selectedPeriod === 'year' && (
-          <Select value={selectedYear} onValueChange={setSelectedYear}>
-            <SelectTrigger className="w-[120px] h-9">
-              <SelectValue placeholder="Ano" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="2026">2026</SelectItem>
-              <SelectItem value="2025">2025</SelectItem>
-              <SelectItem value="2024">2024</SelectItem>
-            </SelectContent>
-          </Select>
-        )}
-
-        {/* Seletor de Data Personalizado */}
-        <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
-          {/* ... existing popover content ... */}
-          <PopoverTrigger asChild>
-            <Button
-              variant={selectedPeriod === 'custom' ? 'default' : 'outline'}
-              className={cn(
-                "w-full md:w-auto justify-start text-left font-normal h-9 px-3 text-sm",
-                selectedPeriod !== 'custom' && "text-muted-foreground"
-              )}
-              onClick={() => setSelectedPeriod('custom')}
-            >
-              <CalendarIcon className="mr-2 h-4 w-4" />
-              {selectedPeriod === 'custom' && customDateRange?.from ? (
-                customDateRange.to ? (
-                  <>
-                    {format(customDateRange.from, "dd/MM/yy")} -{" "}
-                    {format(customDateRange.to, "dd/MM/yy")}
-                  </>
-                ) : (
-                  format(customDateRange.from, "dd/MM/yyyy")
-                )
-              ) : (
-                <span>Personalizar</span>
-              )}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <DatePicker
-              initialFocus
-              mode="range"
-              defaultMonth={customDateRange?.from}
-              selected={customDateRange}
-              onSelect={(range) => {
-                setCustomDateRange(range);
-                if (range?.from && range?.to) {
-                  setIsDatePickerOpen(false);
-                }
-              }}
-              numberOfMonths={window.innerWidth < 768 ? 1 : 2}
-              locale={ptBR}
-            />
-          </PopoverContent>
-        </Popover>
       </div>
 
-      <h2 className="text-base md:text-xl font-semibold flex items-center gap-2 flex-wrap">
-        <Clock className="h-4 w-4 md:h-5 md:w-5 text-muted-foreground" />
-        <span className="text-sm md:text-base">Métricas:</span>
-        <Badge variant="secondary" className="text-sm md:text-base font-bold">{getPeriodLabel(selectedPeriod)}</Badge>
-      </h2>
-
       {/* Key Metrics - Visão Geral do Período */}
-      <div className="grid gap-3 md:gap-4 grid-cols-2 lg:grid-cols-4">
+      {/* Bento Grid - Layout Inteligente */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-        {/* Receita Total */}
-        <Card id="reports-revenue-card" className="hover:shadow-lg transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 md:p-6">
-            <CardTitle className="text-xs md:text-sm font-medium">Receita Total</CardTitle>
-            <DollarSign className="h-3 w-3 md:h-4 md:w-4 text-green-600" />
-          </CardHeader>
-          <CardContent className="p-4 pt-0 md:p-6 md:pt-0">
-            {isLoading ? <Skeleton className="h-6 md:h-8 w-3/4" /> : (
-              <>
-                <div className="text-lg md:text-2xl font-bold">{formatCurrency(reportData?.totalRevenue || 0)}</div>
-                <div className={`text-xs flex items-center ${getGrowthColor(reportData?.monthlyGrowth.revenue || 0)}`}>
-                  {React.createElement(getGrowthIcon(reportData?.monthlyGrowth.revenue || 0), { className: "h-3 w-3 mr-1" })}
-                  {formatGrowth(reportData?.monthlyGrowth.revenue || 0)} este mês
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
+        {/* Coluna da Esquerda: KPIs Financeiros e de Vendas (2x2) */}
+        <div className="lg:col-span-2 grid grid-cols-2 gap-4">
 
-        {/* Total de Pedidos */}
-        <Card className="hover:shadow-lg transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 md:p-6">
-            <CardTitle className="text-xs md:text-sm font-medium">Pedidos</CardTitle>
-            <ShoppingCart className="h-3 w-3 md:h-4 md:w-4 text-primary" />
-          </CardHeader>
-          <CardContent className="p-4 pt-0 md:p-6 md:pt-0">
-            {isLoading ? <Skeleton className="h-6 md:h-8 w-1/2" /> : (
-              <>
-                <div className="text-lg md:text-2xl font-bold">{reportData?.totalOrders || 0}</div>
-                <div className={`text-xs flex items-center ${getGrowthColor(reportData?.monthlyGrowth.orders || 0)}`}>
-                  {React.createElement(getGrowthIcon(reportData?.monthlyGrowth.orders || 0), { className: "h-3 w-3 mr-1" })}
-                  {formatGrowth(reportData?.monthlyGrowth.orders || 0)} este mês
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
+          {/* Receita Total */}
+          <Card id="reports-revenue-card" className="hover:shadow-md transition-all border-l-4 border-l-green-500 shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
+              <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Receita Total</CardTitle>
+              <DollarSign className="h-4 w-4 text-green-600" />
+            </CardHeader>
+            <CardContent className="p-4 pt-0">
+              {isLoading ? <Skeleton className="h-8 w-3/4" /> : (
+                <>
+                  <div className="text-xl sm:text-2xl font-black text-foreground">{formatCurrency(reportData?.totalRevenue || 0)}</div>
+                  <div className={`text-xs flex items-center mt-1 font-medium ${getGrowthColor(reportData?.monthlyGrowth.revenue || 0)}`}>
+                    {React.createElement(getGrowthIcon(reportData?.monthlyGrowth.revenue || 0), { className: "h-3 w-3 mr-1" })}
+                    {formatGrowth(reportData?.monthlyGrowth.revenue || 0)} este mês
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
 
-        {/* Total de Metros */}
-        <Card id="reports-meters-card" className="hover:shadow-lg transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 md:p-6">
-            <CardTitle className="text-xs md:text-sm font-medium">Metros (ML)</CardTitle>
-            <Ruler className="h-3 w-3 md:h-4 md:w-4 text-blue-600" />
-          </CardHeader>
-          <CardContent className="p-4 pt-0 md:p-6 md:pt-0">
-            {isLoading ? <Skeleton className="h-6 md:h-8 w-3/4" /> : (
-              <>
-                <div className="text-lg md:text-2xl font-bold text-blue-600">
-                  {formatMeters(reportData?.metersReport.totalMeters || 0)}
-                </div>
-                <div className="flex flex-col gap-0.5 mt-1 border-t pt-1 border-gray-100 dark:border-gray-800">
-                  {reportData?.metersReport.totalsByType && Object.entries(reportData.metersReport.totalsByType).map(([tipo, total]) => {
+          {/* Lucro Estimado (Movido para cima para agrupar co Receita) */}
+          <Card id="reports-profit-card" className="hover:shadow-md transition-all border-l-4 border-l-emerald-600 shadow-sm bg-emerald-50/30 dark:bg-emerald-950/10">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
+              <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Lucro Estimado</CardTitle>
+              <div className="bg-emerald-100 dark:bg-emerald-900/50 p-1 rounded-full">
+                <DollarSign className="h-3 w-3 text-emerald-700 dark:text-emerald-400" />
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 pt-0">
+              {isLoading ? <Skeleton className="h-8 w-3/4" /> : (
+                <>
+                  <div className="text-xl sm:text-2xl font-black text-emerald-700 dark:text-emerald-400">
+                    {formatCurrency(reportData?.totalProfit || 0)}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                    Margem: <Badge variant="outline" className="h-5 px-1.5 font-bold border-emerald-200 text-emerald-700 bg-emerald-50 dark:bg-transparent dark:text-emerald-400">{reportData?.profitMargin.toFixed(0)}%</Badge>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Pedidos */}
+          <Card className="hover:shadow-md transition-all border-l-4 border-l-blue-500 shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
+              <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Pedidos</CardTitle>
+              <ShoppingCart className="h-4 w-4 text-blue-500" />
+            </CardHeader>
+            <CardContent className="p-4 pt-0">
+              {isLoading ? <Skeleton className="h-8 w-1/2" /> : (
+                <>
+                  <div className="text-xl sm:text-2xl font-black text-foreground">{reportData?.totalOrders || 0}</div>
+                  <div className={`text-xs flex items-center mt-1 font-medium ${getGrowthColor(reportData?.monthlyGrowth.orders || 0)}`}>
+                    {React.createElement(getGrowthIcon(reportData?.monthlyGrowth.orders || 0), { className: "h-3 w-3 mr-1" })}
+                    {formatGrowth(reportData?.monthlyGrowth.orders || 0)} este mês
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Ticket Médio */}
+          <Card className="hover:shadow-md transition-all border-l-4 border-l-purple-500 shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
+              <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Ticket Médio</CardTitle>
+              <div className="bg-purple-100 dark:bg-purple-900/50 p-1 rounded-full">
+                <Package className="h-3 w-3 text-purple-700 dark:text-purple-400" />
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 pt-0">
+              {isLoading ? <Skeleton className="h-8 w-3/4" /> : (
+                <>
+                  <div className="text-xl sm:text-2xl font-black text-foreground">{formatCurrency(reportData?.averageOrderValue || 0)}</div>
+                  <p className="text-xs text-muted-foreground mt-1 font-medium">
+                    Por pedido realizado
+                  </p>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Coluna da Direita: Consumo de Material (Ocupa toda a altura) */}
+        <div className="lg:col-span-1">
+          <Card id="reports-meters-card" className="hover:shadow-md transition-all shadow-sm h-full flex flex-col border-blue-200 dark:border-blue-800">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3 p-4 bg-blue-50/80 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-800/30">
+              <div className="space-y-0.5">
+                <CardTitle className="text-sm font-bold text-blue-800 dark:text-blue-300">Consumo de Mídia</CardTitle>
+                <CardDescription className="text-[10px] text-blue-600/80 font-medium">Metragem linear e unidades</CardDescription>
+              </div>
+              <div className="bg-blue-100 dark:bg-blue-800 p-1.5 rounded-md">
+                <Ruler className="h-4 w-4 text-blue-700 dark:text-blue-300" />
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 flex-1 space-y-4">
+              {isLoading ? <Skeleton className="h-full w-full" /> : (
+                (() => {
+                  const entries = reportData?.metersReport.totalsByType ? Object.entries(reportData.metersReport.totalsByType) : [];
+                  const metricItems = entries.filter(([tipo]) => {
                     const tipoInfo = tiposProducao?.find(t => t.nome.toLowerCase() === tipo);
-                    const isVinil = tipo === 'vinil';
-                    const isDTF = tipo === 'dtf';
-                    const isUnidade = tipoInfo?.unidade_medida === 'unidade';
+                    return !tipoInfo || tipoInfo.unidade_medida !== 'unidade';
+                  });
+                  const unitItems = entries.filter(([tipo]) => {
+                    const tipoInfo = tiposProducao?.find(t => t.nome.toLowerCase() === tipo);
+                    return tipoInfo?.unidade_medida === 'unidade';
+                  });
 
-                    let Icon = Ruler;
-                    let textColor = "text-gray-600";
-                    let label = tipoInfo?.nome || tipo.toUpperCase();
-
-                    if (isVinil) {
-                      Icon = Scissors;
-                      textColor = "text-orange-700";
-                    } else if (isDTF) {
-                      Icon = Printer;
-                      textColor = "text-blue-700";
-                    } else if (tipoInfo) {
-                      Icon = isUnidade ? Package : Ruler;
-                      textColor = "text-primary";
-                    }
-
-                    return (
-                      <div key={tipo} className="flex items-center justify-between text-[10px] md:text-xs">
-                        <span className="text-muted-foreground flex items-center gap-1">
-                          <Icon className="h-3 w-3" /> {label}
-                        </span>
-                        <span className={cn("font-semibold", textColor)}>
-                          {(total as number).toFixed(isUnidade ? 0 : 1)}{isUnidade ? 'und' : 'm'}
-                        </span>
+                  return (
+                    <div className="space-y-4">
+                      {/* Bloco 1: Rolos */}
+                      <div className="space-y-2">
+                        <div className="flex items-baseline justify-between">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">Total Linear</span>
+                          <span className="text-2xl font-black text-blue-600 tracking-tight">{formatMeters(reportData?.metersReport.totalMeters || 0)}</span>
+                        </div>
+                        <div className="space-y-1.5">
+                          {metricItems.map(([tipo, total]) => {
+                            const isVinil = tipo === 'vinil';
+                            return (
+                              <div key={tipo} className="flex justify-between items-center text-xs p-1.5 bg-background rounded border border-border/50">
+                                <span className={cn("capitalize flex items-center gap-1.5 font-semibold", isVinil ? "text-orange-600" : "text-blue-600")}>
+                                  {isVinil ? <Scissors className="h-3 w-3" /> : <Printer className="h-3 w-3" />}
+                                  {tipo}
+                                </span>
+                                <span className="font-mono font-bold text-foreground">
+                                  {(total as number).toFixed(2)}m
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
-                    );
-                  })}
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
 
-        {/* Ticket Médio */}
-        <Card className="hover:shadow-lg transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 md:p-6">
-            <CardTitle className="text-xs md:text-sm font-medium">Ticket Médio</CardTitle>
-            <Package className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent className="p-4 pt-0 md:p-6 md:pt-0">
-            {isLoading ? <Skeleton className="h-6 md:h-8 w-3/4" /> : (
-              <>
-                <div className="text-lg md:text-2xl font-bold">{formatCurrency(reportData?.averageOrderValue || 0)}</div>
-                <p className="text-xs text-muted-foreground">
-                  Por pedido
-                </p>
-              </>
-            )}
-          </CardContent>
-        </Card>
+                      {unitItems.length > 0 && (
+                        <div className="pt-2 border-t border-dashed">
+                          {(() => {
+                            const retailRevenue = unitItems.reduce((acc, [tipo]) => {
+                              return acc + (reportData?.metersReport.revenueByType?.[tipo] || 0);
+                            }, 0);
+                            return (
+                              <div className="flex justify-between items-baseline mb-2">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">Unidades & Varejo</span>
+                                <span className="text-xs font-bold text-emerald-600 tracking-tight">{formatCurrency(retailRevenue)}</span>
+                              </div>
+                            );
+                          })()}
+                          <div className="grid grid-cols-2 gap-2">
+                            {unitItems.map(([tipo, total]) => (
+                              <div key={tipo} className="bg-background p-2 rounded border border-border/50 text-center flex flex-col justify-center min-h-[50px]">
+                                <div className="text-[9px] uppercase font-bold text-muted-foreground truncate mb-0.5">{tipo}</div>
+                                <div className="text-sm font-black text-foreground">{(total as number).toFixed(0)}</div>
+                                <div className="text-[10px] text-emerald-600/80 font-medium">
+                                  {formatCurrency(reportData?.metersReport.revenueByType?.[tipo] || 0)}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
 
-        {/* Lucro Estimado */}
-        <Card id="reports-profit-card" className="hover:shadow-lg transition-shadow border-l-4 border-l-green-500">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 md:p-6">
-            <CardTitle className="text-xs md:text-sm font-medium">Lucro Estimado</CardTitle>
-            <DollarSign className="h-3 w-3 md:h-4 md:w-4 text-green-600" />
-          </CardHeader>
-          <CardContent className="p-4 pt-0 md:p-6 md:pt-0">
-            {isLoading ? <Skeleton className="h-6 md:h-8 w-3/4" /> : (
-              <>
-                <div className="text-lg md:text-2xl font-bold text-green-600">
-                  {formatCurrency(reportData?.totalProfit || 0)}
-                </div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  Margem: <span className="font-bold text-foreground">{reportData?.profitMargin.toFixed(1)}%</span>
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
+      {/* Gabi AI Partner Insight */}
+      <div id="reports-gabi-insight">
+        <ReportsGabiInsight reportData={reportData} isLoading={isLoading} />
       </div>
 
       {/* Charts Section */}

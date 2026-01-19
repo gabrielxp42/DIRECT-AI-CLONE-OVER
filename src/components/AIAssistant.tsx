@@ -1,571 +1,450 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Send, X, Bot, User, Check, ShoppingBag, Loader2, Calculator, LayoutGrid } from 'lucide-react';
+import { MessageSquare, Send, X, Bot, Sparkles, Mic, Paperclip, Share2, Calculator, Settings, Volume2, Maximize2, Minimize2, Image as ImageIcon, User, Check, ShoppingBag, Loader2, LayoutGrid } from 'lucide-react';
 import { getOpenAIClient, type ChatMessage } from '@/integrations/openai/client';
 import { openAIFunctions, callOpenAIFunction } from '@/integrations/openai/aiTools';
 import { useToast } from '@/hooks/use-toast';
-import { useAIAssistant } from '@/contexts/AIAssistantProvider';
+import { formatMessage } from "../utils/messageFormatter";
 import { AudioRecorder } from './AudioRecorder';
-import { AudioMessageDisplay } from './AudioMessageDisplay';
-import { useSession } from '@/contexts/SessionProvider';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/integrations/supabase/client';
-import { getValidToken } from '@/utils/tokenGuard';
-import { AgentMemoryManager } from '@/utils/agentMemory';
-import { generateReActSystemPrompt } from '@/utils/agentPrompts';
-import { useSubscription } from '@/hooks/useSubscription';
+import { AudioMessageDisplay } from "./AudioMessageDisplay";
+import { supabase } from "@/integrations/supabase/client";
 import { SubscriptionModal } from '@/components/SubscriptionModal';
 import { logAIError } from '@/utils/logger';
 import { DTFCalculatorModal } from './DTFCalculatorModal';
-
+import { cn } from '@/lib/utils';
+import { AgentMemoryManager, type AgentMemory, type AgentInsight } from '@/utils/agentMemory';
+import { generateReActSystemPrompt } from '@/utils/agentPrompts';
+import { useAIAssistant } from '@/contexts/AIAssistantProvider';
 
 export const AIAssistant = () => {
-  const { isOpen, close } = useAIAssistant();
-  const { session } = useSession();
-  const accessToken = session?.access_token;
-  const userId = session?.user?.id;
+  const { isOpen, close: closeAssistant } = useAIAssistant();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { toast } = useToast();
-  const { canUseAI } = useSubscription();
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-
-  // DTF Calculator State
+  const [loadingStatus, setLoadingStatus] = useState<string>("");
+  const [isMinimized, setIsMinimized] = useState(false);
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
   const [isCalcOpen, setIsCalcOpen] = useState(false);
   const [calcData, setCalcData] = useState<any>(null);
+  const [memories, setMemories] = useState<AgentMemory[]>([]);
+  const [insights, setInsights] = useState<AgentInsight[]>([]);
+  const [memoryManager, setMemoryManager] = useState<AgentMemoryManager | null>(null);
+  const [suggestedActions, setSuggestedActions] = useState<string[]>(["Novo pedido", "Resumo do dia", "Estoque baixo?", "Clientes inativos", "Criar cliente"]);
 
-  // Initialize Memory Manager
-  const memoryManager = useRef<AgentMemoryManager | null>(null);
-
-  // Initialize memory manager when user is available
-  useEffect(() => {
-    if (userId && !memoryManager.current) {
-      console.log('🧠 [AIAssistant] Inicializando Memory Manager para usuário:', userId);
-      memoryManager.current = new AgentMemoryManager(userId);
-
-      // Carrega ou cria conversa ativa
-      memoryManager.current.getOrCreateActiveConversation().catch(err => {
-        console.error('❌ [AIAssistant] Erro ao inicializar conversa:', err);
-      });
-    }
-  }, [userId]);
-
-  // Initialize OpenAI client
-  const openAIClient = useRef(getOpenAIClient()).current;
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  useEffect(scrollToBottom, [messages]);
+  useEffect(() => {
+    const initAI = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const manager = new AgentMemoryManager(user.id);
+        setMemoryManager(manager);
 
-  // Function to format message content with better markdown support
-  const formatMessage = (content: string) => {
-    return content
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // Bold
-      .replace(/\*(.*?)\*/g, '<em>$1</em>') // Italic
-      .replace(/#{1,6}\s/g, '') // Remove headers
-      .replace(/\n/g, '<br>') // Line breaks
-      .trim();
-  };
+        // Carregar memórias e insights iniciais
+        try {
+          const [loadedMemories, loadedInsights] = await Promise.all([
+            manager.getRelevantMemories(10, 0, ''),
+            manager.getActiveInsights()
+          ]);
+          setMemories(loadedMemories);
+          setInsights(loadedInsights);
+        } catch (err) {
+          console.error('❌ [AIAssistant] Erro ao carregar memórias:', err);
+        }
+      }
+    };
+    initAI();
+  }, []);
 
-  const handleSendMessage = async (messageContent: string) => {
-    if (messageContent.trim() === '') return;
-
-    if (!canUseAI) {
-      setShowUpgradeModal(true);
-      return;
+  useEffect(() => {
+    if (isOpen) {
+      scrollToBottom();
+      if (messages.length === 0) {
+        setMessages([{
+          role: 'assistant',
+          content: '👋 **Olá! Sou a Gabi!** Como posso ajudar hoje?\n\n[CARD]\n💡 **O que posso fazer:**\n- "pedidos do João" ou "pedido #43"\n- "gerar PDF do pedido 43"\n- "pedidos pendentes"\n- "qual é 10% do total de vendas?" 🔢\n[/CARD]\n\n[TIP]🎤 **Dica:** Mantenha o microfone pressionado para gravar[/TIP]'
+        }]);
+      }
     }
+  }, [isOpen, messages.length]);
 
-    const userMessage: ChatMessage = { role: 'user', content: messageContent };
-    setMessages((prev) => [...prev, userMessage]);
-    setInput(''); // Clear text input after sending
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const handleSendMessage = async (content: string) => {
+    if (!content.trim() || isLoading) return;
+
+    const userMessage: ChatMessage = { role: 'user', content };
+    setMessages(prev => [...prev, userMessage]);
+    setInput("");
     setIsLoading(true);
+    setLoadingStatus("Gabi está pensando...");
 
     try {
-      console.log('🚀 [AIAssistant] Enviando mensagem para OpenAI:', userMessage.content);
+      const openai = await getOpenAIClient();
 
-      // Salva mensagem do usuário na memória
-      if (memoryManager.current) {
-        const content = typeof userMessage.content === 'string' ? userMessage.content : '';
-        await memoryManager.current.addMessage('user', content);
-      }
-
-      // Carrega memórias e insights relevantes
-      let memories: any[] = [];
-      let insights: any[] = [];
-
-      if (memoryManager.current) {
-        console.log('🧠 [AIAssistant] Carregando memórias relevantes...');
-        const content = typeof userMessage.content === 'string' ? userMessage.content : '';
-        [memories, insights] = await Promise.all([
-          memoryManager.current.getRelevantMemories(10, 0.3, content),
-          memoryManager.current.getActiveInsights()
-        ]);
-        console.log('✅ [AIAssistant] Memórias carregadas:', memories.length, '| Insights:', insights.length);
-      }
-
-      // Gera system prompt com ReAct Pattern e memórias
+      // Gerar system prompt dinâmico com ReAct e memórias
       const systemPrompt = generateReActSystemPrompt(memories, insights);
 
-      console.log('📝 [AIAssistant] System prompt gerado com', systemPrompt.length, 'caracteres');
-
-      // Prepare conversation history with improved system prompt
-      const conversationMessages: ChatMessage[] = [
-        {
-          role: 'system',
-          content: systemPrompt // Usando o novo prompt com ReAct + Memórias
-        },
+      const allMessages: ChatMessage[] = [
+        { role: 'system', content: systemPrompt },
         ...messages,
         userMessage
       ];
 
-      let response = await openAIClient.sendMessage(conversationMessages, openAIFunctions);
+      // Usar sendMessage do nosso OpenAIClient (que trata o proxy e ReAct corretamente)
+      let response = await openai.sendMessage(allMessages, openAIFunctions);
 
-      // Handle function calls with better error handling
-      while (response.function_call) {
-        console.log('🔧 [AIAssistant] Chamada de função detectada:', response.function_call.name, response.function_call.arguments);
+      // Loop de ReAct para lidar com chamadas de função
+      let iterations = 0;
+      const MAX_ITERATIONS = 5;
 
-        try {
-          const functionResult = await callOpenAIFunction(response.function_call);
-          console.log('✅ [AIAssistant] Resultado da ferramenta:', functionResult);
+      while (response.function_call && iterations < MAX_ITERATIONS) {
+        iterations++;
+        const functionName = response.function_call.name;
+        const functionArgs = response.function_call.arguments;
 
-          // Add function call and result to conversation
-          const functionCallMessage: ChatMessage = {
-            role: 'assistant',
-            content: '',
-            function_call: {
-              name: response.function_call.name,
-              arguments: JSON.stringify(response.function_call.arguments)
-            }
-          };
+        console.log(`🎬 [AIAssistant] Executando função: ${functionName}`, functionArgs);
 
-          const functionResultMessage: ChatMessage = {
-            role: 'function',
-            name: response.function_call.name,
-            content: JSON.stringify(functionResult, null, 2)
-          };
+        // Atualizar status para o usuário saber o que está acontecendo
+        if (functionName.includes('order') || functionName.includes('service')) {
+          setLoadingStatus("Consultando o banco de pedidos...");
+        } else if (functionName.includes('client')) {
+          setLoadingStatus("Buscando informações do cliente...");
+        } else if (functionName.includes('calculate')) {
+          setLoadingStatus("Fazendo os cálculos para você...");
+        }
 
-          conversationMessages.push(functionCallMessage, functionResultMessage);
+        const functionResult = await callOpenAIFunction({ name: functionName, arguments: functionArgs });
 
-          // Get the final response from OpenAI
-          response = await openAIClient.sendMessage(conversationMessages, openAIFunctions);
-        } catch (functionError: any) {
-          console.error('❌ [AIAssistant] Erro na execução da ferramenta:', functionError);
+        setLoadingStatus("Gabi está finalizando a resposta...");
 
-          // Add error message to conversation
-          const errorMessage: ChatMessage = {
-            role: 'function',
-            name: response.function_call.name,
-            content: JSON.stringify({
-              error: true,
-              message: `Erro ao executar ${response.function_call.name}: ${functionError.message}`
-            })
-          };
+        const assistantFunctionCall: ChatMessage = {
+          role: 'assistant',
+          content: null,
+          function_call: {
+            name: functionName,
+            arguments: JSON.stringify(functionArgs)
+          }
+        };
 
-          conversationMessages.push(errorMessage);
+        const functionResponse: ChatMessage = {
+          role: 'function',
+          name: functionName,
+          content: JSON.stringify(functionResult)
+        };
 
-          // Try to get a response even with the error
-          response = await openAIClient.sendMessage(conversationMessages, openAIFunctions);
-          break;
+        setMessages(prev => [...prev, assistantFunctionCall, functionResponse]);
+        allMessages.push(assistantFunctionCall, functionResponse);
+
+        response = await openai.sendMessage(allMessages, openAIFunctions);
+      }
+
+      if (response.content) {
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: response.content || ''
+        }]);
+
+        // Extrair sugestões dinâmicas da resposta (perguntas no final)
+        const suggestions = response.content.match(/([A-Z][^.!?]*\?)/g);
+        if (suggestions && suggestions.length > 0) {
+          // Pegar as últimas 3 perguntas como sugestões, limpando pontuação extra
+          const cleanSuggestions = suggestions.slice(-3).map(s => s.trim().replace(/^\?+|\?+$/g, '') + '?');
+          setSuggestedActions(cleanSuggestions);
+        } else {
+          // Fallback para sugestões padrão se não houver perguntas
+          setSuggestedActions(["Novo pedido", "Resumo do dia", "Estoque baixo?", "Clientes inativos", "Criar cliente"]);
+        }
+
+        // Extrair memórias de forma proativa se o gerenciador estiver pronto
+        if (memoryManager && typeof userMessage.content === 'string') {
+          memoryManager.extractMemoriesFromConversation(userMessage.content, response.content || '')
+            .catch(err => console.error('🧠 [AIAssistant] Erro ao extrair memórias:', err));
         }
       }
-
-      const finalResponseText = response.content || 'Desculpe, não consegui gerar uma resposta adequada.';
-      const aiMessage: ChatMessage = { role: 'assistant', content: finalResponseText };
-      setMessages((prev) => [...prev, aiMessage]);
-
-      // Salva resposta da agente na memória
-      if (memoryManager.current) {
-        await memoryManager.current.addMessage('assistant', finalResponseText);
-
-        // Extrai e salva memórias automaticamente da conversa
-        const content = typeof userMessage.content === 'string' ? userMessage.content : '';
-        await memoryManager.current.extractMemoriesFromConversation(
-          content,
-          finalResponseText
-        );
-      }
-
     } catch (error: any) {
-      console.error('❌ [AIAssistant] Erro completo:', error);
-
-      // LOG TO ADMIN PANEL
-      logAIError(`Erro no processamento da IA: ${error.message || 'Erro desconhecido'}`, error, userId);
-
-      let errorMessage = '❌ Ocorreu um erro ao processar sua solicitação.';
-
-      if (error.message?.includes('API key')) {
-        errorMessage = '❌ Erro de configuração da API. A chave da OpenAI não está configurada corretamente.';
-      } else if (error.message?.includes('network') || error.message?.includes('fetch')) {
-        errorMessage = '❌ Erro de conexão. Verifique sua internet e tente novamente.';
-      } else if (error.message?.includes('quota') || error.message?.includes('limit')) {
-        errorMessage = '❌ Limite de uso da API atingido. Tente novamente mais tarde.';
-      } else if (error.message?.includes('401')) {
-        errorMessage = '❌ Chave da API inválida. Entre em contato com o administrador.';
-      }
-
+      logAIError(error, 'AIAssistant send message');
       toast({
-        title: "Erro do Assistente",
-        description: errorMessage,
-        variant: "destructive",
+        title: "Erro ao processar mensagem",
+        description: error.message || "Tente novamente em alguns segundos.",
+        variant: "destructive"
       });
-
-      setMessages((prev) => [...prev, { role: 'assistant', content: errorMessage }]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleAudioRecorded = async (transcription: string, audioBlob: Blob) => {
-    // Cria uma URL para o blob de áudio para exibi-lo
-    const audioUrl = URL.createObjectURL(audioBlob);
-
-    // Adiciona a mensagem de áudio ao chat
-    const userAudioMessage: ChatMessage = {
-      role: 'user',
-      content: transcription || '[Áudio sem transcrição]',
-      audioUrl: audioUrl
-    };
-    setMessages((prev) => [...prev, userAudioMessage]);
-
-    // Envia a transcrição para a IA processar
-    await handleSendMessage(transcription);
+  const handleAudioRecorded = (transcription: string, blob: Blob) => {
+    setLoadingStatus("Transcrevendo...");
+    const audioUrl = URL.createObjectURL(blob);
+    const userMessage: ChatMessage = { role: 'user', content: transcription, audioUrl };
+    setMessages(prev => [...prev, userMessage]);
+    handleSendMessage(transcription);
   };
 
-  const handleCreateOrder = async (draftData: any) => {
-    if (!draftData.data.client?.id) {
-      toast({
-        title: "Erro ao criar pedido",
-        description: "Cliente não identificado.",
-        variant: "destructive"
-      });
-      return;
-    }
-
+  const handleCreateOrder = async (result: any) => {
+    setIsLoading(true);
     try {
-      setIsLoading(true);
-
-      // CRÍTICO: Obter token válido ANTES da requisição
-      const validToken = await getValidToken();
-      const effectiveToken = validToken || accessToken;
-
-      if (!effectiveToken) {
-        toast({
-          title: "Erro ao criar pedido",
-          description: "Sessão inválida. Por favor, faça login novamente.",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      const headers = {
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${effectiveToken}`,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=representation'
-      };
-
-      // 1. Criar o pedido
-      const orderResponse = await fetch(`${SUPABASE_URL}/rest/v1/pedidos`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          cliente_id: draftData.data.client.id,
+      const { data, error } = await supabase
+        .from('pedidos')
+        .insert([{
+          cliente_id: result.data.client.id,
           status: 'pendente',
-          valor_total: 0, // Será atualizado futuramente
-          total_metros: 0,
-          observacoes: draftData.data.notes || 'Criado via Assistente IA'
-        })
-      });
+          total: 0,
+          metriagem_total: result.data.items.reduce((acc: number, item: any) => acc + (item.meters || 0), 0),
+          data_entrega: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+        }])
+        .select()
+        .single();
 
-      if (!orderResponse.ok) throw new Error('Falha ao criar pedido');
-      const [newOrder] = await orderResponse.json();
-
-      // TODO: Implementar inserção de itens quando tivermos produtos mapeados
+      if (error) throw error;
 
       toast({
-        title: "Pedido criado!",
-        description: `Pedido criado para ${draftData.data.client.nome}.`
+        title: "Pedido Criado!",
+        description: `O rascunho do pedido para ${result.data.client.nome} foi salvo com sucesso.`,
       });
 
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: `✅ Pedido criado com sucesso! Você pode vê-lo na tela de Pedidos.`
+        content: `Pedido #${data.id.slice(0, 8)} criado com sucesso! Você pode visualizá-lo na tela de pedidos.`
       }]);
-
     } catch (error: any) {
-      console.error('Erro ao criar pedido:', error);
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
+      logAIError(error, 'AIAssistant create order');
+      toast({
+        title: "Erro ao criar pedido",
+        description: error.message,
+        variant: "destructive"
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
-  if (!isOpen) {
-    return null;
-  }
-
   return (
-    <Card className="fixed bottom-4 right-4 w-[400px] h-[600px] flex flex-col shadow-xl z-50 border-2">
-      <CardHeader className="flex flex-row items-center justify-between p-4 border-b bg-primary/5">
-        <CardTitle className="text-lg flex items-center gap-2">
-          <Bot className="h-5 w-5 text-primary" />
-          🤖 Assistente DIRECT AI
-        </CardTitle>
-        <Button variant="ghost" size="icon" onClick={close} className="h-8 w-8">
-          <X className="h-4 w-4" />
-        </Button>
-      </CardHeader>
-
-      <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.length === 0 && (
-          <div className="text-center text-muted-foreground text-sm mt-8">
-            <Bot className="h-12 w-12 mx-auto mb-4 text-primary/50" />
-            <div className="space-y-2">
-              <p className="font-medium">👋 Olá! Sou seu assistente da DIRECT DTF!</p>
-              <p className="text-xs">Como posso ajudar hoje?</p>
-            </div>
-            <div className="mt-4 text-xs space-y-1 bg-muted/50 p-3 rounded-lg">
-              <p className="font-medium">💡 Exemplos do que posso fazer:</p>
-              <div className="space-y-1 text-left">
-                <p>• "pedidos do João"</p>
-                <p>• "pedido #43"</p>
-                <p>• "gerar PDF do pedido 43"</p>
-                <p>• "pedidos pendentes"</p>
-                <p>• "detalhes do cliente Maria"</p>
-                <p>• "quantos pedidos temos este mês?"</p>
-                <p>• "qual é 10% do total de vendas?" (Usa calculadora 🔢)</p>
-              </div>
-              <div className="mt-3 p-2 bg-blue-50 rounded text-blue-700">
-                <p className="font-medium text-xs">🎤 Dica de áudio:</p>
-                <p className="text-xs">Mantenha o botão do microfone pressionado para gravar</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {messages.map((msg, index) => (
-          <div
-            key={index}
-            className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-          >
-            {msg.role === 'assistant' && (
-              <div className="flex-shrink-0">
-                <Bot className="h-6 w-6 text-primary mt-1" />
-              </div>
-            )}
-
-            <div
-              className={`max-w-[85%] p-3 rounded-lg text-sm leading-relaxed ${msg.role === 'user'
-                ? 'bg-primary text-primary-foreground rounded-br-sm ml-auto'
-                : msg.role === 'assistant'
-                  ? 'bg-muted text-foreground rounded-bl-sm border'
-                  : 'bg-purple-100 text-purple-800 text-xs border border-purple-200'
-                }`}
-            >
-              {msg.role === 'user' ? (
-                <div className="flex items-start gap-2">
-                  <div className="flex-1">
-                    {msg.audioUrl ? (
-                      <AudioMessageDisplay audioUrl={typeof msg.audioUrl === 'string' ? msg.audioUrl : ''} transcription={typeof msg.content === 'string' ? msg.content : ''} isUserMessage={true} />
-                    ) : (
-                      <div dangerouslySetInnerHTML={{ __html: formatMessage(typeof msg.content === 'string' ? msg.content : '') }} />
-                    )}
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.7, y: 40, x: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0, x: 0 }}
+          exit={{ opacity: 0, scale: 0.7, y: 40, x: 20 }}
+          transition={{ type: "spring", damping: 20, stiffness: 300 }}
+          style={{ originX: 1, originY: 1 }}
+          className="fixed right-6 bottom-6 z-50"
+        >
+          <Card className={cn(
+            "flex flex-col shadow-2xl border-white/20 dark:bg-zinc-950/20 backdrop-blur-40 transition-all duration-300 overflow-hidden ring-1 ring-white/10",
+            isMinimized ? "h-16 w-72" : "h-[600px] w-[380px] md:w-[420px]"
+          )}>
+            <CardHeader className="flex flex-row items-center justify-between p-4 border-b border-white/5 bg-white/5 backdrop-blur-40">
+              <div className="flex items-center gap-3">
+                <div className="p-0.5 rounded-full bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] shadow-lg">
+                  <div className="w-10 h-10 rounded-full bg-slate-950 flex items-center justify-center">
+                    <Bot className="w-5 h-5 text-white" />
                   </div>
-                  <User className="h-4 w-4 flex-shrink-0 mt-0.5 opacity-70" />
                 </div>
-              ) : (
-                msg.role === 'function' && msg.name === 'create_order_draft' ? (
-                  (() => {
-                    try {
-                      const content = typeof msg.content === 'string' ? msg.content : '';
-                      const result = JSON.parse(content);
-                      if (result.type === 'order_draft') {
-                        return (
-                          <div className="mt-2 border rounded-lg p-4 bg-white dark:bg-slate-950 shadow-sm w-full max-w-xs">
-                            <div className="flex items-center gap-2 mb-3 border-b pb-2">
-                              <ShoppingBag className="h-5 w-5 text-primary" />
-                              <span className="font-semibold">Rascunho de Pedido</span>
-                            </div>
+                <div className="flex flex-col">
+                  <span className="text-sm font-black uppercase tracking-widest text-white">Gabi AI</span>
+                  <div className="flex items-center gap-1.5">
+                    <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+                    <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-tight">Escalando seu negócio</span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-1">
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-400 hover:text-white" onClick={() => setIsMinimized(!isMinimized)}>
+                  {isMinimized ? <Maximize2 className="h-4 w-4" /> : <Minimize2 className="h-4 w-4" />}
+                </Button>
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-400 hover:text-white" onClick={() => closeAssistant()}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </CardHeader>
 
-                            <div className="space-y-2 text-sm mb-4">
-                              <div className="flex justify-between">
-                                <span className="text-muted-foreground">Cliente:</span>
-                                <span className="font-medium">{result.data.client?.nome || 'Não identificado'}</span>
-                              </div>
-                              {result.data.items.map((item: any, idx: number) => (
-                                <div key={idx} className="flex justify-between border-t pt-1 mt-1">
-                                  <span>{item.quantity}x {item.productName}</span>
-                                </div>
-                              ))}
-                              {result.data.notes && (
-                                <div className="text-xs text-muted-foreground italic mt-2 bg-muted p-2 rounded">
-                                  Obs: {result.data.notes}
-                                </div>
+            {!isMinimized && (
+              <>
+                <CardContent className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-white/10 backdrop-blur-40">
+                  {messages.map((msg, idx) => (
+                    <div key={idx} className={cn("flex flex-col gap-2", msg.role === 'user' ? "items-end" : "items-start")}>
+                      {msg.role === 'user' ? (
+                        <div className="max-w-[85%] p-3 rounded-2xl bg-gradient-to-r from-yellow-400 to-yellow-500 text-black font-bold rounded-br-none shadow-lg animate-in slide-in-from-right-4 fade-in duration-300">
+                          <div className="flex items-start gap-2">
+                            <div className="flex-1">
+                              {msg.audioUrl ? (
+                                <AudioMessageDisplay audioUrl={typeof msg.audioUrl === 'string' ? msg.audioUrl : ''} transcription={typeof msg.content === 'string' ? msg.content : ''} isUserMessage={true} />
+                              ) : (
+                                <div dangerouslySetInnerHTML={{ __html: formatMessage(typeof msg.content === 'string' ? msg.content : '') }} />
                               )}
                             </div>
-
-                            <Button
-                              className="w-full gap-2"
-                              onClick={() => handleCreateOrder(result)}
-                              disabled={isLoading || !result.data.client?.id}
-                            >
-                              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                              Confirmar e Criar
-                            </Button>
-
-                            {!result.data.client?.id && (
-                              <p className="text-xs text-red-500 mt-2 text-center">
-                                Cliente não encontrado. Crie o cliente primeiro.
-                              </p>
-                            )}
+                            <User className="h-4 w-4 flex-shrink-0 mt-0.5 opacity-70" />
                           </div>
-                        );
-                      }
-                    } catch (e) { return null; }
-                    return <div dangerouslySetInnerHTML={{ __html: formatMessage(typeof msg.content === 'string' ? msg.content : '') }} />;
-                  })()
-                ) : msg.role === 'function' && msg.name === 'calculate_dtf_packing' ? (
-                  (() => {
-                    try {
-                      const content = typeof msg.content === 'string' ? msg.content : '';
-                      const result = JSON.parse(content);
-                      if (result.type === 'dtf_calculation') {
-                        return (
-                          <div className="mt-2 bg-white dark:bg-slate-900 border-2 border-primary/20 rounded-xl shadow-lg overflow-hidden max-w-xs">
-                            <div className="bg-primary/5 p-3 border-b border-primary/10 flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <Calculator className="h-4 w-4 text-primary" />
-                                <span className="font-bold text-sm">Orçamento DTF</span>
-                              </div>
-                              <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold">
-                                {result.data.rollWidth}cm
-                              </span>
+                        </div>
+                      ) : msg.role === 'assistant' && msg.content ? (
+                        <div className="max-w-[85%] rounded-2xl p-[1px] bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] shadow-lg shadow-purple-500/5 animate-in slide-in-from-left-4 fade-in duration-300">
+                          <div className="bg-slate-900/95 backdrop-blur-xl rounded-[15px] p-3">
+                            <div className="flex items-center gap-1.5 mb-1 opacity-60">
+                              <Bot className="w-3 h-3 text-orange-400" />
+                              <span className="text-[10px] font-black uppercase tracking-widest text-white">GABI AI</span>
                             </div>
-                            <div className="p-4 space-y-3">
-                              <div className="grid grid-cols-2 gap-2">
-                                <div className="bg-muted/50 p-2 rounded-lg text-center">
-                                  <p className="text-[9px] uppercase font-bold text-muted-foreground">Total Metros</p>
-                                  <p className="text-xl font-black text-primary">{result.data.results.totalMeters.toFixed(2)}m</p>
-                                </div>
-                                <div className="bg-muted/50 p-2 rounded-lg text-center">
-                                  <p className="text-[9px] uppercase font-bold text-muted-foreground">Rendimento/m</p>
-                                  <p className="text-xl font-black text-primary">{result.data.results.imagesPerMeter} un</p>
-                                </div>
-                              </div>
-                              <div className="text-xs text-muted-foreground leading-snug">
-                                Para <strong>{result.data.quantity}</strong> unidades de <strong>{result.data.imageWidth}x{result.data.imageHeight}cm</strong>.
-                              </div>
-                              <Button
-                                className="w-full gap-2 h-9 text-xs"
-                                onClick={() => {
-                                  setCalcData(result.data);
-                                  setIsCalcOpen(true);
-                                }}
-                              >
-                                <LayoutGrid className="h-4 w-4" />
-                                Ver Preview e Detalhes
-                              </Button>
-                            </div>
+                            <div
+                              className="text-sm text-slate-200 leading-relaxed font-medium space-y-1"
+                              dangerouslySetInnerHTML={{ __html: formatMessage(typeof msg.content === 'string' ? msg.content : '') }}
+                            />
                           </div>
-                        );
-                      }
-                    } catch (e) { return null; }
-                    return <div dangerouslySetInnerHTML={{ __html: formatMessage(typeof msg.content === 'string' ? msg.content : '') }} />;
-                  })()
-                ) : (
-                  <div dangerouslySetInnerHTML={{ __html: formatMessage(typeof msg.content === 'string' ? msg.content : '') }} />
-                )
-              )}
-            </div>
+                        </div>
+                      ) : msg.role === 'function' ? (
+                        <div className="w-full max-w-[85%]">
+                          {msg.name === 'create_order_draft' ? (
+                            (() => {
+                              try {
+                                const content = typeof msg.content === 'string' ? msg.content : '';
+                                const result = JSON.parse(content);
+                                if (result.type === 'order_draft') {
+                                  return (
+                                    <div className="mt-2 border rounded-lg p-4 bg-white dark:bg-slate-950 shadow-sm">
+                                      <div className="flex items-center gap-2 mb-3 border-b pb-2">
+                                        <ShoppingBag className="h-5 w-5 text-primary" />
+                                        <span className="font-semibold">Rascunho de Pedido</span>
+                                      </div>
+                                      <div className="space-y-2 text-sm mb-4">
+                                        <div className="flex justify-between">
+                                          <span className="text-muted-foreground">Cliente:</span>
+                                          <span className="font-medium">{result.data.client?.nome || 'Não identificado'}</span>
+                                        </div>
+                                        {result.data.items.map((item: any, idx: number) => (
+                                          <div key={idx} className="flex justify-between border-t pt-1 mt-1">
+                                            <span>{item.quantity}x {item.productName}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                      <Button className="w-full gap-2" onClick={() => handleCreateOrder(result)} disabled={isLoading || !result.data.client?.id}>
+                                        {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                                        Confirmar e Criar
+                                      </Button>
+                                    </div>
+                                  );
+                                }
+                              } catch (e) { return null; }
+                            })()
+                          ) : msg.name === 'calculate_dtf_packing' ? (
+                            (() => {
+                              try {
+                                const content = typeof msg.content === 'string' ? msg.content : '';
+                                const result = JSON.parse(content);
+                                if (result.type === 'dtf_calculation') {
+                                  return (
+                                    <div className="mt-2 bg-white dark:bg-slate-900 border-2 border-primary/20 rounded-xl shadow-lg overflow-hidden">
+                                      <div className="bg-primary/5 p-3 border-b border-primary/10 flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                          <Calculator className="h-4 w-4 text-primary" />
+                                          <span className="font-bold text-sm">Orçamento DTF</span>
+                                        </div>
+                                      </div>
+                                      <div className="p-4 space-y-3">
+                                        <div className="grid grid-cols-2 gap-2">
+                                          <div className="bg-muted/50 p-2 rounded-lg text-center">
+                                            <p className="text-[9px] uppercase font-bold text-muted-foreground">Total Metros</p>
+                                            <p className="text-xl font-black text-primary">{result.data.results.totalMeters.toFixed(2)}m</p>
+                                          </div>
+                                          <div className="bg-muted/50 p-2 rounded-lg text-center">
+                                            <p className="text-[9px] uppercase font-bold text-muted-foreground">Rendimento/m</p>
+                                            <p className="text-xl font-black text-primary">{result.data.results.imagesPerMeter} un</p>
+                                          </div>
+                                        </div>
+                                        <Button className="w-full gap-2 h-9 text-xs" onClick={() => { setCalcData(result.data); setIsCalcOpen(true); }}>
+                                          <LayoutGrid className="h-4 w-4" />
+                                          Ver Preview e Detalhes
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  );
+                                }
+                              } catch (e) { return null; }
+                              return <div dangerouslySetInnerHTML={{ __html: formatMessage(typeof msg.content === 'string' ? msg.content : '') }} />;
+                            })()
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  ))}
+                  {isLoading && (
+                    <div className="flex gap-3 justify-start animate-in fade-in slide-in-from-left-2 duration-300">
+                      <div className="p-0.5 rounded-full bg-gradient-to-br from-[#FF6B6B] to-[#6c5ce7]">
+                        <div className="w-8 h-8 rounded-full bg-slate-950 flex items-center justify-center">
+                          <Bot className="w-4 h-4 text-white animate-pulse" />
+                        </div>
+                      </div>
+                      <div className="max-w-[85%] p-3 rounded-2xl text-sm bg-slate-900/80 backdrop-blur-md text-slate-200 border border-white/5 rounded-tl-none shadow-xl">
+                        <div className="flex items-center gap-3">
+                          <div className="flex space-x-1">
+                            <div className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-bounce" style={{ animationDelay: '0s' }}></div>
+                            <div className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                            <div className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                          </div>
+                          <span className="text-[11px] font-black uppercase tracking-widest text-zinc-400">{loadingStatus}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  <div ref={messagesEndRef} />
+                </CardContent>
 
-            {msg.role === 'user' && (
-              <div className="flex-shrink-0">
-                <User className="h-6 w-6 text-muted-foreground mt-1" />
-              </div>
-            )}
-          </div>
-        ))}
-
-        {isLoading && (
-          <div className="flex gap-3 justify-start">
-            <Bot className="h-6 w-6 text-primary mt-1 flex-shrink-0" />
-            <div className="max-w-[85%] p-3 rounded-lg text-sm bg-muted text-foreground border rounded-bl-sm">
-              <div className="flex items-center gap-2">
-                <div className="flex space-x-1">
-                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce"></div>
-                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                <div className="px-4 pb-2 backdrop-blur-40">
+                  <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                    {suggestedActions.map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => {
+                          setInput(s);
+                          handleSendMessage(s);
+                        }}
+                        className="whitespace-nowrap px-3 py-1.5 rounded-full bg-white/5 text-zinc-300 text-[11px] font-bold uppercase tracking-tight border border-white/10 hover:border-yellow-500/50 hover:bg-gradient-to-r hover:from-yellow-400/20 hover:to-pink-500/20 transition-all hover:scale-105 flex-shrink-0"
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <span className="text-muted-foreground">Processando sua solicitação...</span>
-              </div>
-            </div>
-          </div>
-        )}
 
-        <div ref={messagesEndRef} />
-      </CardContent>
-
-      {/* Sugestões Rápidas */}
-      <div className="px-4 pb-2">
-        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide mask-linear-fade">
-          {[
-            "Novo pedido",
-            "Resumo do dia",
-            "Estoque baixo?",
-            "Clientes inativos",
-            "Criar cliente"
-          ].map((s) => (
-            <button
-              key={s}
-              onClick={() => setInput(s)}
-              className="whitespace-nowrap px-3 py-1.5 rounded-full bg-primary/5 text-primary text-xs border border-primary/10 hover:bg-primary/10 transition-all hover:scale-105 flex-shrink-0"
-            >
-              {s}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <CardFooter className="p-4 pt-2 border-t bg-muted/20">
-        <div className="flex items-center gap-2 w-full">
-          <Input
-            placeholder="Digite sua pergunta..."
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyPress={(e) => {
-              if (e.key === 'Enter' && !isLoading) {
-                handleSendMessage(input);
-              }
-            }}
-            disabled={isLoading}
-            className="flex-1"
-          />
-
-          {input.trim() === '' ? (
-            <AudioRecorder onAudioRecorded={handleAudioRecorded} disabled={isLoading} />
-          ) : (
-            <Button
-              onClick={() => handleSendMessage(input)}
-              disabled={isLoading || input.trim() === ''}
-              size="icon"
-              className="h-10 w-10 rounded-full"
-            >
-              <Send className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
-      </CardFooter>
-      <SubscriptionModal open={showUpgradeModal} onOpenChange={setShowUpgradeModal} />
-      <DTFCalculatorModal
-        isOpen={isCalcOpen}
-        onClose={() => setIsCalcOpen(false)}
-        initialData={calcData}
-      />
-    </Card>
+                <CardFooter className="p-4 pt-2 border-t bg-muted/10 backdrop-blur-40">
+                  <div className="flex items-center gap-2 w-full">
+                    <Input
+                      placeholder="Digite sua pergunta..."
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter' && !isLoading) {
+                          handleSendMessage(input);
+                        }
+                      }}
+                      disabled={isLoading}
+                      className="flex-1"
+                    />
+                    {input.trim() === '' ? (
+                      <AudioRecorder onAudioRecorded={handleAudioRecorded} disabled={isLoading} />
+                    ) : (
+                      <Button onClick={() => handleSendMessage(input)} disabled={isLoading || input.trim() === ''} size="icon" className="h-10 w-10 rounded-full">
+                        <Send className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                </CardFooter>
+              </>
+            )}
+            <SubscriptionModal open={isUpgradeModalOpen} onOpenChange={setIsUpgradeModalOpen} />
+            <DTFCalculatorModal isOpen={isCalcOpen} onClose={() => setIsCalcOpen(false)} initialData={calcData} />
+          </Card>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 };

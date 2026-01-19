@@ -41,7 +41,7 @@ export const DashboardShortcutCard: React.FC<DashboardShortcutCardProps> = ({
             </div>
           ) : (
             <>
-              <div className="text-2xl font-bold">{count}</div>
+              <div className="text-lg md:text-2xl font-bold truncate">{count}</div>
               {children} {/* Renderiza o conteúdo de crescimento aqui */}
             </>
           )}

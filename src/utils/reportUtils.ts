@@ -30,6 +30,7 @@ export interface SalesReport {
     metersReport: {
         totalMeters: number;
         totalsByType: Record<string, number>;
+        revenueByType: Record<string, number>;
         metersByPeriod: Array<{ period: string; meters: number;[key: string]: string | number; }>;
     };
     revenueByPeriod: Array<{ period: string; revenue: number; }>;
@@ -199,7 +200,7 @@ export const fetchReportData = async (
     ] = await Promise.all([
         // Main Orders: Enable fetchAll (pagination) and server-side filtering for both start and end dates
         doFetch('pedidos', new URLSearchParams({
-            select: '*,clientes(nome),pedido_items(*,produtos(nome,insumo_id,consumo_insumo)),pedido_servicos(*)',
+            select: '*,clientes(nome),pedido_items(*,produtos(nome,insumo_id,consumo_insumo)),pedido_servicos(*),pedido_status_history(*)',
             created_at: `gte.${periodStart.toISOString()}`,
         }), effectiveToken, true).then(data => {
             return data.filter((d: any) => new Date(d.created_at) <= periodEnd);
@@ -263,6 +264,7 @@ export const fetchReportData = async (
     const customerSpending = new Map<string, { totalOrders: number, totalSpent: number }>();
     const financialStats = new Map<string, { count: number, value: number, status: string }>();
     const totalsByType: Record<string, number> = {};
+    const revenueByType: Record<string, number> = {};
     const allServices: any[] = [];
 
     periodOrders.forEach((order: any) => {
@@ -272,9 +274,23 @@ export const fetchReportData = async (
         const createdInRange = createdDate >= periodStart && createdDate <= periodEnd;
         const paidInRange = paidDate && paidDate >= periodStart && paidDate <= periodEnd;
 
-        // Totals based on creation (Gross Revenue)
+        // Totals based on creation (Revenue logic matching Dashboard)
         if (createdInRange) {
-            totalRevenue += order.valor_total || 0;
+            const status = order.status?.toLowerCase();
+            const isPaidStatus = ['pago', 'entregue'].includes(status);
+            const isAwaitingPickup = status === 'aguardando retirada';
+            let wasPaid = false;
+
+            if (isAwaitingPickup && order.pedido_status_history && Array.isArray(order.pedido_status_history)) {
+                wasPaid = order.pedido_status_history.some((h: any) =>
+                    h.status_novo?.toLowerCase() === 'pago' || h.status_anterior?.toLowerCase() === 'pago'
+                );
+            }
+
+            if (isPaidStatus || (isAwaitingPickup && wasPaid)) {
+                totalRevenue += order.valor_total || 0;
+            }
+
             totalCost += calculateOrderCost(order);
             totalMeters += (order.total_metros || 0);
         }
@@ -284,6 +300,7 @@ export const fetchReportData = async (
             order.pedido_items.forEach((item: any) => {
                 const tipo = (item.tipo || 'dtf').toLowerCase();
                 totalsByType[tipo] = (totalsByType[tipo] || 0) + (Number(item.quantidade) || 0);
+                revenueByType[tipo] = (revenueByType[tipo] || 0) + (Number(item.quantidade) * Number(item.preco_unitario || 0));
 
                 const productName = item.produtos?.nome || item.produto_nome || 'Produto não encontrado';
                 const existingProd = productSales.get(productName) || { totalSold: 0, revenue: 0 };
@@ -495,8 +512,14 @@ export const fetchReportData = async (
     // 7. Final Financial Report Structure
     const financialReport = {
         byStatus: Array.from(financialStats.values()).sort((a, b) => b.value - a.value),
-        totalPaid: periodOrders.filter((o: any) => ['pago', 'entregue', 'enviado', 'aguardando retirada'].includes(o.status)).reduce((acc: number, o: any) => acc + o.valor_total, 0),
-        totalPending: periodOrders.filter((o: any) => ['pendente', 'processando'].includes(o.status)).reduce((acc: number, o: any) => acc + o.valor_total, 0),
+        totalPaid: periodOrders.filter((o: any) => {
+            const s = o.status?.toLowerCase();
+            const isAwaiting = s === 'aguardando retirada';
+            const wasPaid = isAwaiting && Array.isArray(o.pedido_status_history) &&
+                o.pedido_status_history.some((h: any) => h.status_novo?.toLowerCase() === 'pago' || h.status_anterior?.toLowerCase() === 'pago');
+            return ['pago', 'entregue'].includes(s) || (isAwaiting && wasPaid);
+        }).reduce((acc: number, o: any) => acc + o.valor_total, 0),
+        totalPending: periodOrders.filter((o: any) => ['pendente', 'processando', 'aguardando retirada'].includes(o.status?.toLowerCase()) && !(['aguardando retirada'].includes(o.status?.toLowerCase()) && o.pedido_status_history?.some((h: any) => h.status_novo?.toLowerCase() === 'pago'))).reduce((acc: number, o: any) => acc + o.valor_total, 0),
         totalCancelled: periodOrders.filter((o: any) => o.status === 'cancelado').reduce((acc: number, o: any) => acc + o.valor_total, 0)
     };
 
@@ -527,6 +550,7 @@ export const fetchReportData = async (
         metersReport: {
             totalMeters,
             totalsByType,
+            revenueByType,
             metersByPeriod
         },
         financialReport,
