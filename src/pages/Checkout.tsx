@@ -83,6 +83,7 @@ const Checkout = () => {
     const [error, setError] = useState<string | null>(null);
 
     // Auth Form State
+    const isSuccess = step === 3;
     const [isLoginMode, setIsLoginMode] = useState(false);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
