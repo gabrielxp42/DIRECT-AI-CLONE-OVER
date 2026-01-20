@@ -1,4 +1,4 @@
-import * as React from 'react';
+import React, { useMemo } from 'react';
 import {
     Dialog,
     DialogContent,
@@ -18,27 +18,31 @@ import {
     QrCode,
     ClipboardList,
     Check,
-    Settings2
+    Settings2,
+    X
 } from "lucide-react";
 import { useCompanyProfile } from "@/hooks/useCompanyProfile";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface ShortcutOption {
     id: string;
     label: string;
     icon: any;
     description: string;
+    color: string;
 }
 
 const AVAILABLE_SHORTCUTS: ShortcutOption[] = [
-    { id: 'calculator', label: 'Calculadora DTF', icon: Calculator, description: 'Calculadora de preços e orçamentos' },
-    { id: 'new_pedido', label: 'Criar Pedido', icon: PlusCircle, description: 'Atalho rápido para novo orçamento' },
-    { id: 'talk_gabi', label: 'Falar com a Gabi', icon: MessageSquare, description: 'Abrir assistente de IA' },
-    { id: 'add_insumo', label: 'Adicionar Insumo', icon: Layers, description: 'Registro rápido de novos materiais' },
-    { id: 'new_cliente', label: 'Novo Cliente', icon: Users, description: 'Cadastro rápido de clientes' },
-    { id: 'new_produto', label: 'Novo Produto', icon: Package, description: 'Cadastro rápido de produtos' },
-    { id: 'pix_generator', label: 'Gerador de PIX', icon: QrCode, description: 'Gerar QR Code PIX rapidamente' },
-    { id: 'price_table', label: 'Tabela de Preços', icon: ClipboardList, description: 'Consulta rápida de valores' },
+    { id: 'new_pedido', label: 'Criar Pedido', icon: PlusCircle, description: 'Atalho rápido para novo orçamento', color: 'text-yellow-400' },
+    { id: 'calculator', label: 'Calculadora DTF', icon: Calculator, description: 'Calculadora de preços e orçamentos', color: 'text-blue-400' },
+    { id: 'talk_gabi', label: 'Falar com a Gabi', icon: MessageSquare, description: 'Abrir assistente de IA', color: 'text-pink-400' },
+    { id: 'add_insumo', label: 'Adicionar Insumo', icon: Layers, description: 'Registro rápido de novos materiais', color: 'text-emerald-400' },
+    { id: 'new_cliente', label: 'Novo Cliente', icon: Users, description: 'Cadastro rápido de clientes', color: 'text-purple-400' },
+    { id: 'new_produto', label: 'Novo Produto', icon: Package, description: 'Cadastro rápido de produtos', color: 'text-orange-400' },
+    { id: 'pix_generator', label: 'Gerador de PIX', icon: QrCode, description: 'Gerar QR Code PIX rapidamente', color: 'text-green-400' },
+    { id: 'price_table', label: 'Tabela de Preços', icon: ClipboardList, description: 'Consulta rápida de valores', color: 'text-cyan-400' },
 ];
 
 interface ShortcutSelectionModalProps {
@@ -48,97 +52,165 @@ interface ShortcutSelectionModalProps {
 
 export const ShortcutSelectionModal = ({ isOpen, onClose }: ShortcutSelectionModalProps) => {
     const { companyProfile, updateProfileAsync, isUpdating } = useCompanyProfile();
+    // Local state for instant feedback before saving
     const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
 
+    // Sync from DB when opening
     React.useEffect(() => {
-        if (companyProfile?.sidebar_shortcuts) {
-            setSelectedIds(companyProfile.sidebar_shortcuts);
-        } else {
-            setSelectedIds(['calculator', 'new_pedido', 'talk_gabi', 'new_cliente']);
+        if (isOpen && companyProfile?.sidebar_shortcuts) {
+            // Ensure array and valid IDs
+            const current = Array.isArray(companyProfile.sidebar_shortcuts)
+                ? (companyProfile.sidebar_shortcuts as string[])
+                : ['calculator', 'new_pedido', 'talk_gabi', 'new_cliente'];
+            setSelectedIds(current);
         }
-    }, [companyProfile?.sidebar_shortcuts, isOpen]);
+    }, [isOpen, companyProfile]);
 
-    const toggleShortcut = (id: string) => {
-        setSelectedIds(current =>
-            current.includes(id)
-                ? current.filter(i => i !== id)
-                : [...current, id].slice(0, 6) // Max 6 shortcuts to keep layout clean
-        );
+    const handleToggle = (id: string) => {
+        setSelectedIds(prev => {
+            if (prev.includes(id)) {
+                return prev.filter(item => item !== id);
+            } else {
+                if (prev.length >= 6) {
+                    toast.error("Máximo de 6 atalhos permitidos.");
+                    return prev;
+                }
+                return [...prev, id];
+            }
+        });
     };
 
     const handleSave = async () => {
         try {
             await updateProfileAsync({ sidebar_shortcuts: selectedIds });
+            toast.success("Atalhos atualizados!");
             onClose();
         } catch (error) {
-            console.error('Failed to save shortcuts:', error);
+            toast.error("Erro ao salvar atalhos.");
+            console.error(error);
         }
     };
 
+    // Calculate slots usage
+    const slotsUsed = selectedIds.length;
+    const maxSlots = 6;
+
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-[500px] bg-background/95 backdrop-blur-xl border-primary/20 shadow-2xl">
-                <DialogHeader>
-                    <div className="flex items-center gap-2 mb-2">
-                        <div className="p-2 rounded-lg bg-primary/10">
-                            <Settings2 className="h-5 w-5 text-primary" />
+            <DialogContent className="sm:max-w-[600px] w-[95vw] h-[85vh] sm:h-auto overflow-hidden bg-[#0a0a0a]/95 backdrop-blur-xl border-white/10 p-0 shadow-2xl flex flex-col rounded-3xl">
+                {/* Header Compacto */}
+                <div className="flex items-center justify-between p-4 border-b border-white/5 bg-black/20">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-xl bg-yellow-400/10 border border-yellow-400/20">
+                            <Settings2 className="h-5 w-5 text-yellow-400" />
                         </div>
-                        <DialogTitle className="text-xl font-bold">Personalizar Atalhos</DialogTitle>
+                        <div>
+                            <DialogTitle className="text-lg font-bold text-white">Central de Atalhos</DialogTitle>
+                            <DialogDescription className="text-xs text-zinc-400">Personalize sua barra de ações rápidas</DialogDescription>
+                        </div>
                     </div>
-                    <DialogDescription className="text-muted-foreground">
-                        Escolha até 6 atalhos para aparecer na sua barra lateral. Isso ajuda você a acessar o que mais usa rapidamente.
-                    </DialogDescription>
-                </DialogHeader>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 py-6 max-h-[400px] overflow-y-auto px-1 custom-scrollbar">
-                    {AVAILABLE_SHORTCUTS.map((shortcut) => {
-                        const isSelected = selectedIds.includes(shortcut.id);
-                        return (
-                            <button
-                                key={shortcut.id}
-                                onClick={() => toggleShortcut(shortcut.id)}
-                                className={cn(
-                                    "flex flex-col items-start p-4 rounded-xl border-2 transition-all duration-200 text-left group relative",
-                                    isSelected
-                                        ? "border-primary bg-primary/5 shadow-md"
-                                        : "border-border hover:border-primary/40 hover:bg-muted/50"
-                                )}
-                            >
-                                {isSelected && (
-                                    <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full p-0.5">
-                                        <Check className="h-3 w-3" />
-                                    </div>
-                                )}
-
-                                <div className={cn(
-                                    "p-2 rounded-lg mb-3 transition-colors",
-                                    isSelected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground group-hover:text-primary group-hover:bg-primary/10"
-                                )}>
-                                    <shortcut.icon className="h-5 w-5" />
-                                </div>
-
-                                <h4 className="font-semibold text-sm mb-1">{shortcut.label}</h4>
-                                <p className="text-[11px] text-muted-foreground leading-tight">
-                                    {shortcut.description}
-                                </p>
-                            </button>
-                        );
-                    })}
+                    <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full text-zinc-400 hover:text-white transition-colors">
+                        <X className="w-5 h-5" />
+                    </button>
                 </div>
 
-                <DialogFooter className="flex items-center justify-between sm:justify-between w-full border-t border-border mt-2 pt-4">
-                    <p className="text-xs text-muted-foreground">
-                        {selectedIds.length} de 6 selecionados
-                    </p>
-                    <div className="flex gap-2">
-                        <Button variant="ghost" onClick={onClose} disabled={isUpdating}>
-                            Cancelar
-                        </Button>
-                        <Button onClick={handleSave} disabled={isUpdating} className="px-6">
-                            {isUpdating ? "Salvando..." : "Salvar Alterações"}
-                        </Button>
+                {/* Conteúdo Scrollável */}
+                <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pb-20">
+                        {AVAILABLE_SHORTCUTS.map((shortcut) => {
+                            const isSelected = selectedIds.includes(shortcut.id);
+                            const Icon = shortcut.icon;
+
+                            return (
+                                <motion.button
+                                    key={shortcut.id}
+                                    onClick={() => handleToggle(shortcut.id)}
+                                    layout
+                                    initial={{ opacity: 0, scale: 0.9 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    className={cn(
+                                        "relative flex items-center gap-4 p-4 rounded-xl border transition-all duration-200 w-full text-left group overflow-hidden",
+                                        isSelected
+                                            ? "bg-white/[0.03] border-yellow-400/50 shadow-[0_0_20px_rgba(255,242,0,0.05)]"
+                                            : "bg-transparent border-white/5 hover:bg-white/[0.02] hover:border-white/10 opacity-60 hover:opacity-100"
+                                    )}
+                                >
+                                    {/* Selection Indicator */}
+                                    <div className={cn(
+                                        "absolute top-0 right-0 p-2 transition-all",
+                                        isSelected ? "opacity-100" : "opacity-0"
+                                    )}>
+                                        <div className="bg-yellow-400 rounded-bl-xl rounded-tr-lg p-1">
+                                            <Check className="w-3 h-3 text-black font-bold" strokeWidth={4} />
+                                        </div>
+                                    </div>
+
+                                    {/* Icon Box */}
+                                    <div className={cn(
+                                        "w-12 h-12 rounded-xl flex items-center justify-center border transition-colors shrink-0",
+                                        isSelected
+                                            ? "bg-yellow-400/10 border-yellow-400/20"
+                                            : "bg-white/5 border-white/5 group-hover:bg-white/10"
+                                    )}>
+                                        <Icon className={cn("w-6 h-6 transition-colors", isSelected ? "text-yellow-400" : "text-zinc-500 group-hover:text-zinc-300")} />
+                                    </div>
+
+                                    {/* Text Info */}
+                                    <div className="flex flex-col min-w-0">
+                                        <span className={cn(
+                                            "font-bold text-sm tracking-wide transition-colors",
+                                            isSelected ? "text-white" : "text-zinc-400 group-hover:text-zinc-200"
+                                        )}>
+                                            {shortcut.label}
+                                        </span>
+                                        <span className="text-[10px] text-zinc-500 leading-tight line-clamp-2 mt-0.5">
+                                            {shortcut.description}
+                                        </span>
+                                    </div>
+                                </motion.button>
+                            );
+                        })}
                     </div>
-                </DialogFooter>
+                </div>
+
+                {/* Footer Flutuante */}
+                <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-white/10 bg-[#0a0a0a]/90 backdrop-blur-xl z-20">
+                    <div className="flex items-center justify-between gap-4">
+                        <div className="flex flex-col">
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Slots em uso</span>
+                            <div className="flex items-center gap-1 mt-1">
+                                {Array.from({ length: maxSlots }).map((_, i) => (
+                                    <div
+                                        key={i}
+                                        className={cn(
+                                            "w-3 h-3 rounded-full border transition-all",
+                                            i < slotsUsed
+                                                ? "bg-yellow-400 border-yellow-400 shadow-[0_0_10px_rgba(255,242,0,0.5)]"
+                                                : "bg-white/5 border-white/10"
+                                        )}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="flex gap-3">
+                            <Button
+                                variant="outline"
+                                onClick={onClose}
+                                className="border-white/10 hover:bg-white/5 text-zinc-400 hover:text-white"
+                            >
+                                Cancelar
+                            </Button>
+                            <Button
+                                onClick={handleSave}
+                                disabled={isUpdating}
+                                className="bg-yellow-400 hover:bg-yellow-500 text-black font-bold shadow-[0_0_20px_rgba(255,242,0,0.2)] px-6"
+                            >
+                                {isUpdating ? <div className="w-5 h-5 border-2 border-black/30 border-t-black rounded-full animate-spin" /> : "Salvar Alterações"}
+                            </Button>
+                        </div>
+                    </div>
+                </div>
             </DialogContent>
         </Dialog>
     );

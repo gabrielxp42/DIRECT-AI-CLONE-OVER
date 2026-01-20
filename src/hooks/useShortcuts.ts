@@ -31,8 +31,11 @@ export const useShortcuts = (onOpenCalculator?: () => void) => {
     const navigate = useNavigate();
 
     const activeShortcuts = React.useMemo(() => {
+        if (companyProfile?.sidebar_shortcuts && Array.isArray(companyProfile.sidebar_shortcuts) && companyProfile.sidebar_shortcuts.length > 0) {
+            return companyProfile.sidebar_shortcuts;
+        }
         return ['calculator', 'new_pedido', 'talk_gabi', 'new_cliente'];
-    }, []);
+    }, [companyProfile]);
 
     const handleShortcutAction = (id: string) => {
         switch (id) {

@@ -21,6 +21,7 @@ export interface CompanyProfile {
     company_pix_key: string | null;
     company_pix_key_type: string | null;
     company_logo_url: string | null;
+    sidebar_shortcuts: string[] | null;
 }
 
 export interface CompanyProfileUpdate {
@@ -40,6 +41,7 @@ export interface CompanyProfileUpdate {
     company_pix_key?: string;
     company_pix_key_type?: string;
     company_logo_url?: string | null;
+    sidebar_shortcuts?: string[];
 }
 
 // Helper to format full address
@@ -97,7 +99,7 @@ export const useCompanyProfile = () => {
                 const token = await getValidToken();
                 if (!token) return null;
 
-                const url = `${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}&select=company_name,company_slogan,company_phone,company_whatsapp,company_email,company_website,company_address_street,company_address_number,company_address_neighborhood,company_address_city,company_address_state,company_address_zip,company_address_complement,company_pix_key,company_pix_key_type,company_logo_url`;
+                const url = `${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}&select=company_name,company_slogan,company_phone,company_whatsapp,company_email,company_website,company_address_street,company_address_number,company_address_neighborhood,company_address_city,company_address_state,company_address_zip,company_address_complement,company_pix_key,company_pix_key_type,company_logo_url,sidebar_shortcuts`;
 
                 const response = await fetch(url, {
                     method: 'GET',

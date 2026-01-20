@@ -5,11 +5,13 @@ import { cn } from "@/lib/utils";
 import {
     Dialog,
     DialogContent,
+    DialogTitle,
+    DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import {
     Check, Sparkles, Zap, Shield, Crown, Bot, TrendingUp,
-    ArrowRight, Printer, Users, Smartphone, Clock, Target, X
+    ArrowRight, Printer, Users, Smartphone, Clock, Target, X, Copy, CreditCard as CreditCardIcon
 } from "lucide-react";
 import { useSession } from "@/contexts/SessionProvider";
 import { toast } from "sonner";
@@ -218,6 +220,19 @@ BenefitCard.displayName = 'BenefitCard';
 
 export const SubscriptionModal = ({ open, onOpenChange }: SubscriptionModalProps) => {
     const [isSuccess, setIsSuccess] = useState(false);
+    const [checkoutStep, setCheckoutStep] = useState<'benefits' | 'checkout'>('benefits');
+    const [paymentMethod, setPaymentMethod] = useState<'PIX' | 'CREDIT_CARD'>('PIX');
+    const [paymentData, setPaymentData] = useState<{ url?: string; pix?: { encodedImage: string; payload: string }; subscriptionId?: string } | null>(null);
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [isVerifying, setIsVerifying] = useState(false);
+
+    // Credit Card Form State
+    const [cardData, setCardData] = useState({
+        holderName: '',
+        number: '',
+        expiry: '',
+        cvv: ''
+    });
 
     React.useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -229,16 +244,28 @@ export const SubscriptionModal = ({ open, onOpenChange }: SubscriptionModalProps
 
     const { session } = useSession();
 
-    const handleUpgrade = async () => {
+    const handleUpgrade = async (methodOverride?: 'PIX' | 'CREDIT_CARD') => {
         if (!session?.user) {
             toast.error("Faça login para continuar.");
             return;
         }
 
-        try {
-            toast.loading("Criando checkout seguro...", { id: 'checkout-loader' });
+        const currentMethod = methodOverride || paymentMethod;
 
-            // Alterado para a função do Asaas
+        if (currentMethod === 'CREDIT_CARD') {
+            if (!cardData.holderName || !cardData.number || !cardData.expiry || !cardData.cvv) {
+                toast.error("Preencha todos os dados do cartão.");
+                return;
+            }
+        }
+
+        try {
+            setIsProcessing(true);
+            const loadingMsg = currentMethod === 'PIX' ? "Gerando QR Code Pix..." : "Processando pagamento seguro...";
+            toast.loading(loadingMsg, { id: 'checkout-loader' });
+
+            const [expiryMonth, expiryYear] = cardData.expiry.split('/');
+
             const response = await fetch('https://zdbjzrpgliqicwvncfpc.supabase.co/functions/v1/asaas-checkout', {
                 method: 'POST',
                 headers: {
@@ -248,39 +275,129 @@ export const SubscriptionModal = ({ open, onOpenChange }: SubscriptionModalProps
                 body: JSON.stringify({
                     userId: session.user.id,
                     email: session.user.email,
-                    returnUrl: window.location.href.split('?')[0]
+                    name: cardData.holderName || session.user.user_metadata?.full_name,
+                    paymentMethod: currentMethod,
+                    creditCard: currentMethod === 'CREDIT_CARD' ? {
+                        holderName: cardData.holderName,
+                        number: cardData.number.replace(/\s+/g, ''),
+                        expiryMonth,
+                        expiryYear: '20' + expiryYear,
+                        ccv: cardData.cvv
+                    } : undefined,
+                    creditCardHolderInfo: currentMethod === 'CREDIT_CARD' ? {
+                        name: cardData.holderName,
+                        email: session.user.email,
+                        cpfCnpj: '00000000000', // Será substituído pelo gerado no backend para Sandbox
+                        postalCode: '00000000',
+                        addressNumber: '0',
+                        phone: '00000000000'
+                    } : undefined
                 })
             });
 
             const data = await response.json();
             toast.dismiss('checkout-loader');
 
-            logPaymentEvent(`Usuário iniciou checkout Asaas: ${session.user.email}`, {
-                provider: 'asaas',
-                mode: 'sandbox',
-                email: session.user.email
-            }, session.user.id);
-
-            if (data.error) throw new Error(data.error);
-            if (data.url) {
-                window.location.href = data.url;
+            if (data.success) {
+                if (currentMethod === 'PIX') {
+                    if (data.pix) {
+                        setPaymentData(data);
+                        setCheckoutStep('checkout');
+                    } else {
+                        throw new Error("Dados do PIX não foram gerados corretamente.");
+                    }
+                } else {
+                    // Cartão ou Link direto
+                    if (data.url) {
+                        setPaymentData(data);
+                        // Se for cartão com URL de redirecionamento (caso o direto falhe), ou se for link
+                        if (currentMethod === 'CREDIT_CARD') {
+                            // Lógica de sucesso do cartão (já redireciona ou mostra sucesso)
+                            setIsSuccess(true);
+                        } else {
+                            setCheckoutStep('checkout');
+                        }
+                    } else {
+                        // Se for sucesso de cartão sem URL (processamento direto 100%), apenas sucesso
+                        if (currentMethod === 'CREDIT_CARD') {
+                            setPaymentData(data); // Salva o ID da assinatura para verificação futura
+                            setIsSuccess(true);
+                        } else {
+                            throw new Error("URL de pagamento não retornada.");
+                        }
+                    }
+                }
             } else {
-                throw new Error("URL de checkout não retornada.");
+                throw new Error(data.error || "Falha desconhecida ao processar pagamento.");
             }
 
         } catch (error: any) {
             console.error(error);
             toast.dismiss('checkout-loader');
-            toast.error("Erro ao iniciar pagamento: " + error.message);
+            toast.error(error.message || "Erro ao processar pagamento.");
+        } finally {
+            setIsProcessing(false);
         }
+    };
+
+
+
+    const handleVerifyPayment = async () => {
+        if (!session?.access_token) return;
+        try {
+            setIsVerifying(true);
+            toast.loading("Verificando aprovação no banco...", { id: 'verify-loader' });
+
+            const response = await fetch('https://zdbjzrpgliqicwvncfpc.supabase.co/functions/v1/verify-subscription', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`
+                },
+                body: JSON.stringify({ subscriptionId: paymentData?.subscriptionId })
+            });
+
+            const data = await response.json();
+            toast.dismiss('verify-loader');
+
+            if (data.success && data.status === 'ACTIVE') {
+                toast.success("Pagamento Confirmado! Bem-vindo à Elite.");
+                // Recarrega para atualizar o status do usuário globalmente
+                window.location.reload();
+            } else {
+                toast.info("Pagamento ainda em análise. Tente novamente em alguns segundos.");
+            }
+
+        } catch (error) {
+            console.error(error);
+            toast.error("Erro ao verificar status.");
+        } finally {
+            setIsVerifying(false);
+        }
+    };
+
+    const formatCardNumber = (value: string) => {
+        const v = value.replace(/\D/g, '').substring(0, 16);
+        return v.replace(/(\d{4})(?=\d)/g, '$1 ');
+    };
+
+    const formatExpiry = (value: string) => {
+        const v = value.replace(/\D/g, '').substring(0, 4);
+        if (v.length >= 3) return `${v.substring(0, 2)}/${v.substring(2, 4)}`;
+        return v;
     };
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             {/* Modal Container */}
-            <DialogContent className="w-[95vw] sm:w-full max-w-[420px] md:max-w-3xl lg:max-w-4xl max-h-[100dvh] sm:h-auto overflow-hidden border-white/10 bg-black/90 backdrop-blur-3xl text-white p-0 gap-0 shadow-[0_0_150px_rgba(0,0,0,1)] rounded-xl sm:rounded-3xl flex flex-col md:flex-row">
+            <DialogContent className="w-[95vw] sm:w-full max-w-[420px] md:max-w-3xl lg:max-w-4xl h-[90vh] md:h-auto md:max-h-[85vh] overflow-y-auto md:overflow-hidden border-white/10 bg-black/90 backdrop-blur-3xl text-white p-0 gap-0 shadow-[0_0_150px_rgba(0,0,0,1)] rounded-xl sm:rounded-3xl flex flex-col md:flex-row">
+                <DialogTitle className="sr-only">Assinatura Elite DTF</DialogTitle>
+                <DialogDescription className="sr-only">
+                    Escolha o plano ideal para gerir sua produção de DTF com inteligência artificial.
+                </DialogDescription>
                 <AnimatePresence mode="wait">
-                    {!isSuccess ? (
+                    {/* State: Benefits Selection */}
+                    {!isSuccess && checkoutStep === 'benefits' && (
                         <div className="flex flex-col md:flex-row w-full h-full overflow-hidden">
 
                             {/* Lado Esquerdo (Desktop): Header + CTA Principal */}
@@ -328,7 +445,7 @@ export const SubscriptionModal = ({ open, onOpenChange }: SubscriptionModalProps
 
                                     <Button
                                         className="w-full h-14 text-base font-black bg-[#FFF200] text-black hover:bg-[#ffe600] shadow-[0_20px_40px_-10px_rgba(255,242,0,0.3)] rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98] uppercase gap-2 relative overflow-hidden group/btn"
-                                        onClick={handleUpgrade}
+                                        onClick={() => handleUpgrade()}
                                     >
                                         <span className="relative z-10 text-black">Quero Organizar Agora</span>
                                         <ArrowRight className="w-4 h-4 relative z-10 group-hover/btn:translate-x-1 transition-transform text-black" />
@@ -394,7 +511,7 @@ export const SubscriptionModal = ({ open, onOpenChange }: SubscriptionModalProps
 
                                     <Button
                                         className="w-full h-12 text-sm font-black bg-[#FFF200] text-black hover:bg-[#ffe600] rounded-xl uppercase gap-2 shadow-[0_4px_14px_rgba(255,242,0,0.3)] transition-transform hover:scale-[1.02] active:scale-[0.98]"
-                                        onClick={handleUpgrade}
+                                        onClick={() => handleUpgrade()}
                                     >
                                         Quero Organizar Tudo
                                         <ArrowRight className="w-4 h-4" />
@@ -413,7 +530,212 @@ export const SubscriptionModal = ({ open, onOpenChange }: SubscriptionModalProps
                                 <X className="w-6 h-6" />
                             </button>
                         </div>
-                    ) : (
+                    )}
+
+                    {/* State: Checkout (Pix / Card) */}
+                    {!isSuccess && checkoutStep === 'checkout' && (
+                        <motion.div
+                            key="checkout-content"
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="w-full flex flex-col p-6 md:p-10 bg-[#09090b] h-full overflow-y-auto"
+                        >
+                            <div className="flex items-center justify-between mb-8">
+                                <h2 className="text-2xl font-black italic text-white uppercase tracking-tighter">
+                                    FINALIZAR PAGAMENTO
+                                </h2>
+                                <button
+                                    onClick={() => setCheckoutStep('benefits')}
+                                    className="text-white/20 hover:text-white transition-colors"
+                                >
+                                    <X className="w-6 h-6" />
+                                </button>
+                            </div>
+
+                            <div className="flex flex-col lg:flex-row gap-8">
+                                {/* Seletor de Método e Formulário */}
+                                <div className="flex-1 space-y-6">
+                                    <div className="flex gap-4 mb-6">
+                                        <button
+                                            onClick={() => setPaymentMethod('PIX')}
+                                            className={cn(
+                                                "flex-1 p-4 rounded-xl border transition-all flex flex-col items-center gap-2",
+                                                paymentMethod === 'PIX' ? "border-[#FFF200] bg-[#FFF200]/10" : "border-white/5 bg-white/5 hover:border-white/20"
+                                            )}
+                                        >
+                                            <Zap className={cn("w-6 h-6", paymentMethod === 'PIX' ? "text-[#FFF200]" : "text-white/20")} />
+                                            <span className="text-[10px] font-black uppercase tracking-widest">Pagar com PIX</span>
+                                        </button>
+                                        <button
+                                            onClick={() => setPaymentMethod('CREDIT_CARD')}
+                                            className={cn(
+                                                "flex-1 p-4 rounded-xl border transition-all flex flex-col items-center gap-2",
+                                                paymentMethod === 'CREDIT_CARD' ? "border-[#FFF200] bg-[#FFF200]/10" : "border-white/5 bg-white/5 hover:border-white/20"
+                                            )}
+                                        >
+                                            <CreditCardIcon className={cn("w-6 h-6", paymentMethod === 'CREDIT_CARD' ? "text-[#FFF200]" : "text-white/20")} />
+                                            <span className="text-[10px] font-black uppercase tracking-widest">Cartão de Crédito</span>
+                                        </button>
+                                    </div>
+
+                                    <AnimatePresence mode="wait">
+                                        {paymentMethod === 'PIX' ? (
+                                            <motion.div
+                                                key="pix-form"
+                                                initial={{ opacity: 0, x: -10 }}
+                                                animate={{ opacity: 1, x: 0 }}
+                                                exit={{ opacity: 0, x: 10 }}
+                                                className="flex flex-col items-center p-8 rounded-2xl bg-white/5 border border-white/10"
+                                            >
+                                                {paymentData?.pix ? (
+                                                    <div className="flex flex-col items-center gap-3 w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                                        <div className="text-center space-y-0.5">
+                                                            <div className="flex items-baseline justify-center gap-2">
+                                                                <span className="text-sm text-white/40 line-through">R$ 97,00</span>
+                                                                <span className="text-4xl font-black text-[#FFF200] tracking-tighter">R$ 47,00</span>
+                                                            </div>
+                                                            <p className="text-[10px] text-white/50 font-medium uppercase tracking-wide">
+                                                                Isso dá menos de <span className="text-white font-bold">R$ 1,60 por dia</span>.
+                                                            </p>
+                                                            <p className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 py-0.5 px-2 rounded-full inline-block mt-1">
+                                                                ROI Imediato: Um erro evitado paga o mês.
+                                                            </p>
+                                                        </div>
+
+                                                        <div className="bg-white p-2 rounded-xl shadow-[0_0_50px_rgba(255,255,255,0.1)] relative group mt-1">
+                                                            <div className="absolute -inset-1 bg-gradient-to-tr from-[#FFF200] to-transparent opacity-20 blur-lg group-hover:opacity-40 transition-opacity" />
+                                                            <img
+                                                                src={`data:image/png;base64,${paymentData.pix.encodedImage}`}
+                                                                alt="QR Code Pix"
+                                                                className="w-32 h-32 md:w-40 md:h-40 relative z-10"
+                                                            />
+                                                        </div>
+
+                                                        <div className="text-center space-y-1">
+                                                            <p className="text-[10px] text-[#FFF200] font-black uppercase tracking-widest animate-pulse">
+                                                                Aguardando Pagamento...
+                                                            </p>
+                                                            <p className="text-[10px] text-white/40 max-w-[200px] leading-tight">
+                                                                Liberação automática assim que confirmado.
+                                                            </p>
+                                                        </div>
+
+                                                        <Button
+                                                            className="w-full h-10 bg-white/5 border border-white/10 text-white hover:bg-white/10 gap-2 font-bold text-xs uppercase"
+                                                            onClick={() => {
+                                                                navigator.clipboard.writeText(paymentData.pix?.payload || "");
+                                                                toast.success("Código Pix copiado!");
+                                                            }}
+                                                        >
+                                                            <Copy className="w-3 h-3" />
+                                                            Copiar Código Pix
+                                                        </Button>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex flex-col items-center py-10 gap-4">
+                                                        <div className="w-10 h-10 border-2 border-[#FFF200]/20 border-t-[#FFF200] rounded-full animate-spin" />
+                                                        <p className="text-xs text-white/40 uppercase font-black">Gerando QR Code...</p>
+                                                    </div>
+                                                )}
+                                            </motion.div>
+                                        ) : (
+                                            <motion.div
+                                                key="card-form"
+                                                initial={{ opacity: 0, x: -10 }}
+                                                animate={{ opacity: 1, x: 0 }}
+                                                exit={{ opacity: 0, x: 10 }}
+                                                className="space-y-4"
+                                            >
+                                                <div className="space-y-4 p-6 rounded-2xl bg-white/5 border border-white/10 text-left">
+                                                    <div className="space-y-1">
+                                                        <label className="text-[10px] font-black text-white/40 uppercase tracking-widest ml-1">Nome no Cartão</label>
+                                                        <input
+                                                            type="text"
+                                                            placeholder="NOME IGUAL NO CARTÃO"
+                                                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-[#FFF200] focus:ring-1 focus:ring-[#FFF200] outline-none transition-all uppercase"
+                                                            value={cardData.holderName}
+                                                            onChange={e => setCardData({ ...cardData, holderName: e.target.value })}
+                                                        />
+                                                    </div>
+
+                                                    <div className="space-y-1">
+                                                        <label className="text-[10px] font-black text-white/40 uppercase tracking-widest ml-1">Número do Cartão</label>
+                                                        <div className="relative">
+                                                            <input
+                                                                type="text"
+                                                                placeholder="0000 0000 0000 0000"
+                                                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-[#FFF200] focus:ring-1 focus:ring-[#FFF200] outline-none transition-all"
+                                                                value={cardData.number}
+                                                                onChange={e => setCardData({ ...cardData, number: formatCardNumber(e.target.value) })}
+                                                            />
+                                                            <CreditCardIcon className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/20" />
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div className="space-y-1">
+                                                            <label className="text-[10px] font-black text-white/40 uppercase tracking-widest ml-1">Validade</label>
+                                                            <input
+                                                                type="text"
+                                                                placeholder="MM/AA"
+                                                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-[#FFF200] focus:ring-1 focus:ring-[#FFF200] outline-none transition-all"
+                                                                value={cardData.expiry}
+                                                                onChange={e => setCardData({ ...cardData, expiry: formatExpiry(e.target.value) })}
+                                                            />
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <label className="text-[10px] font-black text-white/40 uppercase tracking-widest ml-1">CVV</label>
+                                                            <input
+                                                                type="text"
+                                                                placeholder="123"
+                                                                maxLength={4}
+                                                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-[#FFF200] focus:ring-1 focus:ring-[#FFF200] outline-none transition-all"
+                                                                value={cardData.cvv}
+                                                                onChange={e => setCardData({ ...cardData, cvv: e.target.value.replace(/\D/g, '') })}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <Button
+                                                    className="w-full h-14 bg-[#FFF200] text-black font-black uppercase tracking-widest rounded-xl hover:bg-[#ffe600] disabled:opacity-50 shadow-[0_15px_30px_-10px_rgba(255,242,0,0.3)]"
+                                                    disabled={isProcessing}
+                                                    onClick={() => handleUpgrade('CREDIT_CARD')}
+                                                >
+                                                    {isProcessing ? "PROCESSANDO..." : "PAGAR R$ 47,00 AGORA"}
+                                                </Button>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </div>
+
+                                {/* Resumo de Segurança */}
+                                <div className="hidden lg:block w-72 space-y-4">
+                                    <div className="p-6 rounded-2xl border border-white/5 bg-white/[0.02]">
+                                        <div className="flex items-center gap-3 mb-4">
+                                            <Shield className="w-5 h-5 text-emerald-400" />
+                                            <span className="text-xs font-black uppercase tracking-widest">Segurança Total</span>
+                                        </div>
+                                        <p className="text-[10px] text-white/40 leading-relaxed font-medium">
+                                            Seus dados são criptografados e processados diretamente via Asaas. Não salvamos informações de cartão em nossos servidores.
+                                        </p>
+                                    </div>
+                                    <div className="p-6 rounded-2xl border border-white/5 bg-white/[0.02]">
+                                        <div className="flex items-center gap-3 mb-4">
+                                            <Clock className="w-5 h-5 text-blue-400" />
+                                            <span className="text-xs font-black uppercase tracking-widest">Ativação Imediata</span>
+                                        </div>
+                                        <p className="text-[10px] text-white/40 leading-relaxed font-medium">
+                                            Após a confirmação, seu acesso Pro é liberado automaticamente no sistema.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+
+                    {/* State: Success */}
+                    {isSuccess && (
                         /* Success State */
                         <motion.div
                             key="success-content"
@@ -433,15 +755,27 @@ export const SubscriptionModal = ({ open, onOpenChange }: SubscriptionModalProps
                             </motion.div>
 
                             <motion.h2 className="text-3xl md:text-5xl font-black italic text-[#FFF200] uppercase tracking-tighter mb-4 relative z-10">
-                                BEM-VINDO À ELITE
+                                PAGAMENTO RECEBIDO!
                             </motion.h2>
 
                             <motion.p className="text-white/60 font-medium text-lg max-w-md relative z-10 mb-10">
-                                O Gabriel já está analisando seus dados. <br />
-                                Sua empresa nunca mais será a mesma.
+                                Estamos aguardando a confirmação do banco. <br />
+                                Seu acesso Pro será liberado em instantes.
                             </motion.p>
 
-                            <motion.div className="relative z-10">
+                            <motion.div className="relative z-10 flex flex-col gap-3">
+                                <Button
+                                    className="h-12 px-8 text-sm font-bold bg-white/10 border border-white/20 text-white hover:bg-white/20 rounded-xl uppercase tracking-wide gap-2"
+                                    onClick={handleVerifyPayment}
+                                    disabled={isVerifying}
+                                >
+                                    {isVerifying ? (
+                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    ) : (
+                                        <TrendingUp className="w-4 h-4" />
+                                    )}
+                                    Já Confirmei / Verificar Agora
+                                </Button>
                                 <Button
                                     className="h-14 px-10 text-lg font-black bg-white text-black hover:bg-white/90 rounded-xl uppercase tracking-wide gap-3 shadow-2xl"
                                     onClick={() => onOpenChange(false)}
@@ -454,6 +788,6 @@ export const SubscriptionModal = ({ open, onOpenChange }: SubscriptionModalProps
                     )}
                 </AnimatePresence>
             </DialogContent>
-        </Dialog>
+        </Dialog >
     );
 };

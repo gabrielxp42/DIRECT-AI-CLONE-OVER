@@ -18,6 +18,7 @@ import Insumos from "./pages/Insumos";
 import Settings from "./pages/Settings";
 import Admin from "./pages/Admin";
 import ResetPassword from "./pages/ResetPassword";
+import Checkout from "./pages/Checkout";
 import Legal from "./pages/Legal";
 import Profile from "./pages/Profile";
 import { AIAssistantProvider } from "./contexts/AIAssistantProvider";
@@ -72,6 +73,7 @@ const App = () => (
                   <Route path="/reset-password" element={<ResetPassword />} />
                   <Route path="/terms" element={<Legal />} />
                   <Route path="/privacy" element={<Legal />} />
+                  <Route path="/checkout" element={<Checkout />} />
                   <Route element={<ProtectedRoute />}>
                     <Route element={<Layout />}>
                       <Route path="/" element={<Index />} />
