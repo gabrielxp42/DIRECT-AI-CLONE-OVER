@@ -1,4 +1,11 @@
 {
+  "framework": "vite",
   "installCommand": "pnpm install --ignore-scripts=false",
-  "buildCommand": "pnpm run build"
+  "buildCommand": "pnpm run build",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
 }
