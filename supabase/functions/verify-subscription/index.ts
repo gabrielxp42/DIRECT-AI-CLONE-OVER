@@ -3,7 +3,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const ASAAS_API_KEY = Deno.env.get("ASAAS_API_KEY");
-const ASAAS_API_URL = "https://sandbox.asaas.com/api/v3";
+const ASAAS_API_URL = Deno.env.get("ASAAS_API_URL") || "https://sandbox.asaas.com/api/v3";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("MY_SERVICE_ROLE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
@@ -64,49 +64,68 @@ serve(async (req) => {
 
         console.log("Searching subscription for user:", user.id, "| SubID:", subscriptionId || 'Auto');
 
-        let activeSubscription = null;
-
-        // 4. Buscar no Asaas
+        // 4. Buscar e Validar Pagamentos
         const headers = {
             'Content-Type': 'application/json',
             'access_token': ASAAS_API_KEY || ''
         };
 
+        let paymentConfirmed = false;
+        let activeSubscription = null;
+
         if (subscriptionId) {
-            console.log("Fetching specific subscription:", subscriptionId);
-            const response = await fetch(`${ASAAS_API_URL}/subscriptions/${subscriptionId}`, { headers });
-            const sub = await response.json();
-            console.log("Asaas Response (direct):", JSON.stringify(sub));
-            if (sub.id && sub.status === 'ACTIVE') {
-                activeSubscription = sub;
+            console.log("Fetching payments for specific subscription:", subscriptionId);
+            // Buscamos os pagamentos vinculados a esta assinatura
+            const response = await fetch(`${ASAAS_API_URL}/payments?subscription=${subscriptionId}`, { headers });
+            const pData = await response.json();
+
+            if (pData.data && pData.data.length > 0) {
+                // Verificamos se algum pagamento da assinatura foi RECEBIDO ou CONFIRMADO
+                const confirmedPayment = pData.data.find((p: any) =>
+                    p.status === 'RECEIVED' || p.status === 'CONFIRMED'
+                );
+
+                if (confirmedPayment) {
+                    paymentConfirmed = true;
+                    // Se for assinatura, o checkout-asaas já deve ter salvado o ID do cliente no Asaas
+                    // mas podemos pegar do pagamento se necessário.
+                }
+                console.log(`Payment Status for Sub ${subscriptionId}:`, paymentConfirmed ? "CONFIRMED" : "PENDING");
             }
         } else {
             console.log("Searching by externalReference:", user.id);
-            const response = await fetch(`${ASAAS_API_URL}/subscriptions?externalReference=${user.id}&limit=10`, { headers });
+            // Fallback: Busca por externalReference em todas as assinaturas
+            const response = await fetch(`${ASAAS_API_URL}/subscriptions?externalReference=${user.id}&limit=5`, { headers });
             const data = await response.json();
-            console.log("Asaas Response (search):", JSON.stringify(data));
 
-            // Procurar primeira subscrição ACTIVE
             if (data.data && data.data.length > 0) {
-                activeSubscription = data.data.find((s: any) => s.status === 'ACTIVE');
-                if (!activeSubscription) {
-                    console.log("Found subscriptions but none are ACTIVE. Statuses:", data.data.map((s: any) => s.status));
+                for (const sub of data.data) {
+                    const pResp = await fetch(`${ASAAS_API_URL}/payments?subscription=${sub.id}`, { headers });
+                    const pData = await pResp.json();
+                    if (pData.data && pData.data.some((p: any) => p.status === 'RECEIVED' || p.status === 'CONFIRMED')) {
+                        paymentConfirmed = true;
+                        activeSubscription = sub;
+                        break;
+                    }
                 }
             }
         }
 
-        // 5. Atualizar Supabase se ativa
-        if (activeSubscription) {
-            console.log("Active Subscription Found:", activeSubscription.id, activeSubscription.status);
+        // 5. Atualizar Supabase se pagamento confirmado
+        if (paymentConfirmed) {
+            console.log("Confirmed Payment Found. Upgrading user...");
+
+            const updateData: any = {
+                subscription_status: 'active',
+                subscription_tier: 'pro'
+            };
+
+            if (activeSubscription?.customer) updateData.asaas_customer_id = activeSubscription.customer;
+            if (subscriptionId || activeSubscription?.id) updateData.asaas_subscription_id = subscriptionId || activeSubscription?.id;
 
             const { error: updateError } = await supabase
                 .from('profiles')
-                .update({
-                    subscription_status: 'active',
-                    subscription_tier: 'pro',
-                    asaas_customer_id: activeSubscription.customer,
-                    asaas_subscription_id: activeSubscription.id
-                })
+                .update(updateData)
                 .eq('id', user.id);
 
             if (updateError) {
@@ -114,15 +133,15 @@ serve(async (req) => {
                 throw updateError;
             }
 
-            console.log("=== SUCCESS: User upgraded to PRO ===");
+            console.log("=== SUCCESS: User upgraded to PRO (Verified by Payment) ===");
             return new Response(
-                JSON.stringify({ success: true, status: 'ACTIVE', subscription: activeSubscription }),
+                JSON.stringify({ success: true, status: 'RECEIVED', subscriptionId: subscriptionId || activeSubscription?.id }),
                 { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
             );
         } else {
-            console.log("=== NO ACTIVE SUBSCRIPTION FOUND ===");
+            console.log("=== NO CONFIRMED PAYMENT FOUND YET ===");
             return new Response(
-                JSON.stringify({ success: false, status: 'PENDING_OR_NOT_FOUND', message: "Nenhuma assinatura ativa confirmada ainda." }),
+                JSON.stringify({ success: false, status: 'PENDING', message: "Pagamento ainda não confirmado pelo banco." }),
                 { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
             );
         }

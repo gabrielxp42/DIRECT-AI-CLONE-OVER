@@ -38,6 +38,7 @@ export interface Pedido {
   id: string;
   cliente_id: string;
   user_id: string;
+  organization_id?: string | null;
   valor_total: number;
   subtotal_produtos: number;
   subtotal_servicos: number;
@@ -48,6 +49,8 @@ export interface Pedido {
   total_metros_vinil: number;
   status: PedidoStatus; // Tipos de status atualizados
   observacoes: string | null;
+  tipo_entrega?: 'frete' | 'retirada';
+  valor_frete?: number;
   created_at: string;
   pago_at: string | null;
   order_number: number;
@@ -86,6 +89,8 @@ export interface NewPedido {
   status: PedidoStatus; // Status de pagamento/geral
   pago_at?: string | null;
   observacoes?: string;
+  tipo_entrega?: 'frete' | 'retirada';
+  valor_frete?: number;
   items: NewPedidoItem[];
   servicos?: NewServico[];
 }

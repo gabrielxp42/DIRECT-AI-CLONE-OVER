@@ -2,11 +2,12 @@ import React, { useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
-import { Trophy, Target, Users, Printer, DollarSign, ArrowRight, Package, Star, Bot, Sparkles, X } from 'lucide-react';
+import { Trophy, Target, Users, Printer, DollarSign, ArrowRight, Package, Star, Bot, Sparkles, X, Crown, Medal, TrendingUp } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { AchievementsModal } from './AchievementsModal';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { CelebrationModal } from './CelebrationModal';
 
 interface Goal {
     id: string;
@@ -26,6 +27,40 @@ interface Goal {
 export const SmartGoalCard = ({ stats }: { stats: any }) => {
     const navigate = useNavigate();
     const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
+    const [celebrationMilestone, setCelebrationMilestone] = useState<any | null>(null);
+
+    const milestones = [
+        { id: 'p1', category: 'production' as const, title: 'Start na Máquina', description: 'Você imprimiu seus primeiros 100 metros!', icon: Printer, value: stats?.totalMeters || 0, target: 100 },
+        { id: 'p2', category: 'production' as const, title: 'Ritmo Industrial', description: 'Marca incrível de 500 metros rodados!', icon: Target, value: stats?.totalMeters || 0, target: 500 },
+        { id: 'p3', category: 'production' as const, title: 'Lenda da Produção', description: 'Bateu 1km de material! Insuperável!', icon: Crown, value: stats?.totalMeters || 0, target: 1000 },
+        { id: 'g1', category: 'growth' as const, title: 'Primeiros Contatos', description: 'Você conquistou seus primeiros 10 clientes!', icon: Users, value: stats?.customersCount || 0, target: 10 },
+        { id: 'g2', category: 'growth' as const, title: 'Dominando o Bairro', description: '50 clientes na carteira. Expansão real!', icon: Medal, value: stats?.customersCount || 0, target: 50 },
+        { id: 'g3', category: 'growth' as const, title: 'Exército de Clientes', description: 'Mais de 200 clientes. Você é uma autoridade!', icon: Star, value: stats?.customersCount || 0, target: 200 },
+        { id: 's1', category: 'sales' as const, title: 'Primeiro Buffet', description: 'Faturou R$ 5.000 em vendas. O lucro chegou!', icon: TrendingUp, value: stats?.totalSales || 0, target: 5000 },
+        { id: 's2', category: 'sales' as const, title: 'Gráfica de Respeito', description: 'Rompeu a barreira dos R$ 20.000! Parabéns!', icon: Trophy, value: stats?.totalSales || 0, target: 20000 },
+        { id: 's3', category: 'sales' as const, title: 'Tubarão do Mercado', description: 'Marca histórica de R$ 50.000! Você é elite!', icon: Crown, value: stats?.totalSales || 0, target: 50000 },
+    ];
+
+    useEffect(() => {
+        if (!stats) return;
+
+        // Procura a maior conquista recém-desbloqueada que ainda não foi comemorada
+        const unacknowledged = milestones
+            .filter(m => m.value >= m.target)
+            .filter(m => !localStorage.getItem(`acknowledged_milestone_${m.id}`))
+            .sort((a, b) => b.target - a.target); // Pega a mais difícil primeiro
+
+        if (unacknowledged.length > 0) {
+            setCelebrationMilestone(unacknowledged[0]);
+        }
+    }, [stats]);
+
+    const handleCloseCelebration = () => {
+        if (celebrationMilestone) {
+            localStorage.setItem(`acknowledged_milestone_${celebrationMilestone.id}`, 'true');
+            setCelebrationMilestone(null);
+        }
+    };
 
     // Cálcula quantas conquistas o usuário já tem
     const unlockedCount = [
@@ -256,6 +291,12 @@ export const SmartGoalCard = ({ stats }: { stats: any }) => {
                 isOpen={isAchievementsOpen}
                 onClose={() => setIsAchievementsOpen(false)}
                 stats={stats}
+            />
+
+            <CelebrationModal
+                isOpen={!!celebrationMilestone}
+                onClose={handleCloseCelebration}
+                milestone={celebrationMilestone}
             />
         </div>
     );

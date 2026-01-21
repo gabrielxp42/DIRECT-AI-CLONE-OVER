@@ -2,7 +2,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const ASAAS_API_KEY = Deno.env.get("ASAAS_API_KEY");
-const ASAAS_API_URL = "https://sandbox.asaas.com/api/v3"; // MODO SANDBOX
+const ASAAS_API_URL = Deno.env.get("ASAAS_API_URL") || "https://sandbox.asaas.com/api/v3";
+// MODO SANDBOX
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -63,14 +64,38 @@ serve(async (req) => {
         });
         const searchData = await customerSearchResponse.json();
 
+        // Determines if we have real data to use
+        const realCpf = creditCardHolderInfo?.cpfCnpj && creditCardHolderInfo.cpfCnpj !== '00000000000' && creditCardHolderInfo.cpfCnpj.length >= 11
+            ? creditCardHolderInfo.cpfCnpj
+            : generateCPF();
+
+        const realPhone = creditCardHolderInfo?.phone && creditCardHolderInfo.phone !== '00000000000'
+            ? creditCardHolderInfo.phone
+            : undefined;
+
+        const realAddressNumber = creditCardHolderInfo?.addressNumber !== '0'
+            ? creditCardHolderInfo?.addressNumber
+            : undefined;
+
+        const realPostalCode = creditCardHolderInfo?.postalCode !== '00000000'
+            ? creditCardHolderInfo?.postalCode
+            : undefined;
+
         if (searchData.data && searchData.data.length > 0) {
             customerId = searchData.data[0].id;
-            // Atualizar CPF se necessário para Sandbox
-            await fetch(`${ASAAS_API_URL}/customers/${customerId}`, {
-                method: 'POST',
-                headers,
-                body: JSON.stringify({ cpfCnpj: generateCPF() })
-            });
+            // Update customer with real data if provided, otherwise keep/update with generated for Sandbox
+            if (paymentMethod === 'CREDIT_CARD') {
+                await fetch(`${ASAAS_API_URL}/customers/${customerId}`, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({
+                        cpfCnpj: realCpf,
+                        phone: realPhone,
+                        addressNumber: realAddressNumber,
+                        postalCode: realPostalCode
+                    })
+                });
+            }
         } else {
             const createCustomerResponse = await fetch(`${ASAAS_API_URL}/customers`, {
                 method: 'POST',
@@ -78,7 +103,10 @@ serve(async (req) => {
                 body: JSON.stringify({
                     name: name || email.split('@')[0],
                     email: email,
-                    cpfCnpj: generateCPF(),
+                    cpfCnpj: realCpf,
+                    phone: realPhone,
+                    addressNumber: realAddressNumber,
+                    postalCode: realPostalCode,
                     externalReference: userId
                 })
             });

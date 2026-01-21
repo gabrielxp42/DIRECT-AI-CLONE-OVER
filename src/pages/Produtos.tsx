@@ -348,7 +348,7 @@ const Produtos = () => {
           </TabsTrigger>
           <TabsTrigger id="tab-producao" value="configuracoes" className="flex items-center gap-2">
             <Settings2 className="h-4 w-4" />
-            Produção
+            Tipos de Produtos
           </TabsTrigger>
           <TabsTrigger id="tab-servicos" value="servicos" className="flex items-center gap-2">
             <Wrench className="h-4 w-4" />

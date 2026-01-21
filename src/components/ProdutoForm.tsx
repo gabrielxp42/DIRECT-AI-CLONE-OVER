@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { NewProduto, Produto } from "@/types/produto";
 import { useEffect, useRef, useState } from "react";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "@/integrations/supabase/client";
@@ -75,10 +76,13 @@ export const ProdutoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, init
       descricao: "",
       preco: 0,
       estoque: 0,
-      tipo: "unidade",
+      tipo: "",
       insumos_vinculados: [],
     },
   });
+
+  const [newInsumoId, setNewInsumoId] = useState("");
+  const [newInsumoConsumo, setNewInsumoConsumo] = useState("1");
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -267,87 +271,94 @@ export const ProdutoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, init
               )}
             />
 
-            <div className="space-y-4 border rounded-lg p-4 bg-muted/30">
+            <div className="space-y-4 border rounded-xl p-5 bg-muted/20 border-primary/10 shadow-inner">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold flex items-center gap-2">
-                  <Package className="w-4 h-4 text-primary" />
-                  Insumos Vinculados (Composição)
-                </h3>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => append({ insumo_id: "", consumo: 0 })}
-                  className="h-8"
-                >
-                  <Plus className="w-4 h-4 mr-1" /> Add Insumo
-                </Button>
+                <div>
+                  <h3 className="text-sm font-bold flex items-center gap-2">
+                    <Boxes className="w-4 h-4 text-primary" />
+                    Composição do Produto
+                  </h3>
+                  <p className="text-[10px] text-muted-foreground">Insumos que serão consumidos na produção de 1 unidade.</p>
+                </div>
               </div>
 
-              {fields.length === 0 && (
-                <p className="text-xs text-muted-foreground text-center py-2">
-                  Nenhum insumo vinculado a este produto.
-                </p>
-              )}
+              {/* Add New Link UI */}
+              <div className="grid grid-cols-12 gap-2 bg-background/50 p-3 rounded-lg border border-dashed border-primary/20">
+                <div className="col-span-6">
+                  <Label className="text-[10px] uppercase font-bold text-muted-foreground mb-1 block">Escolher Insumo</Label>
+                  <Select value={newInsumoId} onValueChange={setNewInsumoId}>
+                    <SelectTrigger className="h-9 bg-background">
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {insumos.filter(i => !fields.some(f => f.insumo_id === i.id)).map((i) => (
+                        <SelectItem key={i.id} value={i.id}>
+                          {i.nome} ({i.unidade})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="col-span-4">
+                  <Label className="text-[10px] uppercase font-bold text-muted-foreground mb-1 block">Consumo</Label>
+                  <div className="relative">
+                    <Input
+                      className="h-9 pr-8"
+                      type="text"
+                      placeholder="0.00"
+                      value={newInsumoConsumo}
+                      onChange={e => setNewInsumoConsumo(e.target.value)}
+                    />
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] text-muted-foreground font-bold">
+                      {insumos.find(i => i.id === newInsumoId)?.unidade || ''}
+                    </span>
+                  </div>
+                </div>
+                <div className="col-span-2 flex items-end">
+                  <Button
+                    type="button"
+                    className="w-full h-9 shadow-md shadow-primary/5"
+                    disabled={!newInsumoId || !newInsumoConsumo}
+                    onClick={() => {
+                      append({ insumo_id: newInsumoId, consumo: Number(newInsumoConsumo.replace(',', '.')) });
+                      setNewInsumoId("");
+                      setNewInsumoConsumo("1");
+                    }}
+                  >
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
 
-              <div className="space-y-3">
-                {fields.map((field, index) => {
-                  const selectedInsumoId = form.watch(`insumos_vinculados.${index}.insumo_id`);
-                  const selectedInsumo = insumos.find(i => i.id === selectedInsumoId);
-
-                  return (
-                    <div key={field.id} className="flex gap-3 items-end border-b pb-3 last:border-0 last:pb-0">
-                      <FormField
-                        control={form.control}
-                        name={`insumos_vinculados.${index}.insumo_id`}
-                        render={({ field }) => (
-                          <FormItem className="flex-1">
-                            <FormLabel className="text-[10px] uppercase font-bold text-muted-foreground">Insumo</FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value}>
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Selecione..." />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {insumos.map((i) => (
-                                  <SelectItem key={i.id} value={i.id}>
-                                    {i.nome} ({i.unidade})
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name={`insumos_vinculados.${index}.consumo`}
-                        render={({ field }) => (
-                          <FormItem className="w-32">
-                            <FormLabel className="text-[10px] uppercase font-bold text-muted-foreground">
-                              Consumo {selectedInsumo ? `(${selectedInsumo.unidade})` : ''}
-                            </FormLabel>
-                            <FormControl>
-                              <Input type="number" step="0.0001" placeholder="0.5" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => remove(index)}
-                        className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  );
-                })}
+              <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
+                {fields.length === 0 ? (
+                  <div className="text-center py-6 border rounded-lg bg-background/30 border-dashed">
+                    <p className="text-xs text-muted-foreground">Adicione insumos para calcular o custo automático.</p>
+                  </div>
+                ) : (
+                  fields.map((field, index) => {
+                    const selectedInsumo = insumos.find(i => i.id === field.insumo_id);
+                    return (
+                      <div key={field.id} className="flex items-center justify-between p-2.5 rounded-lg border bg-background group animate-in fade-in slide-in-from-top-1">
+                        <div className="flex flex-col">
+                          <span className="font-semibold text-sm">{selectedInsumo?.nome || 'Insumo'}</span>
+                          <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
+                            Consumo: <span className="text-primary">{field.consumo} {selectedInsumo?.unidade}</span>
+                          </span>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => remove(index)}
+                          className="h-8 w-8 text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    );
+                  })
+                )}
               </div>
             </div>
 

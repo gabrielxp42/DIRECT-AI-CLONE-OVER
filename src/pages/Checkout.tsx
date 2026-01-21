@@ -100,6 +100,7 @@ const Checkout = () => {
         expiry: '',
         cvv: ''
     });
+    const [clientInfo, setClientInfo] = useState({ cpfCnpj: '', postalCode: '', addressNumber: '', phone: '' });
 
     // Auto-polling for PIX payment status
     useEffect(() => {
@@ -123,7 +124,7 @@ const Checkout = () => {
 
                     const data = await response.json();
 
-                    if (data.success && data.status === 'ACTIVE') {
+                    if (data.success && (data.status === 'ACTIVE' || data.status === 'RECEIVED' || data.status === 'CONFIRMED')) {
                         toast.success("Pagamento Confirmado Automaticamente!");
                         clearInterval(intervalId);
                         setStep(3);
@@ -230,7 +231,10 @@ const Checkout = () => {
                     creditCardHolderInfo: paymentMethod === 'CREDIT_CARD' ? {
                         name: cardData.holderName,
                         email: session.user.email,
-                        cpfCnpj: '00000000000', postalCode: '00000000', addressNumber: '0', phone: '00000000000'
+                        cpfCnpj: clientInfo.cpfCnpj.replace(/\D/g, ''),
+                        postalCode: clientInfo.postalCode.replace(/\D/g, ''),
+                        addressNumber: clientInfo.addressNumber,
+                        phone: clientInfo.phone.replace(/\D/g, '')
                     } : undefined
                 })
             });
@@ -241,8 +245,8 @@ const Checkout = () => {
             if (data.success) {
                 setPaymentData(data);
                 if (paymentMethod === 'CREDIT_CARD') {
-                    // Cartão aprovado direto ou com link
-                    setStep(3); // Sucesso direto
+                    // Cartão aprovado no Asaas, agora forçamos a atualização no Supabase via verify-subscription
+                    await handleVerifyPayment();
                 }
                 // PIX fica na mesma tela mostrando QR Code, estado paymentData?.pix controla visualização
             } else {
@@ -275,7 +279,7 @@ const Checkout = () => {
             const data = await response.json();
             toast.dismiss('verify-loader');
 
-            if (data.success && data.status === 'ACTIVE') {
+            if (data.success && (data.status === 'ACTIVE' || data.status === 'RECEIVED' || data.status === 'CONFIRMED')) {
                 toast.success("Pagamento Confirmado! Bem-vindo à Elite.");
                 // Em vez de só navegar, setStep(3) para mostrar tela de sucesso
                 // Mas se já está no step 3 (confirmação manual), recarrega
@@ -450,17 +454,142 @@ const Checkout = () => {
                                             )}
                                         </div>
                                     ) : (
-                                        <div className="space-y-3 bg-white/5 p-4 rounded-2xl border border-white/10">
-                                            <Input placeholder="NOME NO CARTÃO" value={cardData.holderName} onChange={e => setCardData({ ...cardData, holderName: e.target.value.toUpperCase() })} className="bg-black/20 border-white/10 h-10 text-xs" />
-                                            <div className="relative"><Input placeholder="0000 0000 0000 0000" value={cardData.number} onChange={e => setCardData({ ...cardData, number: formatCardNumber(e.target.value) })} className="bg-black/20 border-white/10 h-10 text-xs" /><CreditCardIcon className="absolute right-3 top-2.5 w-4 h-4 text-white/20" /></div>
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <Input placeholder="MM/AA" value={cardData.expiry} onChange={e => setCardData({ ...cardData, expiry: formatExpiry(e.target.value) })} className="bg-black/20 border-white/10 h-10 text-xs" />
-                                                <Input placeholder="CVV" maxLength={4} value={cardData.cvv} onChange={e => setCardData({ ...cardData, cvv: e.target.value.replace(/\D/g, '') })} className="bg-black/20 border-white/10 h-10 text-xs" />
+                                        <div className="space-y-4">
+                                            {/* Card Preview Mini */}
+                                            <div className="relative bg-gradient-to-br from-zinc-800 via-zinc-900 to-black p-4 rounded-2xl border border-white/10 shadow-2xl overflow-hidden">
+                                                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-[#FFF200]/5 to-transparent rounded-full blur-2xl" />
+                                                <div className="flex justify-between items-start mb-6">
+                                                    <div className="w-10 h-7 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-md shadow-lg" />
+                                                    <div className="flex gap-1.5 opacity-60">
+                                                        <div className="w-8 h-5 bg-[url('https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/Visa_Inc._logo.svg/100px-Visa_Inc._logo.svg.png')] bg-contain bg-no-repeat bg-center" />
+                                                        <div className="w-8 h-5 bg-[url('https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Mastercard-logo.svg/100px-Mastercard-logo.svg.png')] bg-contain bg-no-repeat bg-center" />
+                                                    </div>
+                                                </div>
+                                                <p className="font-mono text-lg text-white/80 tracking-[0.2em] mb-4">
+                                                    {cardData.number || '•••• •••• •••• ••••'}
+                                                </p>
+                                                <div className="flex justify-between text-xs">
+                                                    <div>
+                                                        <p className="text-white/30 text-[9px] uppercase">Titular</p>
+                                                        <p className="text-white/70 font-medium">{cardData.holderName || 'SEU NOME'}</p>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <p className="text-white/30 text-[9px] uppercase">Validade</p>
+                                                        <p className="text-white/70 font-medium">{cardData.expiry || 'MM/AA'}</p>
+                                                    </div>
+                                                </div>
                                             </div>
-                                            <Button onClick={handleProcessPayment} disabled={isProcessingPayment} className="w-full bg-[#FFF200] text-black font-black uppercase h-12 shadow-lg hover:scale-[1.02] transition-transform">
-                                                {isProcessingPayment ? <Loader2 className="animate-spin" /> : "Pagar R$ 47,00"}
+
+                                            {/* Form Fields */}
+                                            <div className="space-y-3 p-4 bg-white/[0.02] rounded-2xl border border-white/5">
+                                                <div className="relative">
+                                                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+                                                    <Input
+                                                        placeholder="Nome como está no cartão"
+                                                        value={cardData.holderName}
+                                                        onChange={e => setCardData({ ...cardData, holderName: e.target.value.toUpperCase() })}
+                                                        className="pl-10 bg-black/40 border-white/10 h-11 text-sm text-white placeholder:text-white/30 focus:border-[#FFF200]/50 focus:ring-1 focus:ring-[#FFF200]/20 transition-all"
+                                                    />
+                                                </div>
+                                                <div className="relative">
+                                                    <CreditCardIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+                                                    <Input
+                                                        placeholder="Número do cartão"
+                                                        value={cardData.number}
+                                                        onChange={e => setCardData({ ...cardData, number: formatCardNumber(e.target.value) })}
+                                                        className="pl-10 bg-black/40 border-white/10 h-11 text-sm text-white placeholder:text-white/30 font-mono tracking-wider focus:border-[#FFF200]/50 focus:ring-1 focus:ring-[#FFF200]/20 transition-all"
+                                                    />
+                                                    <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500/60" />
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div className="relative">
+                                                        <Input
+                                                            placeholder="MM/AA"
+                                                            value={cardData.expiry}
+                                                            onChange={e => setCardData({ ...cardData, expiry: formatExpiry(e.target.value) })}
+                                                            className="bg-black/40 border-white/10 h-11 text-sm text-white placeholder:text-white/30 text-center focus:border-[#FFF200]/50 focus:ring-1 focus:ring-[#FFF200]/20 transition-all"
+                                                        />
+                                                    </div>
+                                                    <div className="relative">
+                                                        <Input
+                                                            placeholder="CVV"
+                                                            maxLength={4}
+                                                            value={cardData.cvv}
+                                                            onChange={e => setCardData({ ...cardData, cvv: e.target.value.replace(/\D/g, '') })}
+                                                            className="bg-black/40 border-white/10 h-11 text-sm text-white placeholder:text-white/30 text-center focus:border-[#FFF200]/50 focus:ring-1 focus:ring-[#FFF200]/20 transition-all"
+                                                        />
+                                                        <Shield className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/20" />
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Billing Info - Collapsible Look */}
+                                            <div className="space-y-3 p-4 bg-white/[0.02] rounded-2xl border border-white/5">
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                                                        <Check className="w-3 h-3 text-emerald-400" />
+                                                    </div>
+                                                    <span className="text-[10px] text-white/40 uppercase font-bold tracking-wider">Dados de Cobrança (Obrigatório)</span>
+                                                </div>
+                                                <Input
+                                                    placeholder="CPF ou CNPJ"
+                                                    value={clientInfo.cpfCnpj}
+                                                    onChange={e => setClientInfo({ ...clientInfo, cpfCnpj: e.target.value })}
+                                                    className="bg-black/40 border-white/10 h-10 text-sm text-white placeholder:text-white/30 focus:border-[#FFF200]/50 transition-all"
+                                                />
+                                                <div className="grid grid-cols-5 gap-2">
+                                                    <Input
+                                                        placeholder="CEP"
+                                                        value={clientInfo.postalCode}
+                                                        onChange={e => setClientInfo({ ...clientInfo, postalCode: e.target.value })}
+                                                        className="col-span-3 bg-black/40 border-white/10 h-10 text-sm text-white placeholder:text-white/30 focus:border-[#FFF200]/50 transition-all"
+                                                    />
+                                                    <Input
+                                                        placeholder="Nº"
+                                                        value={clientInfo.addressNumber}
+                                                        onChange={e => setClientInfo({ ...clientInfo, addressNumber: e.target.value })}
+                                                        className="col-span-2 bg-black/40 border-white/10 h-10 text-sm text-white placeholder:text-white/30 focus:border-[#FFF200]/50 transition-all"
+                                                    />
+                                                </div>
+                                                <Input
+                                                    placeholder="WhatsApp para recibo"
+                                                    value={clientInfo.phone}
+                                                    onChange={e => setClientInfo({ ...clientInfo, phone: e.target.value })}
+                                                    className="bg-black/40 border-white/10 h-10 text-sm text-white placeholder:text-white/30 focus:border-[#FFF200]/50 transition-all"
+                                                />
+                                            </div>
+
+                                            {/* Submit Button */}
+                                            <Button
+                                                onClick={handleProcessPayment}
+                                                disabled={isProcessingPayment}
+                                                className="w-full bg-gradient-to-r from-[#FFF200] to-[#FFD700] text-black font-black uppercase h-14 rounded-xl shadow-[0_10px_40px_-10px_rgba(255,242,0,0.4)] hover:shadow-[0_15px_50px_-10px_rgba(255,242,0,0.5)] hover:scale-[1.02] active:scale-[0.98] transition-all text-base tracking-wide"
+                                            >
+                                                {isProcessingPayment ? <Loader2 className="animate-spin" /> : (
+                                                    <span className="flex items-center gap-2">
+                                                        <Lock className="w-4 h-4" />
+                                                        Pagar R$ 47,90
+                                                    </span>
+                                                )}
                                             </Button>
-                                            <p className="text-[9px] text-center text-white/30 flex items-center justify-center gap-1"><Shield className="w-3 h-3" /> Checkout 100% Seguro</p>
+
+                                            {/* Security Badges */}
+                                            <div className="flex items-center justify-center gap-4 pt-2">
+                                                <div className="flex items-center gap-1.5 text-emerald-500/70">
+                                                    <Shield className="w-3.5 h-3.5" />
+                                                    <span className="text-[9px] font-bold uppercase">SSL 256-bit</span>
+                                                </div>
+                                                <div className="w-px h-3 bg-white/10" />
+                                                <div className="flex items-center gap-1.5 text-white/40">
+                                                    <Lock className="w-3 h-3" />
+                                                    <span className="text-[9px] font-bold uppercase">Criptografado</span>
+                                                </div>
+                                                <div className="w-px h-3 bg-white/10" />
+                                                <div className="flex items-center gap-1.5 text-white/40">
+                                                    <Check className="w-3 h-3" />
+                                                    <span className="text-[9px] font-bold uppercase">PCI DSS</span>
+                                                </div>
+                                            </div>
                                         </div>
                                     )}
                                 </div>

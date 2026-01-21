@@ -102,6 +102,8 @@ import { TutorialGuide } from '@/components/TutorialGuide';
 const formSchema = z.object({
   cliente_id: z.string().min(1, { message: "Cliente é obrigatório." }),
   observacoes: z.string().optional(),
+  tipo_entrega: z.enum(['frete', 'retirada']).nullable().optional(),
+  valor_frete: z.coerce.number().min(0).default(0),
   desconto_valor: z.coerce.number().min(0).optional(),
   desconto_percentual: z.coerce.number().min(0).max(100).optional(),
   created_at: z.date({
@@ -179,6 +181,8 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
     defaultValues: {
       cliente_id: "",
       observacoes: "",
+      tipo_entrega: undefined,
+      valor_frete: 0,
       desconto_valor: 0,
       desconto_percentual: 0,
       created_at: new Date(),
@@ -265,6 +269,8 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
         form.reset({
           cliente_id: initialData.cliente_id || "",
           observacoes: initialData.observacoes || "",
+          tipo_entrega: initialData.tipo_entrega || "frete",
+          valor_frete: initialData.valor_frete || 0,
           desconto_valor: initialData.desconto_valor || 0,
           desconto_percentual: initialData.desconto_percentual || 0,
           created_at: new Date(initialData.created_at),
@@ -403,6 +409,8 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
       total_metros_dtf: totalMetrosDTF,
       total_metros_vinil: totalMetrosVinil,
       observacoes: data.observacoes,
+      tipo_entrega: data.tipo_entrega,
+      valor_frete: data.tipo_entrega === 'frete' ? data.valor_frete : 0,
       created_at: data.created_at.toISOString(),
       items: items.map((item, index) => {
         return {
@@ -710,6 +718,8 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
   // Apenas watch nos valores de desconto para evitar re-renders excessivos
   const watchedDescontoValor = form.watch('desconto_valor') || 0;
   const watchedDescontoPercentual = form.watch('desconto_percentual') || 0;
+  const watchedValorFrete = form.watch('valor_frete') || 0;
+  const watchedTipoEntrega = form.watch('tipo_entrega');
 
   const calculateTotal = useCallback(() => {
     // Usar itemFields em vez de watchedItems para melhor performance
@@ -727,8 +737,11 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
 
     const subtotal = subtotalProdutos + subtotalServicos;
 
+    // O valor do frete só conta se o tipo de entrega for 'frete'
+    const freteEfetivo = watchedTipoEntrega === 'frete' ? watchedValorFrete : 0;
+
     const descontoPercentualValor = subtotal * (watchedDescontoPercentual / 100);
-    const valorTotal = Math.max(0, subtotal - watchedDescontoValor - descontoPercentualValor);
+    const valorTotal = Math.max(0, subtotal + freteEfetivo - watchedDescontoValor - descontoPercentualValor);
 
     const totalMetros = itemFields.reduce((sum, _field, index) => {
       const item = form.getValues(`items.${index}`);
@@ -845,130 +858,134 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleValidSubmit, handleInvalidSubmit)} className="space-y-4 sm:space-y-6">
 
-              <div className="grid grid-cols-1 gap-3 sm:gap-4">
-                <FormField
-                  control={form.control}
-                  name="cliente_id"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="flex items-center gap-1.5 sm:gap-2 text-sm sm:text-base">
-                        <User className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-                        Cliente *
-                      </FormLabel>
-                      <Popover open={clienteOpen} onOpenChange={setClienteOpen}>
-                        <PopoverTrigger asChild id="field-cliente">
-                          <FormControl>
-                            <Button
-                              variant="outline"
-                              role="combobox"
-                              aria-expanded={clienteOpen}
-                              className="w-full justify-between transition-all duration-300 hover:bg-accent/50 h-9 sm:h-10 text-sm"
-                            >
-                              <span className="truncate">{selectedClienteName || "Selecione um cliente..."}</span>
-                              <Search className="ml-2 h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0 opacity-50" />
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent
-                          className="w-[90vw] sm:w-full p-0"
-                          align="start"
-                          sideOffset={4}
-                        >
-                          <Command>
-                            <CommandInput
-                              placeholder="Buscar cliente..."
-                              value={clienteSearch}
-                              onValueChange={setClienteSearch}
-                              className="text-sm"
-                            />
-                            <CommandList className="max-h-[200px] sm:max-h-[300px]">
-                              <CommandEmpty className="text-sm py-4">Nenhum cliente encontrado.</CommandEmpty>
-                              <CommandGroup>
-                                {filteredClientes.map((cliente) => (
-                                  <CommandItem
-                                    key={cliente.id}
-                                    value={cliente.nome}
-                                    onSelect={() => handleClienteSelect(cliente.id, cliente.nome)}
-                                    className="cursor-pointer py-2 transition-all duration-200 hover:bg-accent/50"
-                                  >
-                                    <User className="mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-                                    <div className="flex flex-col min-w-0 flex-1">
-                                      <span className="font-medium text-sm truncate">{cliente.nome}</span>
-                                      {cliente.telefone && (
-                                        <span className="text-xs text-muted-foreground truncate">{cliente.telefone}</span>
-                                      )}
-                                      {cliente.endereco && (
-                                        <span className="text-xs text-muted-foreground truncate">{cliente.endereco}</span>
-                                      )}
-                                    </div>
-                                  </CommandItem>
-                                ))}
-                              </CommandGroup>
-                            </CommandList>
-                            <div className="border-t p-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+                <div className="md:col-span-1">
+                  <FormField
+                    control={form.control}
+                    name="cliente_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="flex items-center gap-1.5 sm:gap-2 text-sm sm:text-base">
+                          <User className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+                          Cliente *
+                        </FormLabel>
+                        <Popover open={clienteOpen} onOpenChange={setClienteOpen}>
+                          <PopoverTrigger asChild id="field-cliente">
+                            <FormControl>
                               <Button
-                                type="button"
-                                variant="ghost"
-                                className="w-full justify-start text-primary hover:text-primary hover:bg-primary/10 transition-all duration-200 h-9 text-sm"
-                                onClick={() => {
-                                  setClienteOpen(false);
-                                  setIsQuickClientFormOpen(true);
-                                }}
+                                variant="outline"
+                                role="combobox"
+                                aria-expanded={clienteOpen}
+                                className="w-full justify-between transition-all duration-300 hover:bg-accent/50 h-9 sm:h-10 text-sm"
                               >
-                                <Plus className="mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                                Adicionar Novo Cliente
+                                <span className="truncate">{selectedClienteName || "Selecione um cliente..."}</span>
+                                <Search className="ml-2 h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0 opacity-50" />
                               </Button>
-                            </div>
-                          </Command>
-                        </PopoverContent>
-                      </Popover>
-                      <FormMessage className="text-xs" />
-                    </FormItem>
-                  )}
-                />
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent
+                            className="w-[90vw] sm:w-[350px] p-0"
+                            align="start"
+                            sideOffset={4}
+                          >
+                            <Command>
+                              <CommandInput
+                                placeholder="Buscar cliente..."
+                                value={clienteSearch}
+                                onValueChange={setClienteSearch}
+                                className="text-sm"
+                              />
+                              <CommandList className="max-h-[200px] sm:max-h-[300px]">
+                                <CommandEmpty className="text-sm py-4">Nenhum cliente encontrado.</CommandEmpty>
+                                <CommandGroup>
+                                  {filteredClientes.map((cliente) => (
+                                    <CommandItem
+                                      key={cliente.id}
+                                      value={cliente.nome}
+                                      onSelect={() => handleClienteSelect(cliente.id, cliente.nome)}
+                                      className="cursor-pointer py-2 transition-all duration-200 hover:bg-accent/50"
+                                    >
+                                      <User className="mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+                                      <div className="flex flex-col min-w-0 flex-1">
+                                        <span className="font-medium text-sm truncate">{cliente.nome}</span>
+                                        {cliente.telefone && (
+                                          <span className="text-xs text-muted-foreground truncate">{cliente.telefone}</span>
+                                        )}
+                                        {cliente.endereco && (
+                                          <span className="text-xs text-muted-foreground truncate">{cliente.endereco}</span>
+                                        )}
+                                      </div>
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                              <div className="border-t p-2">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  className="w-full justify-start text-primary hover:text-primary hover:bg-primary/10 transition-all duration-200 h-9 text-sm"
+                                  onClick={() => {
+                                    setClienteOpen(false);
+                                    setIsQuickClientFormOpen(true);
+                                  }}
+                                >
+                                  <Plus className="mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                                  Adicionar Novo Cliente
+                                </Button>
+                              </div>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                        <FormMessage className="text-xs" />
+                      </FormItem>
+                    )}
+                  />
+                </div>
 
-                <FormField
-                  control={form.control}
-                  name="created_at"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-col">
-                      <FormLabel className="flex items-center gap-1.5 sm:gap-2 text-sm sm:text-base">
-                        <CalendarIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-                        Data *
-                      </FormLabel>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button
-                              variant={"outline"}
-                              className={cn(
-                                "w-full justify-start text-left font-normal h-9 sm:h-10 transition-all duration-300 hover:bg-accent/50 text-sm",
-                                !field.value && "text-muted-foreground"
-                              )}
-                            >
-                              <CalendarIcon className="mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-                              {field.value ? (
-                                format(field.value, "dd/MM/yyyy", { locale: ptBR })
-                              ) : (
-                                <span>Hoje</span>
-                              )}
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start" sideOffset={4}>
-                          <Calendar
-                            mode="single"
-                            selected={field.value}
-                            onSelect={field.onChange}
-                            locale={ptBR}
-                            initialFocus
-                          />
-                        </PopoverContent>
-                      </Popover>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <div className="md:col-span-1">
+                  <FormField
+                    control={form.control}
+                    name="created_at"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-col">
+                        <FormLabel className="flex items-center gap-1.5 sm:gap-2 text-sm sm:text-base">
+                          <CalendarIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+                          Data *
+                        </FormLabel>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                variant={"outline"}
+                                className={cn(
+                                  "w-full justify-start text-left font-normal h-9 sm:h-10 transition-all duration-300 hover:bg-accent/50 text-sm",
+                                  !field.value && "text-muted-foreground"
+                                )}
+                              >
+                                <CalendarIcon className="mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+                                {field.value ? (
+                                  format(field.value, "dd/MM/yyyy", { locale: ptBR })
+                                ) : (
+                                  <span>Hoje</span>
+                                )}
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start" sideOffset={4}>
+                            <Calendar
+                              mode="single"
+                              selected={field.value}
+                              onSelect={field.onChange}
+                              locale={ptBR}
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
               </div>
 
               <FormField
@@ -1458,25 +1475,6 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                       <Plus className="mr-2 h-4 w-4" />
                       Adicionar Serviço
                     </Button>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="text-orange-600 border-orange-200 hover:bg-orange-50"
-                            onClick={() => addShortcutServico("Frete", 0)}
-                          >
-                            <Bike className="h-4 w-4 mr-1" />
-                            Frete
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Adicionar Frete</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
                   </div>
                 </div>
 
@@ -1677,6 +1675,89 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                   )}
                 </div>
               </div>
+
+              <div className="space-y-4 my-6">
+                <FormField
+                  control={form.control}
+                  name="tipo_entrega"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-2 text-lg font-medium">
+                        <Bike className="h-5 w-5" />
+                        Tipo de Entrega *
+                      </FormLabel>
+                      <FormControl>
+                        <div className="flex bg-muted p-1.5 rounded-lg h-12">
+                          <button
+                            type="button"
+                            className={cn(
+                              "flex-1 flex items-center justify-center gap-3 px-4 text-sm font-bold rounded-md transition-all",
+                              field.value === 'frete'
+                                ? "bg-primary text-primary-foreground shadow-lg scale-[1.02]"
+                                : "text-muted-foreground hover:bg-background/50"
+                            )}
+                            onClick={() => {
+                              hapticTap();
+                              field.onChange(field.value === 'frete' ? null : 'frete');
+                            }}
+                          >
+                            <Bike className="h-5 w-5" />
+                            Frete
+                          </button>
+                          <button
+                            type="button"
+                            className={cn(
+                              "flex-1 flex items-center justify-center gap-3 px-4 text-sm font-bold rounded-md transition-all",
+                              field.value === 'retirada'
+                                ? "bg-primary text-primary-foreground shadow-lg scale-[1.02]"
+                                : "text-muted-foreground hover:bg-background/50"
+                            )}
+                            onClick={() => {
+                              hapticTap();
+                              field.onChange(field.value === 'retirada' ? null : 'retirada');
+                            }}
+                          >
+                            <Package className="h-5 w-5" />
+                            Retirada
+                          </button>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {watchedTipoEntrega === 'frete' && (
+                  <div className="p-4 bg-orange-50/50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-800 rounded-lg animate-in fade-in slide-in-from-top-2 duration-300 my-4">
+                    <FormField
+                      control={form.control}
+                      name="valor_frete"
+                      render={({ field }) => (
+                        <FormItem>
+                          <div className="flex items-center justify-between gap-2">
+                            <FormLabel className="flex items-center gap-2 text-orange-700 dark:text-orange-400 font-semibold mb-0">
+                              <Bike className="h-4 w-4" />
+                              Valor do Frete
+                            </FormLabel>
+                            <FormControl>
+                              <div className="w-[150px]">
+                                <CurrencyInput
+                                  value={field.value}
+                                  onChange={(value) => field.onChange(value)}
+                                  placeholder="0,00"
+                                  className="h-9 text-right font-bold border-orange-200 focus-visible:ring-orange-400"
+                                />
+                              </div>
+                            </FormControl>
+                          </div>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                )}
+              </div>
+
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField

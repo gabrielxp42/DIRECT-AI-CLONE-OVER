@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,7 +11,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Plus, Package, AlertTriangle, Search, Pencil, Trash2, Filter, Minus } from 'lucide-react';
+import { Plus, Package, AlertTriangle, Search, Pencil, Trash2, Filter, Minus, Link as LinkIcon, ExternalLink } from 'lucide-react';
 import { useSession } from '@/contexts/SessionProvider';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/integrations/supabase/client';
 import { getValidToken } from '@/utils/tokenGuard';
@@ -61,11 +62,20 @@ const Insumos = () => {
     const [selectedInsumo, setSelectedInsumo] = useState<Insumo | null>(null);
     const [adjustQuantity, setAdjustQuantity] = useState<string>('');
     const [adjustType, setAdjustType] = useState<'add' | 'remove'>('add');
+    const [isLinksOpen, setIsLinksOpen] = useState(false);
+    const [linksLoading, setLinksLoading] = useState(false);
+    const [associatedProducts, setAssociatedProducts] = useState<any[]>([]);
+    const [associatedTypes, setAssociatedTypes] = useState<any[]>([]);
+    const [allProducts, setAllProducts] = useState<any[]>([]);
+    const [allTypes, setAllTypes] = useState<any[]>([]);
+    const [linkTargetId, setLinkTargetId] = useState("");
+    const [linkConsumo, setLinkConsumo] = useState("1");
 
     // Form State for Create/Edit
     const [formData, setFormData] = useState<Partial<Insumo>>({
         nome: '',
         quantidade_atual: 0,
+        quantidade_inicial: 0,
         unidade: 'un',
         quantidade_minima: 10,
         custo_unitario: 0
@@ -121,6 +131,7 @@ const Insumos = () => {
         setFormData({
             nome: '',
             quantidade_atual: 0,
+            quantidade_inicial: 0,
             unidade: 'un',
             quantidade_minima: 10,
             custo_unitario: 0
@@ -138,6 +149,7 @@ const Insumos = () => {
         setFormData({
             nome: insumo.nome,
             quantidade_atual: insumo.quantidade_atual,
+            quantidade_inicial: insumo.quantidade_inicial || insumo.quantidade_atual,
             unidade: insumo.unidade,
             quantidade_minima: insumo.quantidade_minima,
             custo_unitario: insumo.custo_unitario
@@ -150,6 +162,89 @@ const Insumos = () => {
         setAdjustType(type);
         setAdjustQuantity('');
         setIsAdjustOpen(true);
+    };
+
+    const handleOpenLinks = async (insumo: Insumo) => {
+        setSelectedInsumo(insumo);
+        setIsLinksOpen(true);
+        setLinksLoading(true);
+        setLinkTargetId("");
+        setLinkConsumo("1");
+        try {
+            // 1. Fetch current links
+            const [prodLinks, typeLinks, prods, types] = await Promise.all([
+                supabase.from('produto_insumos').select('*, produtos(nome)').eq('insumo_id', insumo.id),
+                supabase.from('tipo_producao_insumos').select('*, tipos_producao(nome)').eq('insumo_id', insumo.id),
+                supabase.from('produtos').select('id, nome'),
+                supabase.from('tipos_producao').select('id, nome')
+            ]);
+
+            setAssociatedProducts(prodLinks.data || []);
+            setAssociatedTypes(typeLinks.data || []);
+            setAllProducts(prods.data || []);
+            setAllTypes(types.data || []);
+        } catch (error) {
+            console.error(error);
+            showError("Erro ao carregar vínculos.");
+        } finally {
+            setLinksLoading(false);
+        }
+    };
+
+    const handleLinkProduct = async (produtoId: string, consumo: number) => {
+        if (!selectedInsumo) return;
+        try {
+            const { error } = await supabase.from('produto_insumos').insert([{
+                produto_id: produtoId,
+                insumo_id: selectedInsumo.id,
+                consumo: consumo
+            }]);
+            if (error) throw error;
+            showSuccess("Produto vinculado!");
+            handleOpenLinks(selectedInsumo); // Refresh
+        } catch (error: any) {
+            showError("Erro ao vincular: " + error.message);
+        }
+    };
+
+    const handleUnlinkProduct = async (linkId: string) => {
+        try {
+            const { error } = await supabase.from('produto_insumos').delete().eq('id', linkId);
+            if (error) throw error;
+            showSuccess("Vínculo removido.");
+            if (selectedInsumo) handleOpenLinks(selectedInsumo);
+        } catch (error: any) {
+            showError("Erro ao remover: " + error.message);
+        }
+    };
+
+    const handleLinkType = async (tipoId: string, consumo: number) => {
+        if (!selectedInsumo) return;
+        try {
+            const { error } = await supabase.from('tipo_producao_insumos').insert([{
+                tipo_producao_id: tipoId,
+                insumo_id: selectedInsumo.id,
+                consumo: consumo,
+                user_id: session?.user.id,
+                organization_id: session?.user.user_metadata?.organization_id // Better use profile org id if available
+            }]);
+            if (error) throw error;
+            showSuccess("Tipo vinculado!");
+            handleOpenLinks(selectedInsumo); // Refresh
+        } catch (error: any) {
+            showError("Erro ao vincular: " + error.message);
+        }
+    };
+
+    const handleUnlinkType = async (linkId: string) => {
+        try {
+            const { error } = await supabase.from('tipo_producao_insumos').delete().eq('id', linkId);
+            if (error) throw error;
+            showSuccess("Vínculo removido.");
+            if (selectedInsumo) handleOpenLinks(selectedInsumo);
+        } catch (error: any) {
+            showError("Erro ao remover: " + error.message);
+        }
     };
 
     const handleDeleteClick = (insumo: Insumo) => {
@@ -168,6 +263,7 @@ const Insumos = () => {
                 user_id: session?.user.id,
                 nome: formData.nome,
                 quantidade_atual: Number(formData.quantidade_atual) || 0,
+                quantidade_inicial: Number(formData.quantidade_inicial) || Number(formData.quantidade_atual) || 0,
                 unidade: formData.unidade || 'un',
                 quantidade_minima: Number(formData.quantidade_minima) || 0,
                 custo_unitario: Number(formData.custo_unitario) || 0
@@ -317,11 +413,20 @@ const Insumos = () => {
                                         <CardTitle className="text-lg font-semibold truncate" title={insumo.nome}>
                                             {insumo.nome}
                                         </CardTitle>
-                                        <div className="flex gap-1">
-                                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleOpenEdit(insumo)}>
+                                        <div className="flex gap-1 shrink-0">
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-7 w-7 text-primary hover:bg-primary/10"
+                                                title="Ver Vínculos"
+                                                onClick={() => handleOpenLinks(insumo)}
+                                            >
+                                                <LinkIcon className="h-4 w-4" />
+                                            </Button>
+                                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleOpenEdit(insumo)}>
                                                 <Pencil className="h-3 w-3" />
                                             </Button>
-                                            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:text-destructive" onClick={() => handleDeleteClick(insumo)}>
+                                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDeleteClick(insumo)}>
                                                 <Trash2 className="h-3 w-3" />
                                             </Button>
                                         </div>
@@ -333,14 +438,39 @@ const Insumos = () => {
                                     )}
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="space-y-1">
-                                        <div className="text-3xl font-bold text-primary flex items-end gap-1">
-                                            {insumo.quantidade_atual}
-                                            <span className="text-sm font-normal text-muted-foreground mb-1">{insumo.unidade}</span>
+                                    <div className="space-y-4">
+                                        <div className="flex items-end justify-between">
+                                            <div className="text-3xl font-bold text-primary flex items-end gap-1">
+                                                {insumo.quantidade_atual}
+                                                <span className="text-sm font-normal text-muted-foreground mb-1">{insumo.unidade}</span>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-[10px] uppercase text-muted-foreground font-semibold">Consumo</p>
+                                                <p className="text-sm font-bold text-orange-600">
+                                                    {Math.max(0, (insumo.quantidade_inicial || 0) - insumo.quantidade_atual).toFixed(1)} {insumo.unidade}
+                                                </p>
+                                            </div>
                                         </div>
+
+                                        <div className="space-y-1.5">
+                                            <div className="flex justify-between text-[10px] uppercase text-muted-foreground font-medium">
+                                                <span>Progresso de Uso</span>
+                                                <span>{insumo.quantidade_inicial > 0 ? Math.min(100, Math.round(((insumo.quantidade_inicial - insumo.quantidade_atual) / insumo.quantidade_inicial) * 100)) : 0}%</span>
+                                            </div>
+                                            <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                                                <div
+                                                    className="h-full bg-orange-500 transition-all duration-500"
+                                                    style={{ width: `${insumo.quantidade_inicial > 0 ? Math.min(100, ((insumo.quantidade_inicial - insumo.quantidade_atual) / insumo.quantidade_inicial) * 100) : 0}%` }}
+                                                />
+                                            </div>
+                                        </div>
+
                                         <div className="flex justify-between text-xs text-muted-foreground">
-                                            <span>Mínimo: {insumo.quantidade_minima} {insumo.unidade}</span>
-                                            <span>R$ {insumo.custo_unitario.toFixed(2)} / {insumo.unidade}</span>
+                                            <span className="flex items-center gap-1">
+                                                <Package className="h-3 w-3" />
+                                                Início: {insumo.quantidade_inicial || 0}
+                                            </span>
+                                            <span>Mín: {insumo.quantidade_minima}</span>
                                         </div>
                                     </div>
                                     <div className="mt-4 flex gap-2">
@@ -389,6 +519,16 @@ const Insumos = () => {
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div className="grid gap-2">
+                                <Label htmlFor="qtd_ini">Quantidade Inicial</Label>
+                                <Input
+                                    id="qtd_ini"
+                                    type="number"
+                                    value={formData.quantidade_inicial}
+                                    onChange={e => setFormData({ ...formData, quantidade_inicial: Number(e.target.value) })}
+                                    placeholder="Ex: 50"
+                                />
+                            </div>
+                            <div className="grid gap-2">
                                 <Label htmlFor="qtd">Quantidade Atual</Label>
                                 <Input
                                     id="qtd"
@@ -397,6 +537,8 @@ const Insumos = () => {
                                     onChange={e => setFormData({ ...formData, quantidade_atual: Number(e.target.value) })}
                                 />
                             </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
                             <div className="grid gap-2">
                                 <Label htmlFor="unidade">Unidade de Medida</Label>
                                 <Select
@@ -419,8 +561,6 @@ const Insumos = () => {
                                     </p>
                                 )}
                             </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
                             <div className="grid gap-2">
                                 <Label htmlFor="min">Estoque Mínimo</Label>
                                 <Input
@@ -430,6 +570,8 @@ const Insumos = () => {
                                     onChange={e => setFormData({ ...formData, quantidade_minima: Number(e.target.value) })}
                                 />
                             </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
                             <div className="grid gap-2">
                                 <Label htmlFor="custo">Custo Unitário (R$)</Label>
                                 <Input
@@ -497,6 +639,194 @@ const Insumos = () => {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+            {/* Modal Links */}
+            <Dialog open={isLinksOpen} onOpenChange={setIsLinksOpen}>
+                <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-hidden flex flex-col">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <LinkIcon className="h-5 w-5 text-primary" />
+                            Vínculos do Insumo: {selectedInsumo?.nome}
+                        </DialogTitle>
+                        <DialogDescription>
+                            Gerencie quais produtos ou tipos utilizam este material e qual o consumo.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <Tabs defaultValue="produtos" className="flex-1 flex flex-col overflow-hidden mt-4">
+                        <TabsList className="grid w-full grid-cols-2">
+                            <TabsTrigger value="produtos" className="flex items-center gap-2">
+                                <Package className="h-4 w-4" /> Produtos
+                            </TabsTrigger>
+                            <TabsTrigger value="tipos" className="flex items-center gap-2">
+                                <ExternalLink className="h-4 w-4" /> Categorias (Tipos)
+                            </TabsTrigger>
+                        </TabsList>
+
+                        <div className="flex-1 overflow-y-auto pt-4 pb-2 px-1">
+                            <TabsContent value="produtos" className="m-0 space-y-4">
+                                <div className="bg-muted/30 p-4 rounded-xl border border-primary/20 shadow-sm">
+                                    <h4 className="text-sm font-bold mb-3 flex items-center gap-2">
+                                        <Plus className="h-3 w-3 text-primary" />
+                                        Vincular novo Produto
+                                    </h4>
+                                    <div className="grid grid-cols-12 gap-2">
+                                        <div className="col-span-7">
+                                            <Select value={linkTargetId} onValueChange={setLinkTargetId}>
+                                                <SelectTrigger className="h-10 bg-background border-primary/10">
+                                                    <SelectValue placeholder="Selecione..." />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {allProducts.filter(p => !associatedProducts.some(ap => ap.produto_id === p.id)).map(p => (
+                                                        <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="col-span-3">
+                                            <div className="relative">
+                                                <Input
+                                                    className="h-10 pr-7"
+                                                    placeholder="0.00"
+                                                    value={linkConsumo}
+                                                    onChange={e => setLinkConsumo(e.target.value)}
+                                                />
+                                                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground font-bold uppercase">
+                                                    {selectedInsumo?.unidade}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="col-span-2">
+                                            <Button
+                                                className="w-full h-10 shadow-lg shadow-primary/10"
+                                                disabled={!linkTargetId || !linkConsumo}
+                                                onClick={() => handleLinkProduct(linkTargetId, Number(linkConsumo.replace(',', '.')))}
+                                            >
+                                                <Plus className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <h4 className="text-sm font-semibold">Produtos Vinculados</h4>
+                                    {linksLoading ? (
+                                        <div className="space-y-2">
+                                            <Skeleton className="h-12 w-full" />
+                                            <Skeleton className="h-12 w-full" />
+                                        </div>
+                                    ) : associatedProducts.length > 0 ? (
+                                        associatedProducts.map(link => (
+                                            <div key={link.id} className="flex items-center justify-between p-3 rounded-lg border bg-background group">
+                                                <div className="flex flex-col">
+                                                    <span className="font-medium text-sm">{link.produtos?.nome}</span>
+                                                    <span className="text-xs text-muted-foreground">Consumo: {link.consumo} {selectedInsumo?.unidade}</span>
+                                                </div>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                                                    onClick={() => handleUnlinkProduct(link.id)}
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="text-center py-6 border rounded-lg bg-muted/20 border-dashed">
+                                            <p className="text-xs text-muted-foreground">Nenhum produto vinculado ainda.</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </TabsContent>
+
+                            <TabsContent value="tipos" className="m-0 space-y-4">
+                                <div className="bg-muted/30 p-4 rounded-xl border border-primary/20 shadow-sm">
+                                    <h4 className="text-sm font-bold mb-3 flex items-center gap-2">
+                                        <Plus className="h-3 w-3 text-primary" />
+                                        Vincular nova Categoria
+                                    </h4>
+                                    <div className="grid grid-cols-12 gap-2">
+                                        <div className="col-span-7">
+                                            <Select value={linkTargetId} onValueChange={setLinkTargetId}>
+                                                <SelectTrigger className="h-10 bg-background border-primary/10">
+                                                    <SelectValue placeholder="Selecione..." />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {allTypes.filter(t => !associatedTypes.some(at => at.tipo_producao_id === t.id)).map(t => (
+                                                        <SelectItem key={t.id} value={t.id}>{t.nome}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="col-span-3">
+                                            <div className="relative">
+                                                <Input
+                                                    className="h-10 pr-7"
+                                                    placeholder="0.00"
+                                                    value={linkConsumo}
+                                                    onChange={e => setLinkConsumo(e.target.value)}
+                                                />
+                                                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground font-bold uppercase">
+                                                    {selectedInsumo?.unidade}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="col-span-2">
+                                            <Button
+                                                className="w-full h-10 shadow-lg shadow-primary/10"
+                                                disabled={!linkTargetId || !linkConsumo}
+                                                onClick={() => handleLinkType(linkTargetId, Number(linkConsumo.replace(',', '.')))}
+                                            >
+                                                <Plus className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    </div>
+                                    <p className="text-[10px] text-muted-foreground mt-3 italic bg-primary/5 p-2 rounded border border-primary/10">
+                                        💡 Insumos vinculados aqui serão descontados de <b>todos</b> os produtos do tipo selecionado.
+                                    </p>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <h4 className="text-sm font-semibold">Categorias Vinculadas</h4>
+                                    {linksLoading ? (
+                                        <div className="space-y-2">
+                                            <Skeleton className="h-12 w-full" />
+                                            <Skeleton className="h-12 w-full" />
+                                        </div>
+                                    ) : associatedTypes.length > 0 ? (
+                                        associatedTypes.map(link => (
+                                            <div key={link.id} className="flex items-center justify-between p-3 rounded-lg border bg-background group">
+                                                <div className="flex flex-col">
+                                                    <span className="font-medium text-sm">{link.tipos_producao?.nome}</span>
+                                                    <span className="text-xs text-muted-foreground">Consumo Base: {link.consumo} {selectedInsumo?.unidade}</span>
+                                                </div>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                                                    onClick={() => handleUnlinkType(link.id)}
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="text-center py-6 border rounded-lg bg-muted/20 border-dashed">
+                                            <p className="text-xs text-muted-foreground">Nenhum tipo vinculado ainda.</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </TabsContent>
+                        </div>
+                    </Tabs>
+
+                    <DialogFooter className="mt-4 pt-4 border-t">
+                        <Button variant="outline" onClick={() => setIsLinksOpen(false)} className="w-full">
+                            Fechar
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 };

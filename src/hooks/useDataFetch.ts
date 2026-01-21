@@ -65,11 +65,14 @@ export const useClientes = () => {
 };
 
 // --- Fetch Produtos ---
-const fetchProdutos = async (token: string): Promise<Produto[]> => {
+const fetchProdutos = async (token: string, userId?: string): Promise<Produto[]> => {
   const params = new URLSearchParams({
     select: "*,produto_insumos(*,insumos(nome,unidade))",
     order: "created_at.desc",
   });
+  if (userId) {
+    params.append("user_id", `eq.${userId}`);
+  }
   return fetchTable<Produto>(token, "produtos", params);
 };
 
@@ -85,7 +88,7 @@ export const useProdutos = () => {
       if (!accessToken) {
         throw new Error("Access token missing.");
       }
-      return fetchProdutos(accessToken);
+      return fetchProdutos(accessToken, session?.user?.id);
     },
     enabled: isEnabled,
     staleTime: 0,
@@ -571,12 +574,14 @@ export const usePedidos = () => {
 };
 
 // --- Fetch Tipos de Producao ---
-const fetchTiposProducao = async (token: string): Promise<TipoProducao[]> => {
+const fetchTiposProducao = async (token: string, userId?: string): Promise<TipoProducao[]> => {
   const params = new URLSearchParams({
-    select: "*",
-    is_active: "eq.true",
+    select: "*,tipo_producao_insumos(*,insumos(nome,unidade))",
     order: "order_index.asc,nome.asc",
   });
+  if (userId) {
+    params.append("user_id", `eq.${userId}`);
+  }
   return fetchTable<TipoProducao>(token, "tipos_producao", params);
 };
 
@@ -587,12 +592,12 @@ export const useTiposProducao = () => {
   const isEnabled = !sessionLoading && !!accessToken;
 
   return useQuery<TipoProducao[]>({
-    queryKey: ["tipos_producao"],
+    queryKey: ["tipos_producao", session?.user?.id],
     queryFn: () => {
       if (!accessToken) {
         throw new Error("Access token missing.");
       }
-      return fetchTiposProducao(accessToken);
+      return fetchTiposProducao(accessToken, session?.user?.id);
     },
     enabled: isEnabled,
     staleTime: 5 * 60 * 1000,
@@ -672,6 +677,51 @@ export const useDeleteTipoProducao = () => {
         .delete()
         .eq("id", id);
 
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tipos_producao"] });
+    },
+  });
+};
+
+export const useAddTipoProducaoInsumo = () => {
+  const queryClient = useQueryClient();
+  const { supabase, session, profile } = useSession();
+
+  return useMutation({
+    mutationFn: async (newLink: { tipo_producao_id: string; insumo_id: string; consumo: number }) => {
+      if (!supabase || !session?.user?.id) throw new Error("Não autenticado");
+
+      const { data, error } = await supabase
+        .from("tipo_producao_insumos")
+        .insert([{
+          ...newLink,
+          user_id: session.user.id,
+          organization_id: profile?.organization_id
+        }])
+        .select();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tipos_producao"] });
+    },
+  });
+};
+
+export const useDeleteTipoProducaoInsumo = () => {
+  const queryClient = useQueryClient();
+  const { supabase } = useSession();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      if (!supabase) throw new Error("Supabase não disponível");
+      const { error } = await supabase
+        .from("tipo_producao_insumos")
+        .delete()
+        .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -819,11 +869,14 @@ export const useIncrementServiceUsage = () => {
 };
 
 // --- Fetch Insumos ---
-const fetchInsumos = async (token: string): Promise<Insumo[]> => {
+const fetchInsumos = async (token: string, userId?: string): Promise<Insumo[]> => {
   const params = new URLSearchParams({
     select: "*",
     order: "nome.asc",
   });
+  if (userId) {
+    params.append("user_id", `eq.${userId}`);
+  }
   return fetchTable<Insumo>(token, "insumos", params);
 };
 
@@ -836,7 +889,7 @@ export const useInsumos = () => {
     queryKey: ["insumos"],
     queryFn: () => {
       if (!accessToken) throw new Error("Access token missing.");
-      return fetchInsumos(accessToken);
+      return fetchInsumos(accessToken, session?.user?.id);
     },
     enabled: isEnabled,
     staleTime: 5 * 60 * 1000,
@@ -869,32 +922,94 @@ export const deductInsumosFromPedido = async (pedido: Pedido) => {
   try {
     console.log(`[Inventory] Iniciando abate de insumos para pedido #${pedido.order_number}`);
 
-    // Garantir que temos itens
     const items = pedido.pedido_items || [];
     if (items.length === 0) return;
 
     for (const item of items) {
-      // Buscar insumos vinculados ao produto
-      const { data: produtoData, error: pError } = await supabase
-        .from('produtos')
-        .select(`
-          id,
-          produto_insumos (
-            insumo_id,
-            consumo
-          )
-        `)
-        .eq('id', item.produto_id)
-        .single();
+      const temp_insumos: { insumo_id: string; consumo: number }[] = [];
+      let resolvedTipo = item.tipo;
 
-      if (pError || !produtoData) continue;
+      // 1. Tentar buscar insumos diretos se houver produto_id
+      if (item.produto_id) {
+        const { data: produtoData } = await supabase
+          .from('produtos')
+          .select(`
+            id,
+            tipo,
+            user_id,
+            produto_insumos (
+              insumo_id,
+              consumo
+            )
+          `)
+          .eq('id', item.produto_id)
+          .single();
 
-      const produto_insumos = (produtoData as any).produto_insumos || [];
+        if (produtoData) {
+          const direct_insumos = (produtoData as any).produto_insumos || [];
+          temp_insumos.push(...direct_insumos);
+          if (produtoData.tipo) resolvedTipo = produtoData.tipo;
+        }
+      }
 
-      for (const pi of produto_insumos) {
+      // 2. Buscar insumos baseados no tipo de produção (independente de ter produto_id ou não)
+      if (resolvedTipo) {
+        console.log(`[Inventory] Item ${item.produto_nome}: Resolvido tipo "${resolvedTipo}". Buscando configurações...`);
+
+        let query = supabase
+          .from('tipos_producao')
+          .select('id')
+          .ilike('nome', resolvedTipo)
+          .eq('is_active', true);
+
+        // Se o pedido tem organização, busca nela. Se não, busca pelo usuário do pedido.
+        if (pedido.organization_id) {
+          query = query.eq('organization_id', pedido.organization_id);
+        } else {
+          query = query.eq('user_id', pedido.user_id);
+        }
+
+        const { data: tipoData, error: tError } = await query.maybeSingle();
+
+        if (tError) {
+          console.error(`[Inventory] Erro ao buscar tipo ${resolvedTipo}:`, tError);
+        }
+
+        if (tipoData) {
+          console.log(`[Inventory] Tipo "${resolvedTipo}" encontrado (ID: ${tipoData.id}). Buscando insumos globais...`);
+          const { data: type_insumos } = await supabase
+            .from('tipo_producao_insumos')
+            .select('insumo_id, consumo')
+            .eq('tipo_producao_id', tipoData.id);
+
+          if (type_insumos && type_insumos.length > 0) {
+            console.log(`[Inventory] Encontrados ${type_insumos.length} insumos globais para ${resolvedTipo}.`);
+            temp_insumos.push(...type_insumos);
+          } else {
+            console.log(`[Inventory] Nenhum insumo global configurado para o tipo ${resolvedTipo}.`);
+          }
+        } else {
+          console.warn(`[Inventory] Tipo de produção "${resolvedTipo}" não encontrado para este usuário/organização.`);
+        }
+      }
+
+      if (temp_insumos.length === 0) continue;
+
+      // Agrupar insumos repetidos
+      const grouped_insumos = temp_insumos.reduce((acc, curr) => {
+        const existing = acc.find(i => i.insumo_id === curr.insumo_id);
+        if (existing) {
+          existing.consumo += Number(curr.consumo);
+        } else {
+          acc.push({ ...curr, consumo: Number(curr.consumo) });
+        }
+        return acc;
+      }, [] as { insumo_id: string; consumo: number }[]);
+
+      // 3. Processar deduções
+      for (const pi of grouped_insumos) {
         if (!pi.insumo_id || !pi.consumo) continue;
 
-        // Buscar quantidade atual
         const { data: insumo, error: iError } = await supabase
           .from('insumos')
           .select('id, nome, quantidade_atual')
@@ -903,7 +1018,7 @@ export const deductInsumosFromPedido = async (pedido: Pedido) => {
 
         if (iError || !insumo) continue;
 
-        const totalConsumo = pi.consumo * item.quantidade;
+        const totalConsumo = Number(pi.consumo) * Number(item.quantidade);
         const novaQuantidade = (insumo.quantidade_atual || 0) - totalConsumo;
 
         await supabase
@@ -911,7 +1026,7 @@ export const deductInsumosFromPedido = async (pedido: Pedido) => {
           .update({ quantidade_atual: novaQuantidade })
           .eq('id', insumo.id);
 
-        console.log(`[Inventory] Deduzido ${totalConsumo} de ${insumo.nome}. Novo saldo: ${novaQuantidade}`);
+        console.log(`[Inventory] Item: ${item.produto_nome} | Deduzido ${totalConsumo.toFixed(4)} de ${insumo.nome}`);
       }
     }
     console.log('✅ [Inventory] Abate concluído.');
@@ -934,23 +1049,75 @@ export const restoreInsumosFromPedido = async (pedido: Pedido) => {
     if (items.length === 0) return;
 
     for (const item of items) {
-      const { data: produtoData, error: pError } = await supabase
-        .from('produtos')
-        .select(`
-          id,
-          produto_insumos (
-            insumo_id,
-            consumo
-          )
-        `)
-        .eq('id', item.produto_id)
-        .single();
+      const temp_insumos: { insumo_id: string; consumo: number }[] = [];
+      let resolvedTipo = item.tipo;
 
-      if (pError || !produtoData) continue;
+      // 1. Tentar buscar insumos diretos 
+      if (item.produto_id) {
+        const { data: produtoData } = await supabase
+          .from('produtos')
+          .select(`
+            id,
+            tipo,
+            user_id,
+            produto_insumos (
+              insumo_id,
+              consumo
+            )
+          `)
+          .eq('id', item.produto_id)
+          .single();
 
-      const produto_insumos = (produtoData as any).produto_insumos || [];
+        if (produtoData) {
+          const direct_insumos = (produtoData as any).produto_insumos || [];
+          temp_insumos.push(...direct_insumos);
+          if (produtoData.tipo) resolvedTipo = produtoData.tipo;
+        }
+      }
 
-      for (const pi of produto_insumos) {
+      // 2. Buscar insumos baseados no tipo de produção
+      if (resolvedTipo) {
+        let query = supabase
+          .from('tipos_producao')
+          .select('id')
+          .ilike('nome', resolvedTipo)
+          .eq('is_active', true);
+
+        if (pedido.organization_id) {
+          query = query.eq('organization_id', pedido.organization_id);
+        } else {
+          query = query.eq('user_id', pedido.user_id);
+        }
+
+        const { data: tipoData } = await query.maybeSingle();
+
+        if (tipoData) {
+          const { data: type_insumos } = await supabase
+            .from('tipo_producao_insumos')
+            .select('insumo_id, consumo')
+            .eq('tipo_producao_id', tipoData.id);
+
+          if (type_insumos) {
+            temp_insumos.push(...type_insumos);
+          }
+        }
+      }
+
+      if (temp_insumos.length === 0) continue;
+
+      // Agrupar insumos repetidos
+      const grouped_insumos = temp_insumos.reduce((acc, curr) => {
+        const existing = acc.find(i => i.insumo_id === curr.insumo_id);
+        if (existing) {
+          existing.consumo += Number(curr.consumo);
+        } else {
+          acc.push({ ...curr, consumo: Number(curr.consumo) });
+        }
+        return acc;
+      }, [] as { insumo_id: string; consumo: number }[]);
+
+      // 3. Processar restaurações
+      for (const pi of grouped_insumos) {
         if (!pi.insumo_id || !pi.consumo) continue;
 
         const { data: insumo, error: iError } = await supabase
@@ -961,7 +1128,7 @@ export const restoreInsumosFromPedido = async (pedido: Pedido) => {
 
         if (iError || !insumo) continue;
 
-        const totalRestauro = pi.consumo * item.quantidade;
+        const totalRestauro = Number(pi.consumo) * Number(item.quantidade);
         const novaQuantidade = (insumo.quantidade_atual || 0) + totalRestauro;
 
         await supabase
@@ -969,7 +1136,7 @@ export const restoreInsumosFromPedido = async (pedido: Pedido) => {
           .update({ quantidade_atual: novaQuantidade })
           .eq('id', insumo.id);
 
-        console.log(`[Inventory] Restaurado ${totalRestauro} de ${insumo.nome}. Novo saldo: ${novaQuantidade}`);
+        console.log(`[Inventory] Estorno: ${item.produto_nome} | Restaurado ${totalRestauro.toFixed(4)} de ${insumo.nome}`);
       }
     }
     console.log('✅ [Inventory] Restauração concluída.');

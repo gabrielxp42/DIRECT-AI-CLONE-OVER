@@ -305,10 +305,10 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
 
       if (!wasConsuming && isNowConsuming) {
         console.log(`[Inventory] Status mudou para ${newStatus}. Deduzindo estoque...`);
-        deductInsumosFromPedido(pedido);
+        await deductInsumosFromPedido(pedido);
       } else if (wasConsuming && !isNowConsuming) {
         console.log(`[Inventory] Status mudou para ${newStatus}. Restaurando estoque...`);
-        restoreInsumosFromPedido(pedido);
+        await restoreInsumosFromPedido(pedido);
       }
 
       // Se houver observação, adicionar ao histórico

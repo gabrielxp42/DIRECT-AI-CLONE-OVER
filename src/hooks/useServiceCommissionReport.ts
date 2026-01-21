@@ -37,7 +37,8 @@ const fetchCommissionReport = async (
   startDate: string,
   endDate: string,
   excludedNames: string[],
-  requiredStatus: PedidoStatus[] | 'all'
+  requiredStatus: PedidoStatus[] | 'all',
+  userId?: string
 ): Promise<CommissionReport> => {
 
   const accessToken = await getValidToken();
@@ -61,6 +62,10 @@ const fetchCommissionReport = async (
   // Filtros na tabela relacionada pedidos
   queryParams.append('pedidos.created_at', `gte.${startDate}`);
   queryParams.append('pedidos.created_at', `lte.${endDate}`);
+
+  if (userId) {
+    queryParams.append('pedidos.user_id', `eq.${userId}`);
+  }
 
   // Aplicar filtro de status se não for 'all'
   if (requiredStatus !== 'all' && requiredStatus.length > 0) {
@@ -160,9 +165,9 @@ export const useServiceCommissionReport = (
   const isEnabled = !sessionLoading && !!accessToken && !!startDate && !!endDate;
 
   return useQuery<CommissionReport>({
-    queryKey: ["service-commission-report", startISO, endISO, statusKey, excludedNames],
+    queryKey: ["service-commission-report", startISO, endISO, statusKey, excludedNames, session?.user?.id],
     queryFn: () => {
-      return fetchCommissionReport(startISO, endISO, excludedNames, requiredStatus);
+      return fetchCommissionReport(startISO, endISO, excludedNames, requiredStatus, session?.user?.id);
     },
     enabled: isEnabled, // Aguardar sessão carregar antes de executar
     staleTime: 0, // Sempre considerar stale para forçar refetch

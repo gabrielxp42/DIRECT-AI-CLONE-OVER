@@ -1,8 +1,9 @@
 export interface Insumo {
     id: string;
-    user_id: string; // Adicionado para consistência
+    user_id: string;
     nome: string;
     quantidade_atual: number;
+    quantidade_inicial: number;
     unidade: string;
     quantidade_minima: number;
     custo_unitario: number;

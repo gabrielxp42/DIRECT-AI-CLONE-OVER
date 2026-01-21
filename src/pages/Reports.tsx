@@ -75,7 +75,7 @@ import { fetchReportData, SalesReport } from "@/utils/reportUtils";
 import { ReportsGabiInsight } from "@/components/ReportsGabiInsight";
 
 const Reports: React.FC = () => {
-  const { session, isLoading: sessionLoading } = useSession();
+  const { session, isLoading: sessionLoading, organizationId } = useSession();
   const accessToken = session?.access_token;
   const [selectedPeriod, setSelectedPeriod] = useState("month");
   const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>(undefined); // Usar DateRange | undefined
@@ -98,7 +98,15 @@ const Reports: React.FC = () => {
       if (!accessToken) {
         throw new Error("Sem token de acesso para fetch.");
       }
-      return fetchReportData(accessToken, selectedPeriod, customDateRange, chartView, selectedYear);
+      return fetchReportData(
+        accessToken,
+        selectedPeriod,
+        customDateRange,
+        chartView,
+        selectedYear,
+        session?.user?.id,
+        organizationId
+      );
     },
     enabled: isEnabled, // Aguardar sessão carregar antes de executar
     staleTime: 0, // Sempre considerar stale para forçar refetch

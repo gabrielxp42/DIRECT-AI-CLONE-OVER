@@ -6,7 +6,7 @@ import { Cliente } from '@/types/cliente';
 import { Produto } from '@/types/produto';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Plus, Search, Filter, Eye, Edit, Trash2, Loader2, CalendarIcon, DollarSign, FileText, Scissors, History, MessageSquare, MoreHorizontal, User, Clock, CheckCircle, XCircle, Package, X, Printer, Ruler, PackageOpen, Wrench, Users, Activity, CheckSquare, ChevronDown, Sparkles, ScrollText, Calculator } from 'lucide-react';
+import { Plus, Search, Filter, Eye, Edit, Trash2, Loader2, CalendarIcon, DollarSign, FileText, Scissors, History, MessageSquare, MoreHorizontal, User, Clock, CheckCircle, XCircle, Package, X, Printer, Ruler, PackageOpen, Wrench, Users, Activity, CheckSquare, ChevronDown, Sparkles, ScrollText, Calculator, Bike } from 'lucide-react';
 import { PedidoForm } from '@/components/PedidoForm';
 import { DTFCalculatorModal } from '@/components/DTFCalculatorModal';
 import { PedidoDetails } from '@/components/PedidoDetails';
@@ -128,8 +128,12 @@ const generateOrderSummary = (pedido: Pedido) => {
   }
 
   summary += `*TOTAL: ${formatCurrency(pedido.valor_total)}*\n`;
-  summary += `Status: ${statusText}\n\n`;
-  summary += `*** AGRADECEMOS A PREFERÊNCIA ***`;
+  summary += `Status: ${statusText}\n`;
+  summary += `Entrega: ${pedido.tipo_entrega === 'retirada' ? 'RETIRADA' : 'FRETE'}\n`;
+  if (pedido.tipo_entrega === 'frete' && pedido.valor_frete && pedido.valor_frete > 0) {
+    summary += `Valor do Frete: ${formatCurrency(pedido.valor_frete)}\n`;
+  }
+  summary += `\n*** AGRADECEMOS A PREFERÊNCIA ***`;
 
   return summary;
 };
@@ -581,15 +585,26 @@ const PedidosPage: React.FC = () => {
       };
 
       if (pedidoId) {
-        // Update existing pedido
-        const isNowPago = (editingPedido?.status || 'pendente') !== 'pago' && data.status === 'pago';
-        const wasPago = (editingPedido?.status || 'pendente') === 'pago' && data.status !== 'pago';
+        // --- Lógica de Inventário para Edição (Opção B) ---
+        // 1. Identificar se o estado antigo e o novo estado consomem estoque
+        const oldStatus = editingPedido?.status || 'pendente';
+        const newStatus = oldStatus; // Atualmente o formulário não permite mudar status, mas mantemos a variável para clareza
 
+        const wasConsuming = isInventoryConsumingStatus(oldStatus);
+        const isNowConsuming = isInventoryConsumingStatus(newStatus);
+
+        // 2. Se o pedido JÁ consumia estoque, restauramos TUDO antes da edição
+        if (wasConsuming && editingPedido) {
+          console.log(`[Inventory] Estornando estoque pré-edição para pedido #${editingPedido.order_number}...`);
+          await restoreInsumosFromPedido(editingPedido);
+        }
+
+        // 3. Atualizar o pedido no Banco de Dados
         const updateData = {
           ...pedidoData,
           created_at,
-          status: editingPedido?.status || 'pendente',
-          pago_at: isNowPago ? new Date().toISOString() : (wasPago ? null : editingPedido?.pago_at)
+          status: newStatus,
+          pago_at: editingPedido?.pago_at
         };
 
         const updateUrl = `${SUPABASE_URL}/rest/v1/pedidos?id=eq.${pedidoId}`;
@@ -604,14 +619,7 @@ const PedidosPage: React.FC = () => {
           throw new Error(`Erro ao atualizar pedido: ${updateResponse.status} ${updateResponse.statusText} - ${errorText}`);
         }
 
-        // --- Lógica de Inventário para Edição ---
-        const isConsuming = editingPedido ? isInventoryConsumingStatus(editingPedido.status) : false;
-        if (isConsuming && editingPedido) {
-          console.log(`[Inventory] Editando pedido #${editingPedido.order_number} que consome estoque. Restaurando insumos antigos...`);
-          await restoreInsumosFromPedido(editingPedido);
-        }
-
-        // Handle items: delete old, insert new
+        // 4. Atualizar os itens (Deletar antigos, Inserir novos)
         const deleteItemsUrl = `${SUPABASE_URL}/rest/v1/pedido_items?pedido_id=eq.${pedidoId}`;
         await fetch(deleteItemsUrl, { method: 'DELETE', headers });
 
@@ -623,17 +631,19 @@ const PedidosPage: React.FC = () => {
             headers,
             body: JSON.stringify(itemsToInsert)
           });
+
           if (!itemsResponse.ok) {
             const errorText = await itemsResponse.text();
-            throw new Error(`Erro ao inserir itens: ${itemsResponse.status} ${itemsResponse.statusText} - ${errorText}`);
+            throw new Error(`Erro ao inserir novos itens: ${itemsResponse.statusText}`);
           }
 
-          // Se o pedido consome estoque, deduzir com base nos NOVOS itens
-          if (isConsuming && editingPedido) {
-            console.log(`[Inventory] Pedido #${editingPedido.order_number} atualizado. Deduzindo estoque dos novos itens...`);
+          // 5. Se o novo estado (pós-edição) consome estoque, deduzimos os NOVOS valores
+          if (isNowConsuming && editingPedido) {
+            console.log(`[Inventory] Re-deduzindo estoque com novos itens para pedido #${editingPedido.order_number}...`);
             await deductInsumosFromPedido({
               ...editingPedido,
-              pedido_items: items
+              status: newStatus,
+              pedido_items: items // Usar os itens atualizados vindos do formulário
             } as Pedido);
           }
         }
@@ -1194,6 +1204,16 @@ const PedidosPage: React.FC = () => {
                     <DollarSign className="h-4 w-4 mr-2 text-primary" />
                     <span>Total: {formatCurrency(pedido.valor_total)}</span>
                   </div>
+
+                  {/* Tipo de Entrega */}
+                  {pedido.tipo_entrega === 'retirada' && (
+                    <div className="flex items-center text-xs font-semibold">
+                      <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200 gap-1 py-0 px-2 h-6">
+                        <Package className="h-3 w-3" />
+                        RETIRADA
+                      </Badge>
+                    </div>
+                  )}
 
                   {/* Exibição Detalhada da Produção (Dinâmica) */}
                   {pedido.pedido_items && pedido.pedido_items.length > 0 && (

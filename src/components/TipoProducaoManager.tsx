@@ -26,20 +26,25 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { useTiposProducao, useAddTipoProducao, useUpdateTipoProducao, useDeleteTipoProducao } from "@/hooks/useDataFetch";
-import { TipoProducao } from "@/types/producao";
+import { useTiposProducao, useAddTipoProducao, useUpdateTipoProducao, useDeleteTipoProducao, useInsumos, useAddTipoProducaoInsumo, useDeleteTipoProducaoInsumo } from "@/hooks/useDataFetch";
+import { TipoProducao, TipoProducaoInsumo } from "@/types/producao";
 import { showSuccess, showError } from "@/utils/toast";
 import { cn } from "@/lib/utils";
-import { Loader2 } from "lucide-react";
+import { Loader2, ScrollText } from "lucide-react";
 
 export const TipoProducaoManager = () => {
     const { data: tipos, isLoading } = useTiposProducao();
+    const { data: insumos } = useInsumos();
     const addMutation = useAddTipoProducao();
     const updateMutation = useUpdateTipoProducao();
     const deleteMutation = useDeleteTipoProducao();
+    const addLinkMutation = useAddTipoProducaoInsumo();
+    const deleteLinkMutation = useDeleteTipoProducaoInsumo();
 
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingTipo, setEditingTipo] = useState<Partial<TipoProducao> | null>(null);
+    const [selectedInsumoId, setSelectedInsumoId] = useState("");
+    const [consumoValue, setConsumoValue] = useState("");
 
     const handleOpenAdd = () => {
         setEditingTipo({
@@ -54,6 +59,39 @@ export const TipoProducaoManager = () => {
     const handleOpenEdit = (tipo: TipoProducao) => {
         setEditingTipo(tipo);
         setIsDialogOpen(true);
+        setSelectedInsumoId("");
+        setConsumoValue("");
+    };
+
+    const handleAddLink = async () => {
+        if (!editingTipo?.id || !selectedInsumoId || !consumoValue) {
+            showError("Selecione um insumo e informe o consumo");
+            return;
+        }
+
+        try {
+            await addLinkMutation.mutateAsync({
+                tipo_producao_id: editingTipo.id,
+                insumo_id: selectedInsumoId,
+                consumo: Number(consumoValue.replace(',', '.')),
+            });
+            setSelectedInsumoId("");
+            setConsumoValue("");
+            showSuccess("Insumo vinculado com sucesso");
+        } catch (error: any) {
+            showError("Erro ao vincular: " + error.message);
+        }
+    };
+
+    const handleDeleteLink = async (linkId: string) => {
+        if (confirm("Deseja remover este vínculo?")) {
+            try {
+                await deleteLinkMutation.mutateAsync(linkId);
+                showSuccess("Vínculo removido");
+            } catch (error: any) {
+                showError("Erro ao remover: " + error.message);
+            }
+        }
     };
 
     const handleSave = async () => {
@@ -111,7 +149,7 @@ export const TipoProducaoManager = () => {
         <div className="space-y-4">
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-xl font-semibold">Tipos de Produção</h2>
+                    <h2 className="text-xl font-semibold">Tipos de Produtos</h2>
                     <p className="text-sm text-muted-foreground">
                         Configure as categorias de produtos e suas unidades de medida.
                     </p>
@@ -256,6 +294,88 @@ export const TipoProducaoManager = () => {
                             />
                             <Label htmlFor="active">Categoria Ativa</Label>
                         </div>
+
+                        {editingTipo?.id && (
+                            <div className="space-y-4 border rounded-xl p-5 bg-muted/20 border-primary/10 shadow-inner mt-4">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <h3 className="text-sm font-bold flex items-center gap-2">
+                                            <ScrollText className="h-4 w-4 text-primary" />
+                                            Insumos Globais (Base de Cálculo)
+                                        </h3>
+                                        <p className="text-[10px] text-muted-foreground">Estes itens serão descontados de todos os produtos desta categoria.</p>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-12 gap-2 bg-background/50 p-3 rounded-lg border border-dashed border-primary/20">
+                                    <div className="col-span-6">
+                                        <Label className="text-[10px] uppercase font-bold text-muted-foreground mb-1 block">Escolher Insumo</Label>
+                                        <Select value={selectedInsumoId} onValueChange={setSelectedInsumoId}>
+                                            <SelectTrigger className="h-9 bg-background">
+                                                <SelectValue placeholder="Selecione..." />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {insumos?.filter(i => !editingTipo.tipo_producao_insumos?.some(link => link.insumo_id === i.id)).map(i => (
+                                                    <SelectItem key={i.id} value={i.id}>{i.nome}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="col-span-4">
+                                        <Label className="text-[10px] uppercase font-bold text-muted-foreground mb-1 block">Consumo base</Label>
+                                        <div className="relative">
+                                            <Input
+                                                className="h-9 pr-8"
+                                                placeholder="0.00"
+                                                value={consumoValue}
+                                                onChange={e => setConsumoValue(e.target.value)}
+                                            />
+                                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] text-muted-foreground font-bold">
+                                                {insumos?.find(i => i.id === selectedInsumoId)?.unidade || ''}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="col-span-2 flex items-end">
+                                        <Button
+                                            type="button"
+                                            className="w-full h-9 shadow-md shadow-primary/5"
+                                            onClick={handleAddLink}
+                                            disabled={addLinkMutation.isPending || !selectedInsumoId || !consumoValue}
+                                        >
+                                            {addLinkMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                                        </Button>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2 max-h-[150px] overflow-y-auto pr-1">
+                                    {!editingTipo.tipo_producao_insumos || editingTipo.tipo_producao_insumos.length === 0 ? (
+                                        <div className="text-center py-4 border rounded-lg bg-background/30 border-dashed">
+                                            <p className="text-xs text-muted-foreground">Nenhum insumo global configurado.</p>
+                                        </div>
+                                    ) : (
+                                        editingTipo.tipo_producao_insumos.map(link => (
+                                            <div key={link.id} className="flex items-center justify-between p-2.5 rounded-lg border bg-background group animate-in fade-in slide-in-from-top-1">
+                                                <div className="flex flex-col">
+                                                    <span className="font-semibold text-sm">{link.insumos?.nome}</span>
+                                                    <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
+                                                        Consumo: <span className="text-primary">{link.consumo} {link.insumos?.unidade}</span>
+                                                    </span>
+                                                </div>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-8 w-8 text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                    onClick={() => handleDeleteLink(link.id)}
+                                                    disabled={deleteLinkMutation.isPending}
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>

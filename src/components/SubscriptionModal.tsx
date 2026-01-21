@@ -233,6 +233,12 @@ export const SubscriptionModal = ({ open, onOpenChange }: SubscriptionModalProps
         expiry: '',
         cvv: ''
     });
+    const [clientInfo, setClientInfo] = useState({
+        cpfCnpj: '',
+        postalCode: '',
+        addressNumber: '',
+        phone: ''
+    });
 
     React.useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -287,10 +293,10 @@ export const SubscriptionModal = ({ open, onOpenChange }: SubscriptionModalProps
                     creditCardHolderInfo: currentMethod === 'CREDIT_CARD' ? {
                         name: cardData.holderName,
                         email: session.user.email,
-                        cpfCnpj: '00000000000', // Será substituído pelo gerado no backend para Sandbox
-                        postalCode: '00000000',
-                        addressNumber: '0',
-                        phone: '00000000000'
+                        cpfCnpj: clientInfo.cpfCnpj.replace(/\D/g, ''),
+                        postalCode: clientInfo.postalCode.replace(/\D/g, ''),
+                        addressNumber: clientInfo.addressNumber,
+                        phone: clientInfo.phone.replace(/\D/g, '')
                     } : undefined
                 })
             });
@@ -307,24 +313,15 @@ export const SubscriptionModal = ({ open, onOpenChange }: SubscriptionModalProps
                         throw new Error("Dados do PIX não foram gerados corretamente.");
                     }
                 } else {
-                    // Cartão ou Link direto
-                    if (data.url) {
-                        setPaymentData(data);
-                        // Se for cartão com URL de redirecionamento (caso o direto falhe), ou se for link
-                        if (currentMethod === 'CREDIT_CARD') {
-                            // Lógica de sucesso do cartão (já redireciona ou mostra sucesso)
-                            setIsSuccess(true);
-                        } else {
-                            setCheckoutStep('checkout');
-                        }
-                    } else {
-                        // Se for sucesso de cartão sem URL (processamento direto 100%), apenas sucesso
-                        if (currentMethod === 'CREDIT_CARD') {
-                            setPaymentData(data); // Salva o ID da assinatura para verificação futura
-                            setIsSuccess(true);
-                        } else {
-                            throw new Error("URL de pagamento não retornada.");
-                        }
+                    // Cartão: Pode vir com URL ou ser processado diretamente (success: true)
+                    setPaymentData(data);
+                    if (currentMethod === 'CREDIT_CARD') {
+                        setIsSuccess(true);
+                        // Força verificação após sucesso visual
+                        setTimeout(() => handleVerifyPayment(), 1000);
+                    } else if (data.url) {
+                        // Outros métodos que usam link
+                        window.location.href = data.url;
                     }
                 }
             } else {
@@ -360,7 +357,7 @@ export const SubscriptionModal = ({ open, onOpenChange }: SubscriptionModalProps
             const data = await response.json();
             toast.dismiss('verify-loader');
 
-            if (data.success && data.status === 'ACTIVE') {
+            if (data.success && (data.status === 'ACTIVE' || data.status === 'RECEIVED' || data.status === 'CONFIRMED')) {
                 toast.success("Pagamento Confirmado! Bem-vindo à Elite.");
                 // Recarrega para atualizar o status do usuário globalmente
                 window.location.reload();
@@ -384,6 +381,27 @@ export const SubscriptionModal = ({ open, onOpenChange }: SubscriptionModalProps
     const formatExpiry = (value: string) => {
         const v = value.replace(/\D/g, '').substring(0, 4);
         if (v.length >= 3) return `${v.substring(0, 2)}/${v.substring(2, 4)}`;
+        return v;
+    };
+
+    const formatCPF = (value: string) => {
+        const v = value.replace(/\D/g, '').substring(0, 11);
+        if (v.length > 9) return v.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+        if (v.length > 6) return v.replace(/(\d{3})(\d{3})(\d{0,3})/, "$1.$2.$3");
+        if (v.length > 3) return v.replace(/(\d{3})(\d{0,3})/, "$1.$2");
+        return v;
+    };
+
+    const formatZIP = (value: string) => {
+        const v = value.replace(/\D/g, '').substring(0, 8);
+        if (v.length > 5) return v.replace(/(\d{5})(\d{0,3})/, "$1-$2");
+        return v;
+    };
+
+    const formatPhone = (value: string) => {
+        const v = value.replace(/\D/g, '').substring(0, 11);
+        if (v.length > 6) return v.replace(/(\d{2})(\d{5})(\d{4})/, "($1) $2-$3");
+        if (v.length > 2) return v.replace(/(\d{2})(\d{0,5})/, "($1) $2");
         return v;
     };
 
@@ -652,7 +670,7 @@ export const SubscriptionModal = ({ open, onOpenChange }: SubscriptionModalProps
                                                         <input
                                                             type="text"
                                                             placeholder="NOME IGUAL NO CARTÃO"
-                                                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-[#FFF200] focus:ring-1 focus:ring-[#FFF200] outline-none transition-all uppercase"
+                                                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/30 focus:border-[#FFF200] focus:ring-1 focus:ring-[#FFF200] outline-none transition-all uppercase"
                                                             value={cardData.holderName}
                                                             onChange={e => setCardData({ ...cardData, holderName: e.target.value })}
                                                         />
@@ -664,7 +682,7 @@ export const SubscriptionModal = ({ open, onOpenChange }: SubscriptionModalProps
                                                             <input
                                                                 type="text"
                                                                 placeholder="0000 0000 0000 0000"
-                                                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-[#FFF200] focus:ring-1 focus:ring-[#FFF200] outline-none transition-all"
+                                                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/30 focus:border-[#FFF200] focus:ring-1 focus:ring-[#FFF200] outline-none transition-all"
                                                                 value={cardData.number}
                                                                 onChange={e => setCardData({ ...cardData, number: formatCardNumber(e.target.value) })}
                                                             />
@@ -678,7 +696,7 @@ export const SubscriptionModal = ({ open, onOpenChange }: SubscriptionModalProps
                                                             <input
                                                                 type="text"
                                                                 placeholder="MM/AA"
-                                                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-[#FFF200] focus:ring-1 focus:ring-[#FFF200] outline-none transition-all"
+                                                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/30 focus:border-[#FFF200] focus:ring-1 focus:ring-[#FFF200] outline-none transition-all"
                                                                 value={cardData.expiry}
                                                                 onChange={e => setCardData({ ...cardData, expiry: formatExpiry(e.target.value) })}
                                                             />
@@ -689,9 +707,54 @@ export const SubscriptionModal = ({ open, onOpenChange }: SubscriptionModalProps
                                                                 type="text"
                                                                 placeholder="123"
                                                                 maxLength={4}
-                                                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-[#FFF200] focus:ring-1 focus:ring-[#FFF200] outline-none transition-all"
+                                                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/30 focus:border-[#FFF200] focus:ring-1 focus:ring-[#FFF200] outline-none transition-all"
                                                                 value={cardData.cvv}
                                                                 onChange={e => setCardData({ ...cardData, cvv: e.target.value.replace(/\D/g, '') })}
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="space-y-4 pt-4 border-t border-white/5">
+                                                        <div className="space-y-1">
+                                                            <label className="text-[10px] font-black text-white/40 uppercase tracking-widest ml-1">CPF / CNPJ</label>
+                                                            <input
+                                                                type="text"
+                                                                placeholder="000.000.000-00"
+                                                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/30 focus:border-[#FFF200] focus:ring-1 focus:ring-[#FFF200] outline-none transition-all"
+                                                                value={clientInfo.cpfCnpj}
+                                                                onChange={e => setClientInfo({ ...clientInfo, cpfCnpj: formatCPF(e.target.value) })}
+                                                            />
+                                                        </div>
+                                                        <div className="grid grid-cols-2 gap-4">
+                                                            <div className="space-y-1">
+                                                                <label className="text-[10px] font-black text-white/40 uppercase tracking-widest ml-1">CEP</label>
+                                                                <input
+                                                                    type="text"
+                                                                    placeholder="00000-000"
+                                                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/30 focus:border-[#FFF200] focus:ring-1 focus:ring-[#FFF200] outline-none transition-all"
+                                                                    value={clientInfo.postalCode}
+                                                                    onChange={e => setClientInfo({ ...clientInfo, postalCode: formatZIP(e.target.value) })}
+                                                                />
+                                                            </div>
+                                                            <div className="space-y-1">
+                                                                <label className="text-[10px] font-black text-white/40 uppercase tracking-widest ml-1">Número</label>
+                                                                <input
+                                                                    type="text"
+                                                                    placeholder="123"
+                                                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/30 focus:border-[#FFF200] focus:ring-1 focus:ring-[#FFF200] outline-none transition-all"
+                                                                    value={clientInfo.addressNumber}
+                                                                    onChange={e => setClientInfo({ ...clientInfo, addressNumber: e.target.value })}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <label className="text-[10px] font-black text-white/40 uppercase tracking-widest ml-1">WhatsApp / Telefone</label>
+                                                            <input
+                                                                type="text"
+                                                                placeholder="(00) 00000-0000"
+                                                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/30 focus:border-[#FFF200] focus:ring-1 focus:ring-[#FFF200] outline-none transition-all"
+                                                                value={clientInfo.phone}
+                                                                onChange={e => setClientInfo({ ...clientInfo, phone: formatPhone(e.target.value) })}
                                                             />
                                                         </div>
                                                     </div>

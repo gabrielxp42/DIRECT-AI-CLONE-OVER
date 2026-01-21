@@ -145,15 +145,18 @@ const doFetch = async (endpoint: string, params: URLSearchParams, token: string,
     return allData;
 };
 
-const doCount = async (endpoint: string, token: string) => {
+const doCount = async (endpoint: string, token: string, userId?: string) => {
     const headers = {
         'apikey': SUPABASE_ANON_KEY,
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
         'Range': '0-0'
     };
-    // Use HEAD to get just the count or a minimal select with count=exact
-    const url = `${SUPABASE_URL}/rest/v1/${endpoint}?select=id&limit=1`;
+
+    let url = `${SUPABASE_URL}/rest/v1/${endpoint}?select=id&limit=1`;
+    if (userId) {
+        url += `&user_id=eq.${userId}`;
+    }
     // We need to pass Prefer: count=exact
     const countHeaders = { ...headers, 'Prefer': 'count=exact' };
     const res = await fetch(url, { method: 'GET', headers: countHeaders });
@@ -173,7 +176,9 @@ export const fetchReportData = async (
     selectedPeriod: string,
     customRange?: DateRange,
     chartView: 'summary' | 'daily' = 'daily',
-    specificYear?: string
+    specificYear?: string,
+    userId?: string,
+    organizationId?: string | null
 ): Promise<SalesReport> => {
     const validToken = await getValidToken();
     const effectiveToken = validToken || accessToken;
@@ -199,38 +204,59 @@ export const fetchReportData = async (
         insumos
     ] = await Promise.all([
         // Main Orders: Enable fetchAll (pagination) and server-side filtering for both start and end dates
-        doFetch('pedidos', new URLSearchParams({
-            select: '*,clientes(nome),pedido_items(*,produtos(nome,insumo_id,consumo_insumo)),pedido_servicos(*),pedido_status_history(*)',
-            created_at: `gte.${periodStart.toISOString()}`,
-        }), effectiveToken, true).then(data => {
+        doFetch('pedidos', (() => {
+            const params = new URLSearchParams({
+                select: '*,clientes(nome),pedido_items(*,produtos(nome,insumo_id,consumo_insumo)),pedido_servicos(*),pedido_status_history(*)',
+                created_at: `gte.${periodStart.toISOString()}`,
+            });
+            if (userId) params.append('user_id', `eq.${userId}`);
+            return params;
+        })(), effectiveToken, true).then(data => {
             return data.filter((d: any) => new Date(d.created_at) <= periodEnd);
         }),
 
-        // Current Month Stats (for growth) - Optimized to just fetch totals if possible, but we need sum, so fetch needed cols
-        doFetch('pedidos', new URLSearchParams({
-            select: 'valor_total,id',
-            created_at: `gte.${currentMonthStart.toISOString()}`
-        }), effectiveToken, true), // Pagination on stats too just in case
+        // Current Month Stats (for growth)
+        doFetch('pedidos', (() => {
+            const params = new URLSearchParams({
+                select: 'valor_total,id',
+                created_at: `gte.${currentMonthStart.toISOString()}`
+            });
+            if (userId) params.append('user_id', `eq.${userId}`);
+            return params;
+        })(), effectiveToken, true),
 
         // Previous Month Stats (for growth)
         Promise.all([
-            doFetch('pedidos', new URLSearchParams({
-                select: 'valor_total,id',
-                created_at: `gte.${previousMonthStart.toISOString()}`,
-            }), effectiveToken, true).then(data => data.filter((d: any) => new Date(d.created_at) <= previousMonthEnd)),
-            // Previous Month Customers count approximation (fetch simple)
-            doFetch('clientes', new URLSearchParams({
-                select: 'id',
-                created_at: `gte.${previousMonthStart.toISOString()}`
-            }), effectiveToken, true).then(data => data.filter((d: any) => new Date(d.created_at) <= previousMonthEnd))
+            doFetch('pedidos', (() => {
+                const params = new URLSearchParams({
+                    select: 'valor_total,id',
+                    created_at: `gte.${previousMonthStart.toISOString()}`,
+                });
+                if (userId) params.append('user_id', `eq.${userId}`);
+                return params;
+            })(), effectiveToken, true).then(data => data.filter((d: any) => new Date(d.created_at) <= previousMonthEnd)),
+
+            doFetch('clientes', (() => {
+                const params = new URLSearchParams({
+                    select: 'id',
+                    created_at: `gte.${previousMonthStart.toISOString()}`
+                });
+                if (userId) params.append('user_id', `eq.${userId}`);
+                return params;
+            })(), effectiveToken, true).then(data => data.filter((d: any) => new Date(d.created_at) <= previousMonthEnd))
         ]),
 
         // Total Counts (Optimized)
-        doCount('clientes', effectiveToken),
-        doCount('produtos', effectiveToken),
+        doCount('clientes', effectiveToken, userId),
+        doCount('produtos', effectiveToken, userId),
 
         // Insumos for cost
-        doFetch('insumos', new URLSearchParams({ select: 'id,custo_unitario' }), effectiveToken)
+        // Insumos for cost
+        doFetch('insumos', (() => {
+            const params = new URLSearchParams({ select: 'id,custo_unitario' });
+            if (userId) params.append('user_id', `eq.${userId}`);
+            return params;
+        })(), effectiveToken)
     ]);
 
     const [previousMonthOrders, previousMonthCustomers] = previousMonthStats;
@@ -390,10 +416,14 @@ export const fetchReportData = async (
     const currentMonthCustomers = await doCount('clientes', effectiveToken); // This is total ALl Time count, strictly speaking.
     // Actually, to display "Growth of New Customers", we need count of customers created THIS month vs LAST month.
     // The original code did: `currentMonthCustomers` (created this month).
-    const currentMonthNewCustomersCount = await doFetch('clientes', new URLSearchParams({
-        select: 'id',
-        created_at: `gte.${currentMonthStart.toISOString()}`
-    }), effectiveToken).then(res => res.length); // Use length since we filtered
+    const currentMonthNewCustomersCount = await doFetch('clientes', (() => {
+        const params = new URLSearchParams({
+            select: 'id',
+            created_at: `gte.${currentMonthStart.toISOString()}`
+        });
+        if (userId) params.append('user_id', `eq.${userId}`);
+        return params;
+    })(), effectiveToken).then(res => res.length); // Use length since we filtered
 
     const previousMonthNewCustomersCount = previousMonthCustomers.length;
 

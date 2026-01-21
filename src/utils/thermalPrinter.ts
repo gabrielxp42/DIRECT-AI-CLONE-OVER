@@ -22,11 +22,13 @@ export const printThermalReceipt = (pedido: Pedido) => {
   // Determine status text
   const statusText = pedido.status === 'pago' ? 'PAGO' : 'NÃO PAGO';
 
-  // Extract Freight from services
-  let freightValue = 0;
+  // Extract Freight from services (backwards compatibility) + New dedicated field
+  let freightValue = Number(pedido.valor_frete || 0);
   const servicesWithoutFreight = pedido.servicos.filter(s => {
     if (s.nome.toLowerCase().includes('frete') || s.nome.toLowerCase().includes('entrega')) {
-      freightValue += (s.valor_unitario * s.quantidade);
+      if (!pedido.valor_frete) { // Only add if dedicated field is 0/missing
+        freightValue += (s.valor_unitario * s.quantidade);
+      }
       return false; // Remove from generic services list
     }
     return true; // Keep other services
@@ -190,6 +192,9 @@ export const printThermalReceipt = (pedido: Pedido) => {
       </div>
       
       <div class="line" style="text-align: right; margin-top: 5px;">
+        Entrega: <strong>${pedido.tipo_entrega === 'retirada' ? 'RETIRADA' : 'FRETE'}</strong>
+      </div>
+      <div class="line" style="text-align: right; margin-top: 2px;">
         Status: <strong>${statusText}</strong>
       </div>
 
