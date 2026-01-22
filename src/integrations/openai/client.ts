@@ -1,14 +1,6 @@
-"use client";
-
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/integrations/supabase/client';
 import { getValidToken } from '@/utils/tokenGuard';
-
-// OpenAI Client Configuration
-const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
-
-if (!OPENAI_API_KEY) {
-  console.error("VITE_OPENAI_API_KEY is not set in environment variables.");
-}
+import { logger } from '@/utils/logger';
 
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system' | 'function';
@@ -18,7 +10,7 @@ export interface ChatMessage {
     name: string;
     arguments: string;
   };
-  audioUrl?: string; // Nova propriedade para mensagens de áudio
+  audioUrl?: string;
 }
 
 export interface FunctionCall {
@@ -27,14 +19,10 @@ export interface FunctionCall {
 }
 
 export class OpenAIClient {
-  private apiKey: string;
-  private baseURL = 'https://api.openai.com/v1';
   private proxyURL = `${SUPABASE_URL}/functions/v1/openai-proxy`.replace(/([^:]\/)\/+/g, "$1");
 
-  constructor(apiKey: string) {
-    this.apiKey = apiKey;
-    console.log('🤖 [OpenAIClient] Inicializado. Proxy URL:', this.proxyURL);
-    console.log('📦 [OpenAIClient] Versão do Bundle: ' + new Date().toISOString());
+  constructor() {
+    logger.security('[OpenAIClient] Inicializado com foco exclusivo em Proxy para segurança máxima.');
   }
 
   async sendMessage(messages: ChatMessage[], functions?: any[]): Promise<{
@@ -42,9 +30,6 @@ export class OpenAIClient {
     function_call?: FunctionCall;
   }> {
     const token = await getValidToken();
-
-    console.log('🌐 [OpenAIClient] Tentando requisição via Proxy Supabase...');
-    console.log('🔑 [OpenAIClient] Token Supabase presente:', !!token);
 
     try {
       const response = await fetch(this.proxyURL, {
@@ -65,14 +50,12 @@ export class OpenAIClient {
         }),
       });
 
-      console.log('📡 [OpenAIClient] Resposta do Proxy recebida. Status:', response.status);
-
       if (response.ok) {
         const data = await response.json();
 
         if (data.error) {
-          console.error('❌ [OpenAIClient] Erro interno retornado pelo Proxy:', data.error);
-          throw new Error(`Proxy Internal Error: ${JSON.stringify(data.error)}`);
+          logger.error('[OpenAIClient] Erro interno retornado pelo Proxy:', data.error);
+          throw new Error("Erro de processamento na IA.");
         }
 
         const choice = data.choices[0];
@@ -88,44 +71,19 @@ export class OpenAIClient {
         return { content: choice.message.content };
       } else {
         const errorData = await response.json().catch(() => ({}));
-        console.error('❌ [OpenAIClient] Erro HTTP no Proxy:', response.status, errorData);
-        throw new Error(`Proxy Fallback - Status ${response.status}`);
+        logger.error('[OpenAIClient] Erro de rede ou autorização:', response.status);
+        throw new Error("Serviço de IA temporariamente indisponível.");
       }
     } catch (proxyError) {
-      console.error('🚨 [OpenAIClient] FALHA CRÍTICA NO PROXY:', proxyError);
-      console.warn('⚠️ [OpenAIClient] Tentando fallback direto mesmo sabendo do risco de CORS...');
-
-      const response = await fetch(`${this.baseURL}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: messages,
-          functions: functions,
-          function_call: functions && functions.length > 0 ? 'auto' : undefined,
-          temperature: 0.7,
-          max_tokens: 2000,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Fallback Error: ${response.status}`);
-      }
-
-      const data = await response.json();
-      return { content: data.choices[0].message.content };
+      logger.error('🚨 [OpenAIClient] FALHA NA COMUNICAÇÃO COM PROXY:', proxyError);
+      throw new Error("Não foi possível conectar ao serviço de inteligência. Verifique sua conexão.");
     }
   }
 
   async transcribeAudio(audioBlob: Blob): Promise<string | null> {
     const token = await getValidToken();
-    console.log('🎙️ [OpenAIClient] Transcrevendo áudio via Proxy...');
 
     try {
-      // Converter Blob para Base64 para passar pelo JSON do Proxy
       const reader = new FileReader();
       const base64Promise = new Promise<string>((resolve) => {
         reader.onloadend = () => {
@@ -156,34 +114,12 @@ export class OpenAIClient {
         const data = await response.json();
         return data.text || null;
       } else {
-        const errorText = await response.text();
-        console.error('❌ [OpenAIClient] Erro no Proxy Audio:', response.status, errorText);
-        throw new Error(`Proxy Audio error: ${response.status}`);
+        logger.error('[OpenAIClient] Erro na transcrição via Proxy');
+        return null;
       }
     } catch (error) {
-      console.error('🚨 [OpenAIClient] Erro na transcrição via Proxy:', error);
-
-      // Fallback direto apenas se o proxy falhar e as chaves permitirem (risco de CORS)
-      console.warn('⚠️ [OpenAIClient] Tentando fallback direto para Whisper...');
-      const formData = new FormData();
-      formData.append('file', audioBlob, 'audio.webm');
-      formData.append('model', 'whisper-1');
-      formData.append('language', 'pt');
-
-      const response = await fetch(`${this.baseURL}/audio/transcriptions`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-        },
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error(`Whisper direct fallback failed: ${response.status}`);
-      }
-
-      const data = await response.json();
-      return data.text || null;
+      logger.error('🚨 [OpenAIClient] Erro na transcrição:', error);
+      return null;
     }
   }
 
@@ -192,7 +128,6 @@ export class OpenAIClient {
     const token = await getValidToken();
 
     try {
-      console.log('🌐 [OpenAIClient] Gerando Embedding via Proxy...');
       const response = await fetch(this.proxyURL, {
         method: 'POST',
         headers: {
@@ -213,40 +148,15 @@ export class OpenAIClient {
         if (data.data && data.data[0]) {
           return data.data[0].embedding;
         }
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('❌ [OpenAIClient] Erro no Proxy Embeddings:', response.status, errorData);
       }
     } catch (e) {
-      console.warn('⚠️ [OpenAIClient] Falha no Proxy Embeddings, tentando fallback direto...', e);
+      logger.error('⚠️ [OpenAIClient] Falha ao gerar embeddings:', e);
     }
 
-    const response = await fetch(`${this.baseURL}/embeddings`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${this.apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'text-embedding-3-small',
-        input: cleanText,
-        dimensions: 1536
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(`OpenAI Embeddings API Error: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
-    }
-
-    const data = await response.json();
-    return data.data[0].embedding;
+    throw new Error("Falha ao processar conhecimento da IA.");
   }
 }
 
 export const getOpenAIClient = () => {
-  if (!OPENAI_API_KEY) {
-    throw new Error("OpenAI API key is not configured");
-  }
-  return new OpenAIClient(OPENAI_API_KEY);
+  return new OpenAIClient();
 };

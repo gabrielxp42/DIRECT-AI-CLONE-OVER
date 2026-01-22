@@ -1,9 +1,5 @@
-/**
- * REFRESH DE TOKEN USANDO FETCH DIRETO
- * Não usa Supabase Client para evitar travamentos no PWA
- */
-
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/integrations/supabase/client';
+import { logger } from './logger';
 
 let refreshTimer: NodeJS.Timeout | null = null;
 let isRefreshing = false;

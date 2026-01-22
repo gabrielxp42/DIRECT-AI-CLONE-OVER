@@ -63,6 +63,7 @@ import { printThermalReceipt } from '@/utils/thermalPrinter';
 import { motion } from 'framer-motion';
 import { toPng, toBlob } from 'html-to-image';
 import { Share2, Copy, Download, Image as ImageIcon } from 'lucide-react';
+import { logger } from '@/utils/logger';
 
 const ITEMS_PER_PAGE_OPTIONS = [10, 20, 50, 100];
 
@@ -595,7 +596,7 @@ const PedidosPage: React.FC = () => {
 
         // 2. Se o pedido JÁ consumia estoque, restauramos TUDO antes da edição
         if (wasConsuming && editingPedido) {
-          console.log(`[Inventory] Estornando estoque pré-edição para pedido #${editingPedido.order_number}...`);
+          logger.info(`[Inventory] Estornando estoque pré-edição para pedido #${editingPedido.order_number}...`);
           await restoreInsumosFromPedido(editingPedido);
         }
 
@@ -623,7 +624,7 @@ const PedidosPage: React.FC = () => {
         // PROTEÇÃO: Só deletamos e inserimos se o array de itens for válido.
         // Se estivermos editando e o formulário enviou itens vazios, algo pode estar errado na inicialização.
         if (items && items.length > 0) {
-          console.log(`[Mutation] Atualizando ${items.length} itens para pedido ${pedidoId}...`);
+          logger.log(`[Mutation] Atualizando ${items.length} itens para pedido ${pedidoId}...`);
           const deleteItemsUrl = `${SUPABASE_URL}/rest/v1/pedido_items?pedido_id=eq.${pedidoId}`;
           await fetch(deleteItemsUrl, { method: 'DELETE', headers });
 
@@ -642,7 +643,7 @@ const PedidosPage: React.FC = () => {
 
           // 5. Se o novo estado (pós-edição) consome estoque, deduzimos os NOVOS valores
           if (isNowConsuming && editingPedido) {
-            console.log(`[Inventory] Re-deduzindo estoque com novos itens para pedido #${editingPedido.order_number}...`);
+            logger.info(`[Inventory] Re-deduzindo estoque com novos itens para pedido #${editingPedido.order_number}...`);
             await deductInsumosFromPedido({
               ...editingPedido,
               status: newStatus,
