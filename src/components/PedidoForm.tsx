@@ -251,13 +251,14 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
   useEffect(() => {
     if (isOpen && !hasInitializedRef.current) {
       if (isEditing && initialData) {
-        const itemsData = initialData ? (initialData.pedido_items || []).map((item: any) => ({
+        // GARANTIA: Só mapear se os itens existirem. Se for um pedido que deveria ter itens mas veio vazio, precisamos ter cuidado.
+        const itemsData = initialData.pedido_items ? initialData.pedido_items.map((item: any) => ({
           produto_id: item.produto_id,
           produto_nome: item.produto_nome,
           quantidade: Number(item.quantidade),
           preco_unitario: Number(item.preco_unitario),
           observacao: item.observacao || '',
-          tipo: item.tipo || 'dtf' // Now native!
+          tipo: item.tipo || 'dtf'
         })) : [];
 
         const servicosData = initialData.servicos?.map((servico: any) => ({

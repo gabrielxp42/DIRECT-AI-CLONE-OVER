@@ -620,10 +620,13 @@ const PedidosPage: React.FC = () => {
         }
 
         // 4. Atualizar os itens (Deletar antigos, Inserir novos)
-        const deleteItemsUrl = `${SUPABASE_URL}/rest/v1/pedido_items?pedido_id=eq.${pedidoId}`;
-        await fetch(deleteItemsUrl, { method: 'DELETE', headers });
-
+        // PROTEÇÃO: Só deletamos e inserimos se o array de itens for válido.
+        // Se estivermos editando e o formulário enviou itens vazios, algo pode estar errado na inicialização.
         if (items && items.length > 0) {
+          console.log(`[Mutation] Atualizando ${items.length} itens para pedido ${pedidoId}...`);
+          const deleteItemsUrl = `${SUPABASE_URL}/rest/v1/pedido_items?pedido_id=eq.${pedidoId}`;
+          await fetch(deleteItemsUrl, { method: 'DELETE', headers });
+
           const itemsToInsert = items.map((item: any) => ({ ...item, pedido_id: pedidoId }));
           const insertItemsUrl = `${SUPABASE_URL}/rest/v1/pedido_items`;
           const itemsResponse = await fetch(insertItemsUrl, {
@@ -643,9 +646,11 @@ const PedidosPage: React.FC = () => {
             await deductInsumosFromPedido({
               ...editingPedido,
               status: newStatus,
-              pedido_items: items // Usar os itens atualizados vindos do formulário
+              pedido_items: items
             } as Pedido);
           }
+        } else {
+          console.warn(`[Mutation] Tentativa de salvar pedido ${pedidoId} SEM ITENS. Operação de itens abortada para evitar corrupção.`);
         }
 
         // Handle servicos: delete old, insert new
