@@ -44,7 +44,7 @@ import { NewPedido, Pedido } from "@/types/pedido";
 import { Cliente } from "@/types/cliente";
 import { Produto } from "@/types/produto";
 import { useEffect, useState, useRef, useMemo, useCallback } from "react";
-import { Trash2, Plus, Search, Edit3, X, User, Package, Wrench, Save, Zap, CalendarIcon, Ruler, ChevronDown, Loader2, FileText, Copy, GripVertical, Sparkles, Printer, Scissors, Settings, Bike, Star } from "lucide-react";
+import { Trash2, Plus, Search, Edit3, X, User, Package, Wrench, Save, Zap, CalendarIcon, Ruler, ChevronDown, Loader2, FileText, Copy, GripVertical, Sparkles, Printer, Scissors, Settings, Bike, Star, Info, Tag, Layers, PenTool, BadgeCheck, Palette } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -173,6 +173,10 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
     });
   }, [tiposProducao]);
 
+
+  const iconsMap: Record<string, any> = {
+    Printer, Scissors, Package, Ruler, Info, Wrench, Zap, Tag, Layers, PenTool, BadgeCheck, Palette, Bike, Star, FileText, Settings
+  };
 
   const [accordionItemValue, setAccordionItemValue] = useState<string | undefined>(undefined);
   const [accordionServiceValue, setAccordionServiceValue] = useState<string | undefined>(undefined);
@@ -397,8 +401,9 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
     const subtotalServicos = servicos.reduce((sum, servico) => sum + (Number(servico.quantidade) * Number(servico.valor_unitario)), 0);
     const subtotal = subtotalProdutos + subtotalServicos;
 
+    const valorFrete = data.tipo_entrega === 'frete' ? Number(data.valor_frete || 0) : 0;
     const descontoPercentualValor = subtotal * (descontoPercentual / 100);
-    const valorTotal = Math.max(0, subtotal - descontoValor - descontoPercentualValor);
+    const valorTotal = Math.max(0, subtotal - descontoValor - descontoPercentualValor + valorFrete);
 
     const totalMetros = items.reduce((sum, item) => {
       const tipoInfo = tiposProducao?.find(t => t.nome.toLowerCase() === item.tipo.toLowerCase());
@@ -1124,11 +1129,24 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                                   const itemTipo = currentValues?.tipo || field.tipo || 'dtf';
                                                   const tipoInfo = tiposProducao?.find(t => t.nome?.toLowerCase() === itemTipo?.toLowerCase());
                                                   const isMetro = tipoInfo?.unidade_medida !== 'unidade';
+                                                  const IconComp = tipoInfo?.icon && iconsMap[tipoInfo.icon] ? iconsMap[tipoInfo.icon] : (isMetro ? Ruler : Package);
                                                   return (
-                                                    <>
-                                                      {isMetro ? <Ruler className="h-3 w-3" /> : <Package className="h-3 w-3" />}
-                                                      {Number(quantidade || 0).toFixed(isMetro ? 2 : 0)} {isMetro ? 'ML' : 'UND'}
-                                                    </>
+                                                    <div className="flex items-center gap-1">
+                                                      <div className={cn(
+                                                        "p-1 rounded flex items-center justify-center border",
+                                                        (() => {
+                                                          const color = tipoInfo?.color || (itemTipo === 'vinil' ? "bg-orange-500/10 text-orange-500 border-orange-500/30" : itemTipo === 'dtf' ? "bg-blue-500/10 text-blue-500 border-blue-500/30" : "bg-primary/10 text-primary border-primary/20");
+                                                          if (color.includes('bg-') && color.includes('-100')) {
+                                                            const base = color.split('-')[1];
+                                                            return `text-${base}-500 bg-${base}-500/10 border-${base}-500/20`;
+                                                          }
+                                                          return color;
+                                                        })()
+                                                      )}>
+                                                        <IconComp className="h-3 w-3" />
+                                                      </div>
+                                                      <span>{Number(quantidade || 0).toFixed(isMetro ? 2 : 0)} {isMetro ? 'ML' : 'UND'}</span>
+                                                    </div>
                                                   );
                                                 })()}
                                               </span>
@@ -1279,17 +1297,23 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                                                       id={index === 0 ? "item-type-selector" : undefined}
                                                                       className={cn(
                                                                         "h-7 px-2 border shadow-sm select-none transition-all hover:bg-accent active:scale-95 flex items-center gap-1.5 w-auto min-w-[80px]",
-                                                                        isVinil
-                                                                          ? "text-orange-700 bg-orange-100 border-orange-200 hover:bg-orange-200"
-                                                                          : isDTF
-                                                                            ? "text-blue-700 bg-blue-100 border-blue-200 hover:bg-blue-200"
-                                                                            : "text-primary bg-primary/10 border-primary/20 hover:bg-primary/20"
+                                                                        (() => {
+                                                                          const isVinil = (typeField.value || 'dtf').toLowerCase() === 'vinil';
+                                                                          const isDTF = (typeField.value || 'dtf').toLowerCase() === 'dtf';
+                                                                          const color = currentType?.color;
+                                                                          if (color && color.includes('bg-') && color.includes('-100')) {
+                                                                            const base = color.split('-')[1];
+                                                                            return `text-${base}-500 bg-${base}-500/10 border-${base}-500/30`;
+                                                                          }
+                                                                          return color || (isVinil ? "text-orange-500 bg-orange-500/10 border-orange-500/30" : isDTF ? "text-blue-500 bg-blue-500/10 border-blue-500/30" : "text-primary bg-primary/10 border-primary/20");
+                                                                        })()
                                                                       )}
                                                                     >
                                                                       <div className="flex items-center gap-1.5 overflow-hidden">
-                                                                        {isVinil ? <Scissors className="w-3.5 h-3.5 flex-shrink-0" /> :
-                                                                          isDTF ? <Printer className="w-3.5 h-3.5 flex-shrink-0" /> :
-                                                                            <Package className="w-3.5 h-3.5 flex-shrink-0" />}
+                                                                        {(() => {
+                                                                          const IconComp = currentType?.icon && iconsMap[currentType.icon] ? iconsMap[currentType.icon] : (isVinil ? Scissors : isDTF ? Printer : Package);
+                                                                          return <IconComp className="w-3.5 h-3.5 flex-shrink-0" />;
+                                                                        })()}
                                                                         <span className="text-[10px] font-bold uppercase tracking-tight truncate max-w-[50px]">
                                                                           {currentType?.nome || typeField.value}
                                                                         </span>
@@ -1315,17 +1339,30 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                                                             )}
                                                                           >
                                                                             <div className="flex items-center gap-2.5 py-0.5">
-                                                                              <div className={cn(
-                                                                                "p-1.5 rounded-md",
-                                                                                isVinil && "bg-orange-500/20 text-orange-400",
-                                                                                isDTF && "bg-blue-500/20 text-blue-400",
-                                                                                isVarejo && "bg-green-500/20 text-green-400",
-                                                                                !isVinil && !isDTF && !isVarejo && "bg-primary/20 text-primary"
-                                                                              )}>
-                                                                                {isVinil ? <Scissors className="w-3.5 h-3.5" /> :
-                                                                                  isDTF ? <Printer className="w-3.5 h-3.5" /> :
-                                                                                    <Package className="w-3.5 h-3.5" />}
-                                                                              </div>
+                                                                              {(() => {
+                                                                                const nomeLow = tipo.nome.toLowerCase();
+                                                                                const isVinil = nomeLow.includes('vinil');
+                                                                                const isDTF = nomeLow.includes('dtf');
+                                                                                const isVarejo = nomeLow.includes('varejo');
+                                                                                const color = tipo.color;
+
+                                                                                let finalColor = color || "";
+                                                                                if (color && color.includes('bg-') && color.includes('-100')) {
+                                                                                  const base = color.split('-')[1];
+                                                                                  finalColor = `bg-${base}-500/20 text-${base}-400`;
+                                                                                } else if (!color) {
+                                                                                  finalColor = isVinil ? "bg-orange-500/20 text-orange-400" : isDTF ? "bg-blue-500/20 text-blue-400" : isVarejo ? "bg-green-500/20 text-green-400" : "bg-primary/20 text-primary";
+                                                                                }
+
+                                                                                return (
+                                                                                  <div className={cn("p-1.5 rounded-md", finalColor)}>
+                                                                                    {(() => {
+                                                                                      const IconComp = tipo.icon && iconsMap[tipo.icon] ? iconsMap[tipo.icon] : (isVinil ? Scissors : isDTF ? Printer : Package);
+                                                                                      return <IconComp className="w-3.5 h-3.5" />;
+                                                                                    })()}
+                                                                                  </div>
+                                                                                );
+                                                                              })()}
                                                                               <div className="flex flex-col">
                                                                                 <span className="text-[11px] font-bold uppercase tracking-tight leading-none">
                                                                                   {tipo.nome}

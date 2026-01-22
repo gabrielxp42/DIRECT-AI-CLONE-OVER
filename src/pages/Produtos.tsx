@@ -324,8 +324,8 @@ const Produtos = () => {
   return (
     <div className="space-y-4 sm:space-y-6">
       <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
-        <div className="flex items-center gap-4">
-          <h1 className="text-2xl sm:text-3xl font-bold">Produtos & Configurações</h1>
+        <div className="flex items-center gap-2 sm:gap-4">
+          <h1 className="text-xl sm:text-3xl font-bold tracking-tight">Produtos & Configurações</h1>
           {!isAnyTourOpen && (
             <Button
               variant="outline"
@@ -340,291 +340,293 @@ const Produtos = () => {
         </div>
       </div>
 
-      <Tabs defaultValue="produtos" value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3 max-w-lg">
-          <TabsTrigger id="tab-produtos" value="produtos" className="flex items-center gap-2">
-            <Package className="h-4 w-4" />
-            Produtos
-          </TabsTrigger>
-          <TabsTrigger id="tab-producao" value="configuracoes" className="flex items-center gap-2">
-            <Settings2 className="h-4 w-4" />
-            Tipos de Produtos
-          </TabsTrigger>
-          <TabsTrigger id="tab-servicos" value="servicos" className="flex items-center gap-2">
-            <Wrench className="h-4 w-4" />
-            Serviços
-          </TabsTrigger>
-        </TabsList>
+      <div className="pb-24"> {/* ContainerWrapper com padding extra para mobile navbar */}
+        <Tabs defaultValue="produtos" value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-3 h-auto p-1 bg-muted/50 rounded-xl">
+            <TabsTrigger id="tab-produtos" value="produtos" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 text-[10px] sm:text-sm py-2 sm:py-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all duration-200">
+              <Package className="h-4 w-4 mb-0.5 sm:mb-0" />
+              <span>Produtos</span>
+            </TabsTrigger>
+            <TabsTrigger id="tab-producao" value="configuracoes" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 text-[10px] sm:text-sm py-2 sm:py-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all duration-200">
+              <Settings2 className="h-4 w-4 mb-0.5 sm:mb-0" />
+              <span>Tipos</span>
+            </TabsTrigger>
+            <TabsTrigger id="tab-servicos" value="servicos" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 text-[10px] sm:text-sm py-2 sm:py-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all duration-200">
+              <Wrench className="h-4 w-4 mb-0.5 sm:mb-0" />
+              <span>Serviços</span>
+            </TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="produtos" className="space-y-4 pt-4">
-          <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
-            <div className="flex-1" />
-            <Button
-              id="btn-add-produto"
-              onClick={() => handleOpenForm()}
-              className="w-full sm:w-auto min-h-[44px] touch-manipulation active:scale-95 transition-transform"
-              size="default"
-            >
-              <PlusCircle className="mr-2 h-4 w-4 flex-shrink-0" />
-              <span className="text-sm sm:text-base">Adicionar Produto</span>
-            </Button>
-          </div>
-
-          {/* Alertas de Estoque */}
-          {produtos && <LowStockAlert produtos={produtos} />}
-
-          {/* Search Input - Responsivo */}
-          <div id="search-produtos" className="w-full">
-            <SearchInput
-              placeholder="Buscar produtos por nome ou descrição..."
-              value={rawSearchTerm} // Usa o valor bruto para o input
-              onChange={setRawSearchTerm} // Atualiza o valor bruto
-              className="w-full sm:max-w-md"
-            />
-          </div>
-
-          <ProdutoForm
-            isOpen={isFormOpen}
-            onOpenChange={(isOpen) => {
-              setIsFormOpen(isOpen);
-              if (!isOpen) setSelectedProduto(null);
-            }}
-            onSubmit={handleSaveProduto}
-            isSubmitting={isMutating}
-            initialData={selectedProduto}
-          />
-
-          <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-            <AlertDialogContent className="mx-4 max-w-md">
-              <AlertDialogHeader>
-                <AlertDialogTitle className="text-lg">Você tem certeza?</AlertDialogTitle>
-                <AlertDialogDescription className="text-sm">
-                  Essa ação não pode ser desfeita. Isso excluirá permanentemente o produto "{selectedProduto?.nome}".
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter className="flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-2">
-                <AlertDialogCancel
-                  onClick={() => setSelectedProduto(null)}
-                  className="w-full sm:w-auto"
-                >
-                  Cancelar
-                </AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={() => selectedProduto && deleteProdutoMutation.mutate(selectedProduto.id)}
-                  className="w-full sm:w-auto"
-                >
-                  {deleteProdutoMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Excluir"}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-
-          {/* Cards para Mobile, Tabela para Desktop */}
-          <div className="block sm:hidden">
-            {/* Layout de Cards para Mobile */}
-            <div className="space-y-4">
-              {isLoading ? (
-                <div className="text-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
-                  <p className="text-muted-foreground mt-2">Carregando...</p>
-                </div>
-              ) : filteredProdutos.length > 0 ? (
-                filteredProdutos.map((produto) => {
-                  const stockStatus = getStockStatus(produto.estoque);
-                  return (
-                    <Card key={produto.id} className="touch-manipulation">
-                      <CardHeader className="pb-3">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1 min-w-0">
-                            <CardTitle className="text-lg leading-tight truncate">
-                              {produto.nome}
-                            </CardTitle>
-                            {produto.descricao && (
-                              <CardDescription className="text-sm mt-1 line-clamp-2">
-                                {produto.descricao}
-                              </CardDescription>
-                            )}
-                          </div>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                className="h-8 w-8 p-0 ml-2 flex-shrink-0 touch-manipulation"
-                              >
-                                <span className="sr-only">Abrir menu</span>
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-40">
-                              <DropdownMenuItem onClick={() => handleOpenForm(produto)}>
-                                Editar
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleOpenDeleteDialog(produto)}>
-                                Excluir
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="pt-0">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-4">
-                            <div className="flex items-center space-x-1">
-                              <DollarSign className="h-4 w-4 text-green-600" />
-                              <span className="font-semibold text-lg">
-                                R$ {produto.preco.toFixed(2)}
-                              </span>
-                            </div>
-                            <div className="flex items-center space-x-1">
-                              <Package className="h-4 w-4 text-muted-foreground" />
-                              <span className={`text-sm font-medium ${stockStatus.color}`}>
-                                {stockStatus.text}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })
-              ) : (
-                <Card>
-                  <CardContent className="text-center py-8">
-                    <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <p className="text-muted-foreground">
-                      {searchTerm ? "Nenhum produto encontrado para a busca." : "Nenhum produto encontrado."}
-                    </p>
-                  </CardContent>
-                </Card>
-              )}
+          <TabsContent value="produtos" className="space-y-4 pt-4">
+            <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
+              <div className="flex-1" />
+              <Button
+                id="btn-add-produto"
+                onClick={() => handleOpenForm()}
+                className="w-full sm:w-auto min-h-[44px] touch-manipulation active:scale-95 transition-transform"
+                size="default"
+              >
+                <PlusCircle className="mr-2 h-4 w-4 flex-shrink-0" />
+                <span className="text-sm sm:text-base">Adicionar Produto</span>
+              </Button>
             </div>
-          </div>
 
-          {/* Tabela para Desktop */}
-          <Card className="hidden sm:block">
-            <CardHeader>
-              <CardTitle>Lista de Produtos</CardTitle>
-              <CardDescription>
-                Gerencie seus produtos cadastrados. {filteredProdutos.length} produto(s) encontrado(s).
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Nome</TableHead>
-                      <TableHead>Preço</TableHead>
-                      <TableHead>Estoque</TableHead>
-                      <TableHead className="text-right">Ações</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {isLoading ? (
-                      <TableRow>
-                        <TableCell colSpan={4} className="text-center py-8">
-                          <Loader2 className="h-6 w-6 animate-spin text-primary mx-auto" />
-                          <p className="text-muted-foreground mt-2">Carregando...</p>
-                        </TableCell>
-                      </TableRow>
-                    ) : filteredProdutos.length > 0 ? (
-                      filteredProdutos.map((produto) => {
-                        const stockStatus = getStockStatus(produto.estoque);
-                        return (
-                          <TableRow key={produto.id}>
-                            <TableCell className="font-medium">
-                              <div>
-                                <div className="font-medium">{produto.nome}</div>
-                                {produto.descricao && (
-                                  <div className="text-sm text-muted-foreground truncate max-w-xs">
-                                    {produto.descricao}
-                                  </div>
-                                )}
+            {/* Alertas de Estoque */}
+            {produtos && <LowStockAlert produtos={produtos} />}
+
+            {/* Search Input - Responsivo */}
+            <div id="search-produtos" className="w-full">
+              <SearchInput
+                placeholder="Buscar produtos por nome ou descrição..."
+                value={rawSearchTerm} // Usa o valor bruto para o input
+                onChange={setRawSearchTerm} // Atualiza o valor bruto
+                className="w-full sm:max-w-md"
+              />
+            </div>
+
+            <ProdutoForm
+              isOpen={isFormOpen}
+              onOpenChange={(isOpen) => {
+                setIsFormOpen(isOpen);
+                if (!isOpen) setSelectedProduto(null);
+              }}
+              onSubmit={handleSaveProduto}
+              isSubmitting={isMutating}
+              initialData={selectedProduto}
+            />
+
+            <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+              <AlertDialogContent className="mx-4 max-w-md">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="text-lg">Você tem certeza?</AlertDialogTitle>
+                  <AlertDialogDescription className="text-sm">
+                    Essa ação não pode ser desfeita. Isso excluirá permanentemente o produto "{selectedProduto?.nome}".
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter className="flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-2">
+                  <AlertDialogCancel
+                    onClick={() => setSelectedProduto(null)}
+                    className="w-full sm:w-auto"
+                  >
+                    Cancelar
+                  </AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => selectedProduto && deleteProdutoMutation.mutate(selectedProduto.id)}
+                    className="w-full sm:w-auto"
+                  >
+                    {deleteProdutoMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Excluir"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+
+            {/* Cards para Mobile, Tabela para Desktop */}
+            <div className="block sm:hidden">
+              {/* Layout de Cards para Mobile */}
+              <div className="space-y-4">
+                {isLoading ? (
+                  <div className="text-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
+                    <p className="text-muted-foreground mt-2">Carregando...</p>
+                  </div>
+                ) : filteredProdutos.length > 0 ? (
+                  filteredProdutos.map((produto) => {
+                    const stockStatus = getStockStatus(produto.estoque);
+                    return (
+                      <Card key={produto.id} className="touch-manipulation">
+                        <CardHeader className="pb-3">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1 min-w-0">
+                              <CardTitle className="text-lg leading-tight truncate">
+                                {produto.nome}
+                              </CardTitle>
+                              {produto.descricao && (
+                                <CardDescription className="text-sm mt-1 line-clamp-2">
+                                  {produto.descricao}
+                                </CardDescription>
+                              )}
+                            </div>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  className="h-8 w-8 p-0 ml-2 flex-shrink-0 touch-manipulation"
+                                >
+                                  <span className="sr-only">Abrir menu</span>
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-40">
+                                <DropdownMenuItem onClick={() => handleOpenForm(produto)}>
+                                  Editar
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleOpenDeleteDialog(produto)}>
+                                  Excluir
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="pt-0">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-4">
+                              <div className="flex items-center space-x-1">
+                                <DollarSign className="h-4 w-4 text-green-600" />
+                                <span className="font-semibold text-lg">
+                                  R$ {produto.preco.toFixed(2)}
+                                </span>
                               </div>
-                            </TableCell>
-                            <TableCell>R$ {produto.preco.toFixed(2)}</TableCell>
-                            <TableCell className={stockStatus.color}>
-                              {stockStatus.text}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" className="h-8 w-8 p-0">
-                                    <span className="sr-only">Abrir menu</span>
-                                    <MoreHorizontal className="h-4 w-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={() => handleOpenForm(produto)}>
-                                    Editar
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => handleOpenDeleteDialog(produto)}>
-                                    Excluir
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })
-                    ) : (
-                      <TableRow>
-                        <TableCell colSpan={4} className="text-center py-8">
-                          {searchTerm ? "Nenhum produto encontrado para a busca." : "Nenhum produto encontrado."}
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
+                              <div className="flex items-center space-x-1">
+                                <Package className="h-4 w-4 text-muted-foreground" />
+                                <span className={`text-sm font-medium ${stockStatus.color}`}>
+                                  {stockStatus.text}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })
+                ) : (
+                  <Card>
+                    <CardContent className="text-center py-8">
+                      <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <p className="text-muted-foreground">
+                        {searchTerm ? "Nenhum produto encontrado para a busca." : "Nenhum produto encontrado."}
+                      </p>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+            </div>
 
-        <TabsContent value="configuracoes" className="pt-4">
-          <Card>
-            <CardContent className="pt-6">
-              <TipoProducaoManager />
-            </CardContent>
-          </Card>
-        </TabsContent>
+            {/* Tabela para Desktop */}
+            <Card className="hidden sm:block">
+              <CardHeader>
+                <CardTitle>Lista de Produtos</CardTitle>
+                <CardDescription>
+                  Gerencie seus produtos cadastrados. {filteredProdutos.length} produto(s) encontrado(s).
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Nome</TableHead>
+                        <TableHead>Preço</TableHead>
+                        <TableHead>Estoque</TableHead>
+                        <TableHead className="text-right">Ações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {isLoading ? (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center py-8">
+                            <Loader2 className="h-6 w-6 animate-spin text-primary mx-auto" />
+                            <p className="text-muted-foreground mt-2">Carregando...</p>
+                          </TableCell>
+                        </TableRow>
+                      ) : filteredProdutos.length > 0 ? (
+                        filteredProdutos.map((produto) => {
+                          const stockStatus = getStockStatus(produto.estoque);
+                          return (
+                            <TableRow key={produto.id}>
+                              <TableCell className="font-medium">
+                                <div>
+                                  <div className="font-medium">{produto.nome}</div>
+                                  {produto.descricao && (
+                                    <div className="text-sm text-muted-foreground truncate max-w-xs">
+                                      {produto.descricao}
+                                    </div>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell>R$ {produto.preco.toFixed(2)}</TableCell>
+                              <TableCell className={stockStatus.color}>
+                                {stockStatus.text}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" className="h-8 w-8 p-0">
+                                      <span className="sr-only">Abrir menu</span>
+                                      <MoreHorizontal className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onClick={() => handleOpenForm(produto)}>
+                                      Editar
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleOpenDeleteDialog(produto)}>
+                                      Excluir
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center py-8">
+                            {searchTerm ? "Nenhum produto encontrado para a busca." : "Nenhum produto encontrado."}
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-        <TabsContent value="servicos" className="pt-4">
-          <ServiceShortcutsManager />
-        </TabsContent>
-      </Tabs>
+          <TabsContent value="configuracoes" className="pt-4">
+            <Card>
+              <CardContent className="pt-6">
+                <TipoProducaoManager />
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-      <SubscriptionModal
-        open={showUpgradeModal}
-        onOpenChange={setShowUpgradeModal}
-      />
+          <TabsContent value="servicos" className="pt-4">
+            <ServiceShortcutsManager />
+          </TabsContent>
+        </Tabs>
 
-      <TutorialGuide
-        steps={generalSteps}
-        isOpen={isGeneralTourOpen}
-        currentStep={generalStep}
-        onNext={nextGeneralStep}
-        onPrev={prevGeneralStep}
-        onClose={closeGeneralTour}
-      />
+        <SubscriptionModal
+          open={showUpgradeModal}
+          onOpenChange={setShowUpgradeModal}
+        />
 
-      <TutorialGuide
-        steps={producaoSteps}
-        isOpen={isProducaoTourOpen}
-        currentStep={producaoStep}
-        onNext={nextProducaoStep}
-        onPrev={prevProducaoStep}
-        onClose={closeProducaoTour}
-      />
+        <TutorialGuide
+          steps={generalSteps}
+          isOpen={isGeneralTourOpen}
+          currentStep={generalStep}
+          onNext={nextGeneralStep}
+          onPrev={prevGeneralStep}
+          onClose={closeGeneralTour}
+        />
 
-      <TutorialGuide
-        steps={servicosSteps}
-        isOpen={isServicosTourOpen}
-        currentStep={servicosStep}
-        onNext={nextServicosStep}
-        onPrev={prevServicosStep}
-        onClose={closeServicosTour}
-      />
+        <TutorialGuide
+          steps={producaoSteps}
+          isOpen={isProducaoTourOpen}
+          currentStep={producaoStep}
+          onNext={nextProducaoStep}
+          onPrev={prevProducaoStep}
+          onClose={closeProducaoTour}
+        />
+
+        <TutorialGuide
+          steps={servicosSteps}
+          isOpen={isServicosTourOpen}
+          currentStep={servicosStep}
+          onNext={nextServicosStep}
+          onPrev={prevServicosStep}
+          onClose={closeServicosTour}
+        />
+      </div> {/* Fim do wrapper pb-24 */}
     </div>
   );
 };

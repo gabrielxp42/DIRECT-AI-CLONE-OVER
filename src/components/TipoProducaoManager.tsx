@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Pencil, Trash2, Check, X, Printer, Scissors, Package, Ruler, Info, Wrench } from "lucide-react";
+import { Plus, Pencil, Trash2, Printer, Scissors, Package, Ruler, Info, Wrench, Zap, Tag, Layers, PenTool, BadgeCheck, Palette, MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -10,6 +10,19 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
+import {
+    Card,
+    CardContent,
+    CardHeader,
+    CardTitle,
+    CardDescription
+} from "@/components/ui/card";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
     Dialog,
     DialogContent,
@@ -52,6 +65,8 @@ export const TipoProducaoManager = () => {
             unidade_medida: "metro",
             is_active: true,
             order_index: (tipos?.length || 0) + 1,
+            icon: "Package",
+            color: "bg-gray-100 text-gray-700",
         });
         setIsDialogOpen(true);
     };
@@ -108,6 +123,8 @@ export const TipoProducaoManager = () => {
                     unidade_medida: editingTipo.unidade_medida,
                     is_active: editingTipo.is_active,
                     order_index: editingTipo.order_index,
+                    icon: editingTipo.icon,
+                    color: editingTipo.color,
                 });
                 showSuccess("Tipo de produção atualizado");
             } else {
@@ -132,10 +149,32 @@ export const TipoProducaoManager = () => {
     };
 
     const icons: Record<string, any> = {
-        dtf: Printer,
-        vinil: Scissors,
-        default: Package,
+        Printer,
+        Scissors,
+        Package,
+        Ruler,
+        Info,
+        Wrench,
+        Zap,
+        Tag,
+        Layers,
+        PenTool,
+        BadgeCheck,
+        Palette
     };
+
+    const colors = [
+        { label: "Laranja", value: "text-orange-500 bg-orange-500/10 border-orange-500/30" },
+        { label: "Azul", value: "text-blue-500 bg-blue-500/10 border-blue-500/30" },
+        { label: "Verde", value: "text-green-500 bg-green-500/10 border-green-500/30" },
+        { label: "Roxo", value: "text-purple-500 bg-purple-500/10 border-purple-500/30" },
+        { label: "Vermelho", value: "text-red-500 bg-red-500/10 border-red-500/30" },
+        { label: "Rosa", value: "text-pink-500 bg-pink-500/10 border-pink-500/30" },
+        { label: "Amarelo", value: "text-yellow-500 bg-yellow-500/10 border-yellow-500/30" },
+        { label: "Teal", value: "text-teal-500 bg-teal-500/10 border-teal-500/30" },
+        { label: "Indigo", value: "text-indigo-500 bg-indigo-500/10 border-indigo-500/30" },
+        { label: "Cinza", value: "text-gray-400 bg-gray-500/10 border-gray-500/30" },
+    ];
 
     if (isLoading) {
         return (
@@ -147,17 +186,18 @@ export const TipoProducaoManager = () => {
 
     return (
         <div className="space-y-4">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h2 className="text-xl font-semibold">Tipos de Produtos</h2>
-                    <p className="text-sm text-muted-foreground">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-1">
+                    <h2 className="text-xl font-semibold tracking-tight">Tipos de Produtos</h2>
+                    <p className="text-xs sm:text-sm text-muted-foreground max-w-[300px] sm:max-w-none">
                         Configure as categorias de produtos e suas unidades de medida.
                     </p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                     <Button
                         variant="outline"
                         size="sm"
+                        className="flex-1 sm:flex-initial"
                         onClick={async () => {
                             if (!tipos) return;
                             const seen = new Map<string, string>(); // nome -> id (mantido)
@@ -194,14 +234,14 @@ export const TipoProducaoManager = () => {
                         <Wrench className="mr-2 h-4 w-4" />
                         Corrigir Duplicados
                     </Button>
-                    <Button onClick={handleOpenAdd} size="sm">
+                    <Button onClick={handleOpenAdd} size="sm" className="flex-1 sm:flex-initial">
                         <Plus className="mr-2 h-4 w-4" />
                         Novo Tipo
                     </Button>
                 </div>
             </div>
 
-            <div className="rounded-md border">
+            <div className="rounded-md border hidden sm:block">
                 <Table>
                     <TableHeader>
                         <TableRow>
@@ -216,15 +256,11 @@ export const TipoProducaoManager = () => {
                             <TableRow key={tipo.id}>
                                 <TableCell className="font-medium">
                                     <div className="flex items-center gap-2">
-                                        <div className={cn(
-                                            "p-1.5 rounded-md",
-                                            tipo.nome.toLowerCase() === 'dtf' ? "bg-blue-100 text-blue-700" :
-                                                tipo.nome.toLowerCase() === 'vinil' ? "bg-orange-100 text-orange-700" :
-                                                    "bg-gray-100 text-gray-700"
-                                        )}>
-                                            {tipo.nome.toLowerCase() === 'dtf' ? <Printer className="h-4 w-4" /> :
-                                                tipo.nome.toLowerCase() === 'vinil' ? <Scissors className="h-4 w-4" /> :
-                                                    <Package className="h-4 w-4" />}
+                                        <div className={cn("p-1.5 rounded-md", tipo.color || "bg-gray-100 text-gray-700")}>
+                                            {(() => {
+                                                const IconComp = icons[tipo.icon || 'Package'] || Package;
+                                                return <IconComp className="h-4 w-4" />;
+                                            })()}
                                         </div>
                                         {tipo.nome}
                                     </div>
@@ -256,6 +292,61 @@ export const TipoProducaoManager = () => {
                 </Table>
             </div>
 
+            {/* Mobile Cards View */}
+            <div className="space-y-4 block sm:hidden">
+                {tipos?.map((tipo) => (
+                    <Card key={tipo.id} className="touch-manipulation">
+                        <CardHeader className="pb-3 flex flex-row items-start justify-between space-y-0">
+                            <div className="flex items-center gap-3">
+                                <div className={cn("p-2 rounded-lg", tipo.color || "bg-gray-100 text-gray-700")}>
+                                    {(() => {
+                                        const IconComp = icons[tipo.icon || 'Package'] || Package;
+                                        return <IconComp className="h-5 w-5" />;
+                                    })()}
+                                </div>
+                                <div>
+                                    <CardTitle className="text-base font-semibold">{tipo.nome}</CardTitle>
+                                    <CardDescription className="text-xs">
+                                        {tipo.unidade_medida === 'metro' ? 'Metro Linear (ML)' : 'Unidade (UND)'}
+                                    </CardDescription>
+                                </div>
+                            </div>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" className="h-8 w-8 p-0">
+                                        <span className="sr-only">Abrir menu</span>
+                                        <MoreHorizontal className="h-4 w-4" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onClick={() => handleOpenEdit(tipo)}>
+                                        <Pencil className="mr-2 h-4 w-4" /> Editar
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleDelete(tipo.id)} className="text-destructive">
+                                        <Trash2 className="mr-2 h-4 w-4" /> Excluir
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </CardHeader>
+                        <CardContent className="pt-0 pb-3">
+                            <div className="flex items-center justify-between">
+                                <span className={cn(
+                                    "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium",
+                                    tipo.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-700"
+                                )}>
+                                    {tipo.is_active ? "Ativo" : "Inativo"}
+                                </span>
+                                {tipo.icon && (
+                                    <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
+                                        Ícone: {tipo.icon}
+                                    </span>
+                                )}
+                            </div>
+                        </CardContent>
+                    </Card>
+                ))}
+            </div>
+
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogContent>
                     <DialogHeader>
@@ -270,6 +361,54 @@ export const TipoProducaoManager = () => {
                                 value={editingTipo?.nome || ""}
                                 onChange={(e) => setEditingTipo({ ...editingTipo, nome: e.target.value })}
                             />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="grid gap-2">
+                                <Label htmlFor="icon">Ícone</Label>
+                                <Select
+                                    value={editingTipo?.icon || "Package"}
+                                    onValueChange={(val) => setEditingTipo({ ...editingTipo, icon: val })}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Selecione..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {Object.keys(icons).map((iconName) => {
+                                            const IconComp = icons[iconName];
+                                            return (
+                                                <SelectItem key={iconName} value={iconName}>
+                                                    <div className="flex items-center gap-2 max-w-[120px]">
+                                                        <IconComp className="h-4 w-4 shrink-0" />
+                                                        <span className="truncate">{iconName}</span>
+                                                    </div>
+                                                </SelectItem>
+                                            );
+                                        })}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="color">Cor</Label>
+                                <Select
+                                    value={editingTipo?.color || "bg-gray-100 text-gray-700"}
+                                    onValueChange={(val) => setEditingTipo({ ...editingTipo, color: val })}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Selecione..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {colors.map((color) => (
+                                            <SelectItem key={color.value} value={color.value}>
+                                                <div className="flex items-center gap-2">
+                                                    <div className={cn("h-3 w-3 rounded-full", color.value.split(" ")[0].replace("bg-", "bg-"))} style={{ backgroundColor: "currentColor" }} />
+                                                    {/* Hack to show color preview properly is tricky with just classes, let's just use the badge style */}
+                                                    <span className={cn("px-2 py-0.5 rounded text-xs", color.value)}>{color.label}</span>
+                                                </div>
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
                         </div>
                         <div className="grid gap-2">
                             <Label htmlFor="unidade">Unidade de Medida Padrão</Label>
@@ -386,6 +525,6 @@ export const TipoProducaoManager = () => {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-        </div>
+        </div >
     );
 };

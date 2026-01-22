@@ -6,7 +6,7 @@ import { Cliente } from '@/types/cliente';
 import { Produto } from '@/types/produto';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Plus, Search, Filter, Eye, Edit, Trash2, Loader2, CalendarIcon, DollarSign, FileText, Scissors, History, MessageSquare, MoreHorizontal, User, Clock, CheckCircle, XCircle, Package, X, Printer, Ruler, PackageOpen, Wrench, Users, Activity, CheckSquare, ChevronDown, Sparkles, ScrollText, Calculator, Bike } from 'lucide-react';
+import { Plus, Search, Filter, Eye, Edit, Trash2, Loader2, CalendarIcon, DollarSign, FileText, Scissors, History, MessageSquare, MoreHorizontal, User, Clock, CheckCircle, XCircle, Package, X, Printer, Ruler, PackageOpen, Wrench, Users, Activity, CheckSquare, ChevronDown, Sparkles, ScrollText, Calculator, Bike, Zap, Tag, Layers, PenTool, BadgeCheck, Palette, Info } from 'lucide-react';
 import { PedidoForm } from '@/components/PedidoForm';
 import { DTFCalculatorModal } from '@/components/DTFCalculatorModal';
 import { PedidoDetails } from '@/components/PedidoDetails';
@@ -63,6 +63,21 @@ import { Share2, Copy, Download, Image as ImageIcon } from 'lucide-react';
 import { logger } from '@/utils/logger';
 
 const ITEMS_PER_PAGE_OPTIONS = [10, 20, 50, 100];
+
+const iconsMap: Record<string, any> = {
+  Printer,
+  Scissors,
+  Package,
+  Ruler,
+  Info,
+  Wrench,
+  Zap,
+  Tag,
+  Layers,
+  PenTool,
+  BadgeCheck,
+  Palette
+};
 
 const generateOrderSummary = (pedido: Pedido) => {
   const formatDate = (dateString: string) => {
@@ -1215,9 +1230,18 @@ const PedidosPage: React.FC = () => {
                   {/* Tipo de Entrega */}
                   {pedido.tipo_entrega === 'retirada' && (
                     <div className="flex items-center text-xs font-semibold">
-                      <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200 gap-1 py-0 px-2 h-6">
+                      <Badge variant="outline" className="bg-orange-500/10 text-orange-500 border-orange-500/30 gap-1 py-0 px-2 h-6">
                         <Package className="h-3 w-3" />
                         RETIRADA
+                      </Badge>
+                    </div>
+                  )}
+
+                  {pedido.tipo_entrega === 'frete' && (
+                    <div className="flex items-center text-xs font-semibold">
+                      <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/30 gap-1 py-0 px-2 h-6">
+                        <Bike className="h-3 w-3" />
+                        ENTREGA
                       </Badge>
                     </div>
                   )}
@@ -1241,18 +1265,46 @@ const PedidosPage: React.FC = () => {
                           const isUnidade = tipoInfo?.unidade_medida === 'unidade';
 
                           let Icon = Ruler;
-                          let colorClass = "text-gray-600 bg-gray-50 border-gray-100 dark:bg-gray-900/20 dark:border-gray-800";
+                          let colorClass = "text-gray-400 bg-gray-500/10 border-gray-500/30";
                           let label = tipoInfo?.nome || tipo.toUpperCase();
 
-                          if (isVinil) {
-                            Icon = Scissors;
-                            colorClass = "text-orange-600 bg-orange-50 border-orange-100 dark:bg-orange-900/20 dark:border-orange-800";
-                          } else if (isDTF) {
-                            Icon = Printer;
-                            colorClass = "text-blue-600 bg-blue-50 border-blue-100 dark:bg-blue-900/20 dark:border-blue-800";
-                          } else if (tipoInfo) {
-                            Icon = isUnidade ? Package : Ruler;
-                            colorClass = "text-primary bg-primary/5 border-primary/10 dark:bg-primary/900/20 dark:border-primary/800";
+                          // Dynamic configuration has priority
+                          if (tipoInfo) {
+                            if (tipoInfo.icon && iconsMap[tipoInfo.icon]) {
+                              Icon = iconsMap[tipoInfo.icon];
+                            } else if (isUnidade) {
+                              Icon = Package;
+                            }
+
+                            if (tipoInfo.color) {
+                              // Se a cor salva for do estilo antigo (bg-color-100), mapear para o novo estilo dark
+                              if (tipoInfo.color.includes('bg-') && tipoInfo.color.includes('-100')) {
+                                const baseColor = tipoInfo.color.split('-')[1]; // ex: orange
+                                colorClass = `text-${baseColor}-500 bg-${baseColor}-500/10 border-${baseColor}-500/20`;
+                              } else {
+                                colorClass = tipoInfo.color + " border-transparent";
+                              }
+                            } else {
+                              // Fallback for types without color config but widely used
+                              if (tipo === 'vinil') colorClass = "text-orange-500 bg-orange-500/10 border-orange-500/30";
+                              else if (tipo === 'dtf') colorClass = "text-blue-500 bg-blue-500/10 border-blue-500/30";
+                              else colorClass = "text-primary bg-primary/10 border-primary/20";
+                            }
+
+                            // Fallback specific icons if not configured
+                            if (!tipoInfo.icon) {
+                              if (tipo === 'vinil') Icon = Scissors;
+                              else if (tipo === 'dtf') Icon = Printer;
+                            }
+                          } else {
+                            // Legacy/Fallback for hardcoded string matches without DB entry
+                            if (isVinil) {
+                              Icon = Scissors;
+                              colorClass = "text-orange-500 bg-orange-500/10 border-orange-500/30";
+                            } else if (isDTF) {
+                              Icon = Printer;
+                              colorClass = "text-blue-500 bg-blue-500/10 border-blue-500/30";
+                            }
                           }
 
                           return (

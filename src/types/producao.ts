@@ -22,6 +22,8 @@ export interface TipoProducao {
     created_at: string;
     updated_at: string;
     tipo_producao_insumos?: TipoProducaoInsumo[];
+    icon?: string;
+    color?: string;
 }
 
 export type NewTipoProducao = Omit<TipoProducao, 'id' | 'created_at' | 'updated_at' | 'tipo_producao_insumos'>;

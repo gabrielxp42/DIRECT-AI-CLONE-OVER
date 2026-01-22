@@ -53,7 +53,16 @@ import {
   Filter,
   ChevronDown,
   Loader2,
-  Share2
+  Share2,
+  Info,
+  Tag,
+  Layers,
+  PenTool,
+  BadgeCheck,
+  Palette,
+  Bike,
+  Star,
+  Zap
 } from "lucide-react";
 
 import { MetersBarChart } from '@/components/MetersBarChart';
@@ -114,6 +123,10 @@ const Reports: React.FC = () => {
   });
 
   const { data: tiposProducao } = useTiposProducao();
+
+  const iconsMap: Record<string, any> = {
+    Printer, Scissors, Package, Ruler, Info, Wrench, Zap, Tag, Layers, PenTool, BadgeCheck, Palette, Bike, Star, FileText
+  };
 
   const getPeriodLabel = (period: string) => {
     switch (period) {
@@ -435,12 +448,23 @@ _Gerado por Direct AI_`;
                         </div>
                         <div className="space-y-1.5">
                           {metricItems.map(([tipo, total]) => {
+                            const tipoInfo = tiposProducao?.find(t => t.nome.toLowerCase() === tipo);
                             const isVinil = tipo === 'vinil';
+                            const isDTF = tipo === 'dtf';
+                            const IconComp = tipoInfo?.icon && iconsMap[tipoInfo.icon] ? iconsMap[tipoInfo.icon] : (isVinil ? Scissors : isDTF ? Printer : Ruler);
+
+                            const colorStyle = tipoInfo?.color?.includes('bg-') && tipoInfo.color.includes('-100')
+                              ? (() => {
+                                const baseColor = tipoInfo.color.split('-')[1];
+                                return `text-${baseColor}-500 bg-${baseColor}-500/10 border-${baseColor}-500/20`;
+                              })()
+                              : (isVinil ? "text-orange-500 bg-orange-500/10 border-orange-500/30" : isDTF ? "text-blue-500 bg-blue-500/10 border-blue-500/30" : (tipoInfo?.color || "text-primary bg-primary/10 border-primary/20"));
+
                             return (
-                              <div key={tipo} className="flex justify-between items-center text-xs p-1.5 bg-background rounded border border-border/50">
-                                <span className={cn("capitalize flex items-center gap-1.5 font-semibold", isVinil ? "text-orange-600" : "text-blue-600")}>
-                                  {isVinil ? <Scissors className="h-3 w-3" /> : <Printer className="h-3 w-3" />}
-                                  {tipo}
+                              <div key={tipo} className={cn("flex justify-between items-center text-xs p-1.5 bg-background/40 rounded border", colorStyle.includes('border-') ? colorStyle : `border-border/50 ${colorStyle}`)}>
+                                <span className="capitalize flex items-center gap-1.5 font-semibold">
+                                  <IconComp className="h-3 w-3" />
+                                  {tipoInfo?.nome || tipo}
                                 </span>
                                 <span className="font-mono font-bold text-foreground">
                                   {(total as number).toFixed(2)}m

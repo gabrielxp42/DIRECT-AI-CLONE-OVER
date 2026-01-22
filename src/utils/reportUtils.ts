@@ -314,7 +314,9 @@ export const fetchReportData = async (
             }
 
             if (isPaidStatus || (isAwaitingPickup && wasPaid)) {
-                totalRevenue += order.valor_total || 0;
+                // EXCLUSÃO DE FRETE: Frete não conta como faturamento real/lucro
+                const valorFrete = order.tipo_entrega === 'frete' ? Number(order.valor_frete || 0) : 0;
+                totalRevenue += Math.max(0, (order.valor_total || 0) - valorFrete);
             }
 
             totalCost += calculateOrderCost(order);
@@ -351,9 +353,10 @@ export const fetchReportData = async (
         if (createdInRange) {
             const status = order.status || 'desconhecido';
             const existingFin = financialStats.get(status) || { count: 0, value: 0, status };
+            const valorFrete = order.tipo_entrega === 'frete' ? Number(order.valor_frete || 0) : 0;
             financialStats.set(status, {
                 count: existingFin.count + 1,
-                value: existingFin.value + (order.valor_total || 0),
+                value: existingFin.value + Math.max(0, (order.valor_total || 0) - valorFrete),
                 status
             });
         }
@@ -403,8 +406,14 @@ export const fetchReportData = async (
     }));
 
     // 5. Growth Calculation
-    const currentRevenue = currentMonthOrdersStats.reduce((sum: number, o: any) => sum + o.valor_total, 0);
-    const previousRevenue = previousMonthOrders.reduce((sum: number, o: any) => sum + o.valor_total, 0);
+    const currentRevenue = currentMonthOrdersStats.reduce((sum: number, o: any) => {
+        const valorFrete = o.tipo_entrega === 'frete' ? Number(o.valor_frete || 0) : 0;
+        return sum + Math.max(0, o.valor_total - valorFrete);
+    }, 0);
+    const previousRevenue = previousMonthOrders.reduce((sum: number, o: any) => {
+        const valorFrete = o.tipo_entrega === 'frete' ? Number(o.valor_frete || 0) : 0;
+        return sum + Math.max(0, o.valor_total - valorFrete);
+    }, 0);
 
     // Note: Customers Growth is approximated by new customers added in period
     // We actually need "Active Customers" (who bought something), not "New Customers Added".
@@ -513,7 +522,10 @@ export const fetchReportData = async (
             return d >= bucket.start && d <= bucket.end;
         });
 
-        const rev = ordersInBucket.reduce((sum: number, o: any) => sum + (o.valor_total || 0), 0);
+        const rev = ordersInBucket.reduce((sum: number, o: any) => {
+            const valorFrete = o.tipo_entrega === 'frete' ? Number(o.valor_frete || 0) : 0;
+            return sum + Math.max(0, (o.valor_total || 0) - valorFrete);
+        }, 0);
 
         // Somar metros apenas de pedidos NÃO cancelados
         const productionOrders = ordersInBucket.filter((o: any) => o.status !== 'cancelado');
@@ -548,9 +560,18 @@ export const fetchReportData = async (
             const wasPaid = isAwaiting && Array.isArray(o.pedido_status_history) &&
                 o.pedido_status_history.some((h: any) => h.status_novo?.toLowerCase() === 'pago' || h.status_anterior?.toLowerCase() === 'pago');
             return ['pago', 'entregue'].includes(s) || (isAwaiting && wasPaid);
-        }).reduce((acc: number, o: any) => acc + o.valor_total, 0),
-        totalPending: periodOrders.filter((o: any) => ['pendente', 'processando', 'aguardando retirada'].includes(o.status?.toLowerCase()) && !(['aguardando retirada'].includes(o.status?.toLowerCase()) && o.pedido_status_history?.some((h: any) => h.status_novo?.toLowerCase() === 'pago'))).reduce((acc: number, o: any) => acc + o.valor_total, 0),
-        totalCancelled: periodOrders.filter((o: any) => o.status === 'cancelado').reduce((acc: number, o: any) => acc + o.valor_total, 0)
+        }).reduce((acc: number, o: any) => {
+            const valorFrete = o.tipo_entrega === 'frete' ? Number(o.valor_frete || 0) : 0;
+            return acc + Math.max(0, (o.valor_total || 0) - valorFrete);
+        }, 0),
+        totalPending: periodOrders.filter((o: any) => ['pendente', 'processando', 'aguardando retirada'].includes(o.status?.toLowerCase()) && !(['aguardando retirada'].includes(o.status?.toLowerCase()) && o.pedido_status_history?.some((h: any) => h.status_novo?.toLowerCase() === 'pago'))).reduce((acc: number, o: any) => {
+            const valorFrete = o.tipo_entrega === 'frete' ? Number(o.valor_frete || 0) : 0;
+            return acc + Math.max(0, (o.valor_total || 0) - valorFrete);
+        }, 0),
+        totalCancelled: periodOrders.filter((o: any) => o.status === 'cancelado').reduce((acc: number, o: any) => {
+            const valorFrete = o.tipo_entrega === 'frete' ? Number(o.valor_frete || 0) : 0;
+            return acc + Math.max(0, (o.valor_total || 0) - valorFrete);
+        }, 0)
     };
 
     // Services Stats
