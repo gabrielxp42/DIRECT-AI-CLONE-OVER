@@ -92,7 +92,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { hapticTap, hapticImpact, hapticSelect } from "@/utils/haptic";
-import { useTiposProducao, useProdutos, useServiceShortcuts, useIncrementServiceUsage } from "@/hooks/useDataFetch";
+import { useTiposProducao, useProdutos, useServiceShortcuts, useIncrementServiceUsage, useTransportadoras, useSaveTransportadora } from "@/hooks/useDataFetch";
 import { TipoProducao } from "@/types/producao";
 import { useTour } from '@/hooks/useTour';
 import { NEW_ORDER_TOUR } from '@/utils/tours';
@@ -104,6 +104,7 @@ const formSchema = z.object({
   observacoes: z.string().optional(),
   tipo_entrega: z.enum(['frete', 'retirada']).nullable().optional(),
   valor_frete: z.coerce.number().min(0).default(0),
+  transportadora: z.string().optional().nullable(),
   desconto_valor: z.coerce.number().min(0).optional(),
   desconto_percentual: z.coerce.number().min(0).max(100).optional(),
   created_at: z.date({
@@ -155,6 +156,10 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
   const { isTourOpen, currentStep, steps, startTour, nextStep, prevStep, closeTour, shouldAutoStart } = useTour(NEW_ORDER_TOUR, 'new-order');
   const { data: dbShortcuts } = useServiceShortcuts();
   const incrementUsage = useIncrementServiceUsage();
+  const { data: transportadoras } = useTransportadoras();
+  const saveTransportadora = useSaveTransportadora();
+  const [transportadoraOpen, setTransportadoraOpen] = useState(false);
+  const [transportadoraSearch, setTransportadoraSearch] = useState('');
 
   const uniqueTiposProducao = useMemo(() => {
     if (!tiposProducao) return [];
@@ -183,6 +188,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
       observacoes: "",
       tipo_entrega: undefined,
       valor_frete: 0,
+      transportadora: "",
       desconto_valor: 0,
       desconto_percentual: 0,
       created_at: new Date(),
@@ -270,8 +276,9 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
         form.reset({
           cliente_id: initialData.cliente_id || "",
           observacoes: initialData.observacoes || "",
-          tipo_entrega: initialData.tipo_entrega || "frete",
+          tipo_entrega: initialData.tipo_entrega || undefined,
           valor_frete: initialData.valor_frete || 0,
+          transportadora: initialData.transportadora || "",
           desconto_valor: initialData.desconto_valor || 0,
           desconto_percentual: initialData.desconto_percentual || 0,
           created_at: new Date(initialData.created_at),
@@ -323,6 +330,9 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
           form.reset({
             cliente_id: "",
             observacoes: "",
+            tipo_entrega: undefined,
+            valor_frete: 0,
+            transportadora: "",
             desconto_valor: 0,
             desconto_percentual: 0,
             created_at: new Date(),
@@ -412,6 +422,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
       observacoes: data.observacoes,
       tipo_entrega: data.tipo_entrega,
       valor_frete: data.tipo_entrega === 'frete' ? data.valor_frete : 0,
+      transportadora: data.tipo_entrega === 'frete' ? data.transportadora : null,
       created_at: data.created_at.toISOString(),
       items: items.map((item, index) => {
         return {
@@ -431,6 +442,14 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
         valor_unitario: Number(servico.valor_unitario),
       })),
     };
+
+    // Auto-save transportadora se for nova
+    if (data.tipo_entrega === 'frete' && data.transportadora) {
+      const exists = transportadoras?.some(t => t.nome.toLowerCase() === data.transportadora?.toLowerCase());
+      if (!exists) {
+        saveTransportadora.mutate(data.transportadora);
+      }
+    }
 
     // Bloquear novos salvamentos automáticos
     isSubmitInProgress.current = true;
@@ -1729,32 +1748,91 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                 />
 
                 {watchedTipoEntrega === 'frete' && (
-                  <div className="p-4 bg-orange-50/50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-800 rounded-lg animate-in fade-in slide-in-from-top-2 duration-300 my-4">
-                    <FormField
-                      control={form.control}
-                      name="valor_frete"
-                      render={({ field }) => (
-                        <FormItem>
-                          <div className="flex items-center justify-between gap-2">
-                            <FormLabel className="flex items-center gap-2 text-orange-700 dark:text-orange-400 font-semibold mb-0">
-                              <Bike className="h-4 w-4" />
+                  <div className="p-4 bg-orange-50/50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-800 rounded-lg animate-in fade-in slide-in-from-top-2 duration-300 my-4 space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="transportadora"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-col">
+                            <FormLabel className="text-orange-700 dark:text-orange-400 font-semibold mb-1 flex items-center gap-2">
+                              Transportadora
+                            </FormLabel>
+                            <Popover open={transportadoraOpen} onOpenChange={setTransportadoraOpen}>
+                              <PopoverTrigger asChild>
+                                <FormControl>
+                                  <Button
+                                    variant="outline"
+                                    role="combobox"
+                                    className={cn(
+                                      "w-full justify-between h-9 text-sm border-orange-200 focus:border-orange-400 bg-background",
+                                      !field.value && "text-muted-foreground"
+                                    )}
+                                  >
+                                    {field.value || "Selecione ou digite..."}
+                                    <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                  </Button>
+                                </FormControl>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-[250px] p-0" align="start">
+                                <Command>
+                                  <CommandInput
+                                    placeholder="Buscar ou criar..."
+                                    value={transportadoraSearch}
+                                    onValueChange={(val) => {
+                                      setTransportadoraSearch(val);
+                                      field.onChange(val);
+                                    }}
+                                  />
+                                  <CommandList>
+                                    <CommandEmpty className="py-2 px-4 text-xs">
+                                      Pressione Enter para usar "{transportadoraSearch}"
+                                    </CommandEmpty>
+                                    <CommandGroup heading="Salvas">
+                                      {transportadoras?.map((t) => (
+                                        <CommandItem
+                                          key={t.id}
+                                          value={t.nome}
+                                          onSelect={() => {
+                                            field.onChange(t.nome);
+                                            setTransportadoraOpen(false);
+                                            setTransportadoraSearch('');
+                                          }}
+                                        >
+                                          {t.nome}
+                                        </CommandItem>
+                                      ))}
+                                    </CommandGroup>
+                                  </CommandList>
+                                </Command>
+                              </PopoverContent>
+                            </Popover>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="valor_frete"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-col">
+                            <FormLabel className="text-orange-700 dark:text-orange-400 font-semibold mb-1 flex items-center gap-2">
                               Valor do Frete
                             </FormLabel>
                             <FormControl>
-                              <div className="w-[150px]">
-                                <CurrencyInput
-                                  value={field.value}
-                                  onChange={(value) => field.onChange(value)}
-                                  placeholder="0,00"
-                                  className="h-9 text-right font-bold border-orange-200 focus-visible:ring-orange-400"
-                                />
-                              </div>
+                              <CurrencyInput
+                                value={field.value}
+                                onChange={(value) => field.onChange(value)}
+                                placeholder="0,00"
+                                className="h-9 text-right font-bold border-orange-200 focus-visible:ring-orange-400 bg-background"
+                              />
                             </FormControl>
-                          </div>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
                   </div>
                 )}
               </div>

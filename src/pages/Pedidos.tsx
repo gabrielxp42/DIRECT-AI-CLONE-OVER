@@ -13,16 +13,13 @@ import { PedidoDetails } from '@/components/PedidoDetails';
 import { EmptyState } from '@/components/EmptyState';
 import { showSuccess, showError } from '@/utils/toast';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -134,6 +131,9 @@ const generateOrderSummary = (pedido: Pedido) => {
   if (pedido.tipo_entrega === 'frete' && pedido.valor_frete && pedido.valor_frete > 0) {
     summary += `Valor do Frete: ${formatCurrency(pedido.valor_frete)}\n`;
   }
+  if (pedido.tipo_entrega === 'frete' && pedido.transportadora) {
+    summary += `Transportadora: ${pedido.transportadora.toUpperCase()}\n`;
+  }
   summary += `\n*** AGRADECEMOS A PREFERÊNCIA ***`;
 
   return summary;
@@ -223,6 +223,7 @@ const PedidosPage: React.FC = () => {
   const [viewingPedidoId, setViewingPedidoId] = useState<string | null>(null);
   const [statusChangePedido, setStatusChangePedido] = useState<Pedido | null>(null);
   const [viewingStatusHistory, setViewingStatusHistory] = useState<Pedido | null>(null);
+  const [pedidoToDelete, setPedidoToDelete] = useState<Pedido | null>(null);
 
   useEffect(() => {
     const hasViewed = localStorage.getItem('dtf_calculator_update_viewed_v2');
@@ -1386,26 +1387,13 @@ const PedidosPage: React.FC = () => {
                           <Edit className="h-4 w-4 mr-2" />
                           Editar
                         </DropdownMenuItem>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                              <Trash2 className="h-4 w-4 mr-2 text-destructive" />
-                              <span className="text-destructive">Excluir</span>
-                            </DropdownMenuItem>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Tem certeza que deseja excluir o pedido #{pedido.order_number}? Esta ação não pode ser desfeita.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => deletePedidoMutation.mutate(pedido.id)}>Excluir</AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                        <DropdownMenuItem
+                          onSelect={() => setPedidoToDelete(pedido)}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2 text-destructive" />
+                          <span className="text-destructive">Excluir</span>
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
@@ -1506,6 +1494,31 @@ const PedidosPage: React.FC = () => {
         isOpen={isCalculatorOpen}
         onClose={() => setIsCalculatorOpen(false)}
       />
+
+      <Dialog open={!!pedidoToDelete} onOpenChange={(open) => !open && setPedidoToDelete(null)}>
+        <DialogContent onClick={(e) => e.stopPropagation()}>
+          <DialogHeader>
+            <DialogTitle>Confirmar Exclusão</DialogTitle>
+            <DialogDescription>
+              Tem certeza que deseja excluir o pedido #{pedidoToDelete?.order_number}? Esta ação não pode ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setPedidoToDelete(null)}>Cancelar</Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (pedidoToDelete) {
+                  deletePedidoMutation.mutate(pedidoToDelete.id);
+                  setPedidoToDelete(null);
+                }
+              }}
+            >
+              Excluir
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

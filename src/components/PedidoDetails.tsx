@@ -51,7 +51,9 @@ import {
   Ruler,
   Loader2,
   ScrollText,
-  CheckCircle
+  CheckCircle,
+  Bike,
+  Truck
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTiposProducao, deductInsumosFromPedido, restoreInsumosFromPedido, isInventoryConsumingStatus } from '@/hooks/useDataFetch';
@@ -265,6 +267,15 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
       pedido.servicos.forEach(s => {
         message += `- ${s.quantidade}x ${s.nome} (${formatCurrency(s.valor_unitario)})\n`;
       });
+      message += `\n`;
+    }
+
+    if (pedido.tipo_entrega) {
+      message += `🚚 *ENTREGA:* ${pedido.tipo_entrega === 'frete' ? 'Frete' : 'Retirada'}\n`;
+      if (pedido.tipo_entrega === 'frete') {
+        if (pedido.valor_frete) message += `💰 *Valor Frete:* ${formatCurrency(pedido.valor_frete)}\n`;
+        if (pedido.transportadora) message += `🏢 *Transportadora:* ${pedido.transportadora}\n`;
+      }
       message += `\n`;
     }
 
@@ -644,6 +655,40 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
                       <span>Desconto ({pedido.desconto_percentual}%):</span>
                     </div>
                     <span>-{formatCurrency((pedido.subtotal_produtos + pedido.subtotal_servicos) * (pedido.desconto_percentual / 100))}</span>
+                  </div>
+                )}
+
+                {pedido.tipo_entrega && (
+                  <div className="pt-3 border-t space-y-2">
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center text-muted-foreground text-sm">
+                        {pedido.tipo_entrega === 'frete' ? (
+                          <>
+                            <Bike className="h-4 w-4 mr-2 text-orange-600" />
+                            <span>Entrega (Frete)</span>
+                          </>
+                        ) : (
+                          <>
+                            <Package className="h-4 w-4 mr-2 text-primary" />
+                            <span>Retirada no Local</span>
+                          </>
+                        )}
+                      </div>
+                      {pedido.tipo_entrega === 'frete' && pedido.valor_frete > 0 && (
+                        <span className="font-medium text-orange-600">
+                          {formatCurrency(pedido.valor_frete)}
+                        </span>
+                      )}
+                    </div>
+
+                    {pedido.tipo_entrega === 'frete' && pedido.transportadora && (
+                      <div className="flex items-center bg-orange-50 dark:bg-orange-950/20 p-2 rounded border border-orange-100 dark:border-orange-900/50">
+                        <Truck className="h-4 w-4 mr-2 text-orange-600" />
+                        <span className="text-xs font-medium text-orange-700 dark:text-orange-400 truncate">
+                          Transportadora: {pedido.transportadora}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
 

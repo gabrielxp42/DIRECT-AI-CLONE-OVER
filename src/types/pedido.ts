@@ -51,6 +51,7 @@ export interface Pedido {
   observacoes: string | null;
   tipo_entrega?: 'frete' | 'retirada';
   valor_frete?: number;
+  transportadora?: string | null;
   created_at: string;
   pago_at: string | null;
   order_number: number;
@@ -91,6 +92,7 @@ export interface NewPedido {
   observacoes?: string;
   tipo_entrega?: 'frete' | 'retirada';
   valor_frete?: number;
+  transportadora?: string | null;
   items: NewPedidoItem[];
   servicos?: NewServico[];
 }

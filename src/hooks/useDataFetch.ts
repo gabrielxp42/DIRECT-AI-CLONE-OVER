@@ -12,6 +12,70 @@ import { getValidToken } from '@/utils/tokenGuard';
 import { removeAccents } from "@/utils/string";
 import { ServiceShortcut, NewServiceShortcut } from "@/types/servico";
 
+// --- Fetch Transportadoras ---
+const fetchTransportadoras = async (token: string): Promise<{ id: string; nome: string }[]> => {
+  const params = new URLSearchParams({
+    select: "id,nome",
+    order: "nome.asc",
+  });
+  return fetchTable<{ id: string; nome: string }>(token, "transportadoras", params);
+};
+
+export const useTransportadoras = () => {
+  const { session, isLoading: sessionLoading } = useSession();
+  const accessToken = session?.access_token;
+
+  const isEnabled = !sessionLoading && !!accessToken;
+
+  return useQuery<{ id: string; nome: string }[]>({
+    queryKey: ["transportadoras"],
+    queryFn: () => {
+      if (!accessToken) {
+        throw new Error("Access token missing.");
+      }
+      return fetchTransportadoras(accessToken);
+    },
+    enabled: isEnabled,
+    staleTime: 1000 * 60 * 5, // 5 minutos
+  });
+};
+
+export const useSaveTransportadora = () => {
+  const { session } = useSession();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (nome: string) => {
+      if (!session) throw new Error("No session");
+
+      const token = await getValidToken();
+      const effectiveToken = token || session.access_token;
+
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/transportadoras`, {
+        method: "POST",
+        headers: {
+          ...buildHeaders(effectiveToken),
+          Prefer: "return=representation",
+        },
+        body: JSON.stringify({
+          nome,
+          user_id: session.user.id,
+        }),
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Error saving transportadora: ${text}`);
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["transportadoras"] });
+    },
+  });
+};
+
 const buildHeaders = (token: string) => ({
   apikey: SUPABASE_ANON_KEY,
   Authorization: `Bearer ${token}`,

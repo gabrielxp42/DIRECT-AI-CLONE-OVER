@@ -182,8 +182,8 @@ export const printThermalReceipt = (pedido: Pedido) => {
       ${servicesHtml}
 
       ${hasFreight ? `
-      <div class="compact-row" style="margin-top: 5px; font-weight: bold;">
-         <span class="compact-name" style="text-align: right; padding-right: 10px;">FRETE:</span>
+      <div class="compact-row" style="margin-top: 5px; font-weight: bold; font-size: 13px;">
+         <span class="compact-name" style="text-align: right; padding-right: 10px;">VALOR DO FRETE:</span>
          <span class="compact-price">${formatCurrency(freightValue)}</span>
       </div>` : ''}
       
@@ -191,11 +191,17 @@ export const printThermalReceipt = (pedido: Pedido) => {
         TOTAL: ${formatCurrency(pedido.valor_total)}
       </div>
       
-      <div class="line" style="text-align: right; margin-top: 5px;">
-        Entrega: <strong>${pedido.tipo_entrega === 'retirada' ? 'RETIRADA' : 'FRETE'}</strong>
-      </div>
-      <div class="line" style="text-align: right; margin-top: 2px;">
-        Status: <strong>${statusText}</strong>
+      <div style="margin-top: 10px; border-top: 1px dashed #ccc; padding-top: 5px; font-size: 11px;">
+        <div class="line" style="text-align: right;">
+          ENTREGA: <strong>${pedido.tipo_entrega === 'retirada' ? 'RETIRADA' : 'FRETE'}</strong>
+        </div>
+        ${pedido.tipo_entrega === 'frete' && pedido.transportadora ? `
+        <div class="line" style="text-align: right;">
+          TRANSPORTADORA: <strong>${pedido.transportadora.toUpperCase()}</strong>
+        </div>` : ''}
+        <div class="line" style="text-align: right;">
+          STATUS: <strong>${statusText}</strong>
+        </div>
       </div>
 
       <div class="footer">

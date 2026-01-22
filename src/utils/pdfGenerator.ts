@@ -361,6 +361,16 @@ export const generateOrderPDF = async (
     summaryData.push([discountLabel, `-${formatCurrency(pedido.desconto_valor)}`]);
   }
 
+  if (pedido.tipo_entrega) {
+    const deliveryLabel = pedido.tipo_entrega === 'frete' ? 'Entrega (Frete)' : 'Retirada no Local';
+    const deliveryValue = pedido.tipo_entrega === 'frete' ? formatCurrency(pedido.valor_frete || 0) : 'R$ 0,00';
+    summaryData.push([deliveryLabel, deliveryValue]);
+
+    if (pedido.tipo_entrega === 'frete' && pedido.transportadora) {
+      summaryData.push(['Transportadora', pedido.transportadora]);
+    }
+  }
+
   summaryData.push(['Total Final', formatCurrency(pedido.valor_total)]);
 
   autoTable(doc, {
