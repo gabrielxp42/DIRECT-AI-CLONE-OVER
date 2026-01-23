@@ -2,37 +2,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const ASAAS_API_KEY = Deno.env.get("ASAAS_API_KEY");
-const ASAAS_API_URL = Deno.env.get("ASAAS_API_URL") || "https://sandbox.asaas.com/api/v3";
-// MODO SANDBOX
+const ASAAS_API_URL = Deno.env.get("ASAAS_API_URL") || "https://api.asaas.com/v3";
+// MODO PRODUÇÃO
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
-
-// Helper para gerar CPF válido para sandbox
-function generateCPF() {
-    const n = 9;
-    const n1 = Math.floor(Math.random() * n);
-    const n2 = Math.floor(Math.random() * n);
-    const n3 = Math.floor(Math.random() * n);
-    const n4 = Math.floor(Math.random() * n);
-    const n5 = Math.floor(Math.random() * n);
-    const n6 = Math.floor(Math.random() * n);
-    const n7 = Math.floor(Math.random() * n);
-    const n8 = Math.floor(Math.random() * n);
-    const n9 = Math.floor(Math.random() * n);
-
-    let d1 = n9 * 2 + n8 * 3 + n7 * 4 + n6 * 5 + n5 * 6 + n4 * 7 + n3 * 8 + n2 * 9 + n1 * 10;
-    d1 = 11 - (d1 % 11);
-    if (d1 >= 10) d1 = 0;
-
-    let d2 = d1 * 2 + n9 * 3 + n8 * 4 + n7 * 5 + n6 * 6 + n5 * 7 + n4 * 8 + n3 * 9 + n2 * 10 + n1 * 11;
-    d2 = 11 - (d2 % 11);
-    if (d2 >= 10) d2 = 0;
-
-    return `${n1}${n2}${n3}${n4}${n5}${n6}${n7}${n8}${n9}${d1}${d2}`;
-}
 
 serve(async (req) => {
     if (req.method === 'OPTIONS') {
@@ -65,9 +41,7 @@ serve(async (req) => {
         const searchData = await customerSearchResponse.json();
 
         // Determines if we have real data to use
-        const realCpf = creditCardHolderInfo?.cpfCnpj && creditCardHolderInfo.cpfCnpj !== '00000000000' && creditCardHolderInfo.cpfCnpj.length >= 11
-            ? creditCardHolderInfo.cpfCnpj
-            : generateCPF();
+        const realCpf = creditCardHolderInfo?.cpfCnpj?.replace(/\D/g, '') || '00000000000'; // Default placeholder if missing, but ideally passed from frontend
 
         const realPhone = creditCardHolderInfo?.phone && creditCardHolderInfo.phone !== '00000000000'
             ? creditCardHolderInfo.phone

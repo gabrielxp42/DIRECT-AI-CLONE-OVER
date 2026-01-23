@@ -57,7 +57,7 @@ import AdminRoute from "./components/AdminRoute";
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <ThemeProvider defaultTheme="light" storageKey="direct-ai-theme">
+    <ThemeProvider defaultTheme="dark" storageKey="direct-ai-theme">
       <TooltipProvider>
         <AIAssistantProvider>
           <Toaster />
