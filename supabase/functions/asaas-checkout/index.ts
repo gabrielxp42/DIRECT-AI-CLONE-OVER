@@ -2,8 +2,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const ASAAS_API_KEY = Deno.env.get("ASAAS_API_KEY");
-const ASAAS_API_URL = Deno.env.get("ASAAS_API_URL") || "https://sandbox.asaas.com/api/v3";
-// MODO SANDBOX
+const ASAAS_API_URL = Deno.env.get("ASAAS_API_URL") || "https://api.asaas.com/v3";
+// MODO PRODUÇÃO
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -65,9 +65,7 @@ serve(async (req) => {
         const searchData = await customerSearchResponse.json();
 
         // Determines if we have real data to use
-        const realCpf = creditCardHolderInfo?.cpfCnpj && creditCardHolderInfo.cpfCnpj !== '00000000000' && creditCardHolderInfo.cpfCnpj.length >= 11
-            ? creditCardHolderInfo.cpfCnpj
-            : generateCPF();
+        const realCpf = creditCardHolderInfo?.cpfCnpj?.replace(/\D/g, '') || '00000000000'; // Default placeholder if missing, but ideally passed from frontend
 
         const realPhone = creditCardHolderInfo?.phone && creditCardHolderInfo.phone !== '00000000000'
             ? creditCardHolderInfo.phone
