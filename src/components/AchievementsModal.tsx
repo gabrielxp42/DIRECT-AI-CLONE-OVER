@@ -51,16 +51,54 @@ export const AchievementsModal = ({ isOpen, onClose, stats }: AchievementsModalP
                 <div className="absolute -bottom-24 -right-24 w-64 h-64 bg-blue-500/10 rounded-full blur-[100px] pointer-events-none" />
 
                 <DialogHeader className="relative z-10 text-left">
-                    <div className="flex items-center gap-3 md:gap-4 mb-2">
-                        <div className="p-2 md:p-3 rounded-xl md:rounded-2xl bg-primary/20 border border-primary/20 text-primary shadow-[0_0_20px_rgba(255,242,0,0.1)]">
-                            <Trophy className="w-6 h-6 md:w-8 md:h-8 fill-primary/20" />
+                    <div className="flex items-center justify-between gap-4 mb-2">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 md:p-3 rounded-xl md:rounded-2xl bg-primary/20 border border-primary/20 text-primary shadow-[0_0_20px_rgba(255,242,0,0.1)]">
+                                <Trophy className="w-6 h-6 md:w-8 md:h-8 fill-primary/20" />
+                            </div>
+                            <div>
+                                <DialogTitle className="text-lg md:text-2xl font-black uppercase italic tracking-tighter">Sala de Troféus</DialogTitle>
+                                <p className="text-zinc-500 text-[10px] md:text-sm font-medium italic">
+                                    Conquistas desbloqueadas: <span className="text-primary font-black">{unlockedCount} / {milestones.length}</span>
+                                </p>
+                            </div>
                         </div>
-                        <div>
-                            <DialogTitle className="text-lg md:text-2xl font-black uppercase italic tracking-tighter">Sala de Troféus</DialogTitle>
-                            <p className="text-zinc-500 text-[10px] md:text-sm font-medium italic">
-                                Você já desbloqueou <span className="text-primary font-black">{unlockedCount} de {milestones.length}</span> conquistas épicas.
-                            </p>
+                        {/* Global Rank Badge */}
+                        <div className="flex flex-col items-end">
+                            <div className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Seu Rank</div>
+                            <div className="text-sm md:text-lg font-black text-white italic uppercase tracking-tighter bg-gradient-to-r from-primary to-yellow-500 bg-clip-text text-transparent transform -skew-x-12">
+                                {unlockedCount <= 3 ? "Iniciante" : unlockedCount <= 6 ? "Profissional" : "Lenda Viva"}
+                            </div>
                         </div>
+                    </div>
+
+                    {/* Category Progression Bars */}
+                    <div className="grid grid-cols-3 gap-2 mt-4 bg-white/5 p-2 rounded-xl border border-white/10">
+                        {['production', 'growth', 'sales'].map((cat) => {
+                            const catTotal = milestones.filter(m => m.category === cat).length;
+                            const catUnlocked = milestones.filter(m => m.category === cat && m.unlocked).length;
+                            const perc = (catUnlocked / catTotal) * 100;
+                            const labels = { production: 'Produção', growth: 'Base', sales: 'Vendas' };
+                            return (
+                                <div key={cat} className="space-y-1">
+                                    <div className="flex justify-between text-[8px] font-black uppercase tracking-tighter text-zinc-400">
+                                        <span>{labels[cat as keyof typeof labels]}</span>
+                                        <span>{catUnlocked}/{catTotal}</span>
+                                    </div>
+                                    <div className="h-1 w-full bg-zinc-800 rounded-full overflow-hidden">
+                                        <div
+                                            className={cn(
+                                                "h-full rounded-full transition-all duration-1000",
+                                                cat === 'production' && "bg-blue-500",
+                                                cat === 'growth' && "bg-purple-500",
+                                                cat === 'sales' && "bg-green-500"
+                                            )}
+                                            style={{ width: `${perc}%` }}
+                                        />
+                                    </div>
+                                </div>
+                            );
+                        })}
                     </div>
                 </DialogHeader>
 

@@ -31,8 +31,8 @@ export interface DashboardStats {
 
 const fetchDashboardData = async (userId: string | undefined): Promise<DashboardStats> => {
   const accessToken = await getValidToken();
-  if (!accessToken) {
-    throw new Error("Sem token de acesso para fetch.");
+  if (!accessToken || !userId) {
+    throw new Error("Sem token de acesso ou ID de usuário para fetch.");
   }
 
   const headers = {
@@ -86,34 +86,37 @@ const fetchDashboardData = async (userId: string | undefined): Promise<Dashboard
   ] = await Promise.all([
     // Current Month Orders (needed for calculations)
     doFetch('pedidos', new URLSearchParams({
-      select: 'valor_total,created_at,status,total_metros,pedido_items(tipo,quantidade)',
+      select: 'valor_total,created_at,status,total_metros,subtotal_produtos,subtotal_servicos,tipo_entrega,valor_frete,desconto_percentual,desconto_valor,pedido_items(tipo,quantidade),pedido_status_history(status_novo,status_anterior)',
       created_at: `gte.${firstDayCurrentMonth.toISOString()}`,
+      user_id: `eq.${userId}`
     })).then(data => data.filter((d: any) => new Date(d.created_at) <= lastDayCurrentMonth)),
 
     // Previous Month Orders (needed for growth)
     doFetch('pedidos', new URLSearchParams({
-      select: 'valor_total,created_at,total_metros',
+      select: 'valor_total,created_at,status,total_metros,subtotal_produtos,subtotal_servicos,tipo_entrega,valor_frete,desconto_percentual,desconto_valor,pedido_status_history(status_novo,status_anterior)',
       created_at: `gte.${firstDayPreviousMonth.toISOString()}`,
+      user_id: `eq.${userId}`
     })).then(data => data.filter((d: any) => new Date(d.created_at) <= lastDayPreviousMonth)),
 
     // Customers (Counts only)
-    doCount('clientes', new URLSearchParams({ created_at: `gte.${firstDayCurrentMonth.toISOString()}` })),
+    doCount('clientes', new URLSearchParams({ created_at: `gte.${firstDayCurrentMonth.toISOString()}`, user_id: `eq.${userId}` })),
     doCount('clientes', new URLSearchParams({
       created_at: `gte.${firstDayPreviousMonth.toISOString()}`,
+      user_id: `eq.${userId}`
     })),
 
     // Status Counts
-    doCount('pedidos', new URLSearchParams({ status: 'eq.pendente' })),
-    doCount('pedidos', new URLSearchParams({ status: 'eq.processando' })),
-    doCount('pedidos', new URLSearchParams({ status: 'eq.aguardando retirada' })),
-    doCount('pedidos', new URLSearchParams({ status: 'eq.entregue' })),
+    doCount('pedidos', new URLSearchParams({ status: 'eq.pendente', user_id: `eq.${userId}` })),
+    doCount('pedidos', new URLSearchParams({ status: 'eq.processando', user_id: `eq.${userId}` })),
+    doCount('pedidos', new URLSearchParams({ status: 'eq.aguardando retirada', user_id: `eq.${userId}` })),
+    doCount('pedidos', new URLSearchParams({ status: 'eq.entregue', user_id: `eq.${userId}` })),
     // Pending Payment: not paid, not cancelled, not delivered
-    doCount('pedidos', new URLSearchParams({ status: 'not.in.(pago,cancelado,entregue)' })),
+    doCount('pedidos', new URLSearchParams({ status: 'not.in.(pago,cancelado,entregue)', user_id: `eq.${userId}` })),
     // Onboarding counts
     userId ? doFetch('profiles', new URLSearchParams({ id: `eq.${userId}`, select: 'company_name', limit: '1' })) : Promise.resolve([]),
-    doCount('produtos', new URLSearchParams({})),
-    doCount('clientes', new URLSearchParams({})),
-    doCount('pedidos', new URLSearchParams({}))
+    doCount('produtos', new URLSearchParams({ user_id: `eq.${userId}` })),
+    doCount('clientes', new URLSearchParams({ user_id: `eq.${userId}` })),
+    doCount('pedidos', new URLSearchParams({ user_id: `eq.${userId}` }))
   ]);
 
   // Refine previousCustomersCount if needed (we used only gte above, need lte)
@@ -164,7 +167,12 @@ const fetchDashboardData = async (userId: string | undefined): Promise<Dashboard
       }
 
       if (isPaidStatus || (isAwaitingPickup && wasPaid)) {
-        return sum + (Number(order.valor_total) || 0);
+        // Recalcular total dinâmico para garantir soma do frete
+        const subtotal = (order.subtotal_produtos || 0) + (order.subtotal_servicos || 0);
+        const frete = (order.tipo_entrega === 'frete') ? Number(order.valor_frete || 0) : 0;
+        const dPerc = subtotal * ((order.desconto_percentual || 0) / 100);
+        const total = Math.max(0, subtotal + frete - (order.desconto_valor || 0) - dPerc);
+        return sum + total;
       }
       return sum;
     }, 0) || 0;

@@ -186,10 +186,18 @@ export const printThermalReceipt = (pedido: Pedido) => {
          <span class="compact-name" style="text-align: right; padding-right: 10px;">VALOR DO FRETE:</span>
          <span class="compact-price">${formatCurrency(freightValue)}</span>
       </div>` : ''}
-      
-      <div class="total-block">
-        TOTAL: ${formatCurrency(pedido.valor_total)}
-      </div>
+
+      ${(() => {
+      const subtotal = (pedido.subtotal_produtos || 0) + (pedido.subtotal_servicos || 0);
+      const dPerc = subtotal * ((pedido.desconto_percentual || 0) / 100);
+      const valorTotalCalculado = Math.max(0, subtotal + freightValue - (pedido.desconto_valor || 0) - dPerc);
+
+      return `
+          <div class="total-block">
+            TOTAL: ${formatCurrency(valorTotalCalculado)}
+          </div>
+        `;
+    })()}
       
       <div style="margin-top: 10px; border-top: 1px dashed #ccc; padding-top: 5px; font-size: 11px;">
         <div class="line" style="text-align: right;">

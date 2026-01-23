@@ -314,9 +314,11 @@ export const fetchReportData = async (
             }
 
             if (isPaidStatus || (isAwaitingPickup && wasPaid)) {
-                // EXCLUSÃO DE FRETE: Frete não conta como faturamento real/lucro
-                const valorFrete = order.tipo_entrega === 'frete' ? Number(order.valor_frete || 0) : 0;
-                totalRevenue += Math.max(0, (order.valor_total || 0) - valorFrete);
+                // Cálculo robusto do faturamento "limpo" (sem frete)
+                const subtotal = (order.subtotal_produtos || 0) + (order.subtotal_servicos || 0);
+                const dPerc = subtotal * ((order.desconto_percentual || 0) / 100);
+                const faturamentoLimpo = Math.max(0, subtotal - (order.desconto_valor || 0) - dPerc);
+                totalRevenue += faturamentoLimpo;
             }
 
             totalCost += calculateOrderCost(order);
@@ -353,10 +355,15 @@ export const fetchReportData = async (
         if (createdInRange) {
             const status = order.status || 'desconhecido';
             const existingFin = financialStats.get(status) || { count: 0, value: 0, status };
-            const valorFrete = order.tipo_entrega === 'frete' ? Number(order.valor_frete || 0) : 0;
+
+            // Valor para o Snapshot Financeiro (também sem frete por padrão nos relatórios)
+            const subtotal = (order.subtotal_produtos || 0) + (order.subtotal_servicos || 0);
+            const dPerc = subtotal * ((order.desconto_percentual || 0) / 100);
+            const valorTotalCalculado = Math.max(0, subtotal - (order.desconto_valor || 0) - dPerc);
+
             financialStats.set(status, {
                 count: existingFin.count + 1,
-                value: existingFin.value + Math.max(0, (order.valor_total || 0) - valorFrete),
+                value: existingFin.value + valorTotalCalculado,
                 status
             });
         }
@@ -407,12 +414,14 @@ export const fetchReportData = async (
 
     // 5. Growth Calculation
     const currentRevenue = currentMonthOrdersStats.reduce((sum: number, o: any) => {
-        const valorFrete = o.tipo_entrega === 'frete' ? Number(o.valor_frete || 0) : 0;
-        return sum + Math.max(0, o.valor_total - valorFrete);
+        const subtotal = (o.subtotal_produtos || 0) + (o.subtotal_servicos || 0);
+        const dPerc = subtotal * ((o.desconto_percentual || 0) / 100);
+        return sum + Math.max(0, subtotal - (o.desconto_valor || 0) - dPerc);
     }, 0);
     const previousRevenue = previousMonthOrders.reduce((sum: number, o: any) => {
-        const valorFrete = o.tipo_entrega === 'frete' ? Number(o.valor_frete || 0) : 0;
-        return sum + Math.max(0, o.valor_total - valorFrete);
+        const subtotal = (o.subtotal_produtos || 0) + (o.subtotal_servicos || 0);
+        const dPerc = subtotal * ((o.desconto_percentual || 0) / 100);
+        return sum + Math.max(0, subtotal - (o.desconto_valor || 0) - dPerc);
     }, 0);
 
     // Note: Customers Growth is approximated by new customers added in period
@@ -523,8 +532,9 @@ export const fetchReportData = async (
         });
 
         const rev = ordersInBucket.reduce((sum: number, o: any) => {
-            const valorFrete = o.tipo_entrega === 'frete' ? Number(o.valor_frete || 0) : 0;
-            return sum + Math.max(0, (o.valor_total || 0) - valorFrete);
+            const subtotal = (o.subtotal_produtos || 0) + (o.subtotal_servicos || 0);
+            const dPerc = subtotal * ((o.desconto_percentual || 0) / 100);
+            return sum + Math.max(0, subtotal - (o.desconto_valor || 0) - dPerc);
         }, 0);
 
         // Somar metros apenas de pedidos NÃO cancelados
@@ -561,16 +571,19 @@ export const fetchReportData = async (
                 o.pedido_status_history.some((h: any) => h.status_novo?.toLowerCase() === 'pago' || h.status_anterior?.toLowerCase() === 'pago');
             return ['pago', 'entregue'].includes(s) || (isAwaiting && wasPaid);
         }).reduce((acc: number, o: any) => {
-            const valorFrete = o.tipo_entrega === 'frete' ? Number(o.valor_frete || 0) : 0;
-            return acc + Math.max(0, (o.valor_total || 0) - valorFrete);
+            const subtotal = (o.subtotal_produtos || 0) + (o.subtotal_servicos || 0);
+            const dPerc = subtotal * ((o.desconto_percentual || 0) / 100);
+            return acc + Math.max(0, subtotal - (o.desconto_valor || 0) - dPerc);
         }, 0),
         totalPending: periodOrders.filter((o: any) => ['pendente', 'processando', 'aguardando retirada'].includes(o.status?.toLowerCase()) && !(['aguardando retirada'].includes(o.status?.toLowerCase()) && o.pedido_status_history?.some((h: any) => h.status_novo?.toLowerCase() === 'pago'))).reduce((acc: number, o: any) => {
-            const valorFrete = o.tipo_entrega === 'frete' ? Number(o.valor_frete || 0) : 0;
-            return acc + Math.max(0, (o.valor_total || 0) - valorFrete);
+            const subtotal = (o.subtotal_produtos || 0) + (o.subtotal_servicos || 0);
+            const dPerc = subtotal * ((o.desconto_percentual || 0) / 100);
+            return acc + Math.max(0, subtotal - (o.desconto_valor || 0) - dPerc);
         }, 0),
         totalCancelled: periodOrders.filter((o: any) => o.status === 'cancelado').reduce((acc: number, o: any) => {
-            const valorFrete = o.tipo_entrega === 'frete' ? Number(o.valor_frete || 0) : 0;
-            return acc + Math.max(0, (o.valor_total || 0) - valorFrete);
+            const subtotal = (o.subtotal_produtos || 0) + (o.subtotal_servicos || 0);
+            const dPerc = subtotal * ((o.desconto_percentual || 0) / 100);
+            return acc + Math.max(0, subtotal - (o.desconto_valor || 0) - dPerc);
         }, 0)
     };
 

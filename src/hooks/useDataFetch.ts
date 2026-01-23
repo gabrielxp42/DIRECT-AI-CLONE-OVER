@@ -98,10 +98,11 @@ const fetchTable = async <T>(token: string, endpoint: string, params: URLSearchP
 };
 
 // --- Fetch Clientes ---
-const fetchClientes = async (token: string): Promise<Cliente[]> => {
+const fetchClientes = async (token: string, userId: string): Promise<Cliente[]> => {
   const params = new URLSearchParams({
     select: "*",
     order: "created_at.desc",
+    user_id: `eq.${userId}`
   });
   return fetchTable<Cliente>(token, "clientes", params);
 };
@@ -109,16 +110,17 @@ const fetchClientes = async (token: string): Promise<Cliente[]> => {
 export const useClientes = () => {
   const { session, isLoading: sessionLoading } = useSession();
   const accessToken = session?.access_token;
+  const userId = session?.user.id;
 
-  const isEnabled = !sessionLoading && !!accessToken;
+  const isEnabled = !sessionLoading && !!accessToken && !!userId;
 
   return useQuery<Cliente[]>({
-    queryKey: ["clientes"],
+    queryKey: ["clientes", userId],
     queryFn: () => {
-      if (!accessToken) {
-        throw new Error("Access token missing.");
+      if (!accessToken || !userId) {
+        throw new Error("Access token or User ID missing.");
       }
-      return fetchClientes(accessToken);
+      return fetchClientes(accessToken, userId);
     },
     enabled: isEnabled,
     staleTime: 0,
@@ -302,6 +304,7 @@ const fetchPedidos = async (
         queryParams.append('order', 'order_number.desc');
         queryParams.append('limit', String(limit));
         queryParams.append('offset', String(start));
+        queryParams.append('user_id', `eq.${userId}`);
 
         // Filtros
         if (filterStatus === 'pendente-pagamento') {
@@ -597,6 +600,7 @@ export const usePedidos = () => {
   pedido_servicos(*),
   pedido_status_history(*)
     `)
+      .eq('user_id', userId)
       .order('order_number', { ascending: false });
 
     if (pedidosError) throw pedidosError;

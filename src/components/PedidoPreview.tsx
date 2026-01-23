@@ -46,12 +46,11 @@ export const PedidoPreview = ({ pedido }: PedidoPreviewProps) => {
           <h3 className="text-lg font-semibold text-gray-600 mb-2">Data do Pedido:</h3>
           <p className="text-gray-800">{format(new Date(pedido.created_at), "dd 'de' MMMM 'de' yyyy, HH:mm", { locale: ptBR })}</p>
           <h3 className="text-lg font-semibold text-gray-600 mt-4 mb-2">Status:</h3>
-          <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-            pedido.status === 'entregue' ? 'bg-green-100 text-green-800' :
-            pedido.status === 'processando' ? 'bg-yellow-100 text-yellow-800' :
-            pedido.status === 'cancelado' ? 'bg-red-100 text-red-800' :
-            'bg-blue-100 text-blue-800'
-          }`}>
+          <span className={`px-3 py-1 rounded-full text-sm font-medium ${pedido.status === 'entregue' ? 'bg-green-100 text-green-800' :
+              pedido.status === 'processando' ? 'bg-yellow-100 text-yellow-800' :
+                pedido.status === 'cancelado' ? 'bg-red-100 text-red-800' :
+                  'bg-blue-100 text-blue-800'
+            }`}>
             {pedido.status.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
           </span>
         </div>
@@ -103,6 +102,12 @@ export const PedidoPreview = ({ pedido }: PedidoPreviewProps) => {
             <span className="text-gray-600">Subtotal:</span>
             <span className="text-gray-800">{formatCurrency(subtotal)}</span>
           </div>
+          {pedido.tipo_entrega === 'frete' && (
+            <div className="flex justify-between py-2">
+              <span className="text-gray-600">Frete:</span>
+              <span className="text-gray-800">{formatCurrency(pedido.valor_frete || 0)}</span>
+            </div>
+          )}
           {totalDescontos > 0 && (
             <div className="flex justify-between py-2 border-b">
               <span className="text-gray-600">Descontos:</span>
@@ -111,7 +116,9 @@ export const PedidoPreview = ({ pedido }: PedidoPreviewProps) => {
           )}
           <div className="flex justify-between py-3 mt-2 bg-gray-100 px-4 rounded-lg">
             <span className="text-xl font-bold text-gray-800">Total:</span>
-            <span className="text-xl font-bold text-gray-800">{formatCurrency(pedido.valor_total)}</span>
+            <span className="text-xl font-bold text-gray-800">
+              {formatCurrency(Math.max(0, subtotal + (pedido.tipo_entrega === 'frete' ? (pedido.valor_frete || 0) : 0) - totalDescontos))}
+            </span>
           </div>
         </div>
       </section>
