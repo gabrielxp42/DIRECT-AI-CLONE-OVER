@@ -361,6 +361,11 @@ export const generateOrderPDF = async (
     summaryData.push([discountLabel, `-${formatCurrency(pedido.desconto_valor)}`]);
   }
 
+  const subtotal = (pedido.subtotal_produtos || 0) + (pedido.subtotal_servicos || 0);
+  const freteValue = pedido.tipo_entrega === 'frete' ? (pedido.valor_frete || 0) : 0;
+  const discountTotal = (pedido.desconto_valor || 0) + (subtotal * ((pedido.desconto_percentual || 0) / 100));
+  const finalTotalCalculated = Math.max(0, subtotal + freteValue - discountTotal);
+
   if (pedido.tipo_entrega) {
     const deliveryLabel = pedido.tipo_entrega === 'frete' ? 'Entrega (Frete)' : 'Retirada no Local';
     const deliveryValue = pedido.tipo_entrega === 'frete' ? formatCurrency(pedido.valor_frete || 0) : 'R$ 0,00';
@@ -371,7 +376,7 @@ export const generateOrderPDF = async (
     }
   }
 
-  summaryData.push(['Total Final', formatCurrency(pedido.valor_total)]);
+  summaryData.push(['Total Final', formatCurrency(finalTotalCalculated)]);
 
   autoTable(doc, {
     startY: yPosition,

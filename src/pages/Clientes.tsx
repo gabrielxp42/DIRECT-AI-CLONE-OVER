@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Search, Plus, Edit, Trash2, Phone, Mail, MapPin, DollarSign, Eye, Loader2, UserX } from "lucide-react";
+import { Search, Plus, Edit, Trash2, Phone, Mail, MapPin, DollarSign, Eye, Loader2, UserX, Upload } from "lucide-react";
 import { useSession } from "@/contexts/SessionProvider";
 import { useToast } from "@/hooks/use-toast";
 import { ClienteForm } from "@/components/ClienteForm";
@@ -34,6 +34,7 @@ import { getValidToken } from '@/utils/tokenGuard';
 import { removeAccents } from "@/utils/string"; // Importar função de normalização
 import { useSubscription } from '@/hooks/useSubscription';
 import { SubscriptionModal } from '@/components/SubscriptionModal';
+import { ClientImportModal } from "@/components/ClientImportModal";
 
 const Clientes = () => {
   const { session, profile } = useSession();
@@ -42,6 +43,7 @@ const Clientes = () => {
   const accessToken = session?.access_token;
   const { canWriteData } = useSubscription();
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   const [rawSearchTerm, setRawSearchTerm] = useState("");
   const searchTerm = useDebounce(rawSearchTerm, 300); // Aplicar debounce
@@ -266,14 +268,24 @@ const Clientes = () => {
             Gerencie seus clientes e informações de contato
           </p>
         </div>
-        <Button
-          onClick={handleCreate}
-          size="default"
-          className="h-10 w-full sm:w-auto transition-all duration-300 hover:scale-[1.02]"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Novo Cliente
-        </Button>
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <Button
+            onClick={() => setIsImportModalOpen(true)}
+            variant="outline"
+            className="h-10 border-zinc-200 dark:border-zinc-800 transition-all duration-300 hover:scale-[1.02]"
+          >
+            <Upload className="h-4 w-4 mr-2" />
+            Importar
+          </Button>
+          <Button
+            onClick={handleCreate}
+            size="default"
+            className="h-10 w-full sm:w-auto transition-all duration-300 hover:scale-[1.02]"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Novo Cliente
+          </Button>
+        </div>
       </div>
 
       <div className="flex items-center space-x-2">
@@ -417,6 +429,11 @@ const Clientes = () => {
       )}
 
       <SubscriptionModal open={showUpgradeModal} onOpenChange={setShowUpgradeModal} />
+
+      <ClientImportModal
+        isOpen={isImportModalOpen}
+        onOpenChange={setIsImportModalOpen}
+      />
     </div>
   );
 };

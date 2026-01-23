@@ -244,9 +244,14 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
   const handleWhatsAppShare = () => {
     if (!pedido) return;
 
+    const subtotal = (pedido.subtotal_produtos || 0) + (pedido.subtotal_servicos || 0);
+    const frete = pedido.tipo_entrega === 'frete' ? (pedido.valor_frete || 0) : 0;
+    const descontoPercentualCalculado = subtotal * ((pedido.desconto_percentual || 0) / 100);
+    const valorTotalCalculado = Math.max(0, subtotal + frete - (pedido.desconto_valor || 0) - descontoPercentualCalculado);
+
     const clienteNome = pedido.clientes?.nome || getClienteNome(pedido.cliente_id);
     const orderNum = pedido.order_number;
-    const total = formatCurrency(pedido.valor_total);
+    const total = formatCurrency(valorTotalCalculado);
     const status = pedido.status.toUpperCase();
 
     let message = `*RESUMO DO PEDIDO #${orderNum}*\n\n`;
@@ -627,107 +632,117 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
                 <h3 className="text-lg font-semibold">Resumo do Pedido</h3>
               </div>
 
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span>Subtotal Produtos:</span>
-                  <span className="font-medium">{formatCurrency(pedido.subtotal_produtos || 0)}</span>
-                </div>
+              {(() => {
+                const subtotal = (pedido.subtotal_produtos || 0) + (pedido.subtotal_servicos || 0);
+                const frete = pedido.tipo_entrega === 'frete' ? (pedido.valor_frete || 0) : 0;
+                const descontoPercentualCalculado = subtotal * ((pedido.desconto_percentual || 0) / 100);
+                const valorTotalCalculado = Math.max(0, subtotal + frete - (pedido.desconto_valor || 0) - descontoPercentualCalculado);
 
-                <div className="flex justify-between">
-                  <span>Subtotal Serviços:</span>
-                  <span className="font-medium">{formatCurrency(pedido.subtotal_servicos || 0)}</span>
-                </div>
-
-                {pedido.desconto_valor > 0 && (
-                  <div className="flex justify-between text-red-600">
-                    <div className="flex items-center">
-                      <Tag className="h-4 w-4 mr-1" />
-                      <span>Desconto (R$):</span>
+                return (
+                  <div className="space-y-3">
+                    <div className="flex justify-between">
+                      <span>Subtotal Produtos:</span>
+                      <span className="font-medium">{formatCurrency(pedido.subtotal_produtos || 0)}</span>
                     </div>
-                    <span>-{formatCurrency(pedido.desconto_valor)}</span>
-                  </div>
-                )}
 
-                {pedido.desconto_percentual > 0 && (
-                  <div className="flex justify-between text-red-600">
-                    <div className="flex items-center">
-                      <Percent className="h-4 w-4 mr-1" />
-                      <span>Desconto ({pedido.desconto_percentual}%):</span>
+                    <div className="flex justify-between">
+                      <span>Subtotal Serviços:</span>
+                      <span className="font-medium">{formatCurrency(pedido.subtotal_servicos || 0)}</span>
                     </div>
-                    <span>-{formatCurrency((pedido.subtotal_produtos + pedido.subtotal_servicos) * (pedido.desconto_percentual / 100))}</span>
-                  </div>
-                )}
 
-                {pedido.tipo_entrega && (
-                  <div className="pt-3 border-t space-y-2">
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center text-muted-foreground text-sm">
-                        {pedido.tipo_entrega === 'frete' ? (
-                          <>
-                            <Bike className="h-4 w-4 mr-2 text-orange-600" />
-                            <span>Entrega (Frete)</span>
-                          </>
-                        ) : (
-                          <>
-                            <Package className="h-4 w-4 mr-2 text-primary" />
-                            <span>Retirada no Local</span>
-                          </>
+                    {pedido.desconto_valor > 0 && (
+                      <div className="flex justify-between text-red-600">
+                        <div className="flex items-center">
+                          <Tag className="h-4 w-4 mr-1" />
+                          <span>Desconto (R$):</span>
+                        </div>
+                        <span>-{formatCurrency(pedido.desconto_valor)}</span>
+                      </div>
+                    )}
+
+                    {pedido.desconto_percentual > 0 && (
+                      <div className="flex justify-between text-red-600">
+                        <div className="flex items-center">
+                          <Percent className="h-4 w-4 mr-1" />
+                          <span>Desconto ({pedido.desconto_percentual}%):</span>
+                        </div>
+                        <span>-{formatCurrency(descontoPercentualCalculado)}</span>
+                      </div>
+                    )}
+
+                    {pedido.tipo_entrega && (
+                      <div className="pt-3 border-t space-y-2">
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center text-muted-foreground text-sm">
+                            {pedido.tipo_entrega === 'frete' ? (
+                              <>
+                                <Bike className="h-4 w-4 mr-2 text-orange-600" />
+                                <span>Entrega (Frete)</span>
+                              </>
+                            ) : (
+                              <>
+                                <Package className="h-4 w-4 mr-2 text-primary" />
+                                <span>Retirada no Local</span>
+                              </>
+                            )}
+                          </div>
+                          {pedido.tipo_entrega === 'frete' && pedido.valor_frete > 0 && (
+                            <span className="font-medium text-orange-600">
+                              {formatCurrency(pedido.valor_frete)}
+                            </span>
+                          )}
+                        </div>
+
+                        {pedido.tipo_entrega === 'frete' && pedido.transportadora && (
+                          <div className="flex items-center bg-orange-50 dark:bg-orange-950/20 p-2 rounded border border-orange-100 dark:border-orange-900/50">
+                            <Truck className="h-4 w-4 mr-2 text-orange-600" />
+                            <span className="text-xs font-medium text-orange-700 dark:text-orange-400 truncate">
+                              Transportadora: {pedido.transportadora}
+                            </span>
+                          </div>
                         )}
                       </div>
-                      {pedido.tipo_entrega === 'frete' && pedido.valor_frete > 0 && (
-                        <span className="font-medium text-orange-600">
-                          {formatCurrency(pedido.valor_frete)}
-                        </span>
-                      )}
-                    </div>
+                    )}
 
-                    {pedido.tipo_entrega === 'frete' && pedido.transportadora && (
-                      <div className="flex items-center bg-orange-50 dark:bg-orange-950/20 p-2 rounded border border-orange-100 dark:border-orange-900/50">
-                        <Truck className="h-4 w-4 mr-2 text-orange-600" />
-                        <span className="text-xs font-medium text-orange-700 dark:text-orange-400 truncate">
-                          Transportadora: {pedido.transportadora}
-                        </span>
+                    {/* NOVO: Total de Metros Split */}
+                    {pedido.total_metros > 0 && (
+                      <div className="space-y-1 border-t pt-3 pb-2">
+                        {pedido.total_metros_dtf > 0 && (
+                          <div className="flex justify-between text-sm">
+                            <div className="flex items-center text-blue-600 font-medium">
+                              <Printer className="h-4 w-4 mr-1" />
+                              <span>Total DTF:</span>
+                            </div>
+                            <span className="font-semibold text-blue-600">{pedido.total_metros_dtf.toFixed(2)} ML</span>
+                          </div>
+                        )}
+                        {pedido.total_metros_vinil > 0 && (
+                          <div className="flex justify-between text-sm">
+                            <div className="flex items-center text-orange-600 font-medium">
+                              <Scissors className="h-4 w-4 mr-1" />
+                              <span>Total Vinil:</span>
+                            </div>
+                            <span className="font-semibold text-orange-600">{pedido.total_metros_vinil.toFixed(2)} ML</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between border-t pt-1 mt-1">
+                          <div className="flex items-center font-semibold text-gray-700 dark:text-gray-300">
+                            <Ruler className="h-4 w-4 mr-1" />
+                            <span>Total Metros:</span>
+                          </div>
+                          <span className="font-semibold">{pedido.total_metros.toFixed(2)} ML</span>
+                        </div>
                       </div>
                     )}
-                  </div>
-                )}
 
-                {/* NOVO: Total de Metros Split */}
-                {pedido.total_metros > 0 && (
-                  <div className="space-y-1 border-t pt-3 pb-2">
-                    {pedido.total_metros_dtf > 0 && (
-                      <div className="flex justify-between text-sm">
-                        <div className="flex items-center text-blue-600 font-medium">
-                          <Printer className="h-4 w-4 mr-1" />
-                          <span>Total DTF:</span>
-                        </div>
-                        <span className="font-semibold text-blue-600">{pedido.total_metros_dtf.toFixed(2)} ML</span>
-                      </div>
-                    )}
-                    {pedido.total_metros_vinil > 0 && (
-                      <div className="flex justify-between text-sm">
-                        <div className="flex items-center text-orange-600 font-medium">
-                          <Scissors className="h-4 w-4 mr-1" />
-                          <span>Total Vinil:</span>
-                        </div>
-                        <span className="font-semibold text-orange-600">{pedido.total_metros_vinil.toFixed(2)} ML</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between border-t pt-1 mt-1">
-                      <div className="flex items-center font-semibold text-gray-700 dark:text-gray-300">
-                        <Ruler className="h-4 w-4 mr-1" />
-                        <span>Total Metros:</span>
-                      </div>
-                      <span className="font-semibold">{pedido.total_metros.toFixed(2)} ML</span>
+                    <div className="border-t pt-3 flex justify-between text-lg font-semibold">
+                      <span>Total Final:</span>
+                      <span>{formatCurrency(valorTotalCalculado)}</span>
                     </div>
                   </div>
-                )}
+                );
+              })()}
 
-                <div className="border-t pt-3 flex justify-between text-lg font-semibold">
-                  <span>Total Final:</span>
-                  <span>{formatCurrency(pedido.valor_total)}</span>
-                </div>
-              </div>
             </div>
           </div>
         </div>

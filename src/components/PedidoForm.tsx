@@ -403,7 +403,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
 
     const valorFrete = data.tipo_entrega === 'frete' ? Number(data.valor_frete || 0) : 0;
     const descontoPercentualValor = subtotal * (descontoPercentual / 100);
-    const valorTotal = Math.max(0, subtotal - descontoValor - descontoPercentualValor + valorFrete);
+    const valorTotal = Math.max(0, subtotal + valorFrete - (descontoValor || 0) - descontoPercentualValor);
 
     const totalMetros = items.reduce((sum, item) => {
       const tipoInfo = tiposProducao?.find(t => t.nome.toLowerCase() === item.tipo.toLowerCase());

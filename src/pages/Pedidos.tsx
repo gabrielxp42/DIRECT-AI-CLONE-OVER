@@ -140,7 +140,14 @@ const generateOrderSummary = (pedido: Pedido) => {
     summary += `${separator}\n\n`;
   }
 
-  summary += `*TOTAL: ${formatCurrency(pedido.valor_total)}*\n`;
+  const subtotalProdutos = pedido.subtotal_produtos || 0;
+  const subtotalServicos = pedido.subtotal_servicos || 0;
+  const subtotal = subtotalProdutos + subtotalServicos;
+  const frete = pedido.tipo_entrega === 'frete' ? (pedido.valor_frete || 0) : 0;
+  const descontoPercentualCalculado = subtotal * ((pedido.desconto_percentual || 0) / 100);
+  const valorTotalCalculado = Math.max(0, subtotal + frete - (pedido.desconto_valor || 0) - descontoPercentualCalculado);
+
+  summary += `*TOTAL: ${formatCurrency(valorTotalCalculado)}*\n`;
   summary += `Status: ${statusText}\n`;
   summary += `Entrega: ${pedido.tipo_entrega === 'retirada' ? 'RETIRADA' : 'FRETE'}\n`;
   if (pedido.tipo_entrega === 'frete' && pedido.valor_frete && pedido.valor_frete > 0) {
@@ -1224,7 +1231,13 @@ const PedidosPage: React.FC = () => {
                   )}
                   <div className="flex items-center text-base font-medium text-gray-900 dark:text-gray-50">
                     <DollarSign className="h-4 w-4 mr-2 text-primary" />
-                    <span>Total: {formatCurrency(pedido.valor_total)}</span>
+                    {(() => {
+                      const subtotal = (pedido.subtotal_produtos || 0) + (pedido.subtotal_servicos || 0);
+                      const frete = pedido.tipo_entrega === 'frete' ? (pedido.valor_frete || 0) : 0;
+                      const dPerc = subtotal * ((pedido.desconto_percentual || 0) / 100);
+                      const totalCalc = Math.max(0, subtotal + frete - (pedido.desconto_valor || 0) - dPerc);
+                      return <span>Total: {formatCurrency(totalCalc)}</span>
+                    })()}
                   </div>
 
                   {/* Tipo de Entrega */}
