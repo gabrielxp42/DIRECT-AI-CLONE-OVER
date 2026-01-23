@@ -579,13 +579,13 @@ const Checkout = () => {
                                             {/* Submit Button */}
                                             <Button
                                                 onClick={handleProcessPayment}
-                                                disabled={isProcessingPayment}
+                                                disabled={!clientInfo.cpfCnpj || clientInfo.cpfCnpj.length < 11 || isProcessingPayment}
                                                 className="w-full bg-gradient-to-r from-[#FFF200] to-[#FFD700] text-black font-black uppercase h-14 rounded-xl shadow-[0_10px_40px_-10px_rgba(255,242,0,0.4)] hover:shadow-[0_15px_50px_-10px_rgba(255,242,0,0.5)] hover:scale-[1.02] active:scale-[0.98] transition-all text-base tracking-wide"
                                             >
                                                 {isProcessingPayment ? <Loader2 className="animate-spin" /> : (
                                                     <span className="flex items-center gap-2">
                                                         <Lock className="w-4 h-4" />
-                                                        Pagar R$ 47,90
+                                                        Pagar R$ 47,00
                                                     </span>
                                                 )}
                                             </Button>
