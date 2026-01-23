@@ -228,14 +228,14 @@ const Checkout = () => {
                         expiryYear: '20' + expiryYear,
                         ccv: cardData.cvv
                     } : undefined,
-                    creditCardHolderInfo: paymentMethod === 'CREDIT_CARD' ? {
-                        name: cardData.holderName,
+                    creditCardHolderInfo: {
+                        name: cardData.holderName || session.user.user_metadata?.full_name || session.user.email?.split('@')[0],
                         email: session.user.email,
                         cpfCnpj: clientInfo.cpfCnpj.replace(/\D/g, ''),
-                        postalCode: clientInfo.postalCode.replace(/\D/g, ''),
-                        addressNumber: clientInfo.addressNumber,
-                        phone: clientInfo.phone.replace(/\D/g, '')
-                    } : undefined
+                        postalCode: clientInfo.postalCode.replace(/\D/g, '') || '00000000',
+                        addressNumber: clientInfo.addressNumber || '0',
+                        phone: clientInfo.phone.replace(/\D/g, '') || '00000000000'
+                    }
                 })
             });
 
@@ -426,10 +426,27 @@ const Checkout = () => {
                                                             <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center mx-auto border border-white/10">
                                                                 <Zap className="w-6 h-6 text-[#FFF200]" />
                                                             </div>
-                                                            <p className="text-xs text-white/50 uppercase font-bold max-w-[200px] mx-auto">Clique abaixo para gerar seu código PIX seguro</p>
-                                                            <Button onClick={handleProcessPayment} className="w-full bg-[#FFF200] text-black font-bold h-10 text-xs uppercase shadow-[0_0_20px_rgba(255,242,0,0.2)] hover:bg-[#ffe600] transition-transform hover:scale-105">
-                                                                Gerar QR Code PIX
-                                                            </Button>
+                                                            <p className="text-xs text-white/50 uppercase font-bold max-w-[200px] mx-auto">Informe seu CPF/CNPJ para gerar o PIX seguro</p>
+
+                                                            <div className="w-full space-y-3 mt-4">
+                                                                <div className="relative">
+                                                                    <User className="absolute left-3 top-2.5 w-4 h-4 text-white/20" />
+                                                                    <Input
+                                                                        placeholder="CPF OU CNPJ (APENAS NÚMEROS)"
+                                                                        value={clientInfo.cpfCnpj}
+                                                                        onChange={e => setClientInfo({ ...clientInfo, cpfCnpj: e.target.value.replace(/\D/g, '') })}
+                                                                        className="bg-black/20 border-white/10 h-10 text-xs pl-10"
+                                                                        maxLength={14}
+                                                                    />
+                                                                </div>
+                                                                <Button
+                                                                    onClick={handleProcessPayment}
+                                                                    disabled={!clientInfo.cpfCnpj || clientInfo.cpfCnpj.length < 11 || isProcessingPayment}
+                                                                    className="w-full bg-[#FFF200] text-black font-bold h-10 text-xs uppercase shadow-[0_0_20px_rgba(255,242,0,0.2)] hover:bg-[#ffe600] transition-transform hover:scale-105"
+                                                                >
+                                                                    {isProcessingPayment ? <Loader2 className="animate-spin w-4 h-4" /> : "Gerar QR Code PIX"}
+                                                                </Button>
+                                                            </div>
                                                         </>
                                                     )}
                                                 </div>
