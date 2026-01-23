@@ -61,6 +61,8 @@ type AdminProfile = {
     created_at: string;
     is_gifted_plan?: boolean;
     subscription_gift_viewed?: boolean;
+    pedidos_count?: number;
+    clientes_count?: number;
 };
 
 type GlobalStats = {
@@ -137,7 +139,17 @@ export default function Admin() {
                 .order('created_at', { ascending: false });
 
             if (usersError) throw usersError;
-            setUsers(usersData as AdminProfile[]);
+
+            // Fetch stats for all users in parallel
+            const usersWithStats = await Promise.all(usersData.map(async (u) => {
+                const [{ count: pCount }, { count: cCount }] = await Promise.all([
+                    supabase.from('pedidos').select('*', { count: 'exact', head: true }).eq('user_id', u.id),
+                    supabase.from('clientes').select('*', { count: 'exact', head: true }).eq('user_id', u.id)
+                ]);
+                return { ...u, pedidos_count: pCount || 0, clientes_count: cCount || 0 };
+            }));
+
+            setUsers(usersWithStats as AdminProfile[]);
 
             // Fetch Logs (Recent 50)
             const { data: logsData, error: logsError } = await supabase
@@ -433,6 +445,8 @@ export default function Admin() {
                                     <TableRow className="hover:bg-transparent border-zinc-100 dark:border-zinc-800">
                                         <TableHead className="font-black uppercase tracking-widest text-[10px] p-6">Empresa / Usuário</TableHead>
                                         <TableHead className="font-black uppercase tracking-widest text-[10px] p-6">Status</TableHead>
+                                        <TableHead className="font-black uppercase tracking-widest text-[10px] p-6 text-center">Pedidos</TableHead>
+                                        <TableHead className="font-black uppercase tracking-widest text-[10px] p-6 text-center">Clientes</TableHead>
                                         <TableHead className="font-black uppercase tracking-widest text-[10px] p-6">Consumo IA</TableHead>
                                         <TableHead className="font-black uppercase tracking-widest text-[10px] p-6 text-right">Ação</TableHead>
                                     </TableRow>
@@ -463,6 +477,16 @@ export default function Admin() {
                                                         {user.subscription_status}
                                                     </Badge>
                                                 )}
+                                            </TableCell>
+                                            <TableCell className="p-6 text-center">
+                                                <Badge variant="outline" className="font-black tabular-nums border-zinc-200 dark:border-zinc-800">
+                                                    {user.pedidos_count || 0}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="p-6 text-center">
+                                                <Badge variant="outline" className="font-black tabular-nums border-zinc-200 dark:border-zinc-800 text-violet-500">
+                                                    {user.clientes_count || 0}
+                                                </Badge>
                                             </TableCell>
                                             <TableCell className="p-6">
                                                 <div className="flex items-center gap-3">
