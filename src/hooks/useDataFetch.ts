@@ -264,26 +264,62 @@ const fetchPedidos = async (
 
     console.log('[fetchPedidos] Filtros de data aplicados. Próximo: filtros de cliente.');
 
-    // 3. Aplicar filtro de Cliente (prioritário)
+    // 3. Aplicar filtro de Cliente (prioritário - menu dropdown)
     console.log('[fetchPedidos] Aplicando filtros de cliente...');
     if (filterClientId) {
       query = query.eq('cliente_id', filterClientId);
     }
 
-    // 4. Aplicar Busca por Termo (se não houver filtro de cliente ativo)
+    // 4. Aplicar Busca por Termo (Barra de Busca)
     const trimmedSearchTerm = searchTerm.trim();
 
     if (trimmedSearchTerm && !filterClientId) {
       const isNumeric = !isNaN(Number(trimmedSearchTerm));
 
       if (isNumeric) {
-        // Se for numérico, buscamos por order_number (exato) OU observacoes (ilike)
+        // Se for numérico, buscamos por order_number (prioridade máxima) OU observacoes/valores
+        // Isso é rápido e direto
         const orderNumber = Number(trimmedSearchTerm);
         query = query.or(`order_number.eq.${orderNumber},observacoes.ilike.%${trimmedSearchTerm}%`);
       } else {
-        // Se for texto, a busca de clientes será feita no bloco de fetch direto abaixo
-        // Por enquanto, apenas logamos que será processado no fetch direto
-        console.log('[fetchPedidos] Busca de texto será processada no fetch direto:', trimmedSearchTerm);
+        // --- LÓGICA DE BUSCA DE CLIENTE ROBUSTA ---
+        // 1. Buscamos TODOS os IDs de clientes que batem com o nome/email/telefone
+        // Usamos uma query separada leve (só retorna IDs) para não pesar
+        console.log(`[fetchPedidos] Iniciando busca profunda por: "${trimmedSearchTerm}"`);
+
+        try {
+          // Normalizar termo para "like" (sem acentos seria ideal no banco, mas aqui garantimos o ilike)
+          // A estratégia "or" busca em várius campos do cliente
+          const { data: foundClients, error: clientSearchError } = await supabaseRef
+            .from('clientes')
+            .select('id, nome, email, telefone')
+            .or(`nome.ilike.%${trimmedSearchTerm}%,email.ilike.%${trimmedSearchTerm}%,telefone.ilike.%${trimmedSearchTerm}%`)
+            .limit(100); // Limite de segurança aumentado para 100 resultados de clientes parecidos
+
+          if (clientSearchError) {
+            console.error('[fetchPedidos] Erro ao buscar clientes:', clientSearchError);
+            // Fallback: busca só nas observações do pedido
+            query = query.ilike('observacoes', `%${trimmedSearchTerm}%`);
+          } else if (foundClients && foundClients.length > 0) {
+            const clientIds = foundClients.map(c => c.id);
+            console.log(`[fetchPedidos] Encontrados ${clientIds.length} clientes. IDs:`, clientIds);
+
+            // Construir filtro OR: (cliente_id IN (...) OR observacao ILIKE term)
+            // PostgREST syntax para OR complexo com IN e ILIKE juntos é chata.
+            // Estratégia mais segura: cliente_id.in.(ids)
+            // Se quiser buscar TAMBÉM em observação, teríamos que usar o filtro raw 'or', mas isso sobrescreve filtros anteriores.
+            // Para manter a segurança dos filtros de data/status, vamos focar nos clientes encontrados PRIMEIRO.
+
+            query = query.in('cliente_id', clientIds);
+          } else {
+            console.log('[fetchPedidos] Nenhum cliente encontrado. Buscando apenas em observações.');
+            query = query.ilike('observacoes', `%${trimmedSearchTerm}%`);
+          }
+        } catch (err) {
+          console.error('[fetchPedidos] Falha catastrófica na busca de clientes:', err);
+          // Fallback seguro
+          query = query.ilike('observacoes', `%${trimmedSearchTerm}%`);
+        }
       }
     }
 
@@ -1087,14 +1123,26 @@ export const deductInsumosFromPedido = async (pedido: Pedido) => {
         if (iError || !insumo) continue;
 
         const totalConsumo = Number(pi.consumo) * Number(item.quantidade);
-        const novaQuantidade = (insumo.quantidade_atual || 0) - totalConsumo;
 
-        await supabase
-          .from('insumos')
-          .update({ quantidade_atual: novaQuantidade })
-          .eq('id', insumo.id);
+        // Tentativa de Atualização Atômica (Big Tech Style 🛡️)
+        // Isso previne que dois usuários sobrescrevam o estoque um do outro
+        const { error: rpcError } = await supabase.rpc('update_insumo_quantity_atomic', {
+          p_insumo_id: insumo.id,
+          p_quantity_change: -totalConsumo // Negativo para deduzir
+        });
 
-        console.log(`[Inventory] Item: ${item.produto_nome} | Deduzido ${totalConsumo.toFixed(4)} de ${insumo.nome}`);
+        if (rpcError) {
+          console.warn('[Inventory] Função atômica não encontrada ou erro. Usando método fallback (Legado)...', rpcError.message);
+          // Fallback: Método antigo (Ler -> Calcular -> Salvar)
+          // Risco: Race conditions se houver concorrência alta, mas funciona se o RPC não existir
+          const novaQuantidade = (insumo.quantidade_atual || 0) - totalConsumo;
+          await supabase
+            .from('insumos')
+            .update({ quantidade_atual: novaQuantidade })
+            .eq('id', insumo.id);
+        } else {
+          console.log(`[Inventory] Atomic Update: Item ${item.produto_nome} | Deduzido ${totalConsumo.toFixed(4)} de ${insumo.nome}`);
+        }
       }
     }
     console.log('✅ [Inventory] Abate concluído.');

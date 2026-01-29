@@ -392,9 +392,11 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
         const totalHeightCm = contentHeight + (margin * 2);
         const totalMeters = totalHeightCm / 100;
 
-        const imagesPerMeter = (100 / totalImageHeight) * imagesPerRow;
+        // Proteção contra divisão por zero
+        const safeImageHeight = Math.max(0.1, imageHeight);
+        const imagesPerMeter = (100 / (safeImageHeight + separation)) * imagesPerRow;
         const currentContentWidth = (imagesPerRow * imageWidth) + ((imagesPerRow - 1) * separation);
-        const efficiency = (currentContentWidth / rollWidth) * 100;
+        const efficiency = rollWidth > 0 ? (currentContentWidth / rollWidth) * 100 : 0;
 
         // Sobra lateral real (Margem configurada + espaço vazio que sobrou por não caber mais uma logo)
         const realSideMargin = (rollWidth - currentContentWidth) / 2;
@@ -412,8 +414,8 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
             imagesPerRow,
             totalRows,
             totalMeters,
-            imagesPerMeter: Math.floor(imagesPerMeter),
-            efficiency: Math.round(efficiency),
+            imagesPerMeter: Math.max(0, parseFloat(imagesPerMeter.toFixed(1))),
+            efficiency: Math.max(0, Math.min(100, Math.round(efficiency))),
             usableWidth,
             contentHeight,
             contentWidth: currentContentWidth,

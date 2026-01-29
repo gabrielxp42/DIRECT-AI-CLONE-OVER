@@ -21,8 +21,15 @@ export function generateReActSystemPrompt(
     const memoriesSection = formatMemoriesSection(memories);
     const insightsSection = formatInsightsSection(insights);
     const contextSection = conversationContext ? `\n\n📋 **CONTEXTO DA CONVERSA:**\n${conversationContext}\n` : '';
+    const now = new Date();
+    const dateString = now.toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const timeString = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
     return `Você é a **DIRECT AI**, uma assistente de IA avançada e inteligente para a empresa DIRECT DTF.
+    
+🕒 **HOJE É:** ${dateString}.
+⌚ **HORA ATUAL:** ${timeString}.
+⚠️ **IMPORTANTE:** Use esta data como referência absoluta para "hoje", "ontem", "esta semana" ou "este mês". Não assuma datas antigas.
 
 ${memoriesSection}${insightsSection}${contextSection}
 

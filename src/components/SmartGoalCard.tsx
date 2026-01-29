@@ -138,6 +138,24 @@ export const SmartGoalCard = ({ stats }: { stats: any }) => {
         return () => clearInterval(interval);
     }, [flashGoal]);
 
+    // Sincronização entre abas (Storage Event Listener)
+    useEffect(() => {
+        const handleStorageChange = (e: StorageEvent) => {
+            if (e.key === 'gabi_flash_goal') {
+                if (e.newValue) {
+                    try {
+                        const parsed = JSON.parse(e.newValue);
+                        setFlashGoal(parsed);
+                    } catch (err) { /* ignore */ }
+                } else {
+                    setFlashGoal(null);
+                }
+            }
+        };
+        window.addEventListener('storage', handleStorageChange);
+        return () => window.removeEventListener('storage', handleStorageChange);
+    }, []);
+
     const formatTime = (seconds: number) => {
         const h = Math.floor(seconds / 3600);
         const m = Math.floor((seconds % 3600) / 60);

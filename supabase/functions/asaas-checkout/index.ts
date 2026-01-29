@@ -94,7 +94,7 @@ serve(async (req) => {
             customer: customerId,
             billingType: paymentMethod === 'CREDIT_CARD' ? 'CREDIT_CARD' : 'PIX',
             nextDueDate: new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0],
-            value: 47.00,
+            value: 97.00,
             cycle: "MONTHLY",
             description: "Plano Profissional DTF - Gabi AI",
             updatePendingPayments: true,

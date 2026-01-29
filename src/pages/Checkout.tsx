@@ -330,8 +330,8 @@ const Checkout = () => {
                             <span className="text-[#FFF200] drop-shadow-[0_0_15px_rgba(255,242,0,0.4)]">DINHEIRO</span>
                         </h1>
                         <div className="flex items-baseline gap-3 mb-2">
-                            <span className="text-white/30 text-lg line-through font-bold">R$ 97</span>
-                            <span className="text-4xl font-black text-white italic tracking-tighter">R$ 47</span>
+                            <span className="text-white/30 text-lg line-through font-bold">R$ 197</span>
+                            <span className="text-4xl font-black text-white italic tracking-tighter">R$ 97</span>
                         </div>
                         <p className="text-xs font-bold text-emerald-400 uppercase tracking-widest bg-emerald-500/10 inline-block px-2 py-1 rounded">7 dias de garantia total</p>
                     </div>
@@ -585,7 +585,7 @@ const Checkout = () => {
                                                 {isProcessingPayment ? <Loader2 className="animate-spin" /> : (
                                                     <span className="flex items-center gap-2">
                                                         <Lock className="w-4 h-4" />
-                                                        Pagar R$ 47,00
+                                                        Pagar R$ 97,00
                                                     </span>
                                                 )}
                                             </Button>

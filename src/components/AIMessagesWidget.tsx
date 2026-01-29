@@ -33,7 +33,21 @@ export const AIMessagesWidget: React.FC = () => {
     const { session } = useSession();
     const isMobile = useIsMobile();
     const navigate = useNavigate();
-    const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
+    const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => {
+        // Carregar IDs descartados do localStorage (persistência de 24h)
+        try {
+            const stored = localStorage.getItem('direct_ai_dismissed_alerts');
+            if (stored) {
+                const parsed = JSON.parse(stored) as Record<string, number>;
+                const now = Date.now();
+                const validIds = Object.entries(parsed)
+                    .filter(([, timestamp]) => now - timestamp < 24 * 60 * 60 * 1000) // 24 horas
+                    .map(([id]) => id);
+                return new Set(validIds);
+            }
+        } catch (e) { console.warn('Erro ao carregar alertas descartados:', e); }
+        return new Set();
+    });
 
     // Utilizar os hooks globais (React Query)
     const { data: clientes = [], isLoading: loadingClientes } = useClientes();
@@ -95,9 +109,12 @@ export const AIMessagesWidget: React.FC = () => {
                 }
             });
 
-            Object.values(clientesComPendencias)
+            // Comportamento original: 1 card por cliente (humanizado)
+            // Mostra até 3 clientes individualmente para manter o toque pessoal
+            const clientesDevedores = Object.values(clientesComPendencias) as any[];
+            clientesDevedores
                 .sort((a: any, b: any) => b.dias - a.dias)
-                .slice(0, 2)
+                .slice(0, 3) // Limite de 3 alertas individuais
                 .forEach((cliente: any, idx) => {
                     if (cliente.dias >= 3) {
                         const isUrgent = cliente.dias >= 7;
@@ -184,10 +201,11 @@ export const AIMessagesWidget: React.FC = () => {
                     type: 'success',
                     text: `📊 Hoje: **${todaysOrders.length} pedidos** totalizando **R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}**! 🎉`
                 });
-            } else if (now.getHours() >= 14 && now.getDay() >= 1 && now.getDay() <= 5) {
+            } else if (now.getHours() >= 16 && now.getDay() >= 1 && now.getDay() <= 5) {
+                // Alerta de "sem vendas" só aparece após 16h em dias úteis (Seg-Sex)
                 newInsights.push({
                     id: 'no-sales',
-                    type: 'alert',
+                    type: 'warning', // Rebaixado de 'alert' para 'warning' (menos agressivo)
                     text: `⚠️ Ainda **não tivemos vendas hoje**. Envie uma oferta relâmpago! ⚡`
                 });
             }
@@ -220,7 +238,22 @@ export const AIMessagesWidget: React.FC = () => {
     }, [clientes, pedidos, insumos, loading, session?.user?.id]);
 
     const handleDismiss = (id: string) => {
-        setDismissedIds(prev => new Set(prev).add(id));
+        setDismissedIds(prev => {
+            const newSet = new Set(prev).add(id);
+            // Salvar no localStorage com timestamp
+            try {
+                const stored = localStorage.getItem('direct_ai_dismissed_alerts');
+                const parsed = stored ? JSON.parse(stored) : {};
+                parsed[id] = Date.now();
+                // Limpar entradas antigas (> 24h) para não poluir o storage
+                const now = Date.now();
+                const cleaned = Object.fromEntries(
+                    Object.entries(parsed).filter(([, ts]) => now - (ts as number) < 24 * 60 * 60 * 1000)
+                );
+                localStorage.setItem('direct_ai_dismissed_alerts', JSON.stringify(cleaned));
+            } catch (e) { console.warn('Erro ao salvar alerta descartado:', e); }
+            return newSet;
+        });
     };
 
     const SwipeableMessage = ({ item, onDismiss }: { item: InsightItem, onDismiss: () => void }) => {

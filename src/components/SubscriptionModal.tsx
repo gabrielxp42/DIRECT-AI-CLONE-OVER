@@ -447,9 +447,9 @@ export const SubscriptionModal = ({ open, onOpenChange }: SubscriptionModalProps
                                 <div className="hidden md:flex flex-col gap-4 mt-8">
                                     <div className="relative group/price cursor-default">
                                         <div className="flex items-baseline gap-3">
-                                            <span className="text-white/20 text-xl line-through font-bold transition-colors group-hover/price:text-white/30">R$ 97</span>
+                                            <span className="text-white/20 text-xl line-through font-bold transition-colors group-hover/price:text-white/30">R$ 197</span>
                                             <span className="text-5xl font-black text-white italic tracking-tighter drop-shadow-2xl">
-                                                R$ 47
+                                                R$ 97
                                             </span>
                                         </div>
                                         <div className="flex items-center gap-2 mt-1">

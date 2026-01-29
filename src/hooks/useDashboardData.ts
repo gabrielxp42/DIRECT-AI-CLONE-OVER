@@ -228,7 +228,7 @@ export const useDashboardData = () => {
     queryKey: ["dashboard-stats", session?.user?.id],
     queryFn: () => fetchDashboardData(session?.user?.id),
     enabled: !!accessToken && !sessionLoading,
-    staleTime: 1000 * 60 * 5, // 5 minutos
-    refetchInterval: 5 * 60 * 1000, // Refetch every 5 minutes
+    staleTime: 1000 * 30, // 30 segundos (reduzido de 5min para atualizar Meta Relâmpago mais rápido)
+    refetchInterval: 30 * 1000, // Refetch a cada 30 segundos
   });
 };
