@@ -24,7 +24,6 @@ const Login = () => {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   useEffect(() => {
-    // Sincroniza o estado inicial do checkbox com o sessionStorage
     const useSession = sessionStorage.getItem('supabase-use-session-storage') === 'true';
     setRememberMe(!useSession);
   }, []);
@@ -112,68 +111,60 @@ const Login = () => {
   }
 
   return (
-    <div className="fixed inset-0 w-full h-full overflow-hidden bg-[#0a0a0a]">
-      {/* Dynamic Background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[#0a0a0a] via-[#1a1a00] to-[#0f0f00] animate-gradient-xy opacity-80"></div>
+    <div className="relative min-h-[100dvh] w-full bg-[#0a0a0a] flex items-center justify-center p-4 overflow-hidden">
+      {/* Background Layer - Fixed to prevent movement when keyboard opens */}
+      <div className="fixed inset-0 pointer-events-none z-0">
+        <div className="absolute inset-0 bg-gradient-to-br from-[#0a0a0a] via-[#1a1a00] to-[#0f0f00] animate-gradient-xy opacity-80" />
+        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-[#FFF200]/10 rounded-full blur-[120px] animate-pulse" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-[#FFD700]/10 rounded-full blur-[120px] animate-pulse delay-1000" />
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,242,0,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,242,0,0.02)_1px,transparent_1px)] bg-[size:60px_60px] opacity-20" />
+      </div>
 
-      {/* Decorative Orbs (Brand Yellow/Gold Theme) */}
-      <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-[#FFF200]/10 rounded-full blur-[120px] animate-pulse"></div>
-      <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-[#FFD700]/10 rounded-full blur-[120px] animate-pulse delay-1000"></div>
+      {/* Content Wrapper */}
+      <div className="relative z-10 w-full max-w-[400px] md:max-w-[420px] flex flex-col justify-center gap-8 py-10 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
 
-      {/* Grid Pattern Overlay */}
-      <div className="absolute inset-0 bg-[linear-gradient(rgba(255,242,0,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,242,0,0.02)_1px,transparent_1px)] bg-[size:60px_60px] opacity-20"></div>
-
-      {/* Content Wrapper with Safe Area Padding */}
-      <div className="relative z-10 w-full h-full flex items-center justify-center p-4 overflow-y-auto pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] pr-[env(safe-area-inset-right)] pl-[env(safe-area-inset-left)]">
-
-        {/* Glass Card - Dark Theme - SCALED FOR COMPACTNESS ON DESKTOP / FULL ON MOBILE */}
-        <div className="w-full max-w-[400px] md:max-w-[420px] backdrop-blur-xl bg-black/40 border border-white/10 rounded-3xl md:rounded-[2rem] shadow-2xl p-6 md:p-10 animate-in fade-in zoom-in duration-500 ring-1 ring-white/5 mx-auto">
-
-          {/* Header */}
-          <div className="text-center space-y-4 mb-6 md:mb-8">
-            <div className="inline-flex p-4 rounded-3xl bg-white/5 border border-white/10 mb-2 shadow-xl shadow-[#FFF200]/10 ring-1 ring-white/5">
-              <img src="/logo.png" alt="Logo" className="w-16 h-16 object-contain drop-shadow-md" />
-            </div>
-            <div className="space-y-2">
-              <h1 className="text-3xl md:text-3xl font-bold text-white tracking-tight">Direct AI</h1>
-              <p className="text-base md:text-base text-zinc-400 font-medium">
-                {mode === 'signin' && 'Bem-vindo de volta'}
-                {mode === 'signup' && 'Crie sua conta'}
-                {mode === 'forgot' && 'Recuperar senha'}
-              </p>
-            </div>
+        {/* Header */}
+        <div className="text-center space-y-4">
+          <div className="inline-flex p-4 rounded-3xl bg-white/5 border border-white/10 mb-2 shadow-xl shadow-[#FFF200]/10 ring-1 ring-white/5 mx-auto">
+            <img src="/logo.png" alt="Logo" className="w-16 h-16 object-contain drop-shadow-md" />
           </div>
+          <div className="space-y-2">
+            <h1 className="text-3xl font-bold text-white tracking-tight">Direct AI</h1>
+            <p className="text-base text-zinc-400 font-medium">
+              {mode === 'signin' && 'Bem-vindo de volta'}
+              {mode === 'signup' && 'Crie sua conta'}
+              {mode === 'forgot' && 'Recuperar senha'}
+            </p>
+          </div>
+        </div>
 
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-5 md:space-y-6">
-            <div className="space-y-4 md:space-y-4">
-              <div className="space-y-2">
-                <div className="relative group">
-                  <Mail className="absolute left-5 top-[1.1rem] h-5 w-5 text-zinc-500 group-focus-within:text-[#FFF200] transition-colors" />
-                  <Input
-                    type="email"
-                    placeholder="Seu e-mail"
-                    className="pl-14 h-14 md:h-14 text-base bg-white/5 border-white/10 text-white placeholder:text-zinc-600 focus:bg-black/50 focus:border-[#FFF200]/50 focus:ring-4 focus:ring-[#FFF200]/10 transition-all rounded-2xl shadow-inner"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                </div>
+        {/* Glass Card */}
+        <div className="backdrop-blur-xl bg-black/40 border border-white/10 rounded-3xl p-6 md:p-10 shadow-2xl animate-in fade-in zoom-in duration-500 ring-1 ring-white/5">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="space-y-4">
+              <div className="relative group">
+                <Mail className="absolute left-5 top-[1.1rem] h-5 w-5 text-zinc-500 group-focus-within:text-[#FFF200] transition-colors" />
+                <Input
+                  type="email"
+                  placeholder="Seu e-mail"
+                  className="pl-14 h-14 text-base bg-white/5 border-white/10 text-white placeholder:text-zinc-600 focus:bg-black/50 focus:border-[#FFF200]/50 focus:ring-4 focus:ring-[#FFF200]/10 transition-all rounded-2xl"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
               </div>
 
               {mode !== 'forgot' && (
-                <div className="space-y-2">
-                  <div className="relative group">
-                    <Lock className="absolute left-5 top-[1.1rem] h-5 w-5 text-zinc-500 group-focus-within:text-[#FFF200] transition-colors" />
-                    <Input
-                      type="password"
-                      placeholder="Sua senha"
-                      className="pl-14 h-14 md:h-14 text-base bg-white/5 border-white/10 text-white placeholder:text-zinc-600 focus:bg-black/50 focus:border-[#FFF200]/50 focus:ring-4 focus:ring-[#FFF200]/10 transition-all rounded-2xl shadow-inner"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                    />
-                  </div>
+                <div className="relative group">
+                  <Lock className="absolute left-5 top-[1.1rem] h-5 w-5 text-zinc-500 group-focus-within:text-[#FFF200] transition-colors" />
+                  <Input
+                    type="password"
+                    placeholder="Sua senha"
+                    className="pl-14 h-14 text-base bg-white/5 border-white/10 text-white placeholder:text-zinc-600 focus:bg-black/50 focus:border-[#FFF200]/50 focus:ring-4 focus:ring-[#FFF200]/10 transition-all rounded-2xl"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
                 </div>
               )}
             </div>
@@ -214,7 +205,7 @@ const Login = () => {
                     id="remember-me"
                     checked={rememberMe}
                     onCheckedChange={handleRememberMeChange}
-                    className="h-5 w-5 border-zinc-600 data-[state=checked]:bg-[#FFF200] data-[state=checked]:text-black data-[state=checked]:border-[#FFF200] rounded-md"
+                    className="h-5 w-5 border-zinc-600 data-[state=checked]:bg-[#FFF200] rounded-md"
                   />
                   <Label htmlFor="remember-me" className="text-zinc-400 cursor-pointer font-medium hover:text-white transition-colors text-sm">
                     Lembrar
@@ -236,7 +227,7 @@ const Login = () => {
               className={cn(
                 "w-full h-14 rounded-2xl font-extrabold text-lg transition-all duration-300",
                 "bg-[#FFF200] text-black hover:bg-[#ffe600]",
-                "shadow-[0_0_20px_-5px_rgba(255,242,0,0.3)] hover:shadow-[0_0_30px_-5px_rgba(255,242,0,0.5)] hover:scale-[1.02] active:scale-[0.98]",
+                "shadow-[0_0_20px_-5px_rgba(255,242,0,0.3)] hover:scale-[1.02] active:scale-[0.98]",
                 "border-0"
               )}
             >
@@ -259,7 +250,7 @@ const Login = () => {
                     id="accept-terms"
                     checked={acceptedTerms}
                     onCheckedChange={(checked) => setAcceptedTerms(checked as boolean)}
-                    className="mt-1 h-5 w-5 border-zinc-600 data-[state=checked]:bg-[#FFF200] data-[state=checked]:text-black data-[state=checked]:border-[#FFF200] rounded-md"
+                    className="mt-1 h-5 w-5 border-zinc-600 data-[state=checked]:bg-[#FFF200] rounded-md"
                   />
                   <Label htmlFor="accept-terms" className="text-zinc-500 text-xs leading-relaxed cursor-pointer">
                     Eu li e aceito os{' '}
@@ -272,8 +263,8 @@ const Login = () => {
             )}
           </form>
 
-          {/* Footer */}
-          <div className="mt-8 text-center text-base">
+          {/* Footer inside card for better structure */}
+          <div className="mt-8 text-center text-sm">
             {mode === 'signin' ? (
               <p className="text-zinc-500">
                 Não tem uma conta?{' '}
@@ -296,12 +287,13 @@ const Login = () => {
               </p>
             )}
           </div>
+        </div>
 
-          <div className="mt-8 text-center border-t border-white/5 pt-6">
-            <span className="text-[10px] text-zinc-600 font-bold tracking-[0.3em] uppercase">
-              Direct AI &bull; {APP_VERSION}
-            </span>
-          </div>
+        {/* Brand Version */}
+        <div className="text-center pt-2">
+          <span className="text-[10px] text-zinc-600 font-bold tracking-[0.3em] uppercase">
+            Direct AI &bull; {APP_VERSION}
+          </span>
         </div>
       </div>
     </div>
