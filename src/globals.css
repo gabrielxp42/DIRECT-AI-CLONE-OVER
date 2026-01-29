@@ -110,6 +110,8 @@
     -ms-text-size-adjust: 100%;
     /* Prevenir pull-to-refresh no iOS */
     overscroll-behavior-y: none;
+    background-color: #0a0a0a;
+    /* Fundo base para evitar barras brancas */
   }
 
   body {
