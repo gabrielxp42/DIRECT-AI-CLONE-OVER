@@ -280,8 +280,8 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
     const [rollWidth, setRollWidth] = useState(initialData?.rollWidth || 58);
     const [imageWidth, setImageWidth] = useState(initialData?.imageWidth || 10);
     const [imageHeight, setImageHeight] = useState(initialData?.imageHeight || 10);
-    const [separation, setSeparation] = useState(0.4);
-    const [margin, setMargin] = useState(0.5);
+    const [separation, setSeparation] = useState(0.2);
+    const [margin, setMargin] = useState(0.2);
     const [quantity, setQuantity] = useState(initialData?.quantity || 50);
 
     // --- MULTI-ITEM MODE ---
