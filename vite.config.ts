@@ -107,4 +107,29 @@ export default defineConfig(() => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    // Desabilita source maps em produção para ocultar código original
+    sourcemap: false,
+    // Minificação agressiva com remoção de console.log
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true,  // Remove TODOS os console.log/info/warn
+        drop_debugger: true, // Remove debugger statements
+      },
+      mangle: {
+        safari10: true,
+      },
+    },
+    // Otimizações adicionais
+    rollupOptions: {
+      output: {
+        // Nomes ofuscados para chunks
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'react-router-dom'],
+          ui: ['@radix-ui/react-dialog', '@radix-ui/react-popover', '@radix-ui/react-select'],
+        },
+      },
+    },
+  },
 }));

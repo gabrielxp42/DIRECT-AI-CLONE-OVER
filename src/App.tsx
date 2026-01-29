@@ -48,7 +48,7 @@ const queryClient = new QueryClient({
   },
 });
 
-
+import { AntiScraper } from "./components/AntiScraper";
 import { PWAManager } from "./components/PWAManager";
 import { InstallPrompt } from "./components/InstallPrompt";
 import AdminRoute from "./components/AdminRoute";
@@ -57,11 +57,12 @@ import AdminRoute from "./components/AdminRoute";
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <ThemeProvider defaultTheme="dark" storageKey="direct-ai-theme">
+    <ThemeProvider defaultTheme="light" storageKey="direct-ai-theme">
       <TooltipProvider>
         <AIAssistantProvider>
           <Toaster />
           <Sonner position="top-center" /> {/* Alterado para top-center */}
+          <AntiScraper /> {/* Proteção Anti-Clone Ativa */}
           <BrowserRouter>
             <SessionProvider>
               <PWAManager />

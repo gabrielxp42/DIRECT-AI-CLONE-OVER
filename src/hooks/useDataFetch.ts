@@ -12,70 +12,6 @@ import { getValidToken } from '@/utils/tokenGuard';
 import { removeAccents } from "@/utils/string";
 import { ServiceShortcut, NewServiceShortcut } from "@/types/servico";
 
-// --- Fetch Transportadoras ---
-const fetchTransportadoras = async (token: string): Promise<{ id: string; nome: string }[]> => {
-  const params = new URLSearchParams({
-    select: "id,nome",
-    order: "nome.asc",
-  });
-  return fetchTable<{ id: string; nome: string }>(token, "transportadoras", params);
-};
-
-export const useTransportadoras = () => {
-  const { session, isLoading: sessionLoading } = useSession();
-  const accessToken = session?.access_token;
-
-  const isEnabled = !sessionLoading && !!accessToken;
-
-  return useQuery<{ id: string; nome: string }[]>({
-    queryKey: ["transportadoras"],
-    queryFn: () => {
-      if (!accessToken) {
-        throw new Error("Access token missing.");
-      }
-      return fetchTransportadoras(accessToken);
-    },
-    enabled: isEnabled,
-    staleTime: 1000 * 60 * 5, // 5 minutos
-  });
-};
-
-export const useSaveTransportadora = () => {
-  const { session } = useSession();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (nome: string) => {
-      if (!session) throw new Error("No session");
-
-      const token = await getValidToken();
-      const effectiveToken = token || session.access_token;
-
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/transportadoras`, {
-        method: "POST",
-        headers: {
-          ...buildHeaders(effectiveToken),
-          Prefer: "return=representation",
-        },
-        body: JSON.stringify({
-          nome,
-          user_id: session.user.id,
-        }),
-      });
-
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`Error saving transportadora: ${text}`);
-      }
-
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["transportadoras"] });
-    },
-  });
-};
-
 const buildHeaders = (token: string) => ({
   apikey: SUPABASE_ANON_KEY,
   Authorization: `Bearer ${token}`,
@@ -98,11 +34,10 @@ const fetchTable = async <T>(token: string, endpoint: string, params: URLSearchP
 };
 
 // --- Fetch Clientes ---
-const fetchClientes = async (token: string, userId: string): Promise<Cliente[]> => {
+const fetchClientes = async (token: string): Promise<Cliente[]> => {
   const params = new URLSearchParams({
     select: "*",
     order: "created_at.desc",
-    user_id: `eq.${userId}`
   });
   return fetchTable<Cliente>(token, "clientes", params);
 };
@@ -110,17 +45,16 @@ const fetchClientes = async (token: string, userId: string): Promise<Cliente[]> 
 export const useClientes = () => {
   const { session, isLoading: sessionLoading } = useSession();
   const accessToken = session?.access_token;
-  const userId = session?.user.id;
 
-  const isEnabled = !sessionLoading && !!accessToken && !!userId;
+  const isEnabled = !sessionLoading && !!accessToken;
 
   return useQuery<Cliente[]>({
-    queryKey: ["clientes", userId],
+    queryKey: ["clientes"],
     queryFn: () => {
-      if (!accessToken || !userId) {
-        throw new Error("Access token or User ID missing.");
+      if (!accessToken) {
+        throw new Error("Access token missing.");
       }
-      return fetchClientes(accessToken, userId);
+      return fetchClientes(accessToken);
     },
     enabled: isEnabled,
     staleTime: 0,
@@ -340,7 +274,6 @@ const fetchPedidos = async (
         queryParams.append('order', 'order_number.desc');
         queryParams.append('limit', String(limit));
         queryParams.append('offset', String(start));
-        queryParams.append('user_id', `eq.${userId}`);
 
         // Filtros
         if (filterStatus === 'pendente-pagamento') {
@@ -636,7 +569,6 @@ export const usePedidos = () => {
   pedido_servicos(*),
   pedido_status_history(*)
     `)
-      .eq('user_id', userId)
       .order('order_number', { ascending: false });
 
     if (pedidosError) throw pedidosError;
@@ -1259,4 +1191,60 @@ export const restoreInsumosFromPedido = async (pedido: Pedido) => {
   } catch (error) {
     console.error('❌ [Inventory] Erro na restauração:', error);
   }
+};
+
+// --- Fetch Transportadoras ---
+export const useTransportadoras = () => {
+  const { supabase, session, isLoading: sessionLoading } = useSession();
+  const userId = session?.user?.id;
+
+  return useQuery<{ id: string; nome: string }[]>({
+    queryKey: ["transportadoras", userId],
+    queryFn: async () => {
+      if (!supabase || !userId) throw new Error("Supabase ou userId não disponível");
+      const { data, error } = await supabase
+        .from("transportadoras")
+        .select("id, nome")
+        .eq("user_id", userId)
+        .order("nome", { ascending: true });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !sessionLoading && !!supabase && !!userId,
+    staleTime: 5 * 60 * 1000,
+  });
+};
+
+export const useSaveTransportadora = () => {
+  const queryClient = useQueryClient();
+  const { supabase, session, profile } = useSession();
+
+  return useMutation({
+    mutationFn: async (nome: string) => {
+      if (!supabase || !session?.user?.id) throw new Error("Supabase ou sessão não disponível");
+
+      // Verificar se já existe
+      const { data: existing } = await supabase
+        .from("transportadoras")
+        .select("id")
+        .eq("nome", nome)
+        .eq("user_id", session.user.id)
+        .maybeSingle();
+
+      if (existing) return existing;
+
+      // Inserir nova
+      const { data, error } = await supabase
+        .from("transportadoras")
+        .insert([{ nome, user_id: session.user.id, organization_id: profile?.organization_id }])
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["transportadoras"] });
+    },
+  });
 };

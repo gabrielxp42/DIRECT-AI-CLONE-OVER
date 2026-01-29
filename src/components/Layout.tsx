@@ -17,6 +17,8 @@ import { CommandMenu } from './CommandMenu';
 import { GiftPlanModal } from './GiftPlanModal';
 import { DTFCalculatorModal } from './DTFCalculatorModal';
 import { SidebarShortcuts } from './SidebarShortcuts';
+import { useRealtimeSync } from '@/hooks/useRealtimeSync';
+import { SubscriptionAlert } from './SubscriptionAlert';
 
 const navItems = [
   { href: '/', icon: Home, label: 'Dashboard' },
@@ -33,6 +35,9 @@ const Layout = () => {
   const location = useLocation();
   const { data: insumos } = useInsumos();
   const [isCalculatorOpen, setIsCalculatorOpen] = React.useState(false);
+
+  // Ativar sincronização em tempo real (Supabase Realtime)
+  useRealtimeSync();
 
   // Verificar se há insumos em estoque baixo (uso de <= para precisão)
   const hasLowStock = React.useMemo(() => {
@@ -145,6 +150,8 @@ const Layout = () => {
           <ThemeToggle />
           <UserNav />
         </header>
+
+        <SubscriptionAlert />
 
         <main className="flex flex-1 flex-col gap-3 p-3 sm:gap-4 sm:p-4 lg:gap-6 lg:p-6 w-full max-w-[100vw] overflow-x-hidden">
           <Outlet />

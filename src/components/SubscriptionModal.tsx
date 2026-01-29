@@ -447,7 +447,11 @@ export const SubscriptionModal = ({ open, onOpenChange }: SubscriptionModalProps
                                 <div className="hidden md:flex flex-col gap-4 mt-8">
                                     <div className="relative group/price cursor-default">
                                         <div className="flex items-baseline gap-3">
+<<<<<<< Updated upstream
                                             <span className="text-white/20 text-xl line-through font-bold transition-colors group-hover/price:text-white/30">R$ 197</span>
+=======
+                                            <span className="text-white/20 text-xl line-through font-bold transition-colors group-hover/price:text-white/30">R$ 147</span>
+>>>>>>> Stashed changes
                                             <span className="text-5xl font-black text-white italic tracking-tighter drop-shadow-2xl">
                                                 R$ 97
                                             </span>
@@ -518,8 +522,8 @@ export const SubscriptionModal = ({ open, onOpenChange }: SubscriptionModalProps
                                     <div className="flex items-center justify-between mb-3">
                                         <div>
                                             <div className="flex items-baseline gap-2">
-                                                <span className="text-white/30 text-sm line-through font-bold">R$ 97</span>
-                                                <span className="text-3xl font-black text-white italic tracking-tight">R$ 47</span>
+                                                <span className="text-white/30 text-sm line-through font-bold">R$ 147</span>
+                                                <span className="text-3xl font-black text-white italic tracking-tight">R$ 97</span>
                                             </div>
                                         </div>
                                         <div className="bg-red-500/10 border border-red-500/20 px-2.5 py-1 rounded-full text-[10px] font-black text-red-400 animate-pulse tracking-wide">
@@ -609,8 +613,8 @@ export const SubscriptionModal = ({ open, onOpenChange }: SubscriptionModalProps
                                                     <div className="flex flex-col items-center gap-3 w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
                                                         <div className="text-center space-y-0.5">
                                                             <div className="flex items-baseline justify-center gap-2">
-                                                                <span className="text-sm text-white/40 line-through">R$ 97,00</span>
-                                                                <span className="text-4xl font-black text-[#FFF200] tracking-tighter">R$ 47,00</span>
+                                                                <span className="text-sm text-white/40 line-through">R$ 147,00</span>
+                                                                <span className="text-4xl font-black text-[#FFF200] tracking-tighter">R$ 97,00</span>
                                                             </div>
                                                             <p className="text-[10px] text-white/50 font-medium uppercase tracking-wide">
                                                                 Isso dá menos de <span className="text-white font-bold">R$ 1,60 por dia</span>.
@@ -765,7 +769,7 @@ export const SubscriptionModal = ({ open, onOpenChange }: SubscriptionModalProps
                                                     disabled={isProcessing}
                                                     onClick={() => handleUpgrade('CREDIT_CARD')}
                                                 >
-                                                    {isProcessing ? "PROCESSANDO..." : "PAGAR R$ 47,00 AGORA"}
+                                                    {isProcessing ? "PROCESSANDO..." : "PAGAR R$ 97,00 AGORA"}
                                                 </Button>
                                             </motion.div>
                                         )}

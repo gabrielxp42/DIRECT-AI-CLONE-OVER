@@ -111,13 +111,25 @@ serve(async (req) => {
             }
         }
 
-        // 5. Atualizar Supabase se pagamento confirmado
-        if (paymentConfirmed) {
-            console.log("Confirmed Payment Found. Upgrading user...");
+        // 5. Atualizar Supabase com inteligência de validade
+        if (paymentConfirmed && activeSubscription) {
+            console.log("Confirmed Payment Found. Checking validity...");
+
+            // Lógica de Vencimento
+            const nextDueDate = new Date(activeSubscription.nextDueDate);
+            const today = new Date();
+            // Adicionamos 3 dias de tolerância (Grace Period)
+            const toleranceDate = new Date(nextDueDate);
+            toleranceDate.setDate(toleranceDate.getDate() + 3);
+
+            const isExpired = today > toleranceDate && activeSubscription.status === 'OVERDUE';
 
             const updateData: any = {
-                subscription_status: 'active',
-                subscription_tier: 'pro'
+                subscription_status: isExpired ? 'expired' : 'active',
+                subscription_tier: 'pro',
+                // Salvamos metadados úteis para o Frontend avisar o usuário
+                last_payment_date: new Date().toISOString(),
+                next_due_date: activeSubscription.nextDueDate
             };
 
             if (activeSubscription?.customer) updateData.asaas_customer_id = activeSubscription.customer;
@@ -133,15 +145,26 @@ serve(async (req) => {
                 throw updateError;
             }
 
-            console.log("=== SUCCESS: User upgraded to PRO (Verified by Payment) ===");
+            console.log(`=== SUCCESS: User Status: ${isExpired ? 'EXPIRED' : 'ACTIVE'} | Due: ${activeSubscription.nextDueDate} ===`);
+
             return new Response(
-                JSON.stringify({ success: true, status: 'RECEIVED', subscriptionId: subscriptionId || activeSubscription?.id }),
+                JSON.stringify({
+                    success: !isExpired,
+                    status: isExpired ? 'EXPIRED' : 'ACTIVE',
+                    subscriptionId: subscriptionId || activeSubscription?.id,
+                    nextDueDate: activeSubscription.nextDueDate
+                }),
                 { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
             );
         } else {
-            console.log("=== NO CONFIRMED PAYMENT FOUND YET ===");
+            // Caso não ache pagamento confirmado, marca como expired se tinha status active antes
+            console.log("No confirmed payment found.");
+
+            // Opcional: Se já tinha status active, podemos mudar para expired aqui se quisermos ser rigorosos,
+            // mas melhor deixar o 'expired' vir apenas se confirmamos que a assinatura existe e está OVERDUE.
+
             return new Response(
-                JSON.stringify({ success: false, status: 'PENDING', message: "Pagamento ainda não confirmado pelo banco." }),
+                JSON.stringify({ success: false, status: 'PENDING', message: "Pagamento ainda não confirmado ou inexistente." }),
                 { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
             );
         }

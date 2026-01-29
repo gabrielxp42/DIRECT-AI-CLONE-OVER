@@ -16,50 +16,83 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="theme-color" content="#FFF200" />
 
-
+  <!-- ANTI-BOT & PRIVACY SHIELD -->
+  <meta name="robots" content="noindex, nofollow, noai, noimageai" />
+  <meta name="googlebot" content="noindex, nofollow, noarchive" />
+  <meta name="GPTBot" content="noindex, nofollow" />
+  <meta name="Google-Extended" content="noindex, nofollow" />
+  <meta name="CCBot" content="noindex" />
+  <meta name="FacebookBot" content="noindex" />
+  <meta name="anthropic-ai" content="none" />
+  <meta name="cohere-ai" content="none" />
+  <meta name="omg-ai" content="none" />
 
   <!-- Preload Critical Assets -->
+  <!-- ... (restante do head) ... -->
 
-
-  <!-- Apple Touch Icons (múltiplos tamanhos para melhor qualidade) -->
-  <link rel="apple-touch-icon" sizes="180x180" href="/logo.png" />
-  <link rel="apple-touch-icon" sizes="152x152" href="/logo.png" />
-  <link rel="apple-touch-icon" sizes="144x144" href="/logo.png" />
-  <link rel="apple-touch-icon" sizes="120x120" href="/logo.png" />
-  <link rel="apple-touch-icon" sizes="114x114" href="/logo.png" />
-  <link rel="apple-touch-icon" sizes="76x76" href="/logo.png" />
-  <link rel="apple-touch-icon" sizes="72x72" href="/logo.png" />
-  <link rel="apple-touch-icon" sizes="60x60" href="/logo.png" />
-  <link rel="apple-touch-icon" sizes="57x57" href="/logo.png" />
-  <link rel="apple-touch-icon" href="/logo.png" />
-
-  <title>Direct AI - Gestão e Otimização de DTF</title>
-
-  <!-- Suprimir erros de extensões do Chrome (AdBlock, etc) -->
+  <!-- Anti-Clone Scripts (Bloqueio Básico de Inspeção) -->
   <script>
-    // Executar ANTES de qualquer outro código
-    window.addEventListener('error', function (e) {
-      if (e.message && (
-        e.message.includes('message channel closed') ||
-        e.message.includes('asynchronous response')
-      )) {
-        e.preventDefault();
-        e.stopPropagation();
-        return false;
-      }
-    }, true);
+    // Bloquear Botão Direito (Menu de Contexto)
+    document.addEventListener('contextmenu', event => event.preventDefault());
 
-    window.addEventListener('unhandledrejection', function (e) {
-      if (e.reason && e.reason.message && (
-        e.reason.message.includes('message channel closed') ||
-        e.reason.message.includes('asynchronous response')
-      )) {
-        e.preventDefault();
-        e.stopPropagation();
+    // Dificultar Atalhos de DevTools
+    document.onkeydown = function (e) {
+      if (e.keyCode == 123) { // F12
         return false;
       }
-    }, true);
+      if (e.ctrlKey && e.shiftKey && e.keyCode == 'I'.charCodeAt(0)) { // Ctrl+Shift+I
+        return false;
+      }
+      if (e.ctrlKey && e.shiftKey && e.keyCode == 'C'.charCodeAt(0)) { // Ctrl+Shift+C
+        return false;
+      }
+      if (e.ctrlKey && e.shiftKey && e.keyCode == 'J'.charCodeAt(0)) { // Ctrl+Shift+J
+        return false;
+      }
+      if (e.ctrlKey && e.keyCode == 'U'.charCodeAt(0)) { // Ctrl+U (View Source)
+        return false;
+      }
+    };
   </script>
+</head>
+<link rel="apple-touch-icon" sizes="180x180" href="/logo.png" />
+<link rel="apple-touch-icon" sizes="152x152" href="/logo.png" />
+<link rel="apple-touch-icon" sizes="144x144" href="/logo.png" />
+<link rel="apple-touch-icon" sizes="120x120" href="/logo.png" />
+<link rel="apple-touch-icon" sizes="114x114" href="/logo.png" />
+<link rel="apple-touch-icon" sizes="76x76" href="/logo.png" />
+<link rel="apple-touch-icon" sizes="72x72" href="/logo.png" />
+<link rel="apple-touch-icon" sizes="60x60" href="/logo.png" />
+<link rel="apple-touch-icon" sizes="57x57" href="/logo.png" />
+<link rel="apple-touch-icon" href="/logo.png" />
+
+<title>Direct AI - Gestão e Otimização de DTF</title>
+
+<!-- Suprimir erros de extensões do Chrome (AdBlock, etc) -->
+<script>
+  // Executar ANTES de qualquer outro código
+  window.addEventListener('error', function (e) {
+    if (e.message && (
+      e.message.includes('message channel closed') ||
+      e.message.includes('asynchronous response')
+    )) {
+      e.preventDefault();
+      e.stopPropagation();
+      return false;
+    }
+  }, true);
+
+  window.addEventListener('unhandledrejection', function (e) {
+    if (e.reason && e.reason.message && (
+      e.reason.message.includes('message channel closed') ||
+      e.reason.message.includes('asynchronous response')
+    )) {
+      e.preventDefault();
+      e.stopPropagation();
+      return false;
+    }
+  }, true);
+</script>
 </head>
 
 <body>

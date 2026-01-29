@@ -27,12 +27,16 @@ export interface DashboardStats {
   productsCount: number;
   customersCount: number;
   totalOrders: number;
+  // Lifetime Stats (All Time)
+  lifetimeSales: number;
+  lifetimeMeters: number;
+  lifetimeOrders: number;
 }
 
 const fetchDashboardData = async (userId: string | undefined): Promise<DashboardStats> => {
   const accessToken = await getValidToken();
-  if (!accessToken || !userId) {
-    throw new Error("Sem token de acesso ou ID de usuário para fetch.");
+  if (!accessToken) {
+    throw new Error("Sem token de acesso para fetch.");
   }
 
   const headers = {
@@ -82,41 +86,44 @@ const fetchDashboardData = async (userId: string | undefined): Promise<Dashboard
     companyProfile,
     productsCount,
     totalCustomersCount,
-    totalOrdersCount
+    totalOrdersCount,
+    lifetimeOrdersData
   ] = await Promise.all([
     // Current Month Orders (needed for calculations)
     doFetch('pedidos', new URLSearchParams({
-      select: 'valor_total,created_at,status,total_metros,subtotal_produtos,subtotal_servicos,tipo_entrega,valor_frete,desconto_percentual,desconto_valor,pedido_items(tipo,quantidade),pedido_status_history(status_novo,status_anterior)',
+      select: 'valor_total,created_at,status,total_metros,pedido_items(tipo,quantidade)',
       created_at: `gte.${firstDayCurrentMonth.toISOString()}`,
-      user_id: `eq.${userId}`
     })).then(data => data.filter((d: any) => new Date(d.created_at) <= lastDayCurrentMonth)),
 
     // Previous Month Orders (needed for growth)
     doFetch('pedidos', new URLSearchParams({
-      select: 'valor_total,created_at,status,total_metros,subtotal_produtos,subtotal_servicos,tipo_entrega,valor_frete,desconto_percentual,desconto_valor,pedido_status_history(status_novo,status_anterior)',
+      select: 'valor_total,created_at,total_metros',
       created_at: `gte.${firstDayPreviousMonth.toISOString()}`,
-      user_id: `eq.${userId}`
     })).then(data => data.filter((d: any) => new Date(d.created_at) <= lastDayPreviousMonth)),
 
     // Customers (Counts only)
-    doCount('clientes', new URLSearchParams({ created_at: `gte.${firstDayCurrentMonth.toISOString()}`, user_id: `eq.${userId}` })),
+    doCount('clientes', new URLSearchParams({ created_at: `gte.${firstDayCurrentMonth.toISOString()}` })),
     doCount('clientes', new URLSearchParams({
       created_at: `gte.${firstDayPreviousMonth.toISOString()}`,
-      user_id: `eq.${userId}`
     })),
 
     // Status Counts
-    doCount('pedidos', new URLSearchParams({ status: 'eq.pendente', user_id: `eq.${userId}` })),
-    doCount('pedidos', new URLSearchParams({ status: 'eq.processando', user_id: `eq.${userId}` })),
-    doCount('pedidos', new URLSearchParams({ status: 'eq.aguardando retirada', user_id: `eq.${userId}` })),
-    doCount('pedidos', new URLSearchParams({ status: 'eq.entregue', user_id: `eq.${userId}` })),
+    doCount('pedidos', new URLSearchParams({ status: 'eq.pendente' })),
+    doCount('pedidos', new URLSearchParams({ status: 'eq.processando' })),
+    doCount('pedidos', new URLSearchParams({ status: 'eq.aguardando retirada' })),
+    doCount('pedidos', new URLSearchParams({ status: 'eq.entregue' })),
     // Pending Payment: not paid, not cancelled, not delivered
-    doCount('pedidos', new URLSearchParams({ status: 'not.in.(pago,cancelado,entregue)', user_id: `eq.${userId}` })),
+    doCount('pedidos', new URLSearchParams({ status: 'not.in.(pago,cancelado,entregue)' })),
     // Onboarding counts
     userId ? doFetch('profiles', new URLSearchParams({ id: `eq.${userId}`, select: 'company_name', limit: '1' })) : Promise.resolve([]),
-    doCount('produtos', new URLSearchParams({ user_id: `eq.${userId}` })),
-    doCount('clientes', new URLSearchParams({ user_id: `eq.${userId}` })),
-    doCount('pedidos', new URLSearchParams({ user_id: `eq.${userId}` }))
+    doCount('produtos', new URLSearchParams({})),
+    doCount('clientes', new URLSearchParams({})),
+    doCount('pedidos', new URLSearchParams({})),
+    // Lifetime Sales Data Fetch
+    doFetch('pedidos', new URLSearchParams({
+      select: 'valor_total,total_metros,status,tipo_entrega,valor_frete,subtotal_produtos,subtotal_servicos,desconto_percentual,desconto_valor',
+      status: 'in.(pago,entregue,aguardando retirada)'
+    }))
   ]);
 
   // Refine previousCustomersCount if needed (we used only gte above, need lte)
@@ -167,12 +174,7 @@ const fetchDashboardData = async (userId: string | undefined): Promise<Dashboard
       }
 
       if (isPaidStatus || (isAwaitingPickup && wasPaid)) {
-        // Recalcular total dinâmico para garantir soma do frete
-        const subtotal = (order.subtotal_produtos || 0) + (order.subtotal_servicos || 0);
-        const frete = (order.tipo_entrega === 'frete') ? Number(order.valor_frete || 0) : 0;
-        const dPerc = subtotal * ((order.desconto_percentual || 0) / 100);
-        const total = Math.max(0, subtotal + frete - (order.desconto_valor || 0) - dPerc);
-        return sum + total;
+        return sum + (Number(order.valor_total) || 0);
       }
       return sum;
     }, 0) || 0;
@@ -180,6 +182,12 @@ const fetchDashboardData = async (userId: string | undefined): Promise<Dashboard
 
   const totalSales = calculateSales(currentOrders);
   const previousTotalSales = calculateSales(previousOrders);
+
+  // Calculate Lifetime Stats
+  const lifetimeData = lifetimeOrdersData || [];
+  const lifetimeSales = calculateSales(lifetimeData);
+  const lifetimeMeters = lifetimeData.reduce((sum: number, order: any) => sum + (order.total_metros || 0), 0);
+  const lifetimeOrders = lifetimeData.length;
 
   const newCustomers = currentCustomersCount; // Approximate or exact from doCount
   const activeOrdersCount = pendingOrdersCount; // Reusing pending count
@@ -215,7 +223,10 @@ const fetchDashboardData = async (userId: string | undefined): Promise<Dashboard
     hasCompanyProfile: Array.isArray(companyProfile) && companyProfile.length > 0 && !!companyProfile[0].company_name,
     productsCount,
     customersCount: totalCustomersCount,
-    totalOrders: totalOrdersCount
+    totalOrders: totalOrdersCount,
+    lifetimeSales,
+    lifetimeMeters,
+    lifetimeOrders
   };
 };
 

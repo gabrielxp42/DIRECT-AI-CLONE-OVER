@@ -425,7 +425,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
       total_metros_dtf: totalMetrosDTF,
       total_metros_vinil: totalMetrosVinil,
       observacoes: data.observacoes,
-      tipo_entrega: data.tipo_entrega,
+      tipo_entrega: data.tipo_entrega || null,
       valor_frete: data.tipo_entrega === 'frete' ? data.valor_frete : 0,
       transportadora: data.tipo_entrega === 'frete' ? data.transportadora : null,
       created_at: data.created_at.toISOString(),
