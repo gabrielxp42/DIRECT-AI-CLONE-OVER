@@ -1182,19 +1182,31 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                     "p-3 bg-primary text-primary-foreground rounded-xl shadow-lg shadow-primary/20 ring-4 ring-primary/10 flex flex-col items-center justify-center text-center transition-transform",
                                     !isMobile && "scale-105"
                                 )}>
-                                    <span className="text-[10px] uppercase font-bold opacity-90 tracking-wider">Metragem</span>
+                                    <span className="text-[10px] uppercase font-bold opacity-90 tracking-wider">
+                                        {mode === 'quick' && quickGoal === 'quantity' ? "Metragem Alvo" : "Metragem total"}
+                                    </span>
                                     <span className={cn("font-black tracking-tight", isMobile ? "text-2xl" : "text-3xl")}>
                                         {(mode === 'quick' ? results.totalMeters : multiResults.totalMeters).toFixed(2)}m
                                     </span>
                                 </div>
-                                <div id="calculator-efficiency-badge" className="p-3 bg-sky-50 dark:bg-slate-800 text-sky-950 dark:text-slate-100 rounded-xl shadow-sm border border-sky-100 dark:border-white/5 flex flex-col items-center justify-center text-center">
-                                    <span className="text-[10px] uppercase font-bold text-sky-800 dark:text-slate-400 tracking-wider">
-                                        Eficiência
-                                    </span>
-                                    <span className={cn("font-black tracking-tight", isMobile ? "text-xl" : "text-2xl")}>
-                                        {mode === 'quick' ? results.efficiency : multiResults.efficiency}%
-                                    </span>
-                                </div>
+
+                                {mode === 'quick' && quickGoal === 'quantity' ? (
+                                    <div className="p-3 bg-emerald-500 text-white rounded-xl shadow-lg shadow-emerald-500/20 ring-4 ring-emerald-500/10 flex flex-col items-center justify-center text-center animate-in zoom-in duration-300">
+                                        <span className="text-[10px] uppercase font-bold opacity-90 tracking-wider">Total de Itens</span>
+                                        <span className={cn("font-black tracking-tight", isMobile ? "text-2xl" : "text-3xl")}>
+                                            {results.finalQuantity} <span className="text-sm font-bold opacity-70">un</span>
+                                        </span>
+                                    </div>
+                                ) : (
+                                    <div id="calculator-efficiency-badge" className="p-3 bg-sky-50 dark:bg-slate-800 text-sky-950 dark:text-slate-100 rounded-xl shadow-sm border border-sky-100 dark:border-white/5 flex flex-col items-center justify-center text-center">
+                                        <span className="text-[10px] uppercase font-bold text-sky-800 dark:text-slate-400 tracking-wider">
+                                            Eficiência
+                                        </span>
+                                        <span className={cn("font-black tracking-tight", isMobile ? "text-xl" : "text-2xl")}>
+                                            {mode === 'quick' ? results.efficiency : multiResults.efficiency}%
+                                        </span>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Resumo Gabi - Universal Mode */}
