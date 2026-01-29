@@ -111,10 +111,10 @@ const Login = () => {
   }
 
   return (
-    <div className="relative min-h-[100dvh] w-full bg-[#0a0a0a] flex items-center justify-center p-4 overflow-hidden">
+    <div className="relative min-h-[100dvh] w-full bg-[#020817] flex items-center justify-center p-4 overflow-hidden">
       {/* Background Layer - Fixed to prevent movement when keyboard opens */}
       <div className="fixed inset-0 pointer-events-none z-0">
-        <div className="absolute inset-0 bg-gradient-to-br from-[#0a0a0a] via-[#1a1a00] to-[#0f0f00] animate-gradient-xy opacity-80" />
+        <div className="absolute inset-0 bg-gradient-to-br from-[#020817] via-[#051139] to-[#020817] animate-gradient-xy opacity-80" />
         <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-[#FFF200]/10 rounded-full blur-[120px] animate-pulse" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-[#FFD700]/10 rounded-full blur-[120px] animate-pulse delay-1000" />
         <div className="absolute inset-0 bg-[linear-gradient(rgba(255,242,0,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,242,0,0.02)_1px,transparent_1px)] bg-[size:60px_60px] opacity-20" />
