@@ -96,17 +96,17 @@ const fetchDashboardData = async (userId: string | undefined): Promise<Dashboard
   ] = await Promise.all([
     // Current Month Orders (needed for calculations)
     doFetch('pedidos', new URLSearchParams({
-      select: 'valor_total,created_at,status,total_metros,pedido_items(tipo,quantidade)',
+      select: 'id,valor_total,created_at,status,total_metros,user_id,pedido_items(tipo,quantidade),pedido_status_history(*)',
       created_at: `gte.${firstDayCurrentMonth.toISOString()}`,
       user_id: `eq.${userId}`
-    })).then(data => data.filter((d: any) => new Date(d.created_at) <= lastDayCurrentMonth)),
+    })).then(data => data.filter((d: any) => new Date(d.created_at) <= lastDayCurrentMonth && d.user_id === userId)),
 
     // Previous Month Orders (needed for growth)
     doFetch('pedidos', new URLSearchParams({
-      select: 'valor_total,created_at,total_metros',
+      select: 'id,valor_total,created_at,status,total_metros,user_id,pedido_status_history(*)',
       created_at: `gte.${firstDayPreviousMonth.toISOString()}`,
       user_id: `eq.${userId}`
-    })).then(data => data.filter((d: any) => new Date(d.created_at) <= lastDayPreviousMonth)),
+    })).then(data => data.filter((d: any) => new Date(d.created_at) <= lastDayPreviousMonth && d.user_id === userId)),
 
     // Customers (Counts only)
     doCount('clientes', new URLSearchParams({

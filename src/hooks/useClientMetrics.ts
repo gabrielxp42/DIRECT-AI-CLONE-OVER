@@ -12,7 +12,7 @@ interface ClientMetrics {
   lastOrders: Pedido[];
 }
 
-const fetchClientMetrics = async (clientId: string): Promise<ClientMetrics> => {
+const fetchClientMetrics = async (clientId: string, userId?: string): Promise<ClientMetrics> => {
   const accessToken = await getValidToken();
   if (!accessToken) {
     throw new Error("Sem token de acesso para fetch.");
@@ -25,7 +25,10 @@ const fetchClientMetrics = async (clientId: string): Promise<ClientMetrics> => {
   };
 
   // 1. Buscar todos os pedidos do cliente para calcular métricas
-  const url = `${SUPABASE_URL}/rest/v1/pedidos?select=valor_total,created_at,status,order_number,id,cliente_id,total_metros&cliente_id=eq.${clientId}&order=created_at.desc`;
+  let url = `${SUPABASE_URL}/rest/v1/pedidos?select=valor_total,created_at,status,order_number,id,cliente_id,total_metros&cliente_id=eq.${clientId}&order=created_at.desc`;
+  if (userId) {
+    url += `&user_id=eq.${userId}`;
+  }
 
   const response = await fetch(url, { method: 'GET', headers });
 
@@ -68,17 +71,18 @@ const fetchClientMetrics = async (clientId: string): Promise<ClientMetrics> => {
 export const useClientMetrics = (clientId: string | null) => {
   const { session, isLoading: sessionLoading } = useSession();
   const accessToken = session?.access_token;
+  const userId = session?.user?.id;
 
   // Validação crítica: só executar se sessão não estiver carregando E token estiver disponível
   const isEnabled = !sessionLoading && !!accessToken && !!clientId;
 
   return useQuery<ClientMetrics>({
-    queryKey: ["client-metrics", clientId],
+    queryKey: ["client-metrics", clientId, userId],
     queryFn: () => {
       if (!clientId) {
         throw new Error("Client ID is missing.");
       }
-      return fetchClientMetrics(clientId);
+      return fetchClientMetrics(clientId, userId);
     },
     enabled: isEnabled, // Aguardar sessão carregar antes de executar
     staleTime: 0, // Sempre considerar stale para forçar refetch
