@@ -34,27 +34,31 @@ const fetchTable = async <T>(token: string, endpoint: string, params: URLSearchP
 };
 
 // --- Fetch Clientes ---
-const fetchClientes = async (token: string): Promise<Cliente[]> => {
+const fetchClientes = async (token: string, userId?: string): Promise<Cliente[]> => {
   const params = new URLSearchParams({
     select: "*",
     order: "created_at.desc",
   });
+  if (userId) {
+    params.append("user_id", `eq.${userId}`);
+  }
   return fetchTable<Cliente>(token, "clientes", params);
 };
 
 export const useClientes = () => {
   const { session, isLoading: sessionLoading } = useSession();
   const accessToken = session?.access_token;
+  const userId = session?.user?.id;
 
   const isEnabled = !sessionLoading && !!accessToken;
 
   return useQuery<Cliente[]>({
-    queryKey: ["clientes"],
+    queryKey: ["clientes", userId],
     queryFn: () => {
       if (!accessToken) {
         throw new Error("Access token missing.");
       }
-      return fetchClientes(accessToken);
+      return fetchClientes(accessToken, userId);
     },
     enabled: isEnabled,
     staleTime: 0,
@@ -173,7 +177,8 @@ const fetchPedidos = async (
   pedido_items(*),
   pedido_servicos(*),
   pedido_status_history(*)
-    `, { count: 'exact' });
+    `, { count: 'exact' })
+      .eq('user_id', userId);
 
     console.log('[fetchPedidos] Query builder criado com sucesso');
 
@@ -271,6 +276,7 @@ const fetchPedidos = async (
 
         let queryParams = new URLSearchParams();
         queryParams.append('select', selectQuery);
+        queryParams.append('user_id', `eq.${userId}`);
         queryParams.append('order', 'order_number.desc');
         queryParams.append('limit', String(limit));
         queryParams.append('offset', String(start));
@@ -569,6 +575,7 @@ export const usePedidos = () => {
   pedido_servicos(*),
   pedido_status_history(*)
     `)
+      .eq('user_id', userId)
       .order('order_number', { ascending: false });
 
     if (pedidosError) throw pedidosError;
@@ -767,27 +774,31 @@ export const useDeleteTipoProducaoInsumo = () => {
 };
 
 // --- Fetch Service Shortcuts ---
-const fetchServiceShortcuts = async (token: string): Promise<ServiceShortcut[]> => {
+const fetchServiceShortcuts = async (token: string, userId?: string): Promise<ServiceShortcut[]> => {
   const params = new URLSearchParams({
     select: "*",
     order: "is_pinned.desc,usage_count.desc,nome.asc",
   });
+  if (userId) {
+    params.append("user_id", `eq.${userId}`);
+  }
   return fetchTable<ServiceShortcut>(token, "service_shortcuts", params);
 };
 
 export const useServiceShortcuts = () => {
   const { session, isLoading: sessionLoading } = useSession();
   const accessToken = session?.access_token;
+  const userId = session?.user?.id;
 
   const isEnabled = !sessionLoading && !!accessToken;
 
   return useQuery<ServiceShortcut[]>({
-    queryKey: ["service_shortcuts"],
+    queryKey: ["service_shortcuts", userId],
     queryFn: () => {
       if (!accessToken) {
         throw new Error("Access token missing.");
       }
-      return fetchServiceShortcuts(accessToken);
+      return fetchServiceShortcuts(accessToken, userId);
     },
     enabled: isEnabled,
     staleTime: 1000 * 60 * 2, // 2 minutes

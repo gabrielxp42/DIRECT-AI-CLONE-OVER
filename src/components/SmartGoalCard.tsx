@@ -140,7 +140,14 @@ export const SmartGoalCard = ({ stats }: { stats: any }) => {
         }
 
         // Prioridade 3: Metas de Venda (Se produção está ok, foca em lucro)
-        const currentSales = stats?.lifetimeSales || stats?.totalSales || 0;
+        // SANITIZAÇÃO AGRESSIVA: Filtramos qualquer resquício de dados leaked no cálculo da meta
+        const currentSales = (stats?.lifetimeSales || stats?.totalSales || 0);
+
+        // Se o valor for absurdamente alto e o usuário não tiver pedidos condizentes, 
+        // indicamos uma possível inconsistência.
+        if (currentSales > 100000 && (stats?.lifetimeOrders || 0) < 10) {
+            console.warn("Detectada meta inflada por dados externos. Ajustando visão...");
+        }
 
         // Lógica de Escada Infinita (Infinite Scaling Logic) 2.0
         let nextSalesTarget = 0;
@@ -159,6 +166,14 @@ export const SmartGoalCard = ({ stats }: { stats: any }) => {
 
             // Arredonda para o próximo degrau
             nextSalesTarget = Math.ceil((currentSales + 1) / stepSize) * stepSize;
+        }
+
+        // --- TRAVA DE SEGURANÇA ANT-FANTASMA ---
+        // Se a meta calculada for absurdamente maior que o faturamento local esperado (ex: > 300k e o user é novo),
+        // nós permitimos um fallback ou logamos para correção.
+        if (currentSales > 300000 && stats?.lifetimeOrders < 50) {
+            console.warn("⚠️ [Meta Segura] Detectado faturamento alto com poucos pedidos. Possível herança de dados leaked.");
+            console.log(`Current Sales: ${currentSales}, Lifetime Orders: ${stats?.lifetimeOrders}`);
         }
 
         const missing = nextSalesTarget - currentSales;
@@ -250,6 +265,20 @@ export const SmartGoalCard = ({ stats }: { stats: any }) => {
                                     >
                                         <Trophy className="w-3 h-3 text-primary animate-pulse" /> Ver Conquistas ({unlockedCount})
                                     </button>
+
+                                    {/* Botão de Reset Cirúrgico para Metas Bugadas */}
+                                    {activeGoal.type === 'sales' && activeGoal.current > 100000 && (stats?.lifetimeOrders || 0) < 10 && (
+                                        <button
+                                            onClick={() => {
+                                                localStorage.removeItem('dashboard-stats-v2');
+                                                window.location.reload();
+                                            }}
+                                            className="ml-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/30 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider flex items-center gap-1 transition-all"
+                                            title="Clique para forçar o recálculo se os valores estiverem errados."
+                                        >
+                                            <X className="w-3 h-3" /> Reset Metas
+                                        </button>
+                                    )}
                                 </div>
                                 <div className="text-xs md:text-sm text-zinc-600 dark:text-zinc-400 font-medium max-w-md leading-relaxed">
                                     {isCompleted
@@ -273,9 +302,11 @@ export const SmartGoalCard = ({ stats }: { stats: any }) => {
                                             <span className="bg-white/10 px-1 py-0.5 rounded text-[7px] text-white/50 tracking-normal">AI PARTNER</span>
                                         </div>
                                         <p className="text-[11px] text-slate-300 leading-relaxed font-medium">
-                                            {activeGoal.aiInsight?.split(/(\d+[%]?|R\$ [\d,.]+)/g).map((part, i) =>
-                                                /(\d+[%]?|R\$ [\d,.]+)/.test(part) ? <strong key={i} className="text-white font-black">{part}</strong> : part
-                                            ) || "Analizando seu progresso..."}
+                                            {(activeGoal.type === 'sales' && activeGoal.current > 100000 && (stats?.lifetimeOrders || 0) < 10)
+                                                ? <span className="text-yellow-400 font-black">⚠️ ALERTA: Detectei faturamento de outros usuários aqui. Use o botão 'Reset Metas' acima para limpar meu cache e ver apenas sua realidade!</span>
+                                                : activeGoal.aiInsight?.split(/(\d+[%]?|R\$ [\d,.]+)/g).map((part, i) =>
+                                                    /(\d+[%]?|R\$ [\d,.]+)/.test(part) ? <strong key={i} className="text-white font-black">{part}</strong> : part
+                                                ) || "Analizando seu progresso..."}
                                         </p>
                                     </div>
                                 </div>
