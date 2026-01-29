@@ -27,8 +27,19 @@
   <meta name="cohere-ai" content="none" />
   <meta name="omg-ai" content="none" />
 
-  <!-- Preload Critical Assets -->
-  <!-- ... (restante do head) ... -->
+  <!-- Apple Touch Icons -->
+  <link rel="apple-touch-icon" sizes="180x180" href="/logo.png" />
+  <link rel="apple-touch-icon" sizes="152x152" href="/logo.png" />
+  <link rel="apple-touch-icon" sizes="144x144" href="/logo.png" />
+  <link rel="apple-touch-icon" sizes="120x120" href="/logo.png" />
+  <link rel="apple-touch-icon" sizes="114x114" href="/logo.png" />
+  <link rel="apple-touch-icon" sizes="76x76" href="/logo.png" />
+  <link rel="apple-touch-icon" sizes="72x72" href="/logo.png" />
+  <link rel="apple-touch-icon" sizes="60x60" href="/logo.png" />
+  <link rel="apple-touch-icon" sizes="57x57" href="/logo.png" />
+  <link rel="apple-touch-icon" href="/logo.png" />
+
+  <title>Direct AI - Gestão e Otimização de DTF</title>
 
   <!-- Anti-Clone Scripts (Bloqueio Básico de Inspeção) -->
   <script>
@@ -54,45 +65,31 @@
       }
     };
   </script>
-</head>
-<link rel="apple-touch-icon" sizes="180x180" href="/logo.png" />
-<link rel="apple-touch-icon" sizes="152x152" href="/logo.png" />
-<link rel="apple-touch-icon" sizes="144x144" href="/logo.png" />
-<link rel="apple-touch-icon" sizes="120x120" href="/logo.png" />
-<link rel="apple-touch-icon" sizes="114x114" href="/logo.png" />
-<link rel="apple-touch-icon" sizes="76x76" href="/logo.png" />
-<link rel="apple-touch-icon" sizes="72x72" href="/logo.png" />
-<link rel="apple-touch-icon" sizes="60x60" href="/logo.png" />
-<link rel="apple-touch-icon" sizes="57x57" href="/logo.png" />
-<link rel="apple-touch-icon" href="/logo.png" />
 
-<title>Direct AI - Gestão e Otimização de DTF</title>
+  <!-- Suprimir erros de extensões do Chrome (AdBlock, etc) -->
+  <script>
+    window.addEventListener('error', function (e) {
+      if (e.message && (
+        e.message.includes('message channel closed') ||
+        e.message.includes('asynchronous response')
+      )) {
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      }
+    }, true);
 
-<!-- Suprimir erros de extensões do Chrome (AdBlock, etc) -->
-<script>
-  // Executar ANTES de qualquer outro código
-  window.addEventListener('error', function (e) {
-    if (e.message && (
-      e.message.includes('message channel closed') ||
-      e.message.includes('asynchronous response')
-    )) {
-      e.preventDefault();
-      e.stopPropagation();
-      return false;
-    }
-  }, true);
-
-  window.addEventListener('unhandledrejection', function (e) {
-    if (e.reason && e.reason.message && (
-      e.reason.message.includes('message channel closed') ||
-      e.reason.message.includes('asynchronous response')
-    )) {
-      e.preventDefault();
-      e.stopPropagation();
-      return false;
-    }
-  }, true);
-</script>
+    window.addEventListener('unhandledrejection', function (e) {
+      if (e.reason && e.reason.message && (
+        e.reason.message.includes('message channel closed') ||
+        e.reason.message.includes('asynchronous response')
+      )) {
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      }
+    }, true);
+  </script>
 </head>
 
 <body>

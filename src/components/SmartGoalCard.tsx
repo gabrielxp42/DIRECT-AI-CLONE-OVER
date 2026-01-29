@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { differenceInSeconds } from 'date-fns';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
@@ -28,6 +29,8 @@ export const SmartGoalCard = ({ stats }: { stats: any }) => {
     const navigate = useNavigate();
     const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
     const [celebrationMilestone, setCelebrationMilestone] = useState<any | null>(null);
+    const [flashGoal, setFlashGoal] = useState<any>(null);
+    const [timeLeft, setTimeLeft] = useState(0);
 
     const milestones = [
         { id: 'p1', category: 'production' as const, title: 'Start na Máquina', description: 'Você imprimiu seus primeiros 100 metros!', icon: Printer, value: stats?.totalMeters || 0, target: 100 },
@@ -55,7 +58,6 @@ export const SmartGoalCard = ({ stats }: { stats: any }) => {
         }
     }, [stats]);
 
-<<<<<<< Updated upstream
     // Timer do Flash Goal
     useEffect(() => {
         if (!flashGoal) return;
@@ -95,9 +97,6 @@ export const SmartGoalCard = ({ stats }: { stats: any }) => {
         const s = seconds % 60;
         return `${h}h ${m}m ${s}s`;
     };
-
-=======
->>>>>>> Stashed changes
     const handleCloseCelebration = () => {
         if (celebrationMilestone) {
             localStorage.setItem(`acknowledged_milestone_${celebrationMilestone.id}`, 'true');
