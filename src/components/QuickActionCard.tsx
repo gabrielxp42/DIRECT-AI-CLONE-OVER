@@ -7,11 +7,12 @@ import { cn } from '@/lib/utils';
 interface QuickActionCardProps {
   title: string;
   icon: LucideIcon;
-  to?: string; // Rota para navegação
-  onClick?: () => void; // Função para ação direta (ex: abrir modal)
-  filterState?: any; // Estado para passar para a rota (ex: filtro de status)
+  to?: string;
+  onClick?: () => void;
+  filterState?: any;
   className?: string;
-  count?: number | string; // Mantendo o tipo para suportar '...' durante o loading
+  count?: number | string;
+  variant?: 'amber' | 'blue' | 'rose' | 'indigo' | 'emerald' | 'zinc';
 }
 
 export const QuickActionCard: React.FC<QuickActionCardProps> = ({
@@ -22,8 +23,18 @@ export const QuickActionCard: React.FC<QuickActionCardProps> = ({
   filterState,
   className,
   count,
+  variant = 'zinc'
 }) => {
   const navigate = useNavigate();
+
+  const variantStyles = {
+    amber: "bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20",
+    blue: "bg-blue-500/10 border-blue-500/20 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20",
+    rose: "bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-400 hover:bg-rose-500/20",
+    indigo: "bg-indigo-500/10 border-indigo-500/20 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/20",
+    emerald: "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20",
+    zinc: "bg-zinc-500/10 border-zinc-500/20 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-500/20",
+  };
 
   const handleClick = () => {
     if (onClick) {
@@ -34,22 +45,23 @@ export const QuickActionCard: React.FC<QuickActionCardProps> = ({
   };
 
   return (
-    <Card 
+    <Card
       className={cn(
-        "flex flex-col items-center justify-center p-3 h-full text-center cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-[1.05]",
-        "min-w-[80px] min-h-[80px]",
+        "flex flex-col items-center justify-center p-3 h-full text-center cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-[1.05] border shadow-sm",
+        "min-w-[100px] min-h-[90px] md:min-w-[120px]",
+        variantStyles[variant],
         className
       )}
       onClick={handleClick}
     >
-      <div className="flex flex-col items-center justify-center space-y-1">
-        <Icon className="h-5 w-5 text-primary" />
+      <div className="flex flex-col items-center justify-center space-y-1.5">
+        <Icon className="h-5 w-5 mb-0.5" />
         {count !== undefined && (
-          <span className="text-xl font-bold text-foreground leading-none">
+          <span className="text-xl font-black tabular-nums tracking-tighter">
             {count}
           </span>
         )}
-        <span className="text-xs font-medium text-muted-foreground leading-tight mt-0.5">
+        <span className="text-[10px] font-black uppercase tracking-wider opacity-80 leading-tight">
           {title}
         </span>
       </div>

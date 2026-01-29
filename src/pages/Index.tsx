@@ -132,7 +132,8 @@ const Index = () => {
               to="/pedidos"
               filterState={{ filterStatus: 'pendente' }}
               count={isLoading ? '...' : stats?.pendingOrdersCount}
-              className="bg-zinc-900/50 border-white/5"
+              variant="amber"
+              className="snap-start"
             />
           </div>
           <div className="flex-shrink-0 w-32 md:w-auto snap-start">
@@ -142,7 +143,8 @@ const Index = () => {
               to="/pedidos"
               filterState={{ filterStatus: 'processando' }}
               count={isLoading ? '...' : stats?.processingOrdersCount}
-              className="bg-zinc-900/50 border-white/5"
+              variant="blue"
+              className="snap-start"
             />
           </div>
           <div className="flex-shrink-0 w-32 md:w-auto snap-start">
@@ -152,7 +154,8 @@ const Index = () => {
               to="/pedidos"
               filterState={{ filterStatus: 'pendente-pagamento' }}
               count={isLoading ? '...' : stats?.pendingPaymentOrdersCount}
-              className="bg-zinc-900/50 border-white/5"
+              variant="rose"
+              className="snap-start"
             />
           </div>
           <div className="flex-shrink-0 w-32 md:w-auto snap-start">
@@ -162,7 +165,8 @@ const Index = () => {
               to="/pedidos"
               filterState={{ filterStatus: 'aguardando retirada' }}
               count={isLoading ? '...' : stats?.awaitingPickupOrdersCount}
-              className="bg-zinc-900/50 border-white/5"
+              variant="indigo"
+              className="snap-start"
             />
           </div>
           <div className="flex-shrink-0 w-32 md:w-auto snap-start">
@@ -172,7 +176,8 @@ const Index = () => {
               to="/pedidos"
               filterState={{ filterStatus: 'entregue' }}
               count={isLoading ? '...' : stats?.deliveredOrdersCount}
-              className="bg-zinc-900/50 border-white/5"
+              variant="emerald"
+              className="snap-start"
             />
           </div>
         </div>
