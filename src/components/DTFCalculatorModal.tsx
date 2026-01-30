@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { Calculator, LayoutGrid, Ruler, Layers, ChevronRight, Info, HelpCircle, AlertTriangle, Plus, Minus, Maximize2, RotateCcw, RotateCw, MessageSquare, Share2, Copy, Download, Image as ImageIcon, Loader2, Sparkles, Bot, Settings2 } from "lucide-react";
+import { Calculator, LayoutGrid, Ruler, Layers, ChevronRight, ChevronUp, ChevronDown, Info, HelpCircle, AlertTriangle, Plus, Minus, Maximize2, RotateCcw, RotateCw, MessageSquare, Share2, Copy, Download, Image as ImageIcon, Loader2, Sparkles, Bot, Settings2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -63,7 +63,7 @@ const GlassTooltip = ({ children, content }: { children: React.ReactNode, conten
             <TooltipTrigger asChild>{children}</TooltipTrigger>
             <TooltipContent className="bg-slate-950/80 backdrop-blur-2xl border border-white/10 text-white text-[10px] font-black px-4 py-2 rounded-2xl shadow-2xl animate-in fade-in zoom-in slide-in-from-bottom-2 duration-300">
                 <div className="flex items-center gap-2.5">
-                    <div className="w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_8px_rgba(250,204,21,0.6)]" />
+                    <div className="w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_8px_var(--primary-custom)]/60" />
                     <span className="tracking-tight uppercase">{content}</span>
                 </div>
             </TooltipContent>
@@ -111,7 +111,7 @@ const InfoTooltip = ({
             </TooltipTrigger>
             <TooltipContent side="top" className="max-w-[200px] bg-slate-950/80 backdrop-blur-2xl border border-white/10 text-white text-[11px] font-medium px-4 py-2.5 rounded-2xl shadow-2xl animate-in fade-in zoom-in slide-in-from-bottom-2 duration-300">
                 <div className="flex items-start gap-2.5">
-                    <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1 shadow-[0_0_8px_rgba(250,204,21,0.6)] shrink-0" />
+                    <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1 shadow-[0_0_8px_var(--primary-custom)]/60 shrink-0" />
                     <span className="leading-relaxed tracking-tight">{content}</span>
                 </div>
             </TooltipContent>
@@ -119,7 +119,7 @@ const InfoTooltip = ({
     </TooltipProvider>
 );
 
-// Componente de Input numérico robusto
+// Componente de Input numérico Cirúrgico V4 - Soft Precision
 const NumberInput = ({
     id,
     value,
@@ -147,15 +147,13 @@ const NumberInput = ({
     setHoveredField: (id: string | null) => void,
     placeholder?: string,
     suffix?: string,
-    showButtons?: boolean
+    showButtons?: boolean,
+    version?: string
 }) => {
-    // Estado local para digitação fluida
     const [displayValue, setDisplayValue] = useState<string>(value?.toString() || "");
 
-    // Sincronizar com valor externo (ex: botões ou mudança no pai)
     useEffect(() => {
         if (value !== undefined && value !== null) {
-            // Só atualiza o display se o valor numérico for diferente e não estiver "no meio" de uma digitação decimal importante
             const currentDisplayNum = parseFloat(displayValue);
             if (currentDisplayNum !== value || displayValue === "") {
                 setDisplayValue(value.toString());
@@ -180,8 +178,6 @@ const NumberInput = ({
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const val = e.target.value.replace(',', '.');
         setDisplayValue(val);
-
-        // Tenta atualizar em tempo real
         const num = parseFloat(val);
         if (!isNaN(num)) {
             const clamped = Math.max(min, Math.min(max, num));
@@ -196,7 +192,6 @@ const NumberInput = ({
             setDisplayValue(min.toString());
             return;
         }
-
         const num = parseFloat(displayValue);
         if (isNaN(num)) {
             setDisplayValue(value?.toString() || min.toString());
@@ -207,27 +202,32 @@ const NumberInput = ({
         }
     };
 
+    const isHovered = false; // We use parent's setHoveredField instead
+
     return (
         <div
             className={cn(
-                "relative flex items-center w-full transition-all duration-200",
-                highlight && "ring-2 ring-yellow-500/60 rounded-lg shadow-[0_0_12px_rgba(202,138,4,0.25)]",
+                "relative flex flex-col items-center border rounded-xl transition-all duration-300 overflow-hidden backdrop-blur-sm shadow-sm hover:shadow-md dark:shadow-none",
+                "bg-[var(--primary-custom)]/20 dark:bg-zinc-900/60",
+                highlight ? "border-primary/40 shadow-[0_0_12px_rgba(255,242,0,0.15)] ring-1 ring-primary/5" : "border-zinc-200/60 dark:border-zinc-800/60",
+                "focus-within:border-primary/60 focus-within:shadow-[0_0_15px_rgba(255,242,0,0.2)]",
                 className
             )}
             onMouseEnter={() => setHoveredField(fieldId)}
-            onMouseLeave={() => setHoveredField(null)}>
+            onMouseLeave={() => setHoveredField(null)}
+        >
             {showButtons && (
-                <Button
+                <button
                     type="button"
-                    variant="outline"
-                    size="icon"
-                    className="h-12 w-12 rounded-r-none border-r-0 bg-slate-50 dark:bg-muted hover:bg-primary/10 dark:hover:bg-primary/20 hover:text-primary active:scale-95 transition-all touch-manipulation flex-shrink-0"
-                    onClick={decrement}
-                    disabled={value !== undefined && value !== null && value <= min}>
-                    <Minus className="h-4 w-4" />
-                </Button>
+                    onClick={increment}
+                    disabled={value !== undefined && value !== null && value >= max}
+                    className="w-full h-8 flex items-center justify-center text-zinc-400 dark:text-zinc-500 hover:text-primary hover:bg-primary/5 transition-colors disabled:opacity-20 active:scale-95 touch-manipulation z-20"
+                >
+                    <ChevronUp className="h-4 w-4 stroke-[1.5px]" />
+                </button>
             )}
-            <div className="relative flex-1">
+
+            <div className="relative w-full border-y border-zinc-100/50 dark:border-zinc-800/30">
                 <Input
                     id={id}
                     type="text"
@@ -241,28 +241,26 @@ const NumberInput = ({
                     }}
                     onBlur={handleBlur}
                     className={cn(
-                        "h-12 text-center font-black",
-                        showButtons ? "rounded-none border-x-0 px-1" : "rounded-md px-2",
-                        suffix ? "pr-7" : "",
-                        className.replace("w-full", "")
+                        "h-9 text-center font-black text-lg bg-transparent border-none focus-visible:ring-0 shadow-none selection:bg-primary/20 placeholder:text-zinc-400 dark:placeholder:text-zinc-600 !bg-transparent",
+                        showButtons ? "py-0" : "py-1.5"
                     )}
                 />
                 {suffix && (
-                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-muted-foreground pointer-events-none">
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[7px] font-black text-zinc-400 dark:text-zinc-600 uppercase pointer-events-none tracking-tighter px-0.5">
                         {suffix}
                     </span>
                 )}
             </div>
+
             {showButtons && (
-                <Button
+                <button
                     type="button"
-                    variant="outline"
-                    size="icon"
-                    className="h-12 w-12 rounded-l-none border-l-0 bg-slate-50 dark:bg-muted hover:bg-primary/10 dark:hover:bg-primary/20 hover:text-primary active:scale-95 transition-all touch-manipulation flex-shrink-0"
-                    onClick={increment}
-                    disabled={value !== undefined && value !== null && value >= max}>
-                    <Plus className="h-4 w-4" />
-                </Button>
+                    onClick={decrement}
+                    disabled={value !== undefined && value !== null && value <= min}
+                    className="w-full h-8 flex items-center justify-center text-zinc-400 dark:text-zinc-500 hover:text-primary hover:bg-primary/5 transition-colors disabled:opacity-20 active:scale-95 touch-manipulation z-20"
+                >
+                    <ChevronDown className="h-4 w-4 stroke-[1.5px]" />
+                </button>
             )}
         </div>
     );
@@ -645,7 +643,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                     <DialogHeader>
                         <div id="calculator-title" className="flex items-center justify-between w-full">
                             <div className="flex items-center gap-2">
-                                <Calculator className="h-6 w-6 text-amber-500 dark:text-primary" />
+                                <Calculator className="h-6 w-6 text-primary" />
                                 <DialogTitle className="text-2xl font-bold tracking-tight text-slate-950 dark:text-primary">Calculadora de Orçamento DTF</DialogTitle>
                             </div>
                             <Button
@@ -660,7 +658,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                             Simule o aproveitamento das suas imagens no rolo e calcule a metragem necessária.
                         </DialogDescription>
                         <div className="flex items-center gap-2 mt-2 bg-slate-100 dark:bg-slate-800/80 px-3 py-2 rounded-full w-fit border border-slate-200 dark:border-slate-700/50 shadow-sm animate-in slide-in-from-bottom-2 duration-500">
-                            <Sparkles className="h-4 w-4 text-amber-500 dark:text-primary flex-shrink-0 animate-pulse" />
+                            <Sparkles className="h-4 w-4 text-primary flex-shrink-0 animate-pulse" />
                             <span className="text-xs text-slate-700 dark:text-slate-200 font-semibold" key={currentTipIndex}>
                                 {aiTips[currentTipIndex]}
                             </span>
@@ -718,7 +716,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                     fieldId="rollWidth"
                                                     suffix="cm"
                                                     showButtons={false}
-                                                    className="h-10 text-xl font-black rounded-xl bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800"
+                                                    className="w-full"
                                                     setHoveredField={setHoveredField}
                                                 />
                                                 <div className="grid grid-cols-2 gap-2">
@@ -730,7 +728,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                                 "py-1.5 rounded-lg text-[10px] font-black transition-all border",
                                                                 rollWidth === w
                                                                     ? "bg-primary border-primary text-primary-foreground shadow-sm"
-                                                                    : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500"
+                                                                    : "bg-[var(--primary-custom)]/5 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500"
                                                             )}>
                                                             {w}CM {w === 58 ? '(PADRÃO)' : '(PEQUENO)'}
                                                         </button>
@@ -761,7 +759,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                         step={0.5}
                                                         fieldId="imageSize"
                                                         showButtons={false}
-                                                        className="h-10 text-xl font-black rounded-xl bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800"
+                                                        className="w-full"
                                                         setHoveredField={setHoveredField}
                                                     />
                                                 </div>
@@ -776,7 +774,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                         step={0.5}
                                                         fieldId="imageSize"
                                                         showButtons={false}
-                                                        className="h-10 text-xl font-black rounded-xl bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800"
+                                                        className="w-full"
                                                         setHoveredField={setHoveredField}
                                                     />
                                                 </div>
@@ -828,7 +826,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                             max={10000}
                                                             step={10}
                                                             fieldId="quantity"
-                                                            className="h-12 text-2xl font-black rounded-xl"
+                                                            className="w-full text-2xl font-black"
                                                             setHoveredField={setHoveredField}
                                                         />
                                                     </div>
@@ -844,7 +842,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                             step={0.5}
                                                             fieldId="meters"
                                                             suffix="m"
-                                                            className="h-12 text-2xl font-black rounded-xl"
+                                                            className="w-full text-2xl font-black"
                                                             setHoveredField={setHoveredField}
                                                         />
                                                     </div>
@@ -882,7 +880,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                     className={cn(
                                                         "py-2 px-1 rounded-xl text-[10px] font-black transition-all",
                                                         (margin === config.m && separation === config.s)
-                                                            ? "bg-amber-500 text-white shadow-md shadow-amber-500/20"
+                                                            ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
                                                             : "bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-800"
                                                     )}>
                                                     {config.label.toUpperCase()}
@@ -897,7 +895,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                         <div className="space-y-2">
                                             <Label className="text-[10px] font-bold uppercase text-slate-500 dark:text-muted-foreground flex items-center justify-between tracking-wider">
                                                 <div className="flex items-center gap-1">
-                                                    <Settings2 className="h-3 w-3 text-amber-500 dark:text-primary" /> Configurações do Rolo
+                                                    <Settings2 className="h-3 w-3 text-primary" /> Configurações do Rolo
                                                 </div>
                                                 <div className="flex items-center gap-4">
                                                     {[
@@ -915,7 +913,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                             className={cn(
                                                                 "text-[9px] font-black transition-all hover:text-primary",
                                                                 (margin === config.m && separation === config.s)
-                                                                    ? "text-amber-500 underline underline-offset-4"
+                                                                    ? "text-primary underline underline-offset-4"
                                                                     : "text-slate-400"
                                                             )}>
                                                             {config.label.toUpperCase()}
@@ -943,6 +941,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                         max={120}
                                                         step={1}
                                                         fieldId="rollWidth"
+                                                        showButtons={true}
                                                         setHoveredField={setHoveredField}
                                                     />
                                                     <div className="flex gap-1 pt-1">
@@ -951,7 +950,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                                 key={w}
                                                                 variant="outline"
                                                                 size="sm"
-                                                                className={`h-7 text-[10px] flex-1 touch-manipulation transition-all ${rollWidth === w ? 'bg-yellow-600 border-yellow-700 text-white font-bold shadow-md' : 'text-slate-500 dark:text-muted-foreground hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                                                                className={`h-7 text-[10px] flex-1 touch-manipulation transition-all ${rollWidth === w ? 'bg-primary border-primary/50 text-primary-foreground font-bold shadow-md' : 'text-slate-500 dark:text-muted-foreground hover:bg-slate-100 dark:hover:bg-slate-800'}`}
                                                                 onClick={() => setRollWidth(w)}>
                                                                 {w}cm
                                                             </Button>
@@ -978,6 +977,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                         max={10}
                                                         step={0.5}
                                                         fieldId="margin"
+                                                        showButtons={true}
                                                         highlight={hoveredField === 'margin'}
                                                         setHoveredField={setHoveredField}
                                                     />
@@ -987,7 +987,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                                 key={m}
                                                                 variant="outline"
                                                                 size="sm"
-                                                                className={`h-7 flex-1 text-[10px] uppercase font-bold transition-all ${margin === m ? 'bg-yellow-600 border-yellow-700 text-white font-bold shadow-md' : 'text-slate-500 dark:text-muted-foreground hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                                                                className={`h-7 flex-1 text-[10px] uppercase font-bold transition-all ${margin === m ? 'bg-primary border-primary/50 text-primary-foreground font-bold shadow-md' : 'text-slate-500 dark:text-muted-foreground hover:bg-slate-100 dark:hover:bg-slate-800'}`}
                                                                 onClick={() => setMargin(m)}>
                                                                 {m}cm
                                                             </Button>
@@ -1001,7 +1001,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
 
                                         <div id="calculator-main-input" className="space-y-4">
                                             <Label className="text-[10px] font-bold uppercase text-slate-500 dark:text-muted-foreground flex items-center gap-1 tracking-wider">
-                                                <Layers className="h-3 w-3 text-amber-500 dark:text-primary" /> Itens do Orçamento
+                                                <Layers className="h-3 w-3 text-primary" /> Itens do Orçamento
                                             </Label>
 
                                             {/* Item List */}
@@ -1012,7 +1012,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                         className={cn(
                                                             "p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border space-y-4 shadow-sm transition-all duration-300",
                                                             item.isOverflowing ? "border-red-500/50 bg-red-500/5" : "border-slate-200 dark:border-slate-700",
-                                                            item.shouldRotate ? "ring-2 ring-amber-500/30 border-amber-500/40" : ""
+                                                            item.shouldRotate ? "ring-2 ring-primary/30 border-primary/40" : ""
                                                         )}>
                                                         <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-2">
                                                             <div className="flex items-center gap-2 flex-1 mr-2">
@@ -1028,7 +1028,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                             </div>
                                                             <div className="flex items-center gap-1.5 ml-auto">
                                                                 {item.shouldRotate && (
-                                                                    <Badge variant="outline" className="h-6 bg-amber-500/10 text-amber-600 border-amber-500/20 text-[8px] font-black animate-pulse">
+                                                                    <Badge variant="outline" className="h-6 bg-primary/10 text-primary border-primary/20 text-[8px] font-black animate-pulse">
                                                                         <Sparkles className="h-2 w-2 mr-1" /> OTIMIZAR
                                                                     </Badge>
                                                                 )}
@@ -1037,8 +1037,8 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                                     size="icon"
                                                                     className={cn(
                                                                         "h-8 w-8 transition-all duration-300 rounded-lg",
-                                                                        item.width < item.height ? "text-amber-500 bg-amber-500/10" : "text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700",
-                                                                        item.shouldRotate && "bg-amber-500/20 text-amber-600 ring-2 ring-amber-500/50"
+                                                                        item.width < item.height ? "text-primary bg-primary/10" : "text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700",
+                                                                        item.shouldRotate && "bg-primary/20 text-primary ring-2 ring-primary/50"
                                                                     )}
                                                                     onClick={() => rotateItem(item.id)}>
                                                                     <RotateCw className={cn("h-4 w-4 transition-transform duration-500", item.width < item.height && "rotate-180")} />
@@ -1066,7 +1066,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                             {/* Tamanho */}
                                                             <div className="space-y-1">
                                                                 <Label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Tamanho (cm)</Label>
-                                                                <div className="flex items-center gap-2">
+                                                                <div className="flex items-center gap-1.5">
                                                                     <NumberInput
                                                                         id={`width-${item.id}`}
                                                                         value={item.width}
@@ -1075,12 +1075,12 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                                         max={50}
                                                                         step={0.5}
                                                                         fieldId="itemWidth"
-                                                                        showButtons={false}
+                                                                        showButtons={true}
                                                                         placeholder="L"
-                                                                        className="h-10 text-base font-bold bg-white dark:bg-slate-900 border-slate-200"
+                                                                        className="flex-1"
                                                                         setHoveredField={setHoveredField}
                                                                     />
-                                                                    <span className="text-slate-300 font-bold mb-1">×</span>
+                                                                    <div className="w-2 h-0.5 bg-slate-300 shrink-0" />
                                                                     <NumberInput
                                                                         id={`height-${item.id}`}
                                                                         value={item.height}
@@ -1089,9 +1089,9 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                                         max={50}
                                                                         step={0.5}
                                                                         fieldId="itemHeight"
-                                                                        showButtons={false}
+                                                                        showButtons={true}
                                                                         placeholder="A"
-                                                                        className="h-10 text-base font-bold bg-white dark:bg-slate-900 border-slate-200"
+                                                                        className="flex-1"
                                                                         setHoveredField={setHoveredField}
                                                                     />
                                                                 </div>
@@ -1118,9 +1118,9 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                                     max={10000}
                                                                     step={1}
                                                                     fieldId="itemQuantity"
-                                                                    showButtons={false}
+                                                                    showButtons={true}
                                                                     highlight={true}
-                                                                    className="h-10 text-base"
+                                                                    className="w-full"
                                                                     setHoveredField={setHoveredField}
                                                                 />
                                                             </div>
@@ -1289,7 +1289,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                         <div className="flex items-center gap-3 mb-2">
                                             <div className="flex items-center gap-1.5 px-3 py-1 bg-slate-800/80 rounded-full border border-slate-700 shadow-xl backdrop-blur-md">
                                                 <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Escala Real</span>
-                                                <div className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse shadow-[0_0_8px_rgba(250,204,21,0.6)]" />
+                                                <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse shadow-[0_0_8px_var(--primary-custom)]/60" />
                                             </div>
                                         </div>
 
@@ -1298,7 +1298,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                 <span className="text-slate-600">←</span>
                                                 <span className={cn(
                                                     "transition-colors duration-300",
-                                                    hoveredField === 'rollWidth' ? "text-yellow-400" : "text-slate-300"
+                                                    hoveredField === 'rollWidth' ? "text-primary" : "text-slate-300"
                                                 )}>
                                                     {rollWidth} CM
                                                 </span>
@@ -1308,10 +1308,10 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                             {/* Linha da Régua */}
                                             <div className={cn(
                                                 "w-full h-px relative transition-all duration-500",
-                                                hoveredField === 'rollWidth' ? "bg-yellow-400 shadow-[0_0_10px_rgba(250,204,21,0.5)]" : "bg-slate-700"
+                                                hoveredField === 'rollWidth' ? "bg-primary shadow-[0_0_10px_var(--primary-custom)]/50" : "bg-slate-700"
                                             )}>
-                                                <div className={cn("absolute -top-2 left-0 w-px h-4 transition-colors", hoveredField === 'rollWidth' ? "bg-yellow-400" : "bg-slate-700")} />
-                                                <div className={cn("absolute -top-2 right-0 w-px h-4 transition-colors", hoveredField === 'rollWidth' ? "bg-yellow-400" : "bg-slate-700")} />
+                                                <div className={cn("absolute -top-2 left-0 w-px h-4 transition-colors", hoveredField === 'rollWidth' ? "bg-primary" : "bg-slate-700")} />
+                                                <div className={cn("absolute -top-2 right-0 w-px h-4 transition-colors", hoveredField === 'rollWidth' ? "bg-primary" : "bg-slate-700")} />
                                             </div>
                                         </div>
                                     </div>
@@ -1332,9 +1332,9 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                         {/* Alerta de Performance Único e Flutuante */}
                                         {!isExporting && (mode === 'quick' ? results.hasWarning : multiResults.hasWarning) && (
                                             <div className="absolute top-12 right-4 z-40">
-                                                <div className="flex items-center gap-2 px-3 py-1.5 bg-white/90 backdrop-blur-md border border-amber-200 shadow-xl rounded-full">
-                                                    <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                                                    <span className="text-[9px] font-black text-amber-600 uppercase tracking-widest text-center">Preview Limitado</span>
+                                                <div className="flex items-center gap-2 px-3 py-1.5 bg-white/90 backdrop-blur-md border border-primary/20 shadow-xl rounded-full">
+                                                    <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                                                    <span className="text-[9px] font-black text-primary uppercase tracking-widest text-center">Preview Limitado</span>
                                                 </div>
                                             </div>
                                         )}
@@ -1396,11 +1396,11 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                             {Array.from({ length: isExporting ? results.finalQuantity : Math.min(500, results.finalQuantity) }).map((_, i) => (
                                                                 <div key={`logo-${i}`}
                                                                     className={cn(
-                                                                        "bg-yellow-400 border border-yellow-600/50 rounded-sm flex items-center justify-center overflow-hidden transition-all duration-300",
-                                                                        hoveredField === 'imageSize' ? "scale-105 shadow-[0_0_12px_rgba(250,204,21,0.8)] z-20 border-yellow-400" : "hover:bg-yellow-500"
+                                                                        "bg-primary border border-primary/50 rounded-sm flex items-center justify-center overflow-hidden transition-all duration-300",
+                                                                        hoveredField === 'imageSize' ? "scale-105 shadow-[0_0_12px_var(--primary-custom)] z-20 border-primary" : "hover:brightness-110"
                                                                     )}
                                                                     style={{ aspectRatio: `${imageWidth} / ${imageHeight}` }}>
-                                                                    <span className="text-[5px] sm:text-[6px] font-black text-yellow-900/40 select-none">
+                                                                    <span className="text-[5px] sm:text-[6px] font-black text-primary-foreground/40 select-none">
                                                                         {imageWidth}x{imageHeight}
                                                                     </span>
                                                                 </div>
@@ -1500,7 +1500,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                 <div className="px-4 py-3 border-t border-slate-200 bg-slate-900 flex flex-wrap items-center justify-between rounded-b-xl gap-4">
                                     <div className="flex flex-wrap gap-x-6 gap-y-2">
                                         <div className="flex items-center gap-2">
-                                            <div className="w-3 h-3 bg-yellow-400 rounded-sm shadow-[0_0_5px_rgba(250,204,21,0.5)]" />
+                                            <div className="w-3 h-3 bg-primary rounded-sm shadow-[0_0_5px_var(--primary-custom)]" />
                                             <span className="text-[10px] text-slate-400 font-black uppercase tracking-wider">Logos</span>
                                         </div>
                                         <div className="flex items-center gap-2">

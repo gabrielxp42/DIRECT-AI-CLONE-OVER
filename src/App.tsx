@@ -22,6 +22,7 @@ import Checkout from "./pages/Checkout";
 import Legal from "./pages/Legal";
 import Profile from "./pages/Profile";
 import { AIAssistantProvider } from "./contexts/AIAssistantProvider";
+import { DynamicThemeProvider } from "./components/DynamicThemeProvider";
 import { useEffect, useRef } from "react";
 import { useSession } from "./contexts/SessionProvider";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -65,37 +66,39 @@ const App = () => (
           <AntiScraper /> {/* Proteção Anti-Clone Ativa */}
           <BrowserRouter>
             <SessionProvider>
-              <PWAManager />
-              <InstallPrompt />
-              <TrialBanner />
-              <ErrorBoundary>
-                <Routes>
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/reset-password" element={<ResetPassword />} />
-                  <Route path="/terms" element={<Legal />} />
-                  <Route path="/privacy" element={<Legal />} />
-                  <Route path="/checkout" element={<Checkout />} />
-                  <Route element={<ProtectedRoute />}>
-                    <Route element={<Layout />}>
-                      <Route path="/" element={<Index />} />
-                      <Route path="/clientes" element={<Clientes />} />
-                      <Route path="/produtos" element={<Produtos />} />
-                      <Route path="/pedidos" element={<Pedidos />} />
-                      <Route path="/reports" element={<Reports />} />
-                      <Route path="/insumos" element={<Insumos />} />
-                      <Route path="/settings" element={<Settings />} />
-                      <Route path="/profile" element={<Profile />} />
-                      <Route path="/admin" element={
-                        <AdminRoute>
-                          <Admin />
-                        </AdminRoute>
-                      } />
-                      {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                      <Route path="*" element={<NotFound />} />
+              <DynamicThemeProvider>
+                <PWAManager />
+                <InstallPrompt />
+                <TrialBanner />
+                <ErrorBoundary>
+                  <Routes>
+                    <Route path="/login" element={<Login />} />
+                    <Route path="/reset-password" element={<ResetPassword />} />
+                    <Route path="/terms" element={<Legal />} />
+                    <Route path="/privacy" element={<Legal />} />
+                    <Route path="/checkout" element={<Checkout />} />
+                    <Route element={<ProtectedRoute />}>
+                      <Route element={<Layout />}>
+                        <Route path="/" element={<Index />} />
+                        <Route path="/clientes" element={<Clientes />} />
+                        <Route path="/produtos" element={<Produtos />} />
+                        <Route path="/pedidos" element={<Pedidos />} />
+                        <Route path="/reports" element={<Reports />} />
+                        <Route path="/insumos" element={<Insumos />} />
+                        <Route path="/settings" element={<Settings />} />
+                        <Route path="/profile" element={<Profile />} />
+                        <Route path="/admin" element={
+                          <AdminRoute>
+                            <Admin />
+                          </AdminRoute>
+                        } />
+                        {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                        <Route path="*" element={<NotFound />} />
+                      </Route>
                     </Route>
-                  </Route>
-                </Routes>
-              </ErrorBoundary>
+                  </Routes>
+                </ErrorBoundary>
+              </DynamicThemeProvider>
             </SessionProvider>
           </BrowserRouter>
         </AIAssistantProvider>

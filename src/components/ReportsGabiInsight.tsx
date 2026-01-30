@@ -18,9 +18,9 @@ export const ReportsGabiInsight = ({ reportData, isLoading }: GabiReportsInsight
         if (revenueGrowth > 30) {
             return {
                 icon: Zap,
-                color: "text-amber-500",
-                bg: "bg-amber-500/10",
-                border: "border-amber-500/20",
+                color: "text-primary",
+                bg: "bg-primary/10",
+                border: "border-primary/20",
                 title: "Crescimento Explosivo! 🚀",
                 message: `Sua receita subiu impressionantes ${revenueGrowth.toFixed(1)}% em relação ao período anterior. O volume de pedidos acompanhou? Mantenha o estoque de tinta e mídia em dia!`
             };

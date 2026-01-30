@@ -29,7 +29,7 @@ export const OrderStatusBadge = ({ status }: OrderStatusBadgeProps) => {
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
       case 'pendente':
-        return 'bg-yellow-100 text-yellow-800 hover:bg-yellow-100';
+        return 'bg-primary/20 text-primary hover:bg-primary/30';
       case 'processando':
         return 'bg-blue-100 text-blue-800 hover:bg-blue-100';
       case 'enviado':
@@ -48,7 +48,7 @@ export const OrderStatusBadge = ({ status }: OrderStatusBadgeProps) => {
   };
 
   return (
-    <Badge 
+    <Badge
       variant={getStatusVariant(status)}
       className={getStatusColor(status)}
     >

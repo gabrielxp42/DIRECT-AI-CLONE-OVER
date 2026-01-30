@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,6 +37,7 @@ export const AIAssistant = () => {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -125,6 +127,12 @@ export const AIAssistant = () => {
         }
 
         const functionResult = await callOpenAIFunction({ name: functionName, arguments: functionArgs });
+
+        // EXCLUSIVO: Invalidação de queries em tempo real para Branding
+        if (functionName === 'update_branding') {
+          console.log("🎨 [AIAssistant] Branding alterado, invalidando queries...");
+          queryClient.invalidateQueries({ queryKey: ['companyProfile'] });
+        }
 
         setLoadingStatus("Gabi está finalizando a resposta...");
 
@@ -261,6 +269,20 @@ export const AIAssistant = () => {
                 </div>
               </div>
               <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-zinc-400 hover:text-red-500"
+                  title="Resetar Memória"
+                  onClick={() => {
+                    const confirm = window.prompt("Para apagar todo o meu aprendizado sobre você, digite 'confirmar':");
+                    if (confirm === 'confirmar') {
+                      handleSendMessage("reset_user_memory(confirmation: 'confirmar')");
+                    }
+                  }}
+                >
+                  <Settings className="h-4 w-4" />
+                </Button>
                 <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-400 hover:text-white" onClick={() => setIsMinimized(!isMinimized)}>
                   {isMinimized ? <Maximize2 className="h-4 w-4" /> : <Minimize2 className="h-4 w-4" />}
                 </Button>
@@ -276,7 +298,7 @@ export const AIAssistant = () => {
                   {messages.map((msg, idx) => (
                     <div key={idx} className={cn("flex flex-col gap-2", msg.role === 'user' ? "items-end" : "items-start")}>
                       {msg.role === 'user' ? (
-                        <div className="max-w-[85%] p-3 rounded-2xl bg-gradient-to-r from-yellow-400 to-yellow-500 text-black font-bold rounded-br-none shadow-lg animate-in slide-in-from-right-4 fade-in duration-300">
+                        <div className="max-w-[85%] p-3 rounded-2xl bg-primary text-primary-foreground font-bold rounded-br-none shadow-lg animate-in slide-in-from-right-4 fade-in duration-300">
                           <div className="flex items-start gap-2">
                             <div className="flex-1">
                               {msg.audioUrl ? (
@@ -371,6 +393,48 @@ export const AIAssistant = () => {
                               } catch (e) { return null; }
                               return <div dangerouslySetInnerHTML={{ __html: formatMessage(typeof msg.content === 'string' ? msg.content : '') }} />;
                             })()
+                          ) : msg.name === 'send_whatsapp_message' ? (
+                            (() => {
+                              try {
+                                const content = typeof msg.content === 'string' ? msg.content : '';
+                                const result = JSON.parse(content);
+                                if (result.type === 'whatsapp_action') {
+                                  return (
+                                    <div className="mt-2 bg-white dark:bg-slate-900 border-2 border-emerald-500/20 rounded-xl shadow-lg overflow-hidden">
+                                      <div className="bg-emerald-500/10 p-3 border-b border-emerald-500/10 flex items-center gap-2">
+                                        <Share2 className="h-4 w-4 text-emerald-500" />
+                                        <span className="font-bold text-sm text-emerald-600 dark:text-emerald-400">WhatsApp Pronto</span>
+                                      </div>
+                                      <div className="p-4 space-y-3">
+                                        <p className="text-xs text-zinc-400 line-clamp-2 italic">"{result.data.message}"</p>
+                                        <Button
+                                          className="w-full gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                                          onClick={() => window.open(result.data.link, '_blank')}
+                                        >
+                                          <MessageSquare className="h-4 w-4" />
+                                          Enviar Agora
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  );
+                                }
+                              } catch (e) { return null; }
+                            })()
+                          ) : msg.name === 'update_branding' ? (
+                            (() => {
+                              try {
+                                const content = typeof msg.content === 'string' ? msg.content : '';
+                                const result = JSON.parse(content);
+                                if (result.success) {
+                                  return (
+                                    <div className="mt-2 bg-white dark:bg-slate-900 border-2 border-primary/20 rounded-xl p-3 flex items-center gap-3 animate-pulse">
+                                      <Sparkles className="h-5 w-5 text-yellow-500" />
+                                      <span className="text-sm font-bold">Visual atualizado com sucesso! ✨</span>
+                                    </div>
+                                  );
+                                }
+                              } catch (e) { return null; }
+                            })()
                           ) : null}
                         </div>
                       ) : null}
@@ -386,9 +450,9 @@ export const AIAssistant = () => {
                       <div className="max-w-[85%] p-3 rounded-2xl text-sm bg-slate-900/80 backdrop-blur-md text-slate-200 border border-white/5 rounded-tl-none shadow-xl">
                         <div className="flex items-center gap-3">
                           <div className="flex space-x-1">
-                            <div className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-bounce" style={{ animationDelay: '0s' }}></div>
-                            <div className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                            <div className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                            <div className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0s' }}></div>
+                            <div className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                            <div className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                           </div>
                           <span className="text-[11px] font-black uppercase tracking-widest text-zinc-400">{loadingStatus}</span>
                         </div>
@@ -407,7 +471,7 @@ export const AIAssistant = () => {
                           setInput(s);
                           handleSendMessage(s);
                         }}
-                        className="whitespace-nowrap px-3 py-1.5 rounded-full bg-white/5 text-zinc-300 text-[11px] font-bold uppercase tracking-tight border border-white/10 hover:border-yellow-500/50 hover:bg-gradient-to-r hover:from-yellow-400/20 hover:to-pink-500/20 transition-all hover:scale-105 flex-shrink-0"
+                        className="whitespace-nowrap px-3 py-1.5 rounded-full bg-white/5 text-zinc-300 text-[11px] font-bold uppercase tracking-tight border border-white/10 hover:border-primary/50 hover:bg-primary/20 transition-all hover:scale-105 flex-shrink-0"
                       >
                         {s}
                       </button>

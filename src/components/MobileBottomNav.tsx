@@ -86,7 +86,7 @@ export const MobileBottomNav = ({ onOpenCalculator }: { onOpenCalculator?: () =>
             <Button
               id="mobile-quick-actions"
               size="icon"
-              className="h-16 w-16 rounded-full bg-yellow-400 text-black shadow-[0_0_25px_rgba(255,242,0,0.5)] border-4 border-background hover:bg-yellow-500 scale-110 active:scale-95 transition-all"
+              className="h-16 w-16 rounded-full bg-primary text-primary-foreground shadow-[0_0_25px_var(--primary-custom)]/50 border-4 border-background hover:brightness-110 scale-110 active:scale-95 transition-all"
             >
               <Plus className="h-8 w-8" />
             </Button>
@@ -107,7 +107,7 @@ export const MobileBottomNav = ({ onOpenCalculator }: { onOpenCalculator?: () =>
                 {/* Botão Principal em Destaque - Liquid Style */}
                 <Button
                   size="lg"
-                  className="w-full h-20 bg-yellow-400 hover:bg-yellow-500 text-black font-black text-xl rounded-3xl shadow-[0_15px_35px_rgba(255,242,0,0.3)] border-none gap-4 group transition-all active:scale-95"
+                  className="w-full h-20 bg-primary hover:brightness-110 text-primary-foreground font-black text-xl rounded-3xl shadow-[0_15px_35px_var(--primary-custom)]/30 border-none gap-4 group transition-all active:scale-95"
                   onClick={() => handleMobileAction('new_pedido')}
                 >
                   <div className="bg-black/10 p-3 rounded-2xl group-hover:bg-black/20 transition-colors">

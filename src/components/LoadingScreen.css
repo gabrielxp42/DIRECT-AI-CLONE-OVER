@@ -49,7 +49,7 @@
     left: 20%;
     width: min(400px, 40vw);
     height: min(400px, 40vw);
-    background: radial-gradient(circle, #facc15 0%, transparent 70%);
+    background: radial-gradient(circle, var(--primary-custom) 0%, transparent 70%);
     animation: particle-float-1 8s ease-in-out infinite;
 }
 
@@ -58,7 +58,7 @@
     right: 20%;
     width: min(350px, 35vw);
     height: min(350px, 35vw);
-    background: radial-gradient(circle, #fbbf24 0%, transparent 70%);
+    background: radial-gradient(circle, var(--primary-custom) 0%, transparent 70%);
     animation: particle-float-2 10s ease-in-out infinite;
 }
 
@@ -67,7 +67,7 @@
     left: 50%;
     width: min(300px, 30vw);
     height: min(300px, 30vw);
-    background: radial-gradient(circle, #f59e0b 0%, transparent 70%);
+    background: radial-gradient(circle, var(--primary-custom) 0%, transparent 70%);
     animation: particle-float-3 12s ease-in-out infinite;
     transform: translate(-50%, -50%);
 }
@@ -142,7 +142,8 @@
 }
 
 .loading-screen__glow--secondary {
-    background: radial-gradient(circle, rgba(251, 191, 36, 0.2) 0%, transparent 70%);
+    background: radial-gradient(circle, var(--primary-custom) 0%, transparent 70%);
+    opacity: 0.2;
     filter: blur(40px);
     animation: glow-pulse-secondary 2.5s ease-in-out infinite 0.5s;
 }
@@ -171,19 +172,19 @@
 }
 
 .loading-screen__title {
-    font-size: clamp(1.5rem, 4vw, 2rem);
-    font-weight: 700;
+    font-size: clamp(1.5rem, 4vw, 2.5rem);
+    font-weight: 800;
     color: #ffffff;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.15em;
     text-transform: uppercase;
     margin: 0;
-    text-shadow: 0 0 20px rgba(250, 204, 21, 0.3);
+    text-shadow: 0 0 20px rgba(250, 204, 21, 0.4);
 }
 
 .loading-screen__subtitle {
     font-size: clamp(0.875rem, 2vw, 1rem);
     font-weight: 500;
-    color: rgba(250, 204, 21, 0.9);
+    color: var(--primary-custom);
     margin: 0;
     display: flex;
     align-items: center;
@@ -225,8 +226,8 @@
             transparent 100%);
     background-size: 200% 100%;
     border-radius: 999px;
-    box-shadow: 0 0 15px rgba(250, 204, 21, 0.6),
-        0 0 30px rgba(250, 204, 21, 0.3);
+    box-shadow: 0 0 15px var(--primary-custom),
+        0 0 30px var(--primary-custom);
     animation: progress-bar-slide 1.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
     will-change: transform;
 }
@@ -566,7 +567,7 @@
 /* Light theme subtitle - amarelo mais escuro */
 :root:not(.dark) .loading-screen__subtitle,
 .light .loading-screen__subtitle {
-    color: #ca8a04;
+    color: var(--primary-custom);
     font-weight: 600;
 }
 

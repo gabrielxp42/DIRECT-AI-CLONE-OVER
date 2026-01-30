@@ -178,7 +178,7 @@ export const MagicPasteModal: React.FC<MagicPasteModalProps> = ({
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
-                        <Sparkles className="h-5 w-5 text-yellow-500" />
+                        <Sparkles className="h-5 w-5 text-primary" />
                         Importação Mágica
                     </DialogTitle>
                     <DialogDescription>
@@ -264,7 +264,7 @@ export const MagicPasteModal: React.FC<MagicPasteModalProps> = ({
                         <Button
                             onClick={processText}
                             disabled={isProcessing || !text.trim()}
-                            className="bg-gradient-to-r from-yellow-500 to-orange-500 text-white border-none"
+                            className="bg-primary text-primary-foreground border-none shadow-[0_0_20px_var(--primary-custom)]/20"
                         >
                             {isProcessing ? (
                                 <>

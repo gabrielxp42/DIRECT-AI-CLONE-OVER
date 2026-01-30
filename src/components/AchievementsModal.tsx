@@ -66,7 +66,7 @@ export const AchievementsModal = ({ isOpen, onClose, stats }: AchievementsModalP
                         {/* Global Rank Badge */}
                         <div className="flex flex-col items-end">
                             <div className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Seu Rank</div>
-                            <div className="text-sm md:text-lg font-black text-white italic uppercase tracking-tighter bg-gradient-to-r from-primary to-yellow-500 bg-clip-text text-transparent transform -skew-x-12">
+                            <div className="text-sm md:text-lg font-black text-white italic uppercase tracking-tighter bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent transform -skew-x-12">
                                 {unlockedCount <= 3 ? "Iniciante" : unlockedCount <= 6 ? "Profissional" : "Lenda Viva"}
                             </div>
                         </div>

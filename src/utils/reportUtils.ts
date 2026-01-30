@@ -40,6 +40,7 @@ export interface SalesReport {
         totalPending: number;
         totalCancelled: number;
     };
+    groupingType?: 'hourly' | 'daily' | 'weekly' | 'monthly';
 }
 
 export const calculatePeriodDates = (period: string, customRange?: DateRange, specificYear?: string) => {
@@ -453,7 +454,7 @@ export const fetchReportData = async (
     };
 
     // 6. Chart Data Generation (Grouping)
-    // Determine grouping strategy
+    // Determine grouping strategy based on date range length
     const daysDiff = Math.ceil((periodEnd.getTime() - periodStart.getTime()) / (1000 * 60 * 60 * 24));
     let groupingType: 'hourly' | 'daily' | 'weekly' | 'monthly' = 'daily';
 
@@ -461,9 +462,18 @@ export const fetchReportData = async (
     else if (chartView === 'summary') {
         if (selectedPeriod === 'month') groupingType = 'weekly';
         else if (selectedPeriod === 'year') groupingType = 'monthly';
+        else if (selectedPeriod === 'custom') {
+            if (daysDiff > 90) groupingType = 'monthly';
+            else if (daysDiff > 32) groupingType = 'weekly';
+            else groupingType = 'daily';
+        }
     } else {
-        // Daily view
-        if (selectedPeriod === 'year') groupingType = 'monthly';
+        // Daily view requested, but if range is too large, force aggregation for readability
+        if (selectedPeriod === 'year' || (selectedPeriod === 'custom' && daysDiff > 90)) {
+            groupingType = 'monthly';
+        } else if (selectedPeriod === 'custom' && daysDiff > 32) {
+            groupingType = 'weekly';
+        }
     }
 
     const revenueByPeriod: any[] = [];
@@ -497,9 +507,7 @@ export const fetchReportData = async (
                 });
             }
         } else if (groupingType === 'weekly') {
-            // Logic for weeks
             let current = new Date(periodStart);
-            let i = 1;
             while (current <= periodEnd) {
                 const s = new Date(current);
                 const e = new Date(current); e.setDate(e.getDate() + 6); e.setHours(23, 59, 59, 999);
@@ -508,16 +516,24 @@ export const fetchReportData = async (
                 buckets.push({
                     start: s,
                     end: e,
-                    label: selectedPeriod === 'month' ? `Semana ${i}` : `${s.getDate()}/${s.getMonth() + 1}`
+                    label: selectedPeriod === 'month' ? `Semana ${Math.ceil(s.getDate() / 7)}` : `${s.getDate()}/${s.getMonth() + 1}`
                 });
                 current.setDate(current.getDate() + 7);
-                i++;
             }
         } else if (groupingType === 'monthly') {
-            for (let m = 0; m < 12; m++) {
-                const s = new Date(periodStart.getFullYear(), m, 1);
-                const e = new Date(periodStart.getFullYear(), m + 1, 0, 23, 59, 59, 999);
-                buckets.push({ start: s, end: e, label: s.toLocaleDateString('pt-BR', { month: 'short' }) });
+            // Support multi-year ranges by iterating from start to end
+            let current = new Date(periodStart.getFullYear(), periodStart.getMonth(), 1);
+            while (current <= periodEnd) {
+                const s = new Date(current);
+                const e = new Date(current.getFullYear(), current.getMonth() + 1, 0, 23, 59, 59, 999);
+                if (e > periodEnd) e.setTime(periodEnd.getTime());
+
+                buckets.push({
+                    start: s,
+                    end: e,
+                    label: s.toLocaleDateString('pt-BR', { month: 'short', year: daysDiff > 366 ? '2-digit' : undefined })
+                });
+                current.setMonth(current.getMonth() + 1);
             }
         }
         return buckets;
@@ -547,17 +563,16 @@ export const fetchReportData = async (
         productionOrders.forEach((o: any) => {
             if (o.pedido_items) {
                 o.pedido_items.forEach((item: any) => {
-                    const tipoRaw = (item.tipo || '').toLowerCase().trim();
-                    // Apenas tipos conhecidos de produção para o gráfico de metros
-                    if (['dtf', 'uv', 'vinil', 'papel'].includes(tipoRaw)) {
-                        const tipo = tipoRaw || 'dtf';
+                    o.pedido_items.forEach((item: any) => {
+                        const tipoRaw = (item.tipo || 'outro').toLowerCase().trim();
+                        const tipo = tipoRaw === '' ? 'outro' : tipoRaw;
                         bucketTotals[tipo] = Number(((bucketTotals[tipo] || 0) + (Number(item.quantidade) || 0)).toFixed(2));
-                    }
+                    });
                 });
             }
         });
 
-        revenueByPeriod.push({ period: bucket.label, revenue: rev, profit: profit });
+        revenueByPeriod.push({ period: bucket.label, revenue: rev, profit: profit, meters: met });
         metersByPeriod.push({ period: bucket.label, meters: met, ...bucketTotals });
     });
 
@@ -625,6 +640,7 @@ export const fetchReportData = async (
             servicesByPeriod: [], // placeholder
             topServices,
             servicosDetalhados: allServices
-        }
+        },
+        groupingType
     };
 };

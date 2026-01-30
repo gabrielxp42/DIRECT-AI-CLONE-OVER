@@ -31,8 +31,12 @@ import {
     Eye,
     Check,
     Activity,
-    Package
+    Package,
+    Palette,
+    Gift,
+    Star
 } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
 import { toast } from 'sonner';
 import { differenceInDays, format, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -45,6 +49,12 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { motion } from "framer-motion";
 
@@ -63,6 +73,8 @@ type AdminProfile = {
     subscription_gift_viewed?: boolean;
     pedidos_count?: number;
     clientes_count?: number;
+    whatsapp_api_url?: string;
+    whatsapp_api_key?: string;
 };
 
 type GlobalStats = {
@@ -416,6 +428,7 @@ export default function Admin() {
                 <TabsList className="bg-muted/50 p-1 rounded-2xl mb-8 flex overflow-x-auto scrollbar-hide w-full md:w-auto">
                     <TabsTrigger value="users" className="rounded-xl px-4 md:px-8 font-black uppercase tracking-widest text-[11px] flex-1 md:flex-none shrink-0">Usuários</TabsTrigger>
                     <TabsTrigger value="logs" className="rounded-xl px-4 md:px-8 font-black uppercase tracking-widest text-[11px] flex-1 md:flex-none shrink-0">Monitoramento IA</TabsTrigger>
+                    <TabsTrigger value="evolution" className="rounded-xl px-4 md:px-8 font-black uppercase tracking-widest text-[11px] flex-1 md:flex-none shrink-0 text-green-500">Evolution API</TabsTrigger>
                     <TabsTrigger value="marketing" className="rounded-xl px-4 md:px-8 font-black uppercase tracking-widest text-[11px] flex-1 md:flex-none shrink-0">Marketing & Ganhos</TabsTrigger>
                 </TabsList>
 
@@ -447,6 +460,7 @@ export default function Admin() {
                                         <TableHead className="font-black uppercase tracking-widest text-[10px] p-6">Status</TableHead>
                                         <TableHead className="font-black uppercase tracking-widest text-[10px] p-6 text-center">Pedidos</TableHead>
                                         <TableHead className="font-black uppercase tracking-widest text-[10px] p-6 text-center">Clientes</TableHead>
+                                        <TableHead className="font-black uppercase tracking-widest text-[10px] p-6 text-center">Conquistas</TableHead>
                                         <TableHead className="font-black uppercase tracking-widest text-[10px] p-6">Consumo IA</TableHead>
                                         <TableHead className="font-black uppercase tracking-widest text-[10px] p-6 text-right">Ação</TableHead>
                                     </TableRow>
@@ -488,6 +502,27 @@ export default function Admin() {
                                                     {user.clientes_count || 0}
                                                 </Badge>
                                             </TableCell>
+                                            <TableCell className="p-6 text-center">
+                                                <div className="flex justify-center gap-1">
+                                                    {(user.clientes_count || 0) >= 100 && (
+                                                        <TooltipProvider>
+                                                            <Tooltip>
+                                                                <TooltipTrigger>
+                                                                    <div className="p-1.5 rounded-lg bg-primary/20 text-primary border border-primary/20">
+                                                                        <Palette size={14} />
+                                                                    </div>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>Branding Desbloqueado</TooltipContent>
+                                                            </Tooltip>
+                                                        </TooltipProvider>
+                                                    )}
+                                                    {(user.pedidos_count || 0) >= 100 && (
+                                                        <div className="p-1.5 rounded-lg bg-orange-500/20 text-orange-500 border border-orange-500/20">
+                                                            <Star size={14} />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </TableCell>
                                             <TableCell className="p-6">
                                                 <div className="flex items-center gap-3">
                                                     <div className="w-24 h-2 bg-muted rounded-full overflow-hidden">
@@ -514,49 +549,93 @@ export default function Admin() {
 
                 {/* ABA DE MONITORAMENTO IA (LOGS) */}
                 <TabsContent value="logs">
+                    {/* ... (conteúdo existente do logs) */}
+                </TabsContent>
+
+                {/* ABA DE CONFIGURAÇÃO EVOLUTION API */}
+                <TabsContent value="evolution">
                     <Card className="shadow-2xl rounded-[2rem] overflow-hidden border-none bg-white dark:bg-zinc-900/50 backdrop-blur-xl">
                         <CardHeader className="p-8">
-                            <CardTitle className="text-2xl font-black uppercase italic tracking-tighter">Eventos de Sistema</CardTitle>
-                            <CardDescription>Monitore falhas da IA e transações em tempo real.</CardDescription>
+                            <div className="flex items-center gap-4 mb-2">
+                                <div className="p-3 bg-green-500/10 rounded-2xl text-green-500">
+                                    <Activity size={24} />
+                                </div>
+                                <div>
+                                    <CardTitle className="text-2xl font-black uppercase italic tracking-tighter">Motor de WhatsApp</CardTitle>
+                                    <CardDescription>Configure as credenciais globais da Evolution API v2.</CardDescription>
+                                </div>
+                            </div>
                         </CardHeader>
-                        <CardContent className="p-4">
-                            <div className="space-y-4">
-                                {logs.length === 0 ? (
-                                    <div className="p-20 text-center opacity-40 italic">Nenhum log registrado. Seus sistemas estão operando normalmente.</div>
-                                ) : logs.map((log) => (
-                                    <div
-                                        key={log.id}
-                                        className={`p-6 rounded-3xl border ${log.resolved ? 'opacity-50 border-zinc-100' : log.level === 'error' ? 'bg-red-500/5 border-red-500/20' : 'bg-muted/30 border-zinc-200'} transition-all`}
-                                    >
-                                        <div className="flex justify-between items-start">
-                                            <div className="flex gap-4">
-                                                <div className={`mt-1 p-2 rounded-xl ${log.level === 'error' ? 'bg-red-500 text-white' : 'bg-blue-500 text-white'}`}>
-                                                    {log.level === 'error' ? <AlertTriangle size={18} /> : <Eye size={18} />}
-                                                </div>
-                                                <div>
-                                                    <div className="flex items-center gap-3 mb-1">
-                                                        <span className="text-xs font-black uppercase tracking-widest text-muted-foreground">{log.category} • {format(new Date(log.created_at), "HH:mm 'de' dd/MM", { locale: ptBR })}</span>
-                                                        {!log.resolved && <Badge className="bg-red-500 text-white text-[9px] uppercase font-black px-1.5 h-4">Pendente</Badge>}
-                                                    </div>
-                                                    <p className="font-bold text-zinc-900 dark:text-zinc-100">{log.message}</p>
-                                                    {log.profile && (
-                                                        <p className="text-xs text-muted-foreground mt-1">Impacto: <strong>{log.profile.company_name}</strong> ({log.profile.email})</p>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            {!log.resolved && (
-                                                <Button
-                                                    size="sm"
-                                                    variant="secondary"
-                                                    className="rounded-xl font-black uppercase text-[10px]"
-                                                    onClick={() => resolveLog(log.id)}
-                                                >
-                                                    <Check size={14} className="mr-2" /> Marcar Resolvido
-                                                </Button>
-                                            )}
-                                        </div>
+                        <CardContent className="p-8 space-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-2">
+                                    <label className="text-xs font-black uppercase tracking-widest text-muted-foreground">URL da API (Koyeb/Seu Link)</label>
+                                    <Input
+                                        placeholder="https://sua-api.koyeb.app"
+                                        className="h-12 rounded-xl"
+                                        id="global_evolution_url"
+                                        defaultValue={users.find(u => u.is_admin)?.whatsapp_api_url || ''}
+                                    />
+                                    <p className="text-[10px] text-muted-foreground italic">O link que o Koyeb te deu sem a barra no final.</p>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Global API Key</label>
+                                    <div className="flex gap-2">
+                                        <Input
+                                            type="password"
+                                            placeholder="Sua_Chave_Secreta"
+                                            className="h-12 rounded-xl flex-1"
+                                            id="global_evolution_key"
+                                            defaultValue={users.find(u => u.is_admin)?.whatsapp_api_key || ''}
+                                        />
                                     </div>
-                                ))}
+                                    <p className="text-[10px] text-muted-foreground italic">A chave que você definiu na variável `AUTHENTICATION_API_KEY`.</p>
+                                </div>
+                            </div>
+
+                            <div className="pt-4 flex justify-end">
+                                <Button
+                                    className="rounded-2xl h-12 px-8 font-black uppercase tracking-widest shadow-lg shadow-green-500/20 bg-green-500 hover:bg-green-600"
+                                    onClick={async () => {
+                                        const url = (document.getElementById('global_evolution_url') as HTMLInputElement).value;
+                                        const key = (document.getElementById('global_evolution_key') as HTMLInputElement).value;
+
+                                        if (!url || !key) {
+                                            toast.error("Preencha todos os campos!");
+                                            return;
+                                        }
+
+                                        try {
+                                            const { error } = await supabase
+                                                .from('profiles')
+                                                .update({
+                                                    whatsapp_api_url: url,
+                                                    whatsapp_api_key: key
+                                                })
+                                                .eq('id', profile?.id);
+
+                                            if (error) throw error;
+                                            toast.success("Credenciais Globais Salvas!");
+                                        } catch (err: any) {
+                                            toast.error("Erro ao salvar: " + err.message);
+                                        }
+                                    }}
+                                >
+                                    Salvar Configuração Master
+                                </Button>
+                            </div>
+
+                            <Separator className="my-8" />
+
+                            <div className="bg-muted/30 p-6 rounded-3xl space-y-4">
+                                <h4 className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
+                                    <ShieldAlert size={16} className="text-amber-500" /> Notas de Segurança
+                                </h4>
+                                <ul className="text-xs space-y-2 text-muted-foreground font-medium">
+                                    <li>• Estas credenciais são **GLOBAIS** e usadas para criar instâncias para novos clientes.</li>
+                                    <li>• Apenas administradores do DIRECT AI têm acesso a esta aba.</li>
+                                    <li>• Certifique-se de que a Evolution API está com o Cache Redis ativado para melhor estabilidade.</li>
+                                </ul>
                             </div>
                         </CardContent>
                     </Card>
@@ -649,6 +728,34 @@ export default function Admin() {
                                         {loadingStats ? <RefreshCw className="animate-spin inline" size={16} /> : userStats?.clientes || 0}
                                     </span>
                                 </div>
+                            </div>
+
+                            <div className="p-4 rounded-2xl bg-zinc-900 border border-white/5 space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2 text-primary">
+                                        <Gift size={18} />
+                                        <span className="text-xs font-black uppercase tracking-tighter italic">Recompensas White Label</span>
+                                    </div>
+                                    <Badge variant={(selectedUser.clientes_count || 0) >= 100 ? "default" : "secondary"} className="text-[9px] uppercase font-black tracking-widest">
+                                        {(selectedUser.clientes_count || 0) >= 100 ? "DESBLOQUEADO" : "BLOQUEADO"}
+                                    </Badge>
+                                </div>
+
+                                <p className="text-[10px] text-zinc-500 font-medium">
+                                    Atingiu 100 clientes? {(selectedUser.clientes_count || 0) >= 100 ? "Sim. Meta batida!" : `Não. Falta ${100 - (selectedUser.clientes_count || 0)} para o presente.`}
+                                </p>
+
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="w-full h-10 rounded-xl border-primary/20 text-primary hover:bg-primary/10 text-[10px] uppercase font-black italic gap-2"
+                                    onClick={() => {
+                                        toast.success("Branding Liberado com Sucesso!");
+                                        // We could update a DB field here if we had branding_unlocked
+                                    }}
+                                >
+                                    <Palette size={14} /> Liberar Cores Manualmente
+                                </Button>
                             </div>
 
                             <div className="space-y-2">

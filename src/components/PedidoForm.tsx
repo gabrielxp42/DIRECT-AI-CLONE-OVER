@@ -1040,7 +1040,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                           variant="outline"
                           size="sm"
                           onClick={() => setIsMagicModalOpen(true)}
-                          className="flex items-center gap-2 border-yellow-500 text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 transition-all duration-300 hover:scale-[1.05] shadow-md hover:shadow-lg w-full sm:w-auto"
+                          className="flex items-center gap-2 border-primary text-primary hover:bg-primary/10 transition-all duration-300 hover:scale-[1.05] shadow-md hover:shadow-lg w-full sm:w-auto"
                         >
                           <Sparkles className="h-4 w-4 mr-2" />
                           Importar do Zap
@@ -1548,7 +1548,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                           "rounded-full h-auto py-1 px-3 text-xs transition-all duration-200",
                           "hover:bg-primary hover:text-primary-foreground hover:border-primary",
                           servico.is_pinned
-                            ? "border-yellow-500/50 bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500 hover:text-black"
+                            ? "border-primary/50 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground"
                             : "hover:bg-primary/10 hover:text-primary"
                         )}
                         onClick={() => {
@@ -1556,7 +1556,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                           incrementUsage.mutate({ nome: servico.nome, valor: Number(servico.valor) });
                         }}
                       >
-                        {servico.is_pinned && <Star className="w-3 h-3 mr-1 text-yellow-500 fill-yellow-500" />}
+                        {servico.is_pinned && <Star className="w-3 h-3 mr-1 text-primary fill-primary" />}
                         {servico.nome} - {formatCurrency(Number(servico.valor))}
                       </Button>
                     ))

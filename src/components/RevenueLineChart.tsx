@@ -7,6 +7,7 @@ interface ChartData {
   period: string;
   revenue: number;
   profit?: number;
+  meters?: number;
 }
 
 interface RevenueLineChartProps {
@@ -15,7 +16,9 @@ interface RevenueLineChartProps {
   description: string;
 }
 
-const formatCurrency = (value: number) => {
+const formatValue = (value: number, type: 'revenue' | 'profit' | 'meters') => {
+  if (type === 'meters') return `${value.toFixed(1)} ML`;
+
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL',
@@ -23,23 +26,36 @@ const formatCurrency = (value: number) => {
     maximumFractionDigits: 0,
   }).format(value);
 };
+
 export const RevenueLineChart: React.FC<RevenueLineChartProps> = ({ data, title, description }) => {
-  const [view, setView] = React.useState<'revenue' | 'profit'>('revenue');
+  const [view, setView] = React.useState<'revenue' | 'profit' | 'meters'>('revenue');
+
+  const getTitle = () => {
+    if (view === 'revenue') return title;
+    if (view === 'profit') return 'Tendência de Lucro';
+    return 'Produção (Metros Lineares)';
+  };
+
+  const getStrokeColor = () => {
+    if (view === 'revenue') return 'hsl(var(--primary))';
+    if (view === 'profit') return '#10b981';
+    return '#3b82f6'; // Blue for meters
+  };
 
   return (
     <Card>
       <CardContent className="p-6">
         <div className="flex justify-between items-start mb-4">
           <div>
-            <h3 className="text-lg font-semibold mb-1">{view === 'revenue' ? title : 'Tendência de Lucro'}</h3>
+            <h3 className="text-lg font-semibold mb-1">{getTitle()}</h3>
             <p className="text-sm text-muted-foreground">{description}</p>
           </div>
-          <div className="flex bg-muted p-1 rounded-md">
+          <div className="flex bg-muted p-1 rounded-md gap-0.5">
             <button
               onClick={() => setView('revenue')}
               className={cn(
-                "px-2 py-1 text-[10px] rounded-sm transition-all",
-                view === 'revenue' ? "bg-background shadow-sm font-bold" : "text-muted-foreground"
+                "px-2 py-1 text-[10px] rounded-sm transition-all font-bold",
+                view === 'revenue' ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
               )}
             >
               RECEITA
@@ -47,11 +63,20 @@ export const RevenueLineChart: React.FC<RevenueLineChartProps> = ({ data, title,
             <button
               onClick={() => setView('profit')}
               className={cn(
-                "px-2 py-1 text-[10px] rounded-sm transition-all",
-                view === 'profit' ? "bg-background shadow-sm font-bold text-green-600" : "text-muted-foreground"
+                "px-2 py-1 text-[10px] rounded-sm transition-all font-bold",
+                view === 'profit' ? "bg-background shadow-sm text-emerald-600" : "text-muted-foreground hover:text-foreground"
               )}
             >
               LUCRO
+            </button>
+            <button
+              onClick={() => setView('meters')}
+              className={cn(
+                "px-2 py-1 text-[10px] rounded-sm transition-all font-bold text-blue-600",
+                view === 'meters' ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground grayscale opacity-60"
+              )}
+            >
+              METROS
             </button>
           </div>
         </div>
@@ -68,7 +93,7 @@ export const RevenueLineChart: React.FC<RevenueLineChartProps> = ({ data, title,
                 <XAxis dataKey="period" stroke="hsl(var(--muted-foreground))" tickLine={false} axisLine={false} fontSize={10} />
                 <YAxis
                   stroke="hsl(var(--muted-foreground))"
-                  tickFormatter={formatCurrency}
+                  tickFormatter={(val) => formatValue(val, view)}
                   axisLine={false}
                   tickLine={false}
                   fontSize={10}
@@ -80,15 +105,18 @@ export const RevenueLineChart: React.FC<RevenueLineChartProps> = ({ data, title,
                     borderRadius: '0.5rem',
                     fontSize: '12px'
                   }}
-                  formatter={(value: number) => [formatCurrency(value), view === 'revenue' ? 'Receita' : 'Lucro']}
+                  formatter={(value: number) => [
+                    formatValue(value, view),
+                    view === 'revenue' ? 'Receita' : view === 'profit' ? 'Lucro' : 'Metragem'
+                  ]}
                   labelFormatter={(label) => `Período: ${label}`}
                 />
                 <Line
                   type="monotone"
                   dataKey={view}
-                  stroke={view === 'revenue' ? 'hsl(var(--primary))' : '#10b981'}
+                  stroke={getStrokeColor()}
                   strokeWidth={2}
-                  dot={{ fill: view === 'revenue' ? 'hsl(var(--primary))' : '#10b981', r: 4 }}
+                  dot={{ fill: getStrokeColor(), r: 4 }}
                   activeDot={{ r: 6 }}
                 />
               </LineChart>

@@ -3,6 +3,8 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 
+import { TipoProducao } from '@/types/producao';
+
 interface ChartData {
   period: string;
   meters: number;
@@ -13,11 +15,39 @@ interface MetersBarChartProps {
   data: ChartData[];
   title: string;
   description: string;
+  tiposProducao?: TipoProducao[];
 }
+
+const tailwindColorMap: Record<string, string> = {
+  'orange': '#f97316',
+  'blue': '#3b82f6',
+  'green': '#22c55e',
+  'purple': '#a855f7',
+  'red': '#ef4444',
+  'pink': '#ec4899',
+  'yellow': '#eab308',
+  'teal': '#14b8a6',
+  'indigo': '#6366f1',
+  'gray': '#9ca3af',
+};
+
+const getHexColor = (colorStr?: string, index: number = 0) => {
+  if (!colorStr) return `hsl(${(index * 137.5) % 360}, 70%, 50%)`;
+
+  // Extrair o nome da cor do tailwind (ex: text-blue-500 -> blue)
+  const match = colorStr.match(/text-([a-z]+)-/);
+  const colorName = match ? match[1] : null;
+
+  if (colorName && tailwindColorMap[colorName]) {
+    return tailwindColorMap[colorName];
+  }
+
+  return `hsl(${(index * 137.5) % 360}, 70%, 50%)`;
+};
 
 const formatMeters = (value: number) => `${value.toFixed(1)}m`;
 
-export const MetersBarChart: React.FC<MetersBarChartProps> = ({ data, title, description }) => {
+export const MetersBarChart: React.FC<MetersBarChartProps> = ({ data, title, description, tiposProducao }) => {
   return (
     <Card>
       <CardContent className="p-6">
@@ -38,10 +68,10 @@ export const MetersBarChart: React.FC<MetersBarChartProps> = ({ data, title, des
                 });
               });
 
-              return Array.from(types).map(type => {
-                const isVinil = type === 'vinil';
-                const isDTF = type === 'dtf';
-                const color = isVinil ? "#f97316" : isDTF ? "#3b82f6" : "#8b5cf6";
+              return Array.from(types).map((type, index) => {
+                const tipoInfo = tiposProducao?.find(t => t.nome.toLowerCase() === type.toLowerCase());
+                const color = getHexColor(tipoInfo?.color, index);
+
                 return (
                   <div key={type} className="flex items-center gap-1">
                     <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: color }} />
@@ -99,9 +129,8 @@ export const MetersBarChart: React.FC<MetersBarChartProps> = ({ data, title, des
                   });
 
                   return Array.from(types).map((type, index, arr) => {
-                    const isVinil = type === 'vinil';
-                    const isDTF = type === 'dtf';
-                    const color = isVinil ? "#f97316" : isDTF ? "#3b82f6" : "#8b5cf6";
+                    const tipoInfo = tiposProducao?.find(t => t.nome.toLowerCase() === type.toLowerCase());
+                    const color = getHexColor(tipoInfo?.color, index);
                     const isLast = index === arr.length - 1;
 
                     return (

@@ -177,7 +177,7 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'pendente':
-        return <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">Pendente</Badge>;
+        return <Badge className="bg-primary/20 text-primary hover:bg-primary/30">Pendente</Badge>;
       case 'processando':
         return <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">Processando</Badge>;
       case 'enviado':

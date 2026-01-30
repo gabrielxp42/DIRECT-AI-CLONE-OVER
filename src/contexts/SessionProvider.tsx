@@ -20,6 +20,11 @@ type Profile = {
   last_name?: string | null;
   avatar_url?: string | null;
   created_at?: string | null;
+  whatsapp_instance_id?: string | null;
+  whatsapp_instance_token?: string | null;
+  whatsapp_status?: string | null;
+  whatsapp_api_url?: string | null;
+  whatsapp_api_key?: string | null;
 };
 
 type SessionContextType = {

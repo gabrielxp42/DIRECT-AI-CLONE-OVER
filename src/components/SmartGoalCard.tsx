@@ -3,12 +3,13 @@ import { differenceInSeconds } from 'date-fns';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
-import { Trophy, Target, Users, Printer, DollarSign, ArrowRight, Package, Star, Bot, Sparkles, X, Crown, Medal, TrendingUp } from 'lucide-react';
+import { Trophy, Target, Users, Printer, DollarSign, ArrowRight, Package, Star, Bot, Sparkles, X, Crown, Medal, TrendingUp, Gift } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { AchievementsModal } from './AchievementsModal';
 import { useState, useEffect } from 'react';
 import { CelebrationModal } from './CelebrationModal';
+import { GiftUnlockModal } from './GiftUnlockModal';
 
 interface Goal {
     id: string;
@@ -29,6 +30,7 @@ export const SmartGoalCard = ({ stats }: { stats: any }) => {
     const navigate = useNavigate();
     const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
     const [celebrationMilestone, setCelebrationMilestone] = useState<any | null>(null);
+    const [isGiftOpen, setIsGiftOpen] = useState(false);
     const [flashGoal, setFlashGoal] = useState<any>(null);
     const [timeLeft, setTimeLeft] = useState(0);
 
@@ -42,6 +44,8 @@ export const SmartGoalCard = ({ stats }: { stats: any }) => {
         { id: 's1', category: 'sales' as const, title: 'Primeiro Buffet', description: 'Faturou R$ 5.000 em vendas. O lucro chegou!', icon: TrendingUp, value: stats?.totalSales || 0, target: 5000 },
         { id: 's2', category: 'sales' as const, title: 'Gráfica de Respeito', description: 'Rompeu a barreira dos R$ 20.000! Parabéns!', icon: Trophy, value: stats?.totalSales || 0, target: 20000 },
         { id: 's3', category: 'sales' as const, title: 'Tubarão do Mercado', description: 'Marca histórica de R$ 50.000! Você é elite!', icon: Crown, value: stats?.totalSales || 0, target: 50000 },
+        // Special Unique Milestone: White Label Unlock (100 clients)
+        { id: 'white_label_unlock', category: 'growth' as const, title: 'Identidade Elite', description: 'Você desbloqueou a personalização total da marca!', icon: Gift, value: stats?.customersCount || 0, target: 100 },
     ];
 
     useEffect(() => {
@@ -54,7 +58,12 @@ export const SmartGoalCard = ({ stats }: { stats: any }) => {
             .sort((a, b) => b.target - a.target); // Pega a mais difícil primeiro
 
         if (unacknowledged.length > 0) {
-            setCelebrationMilestone(unacknowledged[0]);
+            const milestone = unacknowledged[0];
+            if (milestone.id === 'white_label_unlock') {
+                setIsGiftOpen(true);
+            } else {
+                setCelebrationMilestone(milestone);
+            }
         }
     }, [stats]);
 
@@ -102,6 +111,13 @@ export const SmartGoalCard = ({ stats }: { stats: any }) => {
             localStorage.setItem(`acknowledged_milestone_${celebrationMilestone.id}`, 'true');
             setCelebrationMilestone(null);
         }
+    };
+
+    const handleCloseGift = () => {
+        localStorage.setItem('acknowledged_milestone_white_label_unlock', 'true');
+        // Force branding unlock in local storage so settings can enable it immediately
+        localStorage.setItem('branding_feature_unlocked', 'true');
+        setIsGiftOpen(false);
     };
 
     // Cálcula quantas conquistas o usuário já tem
@@ -254,7 +270,7 @@ export const SmartGoalCard = ({ stats }: { stats: any }) => {
                                 <div className="flex items-center gap-2">
                                     <h3 className="text-base md:text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tight flex items-center gap-2">
                                         {isCompleted ? "Meta Conquistada!" : activeGoal.title}
-                                        {isCompleted && <Sparkles className="w-4 h-4 text-yellow-500 fill-yellow-500" />}
+                                        {isCompleted && <Sparkles className="w-4 h-4 text-primary fill-primary" />}
                                     </h3>
                                     <div className="bg-primary/10 border border-primary/20 text-primary px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider flex items-center gap-1">
                                         <Star className="w-3 h-3 fill-primary" /> Meta Mensal
@@ -303,7 +319,7 @@ export const SmartGoalCard = ({ stats }: { stats: any }) => {
                                         </div>
                                         <p className="text-[11px] text-slate-300 leading-relaxed font-medium">
                                             {(activeGoal.type === 'sales' && activeGoal.current > 100000 && (stats?.lifetimeOrders || 0) < 10)
-                                                ? <span className="text-yellow-400 font-black">⚠️ ALERTA: Detectei faturamento de outros usuários aqui. Use o botão 'Reset Metas' acima para limpar meu cache e ver apenas sua realidade!</span>
+                                                ? <span className="text-primary font-black">⚠️ ALERTA: Detectei faturamento de outros usuários aqui. Use o botão 'Reset Metas' acima para limpar meu cache e ver apenas sua realidade!</span>
                                                 : activeGoal.aiInsight?.split(/(\d+[%]?|R\$ [\d,.]+)/g).map((part, i) =>
                                                     /(\d+[%]?|R\$ [\d,.]+)/.test(part) ? <strong key={i} className="text-white font-black">{part}</strong> : part
                                                 ) || "Analizando seu progresso..."}
@@ -335,7 +351,7 @@ export const SmartGoalCard = ({ stats }: { stats: any }) => {
                                     activeGoal.type === 'production' && "bg-blue-500",
                                     activeGoal.type === 'growth' && "bg-purple-500",
                                     activeGoal.type === 'sales' && "bg-green-500",
-                                    isCompleted && "bg-yellow-400"
+                                    isCompleted && "bg-primary"
                                 )}
                                 style={{ width: `${progress}%` }}
                             >
@@ -373,6 +389,12 @@ export const SmartGoalCard = ({ stats }: { stats: any }) => {
                 isOpen={!!celebrationMilestone}
                 onClose={handleCloseCelebration}
                 milestone={celebrationMilestone}
+            />
+
+            <GiftUnlockModal
+                isOpen={isGiftOpen}
+                onClose={handleCloseGift}
+                userName={stats?.companyName}
             />
         </div>
     );

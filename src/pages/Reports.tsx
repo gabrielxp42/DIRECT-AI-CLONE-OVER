@@ -171,6 +171,16 @@ const Reports: React.FC = () => {
     return new Date(dateString).toLocaleDateString('pt-BR');
   };
 
+  const getGroupingLabel = (type?: string) => {
+    switch (type) {
+      case 'hourly': return 'o Horário';
+      case 'daily': return 'o Dia';
+      case 'weekly': return 'a Semana';
+      case 'monthly': return 'o Mês';
+      default: return 'o Período';
+    }
+  };
+
   // Filter services based on search and selected service type
   // REMOVIDO: Lógica de filtro de serviços detalhados, pois a tab foi removida.
 
@@ -562,12 +572,13 @@ _Gerado por Direct AI_`;
             <RevenueLineChart
               data={reportData?.revenueByPeriod || []}
               title="Tendência de Receita"
-              description={`Evolução da receita por ${chartView === 'daily' ? 'Dia' : selectedPeriod === 'month' ? 'Semana' : 'Período'} em ${getPeriodLabel(selectedPeriod)}`}
+              description={`Evolução por ${getGroupingLabel(reportData?.groupingType)} em ${getPeriodLabel(selectedPeriod)}`}
             />
             <MetersBarChart
               data={reportData?.metersReport.metersByPeriod || []}
               title={`Distribuição da Metragem`}
-              description={`Metragem por ${chartView === 'daily' ? 'Dia' : selectedPeriod === 'month' ? 'Semana' : 'Período'} em ${getPeriodLabel(selectedPeriod)}`}
+              description={`Metragem por ${getGroupingLabel(reportData?.groupingType)} em ${getPeriodLabel(selectedPeriod)}`}
+              tiposProducao={tiposProducao}
             />
           </>
         )}

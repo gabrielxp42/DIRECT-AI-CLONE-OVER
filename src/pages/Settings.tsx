@@ -21,8 +21,14 @@ import {
     Globe,
     Sparkles,
     Wand2,
-    Info
+    Info,
+    Palette,
+    Lock,
+    Trophy,
+    Target,
+    CheckCircle2
 } from 'lucide-react';
+import { useSession } from '@/contexts/SessionProvider';
 import { cn } from '@/lib/utils';
 import { TutorialGuide } from '@/components/TutorialGuide';
 import { useTour } from '@/hooks/useTour';
@@ -34,6 +40,8 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { hexToHSL, getContrastColor } from '@/utils/colors';
+import { WhatsAppConnection } from '@/components/WhatsAppConnection';
 
 const PIX_KEY_TYPES = [
     { value: 'cpf', label: 'CPF' },
@@ -103,6 +111,15 @@ export default function Settings() {
     const isInitialized = useRef(false);
     const [isLocalUpdating, setIsLocalUpdating] = useState(false);
     const [isMagicModalOpen, setIsMagicModalOpen] = useState(false);
+    const { session } = useSession();
+
+    const isBrandingUnlocked = !!(
+        companyProfile?.company_logo_url ||
+        (companyProfile?.company_primary_color && companyProfile.company_primary_color !== '#FFF200') ||
+        (typeof localStorage !== 'undefined' && localStorage.getItem('branding_feature_unlocked') === 'true') ||
+        session?.user?.email?.includes('dtagudos') ||
+        session?.user?.email?.includes('gabriel')
+    );
 
     const {
         isTourOpen,
@@ -141,6 +158,7 @@ export default function Settings() {
                 company_address_complement: companyProfile.company_address_complement || '',
                 company_pix_key: companyProfile.company_pix_key || '',
                 company_pix_key_type: companyProfile.company_pix_key_type || '',
+                company_primary_color: companyProfile.company_primary_color || '#FFF200',
             });
             isInitialized.current = true;
         }
@@ -149,6 +167,17 @@ export default function Settings() {
     const handleInputChange = (field: keyof CompanyProfileUpdate, value: string) => {
         setFormData(prev => ({ ...prev, [field]: value }));
         setHasChanges(true);
+
+        // Real-time visual feedback for color
+        if (field === 'company_primary_color') {
+            const root = document.documentElement;
+            const hsl = hexToHSL(value);
+            const foregroundHsl = getContrastColor(value);
+
+            root.style.setProperty('--primary', hsl);
+            root.style.setProperty('--primary-foreground', foregroundHsl);
+            root.style.setProperty('--primary-custom', value);
+        }
     };
 
     const handleSave = async () => {
@@ -268,10 +297,10 @@ export default function Settings() {
                                         initial={{ opacity: 0, scale: 0.9, y: 5 }}
                                         animate={{ opacity: 1, scale: 1, y: 0 }}
                                         transition={{ delay: 0.5, duration: 0.5 }}
-                                        className="relative bg-yellow-400/10 dark:bg-yellow-500/10 backdrop-blur-md border border-yellow-400/20 dark:border-yellow-400/10 text-yellow-700 dark:text-yellow-200 px-3 py-1.5 rounded-full shadow-[0_8px_16px_-6px_rgba(234,179,8,0.2)] flex items-center gap-2"
+                                        className="relative bg-primary/10 dark:bg-primary/20 backdrop-blur-md border border-primary/20 dark:border-primary/10 text-primary px-3 py-1.5 rounded-full shadow-[0_8px_16px_-6px_var(--primary-custom)]/20 flex items-center gap-2"
                                     >
-                                        <div className="absolute -bottom-1 right-6 w-2.5 h-2.5 bg-yellow-400/10 dark:bg-yellow-900/20 border-r border-b border-yellow-400/20 dark:border-yellow-400/10 backdrop-blur-md rotate-45 transform origin-center"></div>
-                                        <Sparkles className="w-3 h-3 text-yellow-600 dark:text-yellow-400 animate-pulse" />
+                                        <div className="absolute -bottom-1 right-6 w-2.5 h-2.5 bg-primary/10 dark:bg-primary/20 border-r border-b border-primary/20 dark:border-primary/10 backdrop-blur-md rotate-45 transform origin-center"></div>
+                                        <Sparkles className="w-3 h-3 text-primary animate-pulse" />
                                         <MagicMessageRotator />
                                     </motion.div>
                                 </div>
@@ -282,7 +311,7 @@ export default function Settings() {
                                                 variant="outline"
                                                 size="sm"
                                                 onClick={() => setIsMagicModalOpen(true)}
-                                                className="flex text-[10px] h-7 bg-yellow-500/10 hover:bg-yellow-500/20 border-yellow-500/20 text-yellow-600 dark:text-yellow-400 font-bold gap-1 relative z-10"
+                                                className="flex text-[10px] h-7 bg-primary/10 hover:bg-primary/20 border-primary/20 text-primary font-bold gap-1 relative z-10"
                                             >
                                                 <Wand2 className="h-3 w-3" />
                                                 Preenchimento Mágico
@@ -290,7 +319,7 @@ export default function Settings() {
                                         </TooltipTrigger>
                                         <TooltipContent side="bottom" className="max-w-[200px] text-xs p-3">
                                             <div className="flex flex-col gap-1">
-                                                <p className="font-bold flex items-center gap-1 text-yellow-600 dark:text-yellow-400">
+                                                <p className="font-bold flex items-center gap-1 text-primary">
                                                     <Sparkles className="h-3 w-3" /> Facilidade para você!
                                                 </p>
                                                 <p>Carregue as informações da sua empresa através de uma <b>foto de um cartão de visita</b>, print de site ou simples texto.</p>
@@ -317,17 +346,111 @@ export default function Settings() {
 
                 </div>
 
+                {/* Color Section - New White Label Feature */}
+                <Card id="theme-color-section" className="border-border/50 shadow-sm overflow-hidden">
+                    <CardHeader className="pb-4 bg-muted/30">
+                        <div className="flex items-center justify-between">
+                            <StepBadge
+                                step={1}
+                                title="Cores da Marca"
+                                explanation="Escolha a cor que representa sua gráfica. Todo o sistema se adaptará a ela instantaneamente."
+                            />
+                            {isBrandingUnlocked ? (
+                                <CheckCircle2 className="w-5 h-5 text-green-500" />
+                            ) : (
+                                <Palette className="w-5 h-5 text-primary animate-pulse" />
+                            )}
+                        </div>
+                    </CardHeader>
+                    <CardContent className="pt-6 relative">
+                        {!isBrandingUnlocked && (
+                            <div className="absolute inset-0 z-10 bg-background/60 backdrop-blur-[2px] flex items-center justify-center p-6 text-center">
+                                <div className="max-w-xs space-y-4 animate-in fade-in zoom-in duration-500">
+                                    <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                                        <Lock className="w-6 h-6 text-primary" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <h4 className="font-bold text-sm uppercase italic">Recurso Bloqueado</h4>
+                                        <p className="text-[10px] text-muted-foreground leading-relaxed">
+                                            Venda mais para liberar! A personalização visual é um prêmio para usuários elite.
+                                            <br />
+                                            <span className="text-primary font-bold">Meta: 100 Clientes</span>
+                                        </p>
+                                    </div>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-8 text-[10px] border-primary/20 bg-primary/5 font-bold uppercase"
+                                        onClick={() => window.location.href = '/'}
+                                    >
+                                        Ver meu progresso
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
+                        <div className={cn("flex flex-col sm:flex-row items-center gap-6", !isBrandingUnlocked && "opacity-20 grayscale pointer-events-none")}>
+                            <div
+                                className="w-16 h-16 rounded-xl border shadow-inner transition-colors duration-300"
+                                style={{ backgroundColor: formData.company_primary_color || '#FFF200' }}
+                            />
+                            <div className="flex-1 space-y-3 w-full">
+                                <Label htmlFor="primary_color" className="text-xs uppercase tracking-wider text-muted-foreground block">Cor Primária (Hex)</Label>
+                                <div className="flex gap-2">
+                                    <div className="relative flex-1">
+                                        <Input
+                                            id="primary_color"
+                                            value={formData.company_primary_color || '#FFF200'}
+                                            onChange={(e) => handleInputChange('company_primary_color', e.target.value)}
+                                            placeholder="#FFF200"
+                                            className="h-11 md:h-10 pl-10"
+                                        />
+                                        <div
+                                            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border shadow-sm"
+                                            style={{ backgroundColor: formData.company_primary_color || '#FFF200' }}
+                                        />
+                                    </div>
+                                    <Input
+                                        type="color"
+                                        value={formData.company_primary_color || '#FFF200'}
+                                        onChange={(e) => handleInputChange('company_primary_color', e.target.value)}
+                                        className="w-12 h-11 md:h-10 p-1 cursor-pointer bg-background"
+                                    />
+                                </div>
+                                <div className="flex flex-wrap gap-2 pt-1">
+                                    {['#FFF200', '#3b82f6', '#ef4444', '#10b981', '#8b5cf6', '#f59e0b', '#000000'].map(color => (
+                                        <button
+                                            key={color}
+                                            onClick={() => handleInputChange('company_primary_color', color)}
+                                            className={cn(
+                                                "w-6 h-6 rounded-full border border-border/50 transition-transform hover:scale-110",
+                                                (formData.company_primary_color === color) && "ring-2 ring-primary ring-offset-2"
+                                            )}
+                                            style={{ backgroundColor: color }}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
                 {/* Logo Section */}
                 <Card id="company-logo-section" className="border-border/50 shadow-sm overflow-hidden">
                     <CardHeader className="pb-4 bg-muted/30">
-                        <StepBadge
-                            step={1}
-                            title="Identidade Visual"
-                            explanation="Sua marca aparecerá no topo de todos os PDFs e notas gerados."
-                        />
+                        <div className="flex items-center justify-between">
+                            <StepBadge
+                                step={2}
+                                title="Identidade Visual"
+                                explanation="Sua marca aparecerá no topo de todos os PDFs e notas gerados."
+                            />
+                            {!isBrandingUnlocked && <Lock className="w-4 h-4 text-muted-foreground" />}
+                        </div>
                     </CardHeader>
-                    <CardContent className="pt-6">
-                        <div className="flex flex-col sm:flex-row items-center gap-6">
+                    <CardContent className="pt-6 relative">
+                        {!isBrandingUnlocked && (
+                            <div className="absolute inset-0 z-10 bg-background/20 backdrop-blur-[1px] pointer-events-none" />
+                        )}
+                        <div className={cn("flex flex-col sm:flex-row items-center gap-6", !isBrandingUnlocked && "opacity-20 grayscale pointer-events-none")}>
                             {/* Logo Preview */}
                             <div className={cn(
                                 "relative w-28 h-28 rounded-2xl border-2 border-dashed flex items-center justify-center overflow-hidden",
@@ -394,7 +517,7 @@ export default function Settings() {
                     <Card id="company-info-section" className="border-border/50 shadow-sm overflow-hidden">
                         <CardHeader className="pb-4 bg-muted/30">
                             <StepBadge
-                                step={2}
+                                step={3}
                                 title="Dados da Empresa"
                                 explanation="O nome e slogan oficial que seus clientes verão primeiro."
                             />
@@ -430,7 +553,7 @@ export default function Settings() {
                     <Card id="contact-info-section" className="border-border/50 shadow-sm overflow-hidden">
                         <CardHeader className="pb-4 bg-muted/30">
                             <StepBadge
-                                step={3}
+                                step={4}
                                 title="Como te Encontrar"
                                 explanation="Telefone e e-mail essenciais para o cliente tirar dúvidas ou aprovar serviços."
                             />
@@ -491,7 +614,7 @@ export default function Settings() {
                     <Card id="address-info-section" className="border-border/50 shadow-sm overflow-hidden">
                         <CardHeader className="pb-4 bg-muted/30">
                             <StepBadge
-                                step={4}
+                                step={5}
                                 title="Onde você está"
                                 explanation="Seu endereço físico é necessário para entregas e coletas de materiais."
                             />
@@ -592,7 +715,7 @@ export default function Settings() {
                     <Card id="payment-info-section" className="border-border/50 shadow-sm overflow-hidden">
                         <CardHeader className="pb-4 bg-muted/30">
                             <StepBadge
-                                step={5}
+                                step={6}
                                 title="Recebimento PIX"
                                 explanation="Facilite o pagamento! Sua chave aparecerá direto na nota para o cliente."
                             />
@@ -629,6 +752,11 @@ export default function Settings() {
                             </div>
                         </CardContent>
                     </Card>
+
+                    {/* WhatsApp Connection Section */}
+                    <div id="whatsapp-settings-section">
+                        <WhatsAppConnection />
+                    </div>
                 </div>
 
                 {/* Bottom Save Button (Desktop/Flow) */}

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import './LoadingScreen.css';
+import { useCompanyProfile } from '@/hooks/useCompanyProfile';
 
 
 interface LoadingScreenProps {
@@ -9,16 +10,26 @@ interface LoadingScreenProps {
 const LoadingScreen = ({ minDisplayTime = 800 }: LoadingScreenProps) => {
   const [isVisible, setIsVisible] = useState(true);
   const [shouldRender, setShouldRender] = useState(true);
+  const { companyProfile } = useCompanyProfile();
   const [imgError, setImgError] = useState(false);
+
+  // Use cached branding if available to prevent showing default logo while profile is loading
+  const cachedLogo = typeof localStorage !== 'undefined' ? localStorage.getItem('cached_company_logo') : null;
+  const cachedName = typeof localStorage !== 'undefined' ? localStorage.getItem('cached_company_name') : null;
+
+  // Use the company logo if available, fallback to cached, then to default
+  const logoUrl = companyProfile?.company_logo_url || cachedLogo || "/logo.png";
+  const companyName = companyProfile?.company_name || cachedName || "DIRECT AI";
 
   useEffect(() => {
     // Preload da imagem via JS para garantir cache
     const img = new Image();
-    img.src = "/logo.png";
+    img.src = logoUrl;
     img.onload = () => setImgError(false);
     img.onerror = () => setImgError(true);
 
     // Garantir tempo mínimo de exibição para evitar flash
+    // Mas se o perfil carregou e foi alterado, podemos querer atualizar
     const timer = setTimeout(() => {
       setIsVisible(false);
       // Aguardar animação de fade out antes de desmontar
@@ -26,7 +37,7 @@ const LoadingScreen = ({ minDisplayTime = 800 }: LoadingScreenProps) => {
     }, minDisplayTime);
 
     return () => clearTimeout(timer);
-  }, [minDisplayTime]);
+  }, [minDisplayTime, logoUrl]); // Added logoUrl dependency
 
   if (!shouldRender) return null;
 
@@ -58,13 +69,15 @@ const LoadingScreen = ({ minDisplayTime = 800 }: LoadingScreenProps) => {
             <div className="loading-screen__glow loading-screen__glow--secondary" aria-hidden="true" />
 
             {imgError ? (
-              <div className="loading-screen__logo-fallback flex items-center justify-center w-32 h-32 rounded-full bg-yellow-400/20 border-2 border-yellow-400 animate-pulse">
-                <span className="text-4xl font-bold text-yellow-400">DA</span>
+              <div className="loading-screen__logo-fallback flex items-center justify-center w-32 h-32 rounded-full bg-primary/20 border-2 border-primary animate-pulse">
+                <span className="text-4xl font-bold text-primary">
+                  {companyName.substring(0, 2).toUpperCase()}
+                </span>
               </div>
             ) : (
               <img
-                src="/logo.png"
-                alt="DIRECT AI Logo"
+                src={logoUrl}
+                alt={`${companyName} Logo`}
                 className="loading-screen__logo"
                 loading="eager"
                 decoding="async"
@@ -76,7 +89,7 @@ const LoadingScreen = ({ minDisplayTime = 800 }: LoadingScreenProps) => {
 
         {/* Texto e informações */}
         <div className="loading-screen__text">
-          <h1 className="loading-screen__title">DIRECT AI</h1>
+          <h1 className="loading-screen__title">{companyName}</h1>
           <p className="loading-screen__subtitle">
             Carregando<span className="loading-screen__dots" aria-hidden="true"></span>
           </p>

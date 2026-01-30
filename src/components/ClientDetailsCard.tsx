@@ -30,7 +30,7 @@ const formatMeters = (value: number) => {
 
 const getStatusColor = (status: string) => {
   switch (status.toLowerCase()) {
-    case 'pendente': return 'bg-yellow-100 text-yellow-800';
+    case 'pendente': return 'bg-primary/20 text-primary';
     case 'processando': return 'bg-blue-100 text-blue-800';
     case 'entregue': return 'bg-green-100 text-green-800';
     case 'cancelado': return 'bg-red-100 text-red-800';
@@ -62,7 +62,7 @@ export const ClientDetailsCard: React.FC<ClientDetailsCardProps> = ({ cliente, o
         </CardDescription>
         {/* REMOVIDO O BOTÃO DE FECHAR DUPLICADO */}
       </CardHeader>
-      
+
       <CardContent className="flex-1 overflow-y-auto p-6 space-y-6">
         {isLoading ? (
           <div className="space-y-4">
@@ -111,7 +111,7 @@ export const ClientDetailsCard: React.FC<ClientDetailsCardProps> = ({ cliente, o
                   <Calendar className="h-4 w-4 text-blue-600" />
                 </div>
                 <div className="text-lg font-bold mt-1">
-                  {metrics?.lastOrderDate 
+                  {metrics?.lastOrderDate
                     ? format(new Date(metrics.lastOrderDate), 'dd/MM/yyyy', { locale: ptBR })
                     : 'N/A'}
                 </div>
@@ -125,7 +125,7 @@ export const ClientDetailsCard: React.FC<ClientDetailsCardProps> = ({ cliente, o
               <Clock className="h-5 w-5 text-muted-foreground" />
               Últimos 5 Pedidos
             </h3>
-            
+
             {metrics?.lastOrders.length === 0 ? (
               <p className="text-muted-foreground text-sm">Nenhum pedido recente encontrado.</p>
             ) : (
@@ -150,12 +150,12 @@ export const ClientDetailsCard: React.FC<ClientDetailsCardProps> = ({ cliente, o
                 ))}
               </div>
             )}
-            
+
             {/* Botão Ver Todos os Pedidos */}
             {metrics && metrics.totalOrdersCount > 0 && (
               <div className="pt-4">
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   className="w-full"
                   onClick={handleViewAllOrders}
                 >

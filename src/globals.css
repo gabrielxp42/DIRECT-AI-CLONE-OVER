@@ -14,9 +14,9 @@
     --popover-foreground: 222.2 84% 4.9%;
 
     --primary: 57 100% 50%;
-    /* Amarelo #FFF200 */
+    /* Default yellow fallback, will be overridden by DynamicThemeProvider */
+    --primary-custom: #FFF200;
     --primary-foreground: 222.2 84% 4.9%;
-    /* Dark blue/black for contrast */
 
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
@@ -65,6 +65,7 @@
 
     --primary: 57 100% 50%;
     /* Amarelo #FFF200 */
+    --primary-custom: #FFF200;
     --primary-foreground: 222.2 84% 4.9%;
     /* Dark blue/black for contrast */
 
@@ -164,26 +165,28 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #FFF200 0%, #FFD700 100%);
+  background: var(--primary-custom);
   border-radius: 10px;
   border: 2px solid hsl(var(--background));
   transition: all 0.3s ease;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, #FFD700 0%, #FFC700 100%);
-  border: 2px solid #FFF200;
-  box-shadow: 0 0 10px rgba(255, 242, 0, 0.5);
+  background: var(--primary-custom);
+  filter: brightness(1.1);
+  border: 2px solid var(--primary-custom);
+  box-shadow: 0 0 10px rgba(var(--primary-custom), 0.5);
 }
 
 ::-webkit-scrollbar-thumb:active {
-  background: #FFF200;
+  background: var(--primary-custom);
+  filter: brightness(0.9);
 }
 
 /* Firefox */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #FFF200 hsl(var(--background));
+  scrollbar-color: var(--primary-custom) hsl(var(--background));
 }
 
 /* Dark mode scrollbar */
@@ -192,13 +195,15 @@
 }
 
 .dark ::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #FFF200 0%, #E6DA00 100%);
+  background: var(--primary-custom);
   border: 2px solid hsl(var(--background));
+  border-radius: 10px;
 }
 
 .dark ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, #FFD700 0%, #FFF200 100%);
-  box-shadow: 0 0 15px rgba(255, 242, 0, 0.6);
+  background: var(--primary-custom);
+  filter: brightness(1.1);
+  box-shadow: 0 0 15px rgba(var(--primary-custom), 0.4);
 }
 
 @keyframes bounce-slow {

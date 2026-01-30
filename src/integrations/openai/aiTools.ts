@@ -181,6 +181,144 @@ const perform_calculation = (args: { expression: string }) => {
   }
 };
 
+// Função para atualizar o branding do site (Gabi Designer)
+const update_branding = async (args: { primary_color?: string; company_name?: string; logo_url?: string }) => {
+  try {
+    const token = await getValidToken();
+    if (!token) throw new Error("Token inválido");
+
+    const response = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) throw new Error("Não foi possível obter o ID do usuário.");
+    const userData = await response.json();
+    const userId = userData.id;
+
+    const updates: any = {};
+    if (args.primary_color) updates.company_primary_color = args.primary_color;
+    if (args.company_name) updates.company_name = args.company_name;
+    if (args.logo_url) updates.company_logo_url = args.logo_url;
+
+    const updateResponse = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}`, {
+      method: 'PATCH',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(updates)
+    });
+
+    if (!updateResponse.ok) {
+      const errorText = await updateResponse.text();
+      throw new Error(`Erro ao atualizar perfil: ${errorText}`);
+    }
+
+    return {
+      success: true,
+      message: `✨ **Branding atualizado com sucesso!** O site refletirá as mudanças em instantes.`
+    };
+  } catch (e: any) {
+    return { error: true, message: `Erro ao atualizar branding: ${e.message}` };
+  }
+};
+
+// Função para enviar mensagem de WhatsApp (Link wa.me ou Evolution API)
+const send_whatsapp_message = async (args: { phone?: string; message: string; clientName?: string; mode?: 'link' | 'auto' }) => {
+  let finalPhone = args.phone || '';
+  let resolvedClientName = args.clientName || '';
+
+  // 1. Validar se o telefone é um placeholder (999999999) ou está vazio
+  const isPlaceholder = finalPhone.includes('999999999') || !finalPhone;
+
+  // 2. Se for placeholder ou tiver nome do cliente, tentar buscar o telefone REAL no banco
+  if ((isPlaceholder || args.clientName)) {
+    console.log(`🔍 [send_whatsapp_message] Telefone suspeito ou nome fornecido. Buscando dados reais para: ${args.clientName || args.phone}`);
+    const searchTerm = args.clientName || args.phone || '';
+    const foundClients = await findClientWithMultipleStrategies(searchTerm);
+
+    if (foundClients && foundClients.length > 0) {
+      const client = foundClients[0] as any;
+      if (client.telefone) {
+        finalPhone = client.telefone;
+        resolvedClientName = client.nome;
+        console.log(`✅ [send_whatsapp_message] Telefone real encontrado para ${resolvedClientName}: ${finalPhone}`);
+      }
+    }
+  }
+
+  if (!finalPhone || finalPhone.includes('999999999')) {
+    return {
+      error: true,
+      message: `❌ Não consegui encontrar o telefone real de "${args.clientName || args.phone || 'Hudson'}". Por favor, me informe o número ou verifique o cadastro do cliente.`
+    };
+  }
+
+  // Limpar telefone (apenas números)
+  const cleanPhone = finalPhone.replace(/\D/g, '');
+  const encodedMessage = encodeURIComponent(args.message);
+  const waLink = `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
+
+  return {
+    type: 'whatsapp_action',
+    data: {
+      phone: finalPhone,
+      clientName: resolvedClientName,
+      message: args.message,
+      link: waLink,
+      status: 'ready_to_send'
+    },
+    message: `Pronto! Preparei a mensagem para **${resolvedClientName || finalPhone}**.\n\n[🟢 Clique aqui para enviar via WhatsApp](${waLink})`
+  };
+};
+
+// Função para resetar a memória do usuário
+const reset_user_memory = async (args: { confirmation: string }) => {
+  if (args.confirmation !== 'confirmar') {
+    return {
+      error: true,
+      message: "Erro: Você precisa digitar 'confirmar' exatamente para resetar a memória."
+    };
+  }
+
+  try {
+    const token = await getValidToken();
+    if (!token) throw new Error("Token inválido");
+
+    const response = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) throw new Error("Usuário não autenticado.");
+    const userData = await response.json();
+
+    // Deletar memórias via RPC ou DELETE direto
+    const deleteResponse = await fetch(`${SUPABASE_URL}/rest/v1/agent_memory?user_id=eq.${userData.id}`, {
+      method: 'DELETE',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!deleteResponse.ok) throw new Error("Erro ao deletar memórias do banco.");
+
+    return {
+      success: true,
+      message: "🧠 **Memória resetada com sucesso!** A partir de agora, começarei a aprender sobre você do zero."
+    };
+  } catch (e: any) {
+    return { error: true, message: `Erro ao resetar memória: ${e.message}` };
+  }
+};
+
 // Função para obter o ranking dos clientes
 export const get_top_clients = async (args: { top_n?: number }) => {
   const { top_n = 5 } = args;
@@ -674,6 +812,56 @@ export const openAIFunctions = [
         }
       },
       required: ["calculation_mode", "imageWidth", "imageHeight", "quantity"]
+    }
+  },
+  {
+    name: "update_branding",
+    description: "Altera as cores, nome ou logo do sistema. Use quando o usuário pedir 'mude as cores', 'troque o logo', 'altere o nome da empresa'. A cor deve ser em formato Hex (ex: #FF0000).",
+    parameters: {
+      type: "object",
+      properties: {
+        primary_color: { type: "string", description: "Cor primária em formato Hex (ex: #6c5ce7)" },
+        company_name: { type: "string", description: "Novo nome da empresa" },
+        logo_url: { type: "string", description: "URL da nova imagem de logo" }
+      }
+    }
+  },
+  {
+    name: "send_whatsapp_message",
+    description: "Prepara uma mensagem para ser enviada via WhatsApp. Se você não tiver o telefone real, informe o nome do cliente no parâmetro clientName que eu buscarei o número no banco de dados automaticamente.",
+    parameters: {
+      type: "object",
+      properties: {
+        phone: {
+          type: "string",
+          description: "O número do telefone (preferencialmente com DDD). Se for placeholder (9999), deixe vazio e use clientName."
+        },
+        clientName: {
+          type: "string",
+          description: "O nome do cliente para buscar o telefone real caso o número não seja conhecido."
+        },
+        message: {
+          type: "string",
+          description: "A mensagem formatada para o WhatsApp. Use emojis e um estilo profissional."
+        },
+        mode: {
+          type: "string",
+          enum: ["link", "auto"],
+          description: "O modo de envio. 'link' gera um link wa.me (padrão)."
+        }
+      },
+      required: ["message"]
+    }
+  },
+  {
+    name: "reset_user_memory",
+    description: "Apaga todo o histórico de aprendizado e preferências da Gabi sobre o usuário atual. EXIGE confirmação textual 'confirmar'.",
+    parameters: {
+      type: "object",
+      properties: {
+        confirmation: { type: "string", description: "Deve ser exatamente 'confirmar' para funcionar." }
+      },
+      required: ["confirmation"]
     }
   }
 ];
@@ -1380,7 +1568,19 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
     return get_top_clients(args);
   }
 
-  if (name === "get_total_meters_by_period") { // Handle the new tool
+  if (name === "update_branding") {
+    return update_branding(args);
+  }
+
+  if (name === "send_whatsapp_message") {
+    return send_whatsapp_message(args);
+  }
+
+  if (name === "reset_user_memory") {
+    return reset_user_memory(args);
+  }
+
+  if (name === "get_total_meters_by_period") {
     return get_total_meters_by_period(args);
   }
 

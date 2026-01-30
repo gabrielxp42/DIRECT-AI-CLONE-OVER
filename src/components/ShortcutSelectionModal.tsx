@@ -35,7 +35,7 @@ interface ShortcutOption {
 }
 
 const AVAILABLE_SHORTCUTS: ShortcutOption[] = [
-    { id: 'new_pedido', label: 'Criar Pedido', icon: PlusCircle, description: 'Atalho rápido para novo orçamento', color: 'text-yellow-400' },
+    { id: 'new_pedido', label: 'Criar Pedido', icon: PlusCircle, description: 'Atalho rápido para novo orçamento', color: 'text-primary' },
     { id: 'calculator', label: 'Calculadora DTF', icon: Calculator, description: 'Calculadora de preços e orçamentos', color: 'text-blue-400' },
     { id: 'talk_gabi', label: 'Falar com a Gabi', icon: MessageSquare, description: 'Abrir assistente de IA', color: 'text-pink-400' },
     { id: 'add_insumo', label: 'Adicionar Insumo', icon: Layers, description: 'Registro rápido de novos materiais', color: 'text-emerald-400' },
@@ -101,8 +101,8 @@ export const ShortcutSelectionModal = ({ isOpen, onClose }: ShortcutSelectionMod
                 {/* Header Compacto */}
                 <div className="flex items-center justify-between p-4 border-b border-white/5 bg-black/20">
                     <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-xl bg-yellow-400/10 border border-yellow-400/20">
-                            <Settings2 className="h-5 w-5 text-yellow-400" />
+                        <div className="p-2 rounded-xl bg-primary/10 border border-primary/20">
+                            <Settings2 className="h-5 w-5 text-primary" />
                         </div>
                         <div>
                             <DialogTitle className="text-lg font-bold text-white">Central de Atalhos</DialogTitle>
@@ -131,7 +131,7 @@ export const ShortcutSelectionModal = ({ isOpen, onClose }: ShortcutSelectionMod
                                     className={cn(
                                         "relative flex items-center gap-4 p-4 rounded-xl border transition-all duration-200 w-full text-left group overflow-hidden",
                                         isSelected
-                                            ? "bg-white/[0.03] border-yellow-400/50 shadow-[0_0_20px_rgba(255,242,0,0.05)]"
+                                            ? "bg-white/[0.03] border-primary/50 shadow-[0_0_20px_var(--primary-custom)]/5"
                                             : "bg-transparent border-white/5 hover:bg-white/[0.02] hover:border-white/10 opacity-60 hover:opacity-100"
                                     )}
                                 >
@@ -140,8 +140,8 @@ export const ShortcutSelectionModal = ({ isOpen, onClose }: ShortcutSelectionMod
                                         "absolute top-0 right-0 p-2 transition-all",
                                         isSelected ? "opacity-100" : "opacity-0"
                                     )}>
-                                        <div className="bg-yellow-400 rounded-bl-xl rounded-tr-lg p-1">
-                                            <Check className="w-3 h-3 text-black font-bold" strokeWidth={4} />
+                                        <div className="bg-primary rounded-bl-xl rounded-tr-lg p-1">
+                                            <Check className="w-3 h-3 text-primary-foreground font-bold" strokeWidth={4} />
                                         </div>
                                     </div>
 
@@ -149,10 +149,10 @@ export const ShortcutSelectionModal = ({ isOpen, onClose }: ShortcutSelectionMod
                                     <div className={cn(
                                         "w-12 h-12 rounded-xl flex items-center justify-center border transition-colors shrink-0",
                                         isSelected
-                                            ? "bg-yellow-400/10 border-yellow-400/20"
+                                            ? "bg-primary/10 border-primary/20"
                                             : "bg-white/5 border-white/5 group-hover:bg-white/10"
                                     )}>
-                                        <Icon className={cn("w-6 h-6 transition-colors", isSelected ? "text-yellow-400" : "text-zinc-500 group-hover:text-zinc-300")} />
+                                        <Icon className={cn("w-6 h-6 transition-colors", isSelected ? "text-primary" : "text-zinc-500 group-hover:text-zinc-300")} />
                                     </div>
 
                                     {/* Text Info */}
@@ -185,7 +185,7 @@ export const ShortcutSelectionModal = ({ isOpen, onClose }: ShortcutSelectionMod
                                         className={cn(
                                             "w-3 h-3 rounded-full border transition-all",
                                             i < slotsUsed
-                                                ? "bg-yellow-400 border-yellow-400 shadow-[0_0_10px_rgba(255,242,0,0.5)]"
+                                                ? "bg-primary border-primary shadow-[0_0_10px_var(--primary-custom)]/50"
                                                 : "bg-white/5 border-white/10"
                                         )}
                                     />
@@ -204,7 +204,7 @@ export const ShortcutSelectionModal = ({ isOpen, onClose }: ShortcutSelectionMod
                             <Button
                                 onClick={handleSave}
                                 disabled={isUpdating}
-                                className="bg-yellow-400 hover:bg-yellow-500 text-black font-bold shadow-[0_0_20px_rgba(255,242,0,0.2)] px-6"
+                                className="bg-primary hover:brightness-110 text-primary-foreground font-bold shadow-[0_0_20px_var(--primary-custom)]/20 px-6"
                             >
                                 {isUpdating ? <div className="w-5 h-5 border-2 border-black/30 border-t-black rounded-full animate-spin" /> : "Salvar Alterações"}
                             </Button>

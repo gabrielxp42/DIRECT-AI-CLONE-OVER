@@ -24,7 +24,7 @@ export const CelebrationModal = ({ isOpen, onClose, milestone }: CelebrationModa
     const categoryColors = {
         production: 'from-blue-600 to-cyan-400',
         growth: 'from-purple-600 to-pink-400',
-        sales: 'from-emerald-600 to-amber-400'
+        sales: 'from-emerald-600 to-primary'
     };
 
     const categoryText = {
@@ -65,7 +65,7 @@ export const CelebrationModal = ({ isOpen, onClose, milestone }: CelebrationModa
                             "absolute -bottom-32 -right-32 w-80 h-80 rounded-full blur-[100px] opacity-20 animate-pulse delay-700",
                             milestone.category === 'production' && "bg-cyan-400",
                             milestone.category === 'growth' && "bg-pink-400",
-                            milestone.category === 'sales' && "bg-amber-400"
+                            milestone.category === 'sales' && "bg-primary"
                         )} />
 
                         {/* Sparkling Particles */}

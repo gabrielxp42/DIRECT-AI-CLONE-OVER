@@ -29,7 +29,7 @@ export const TrialBanner = () => {
                         </div>
                         <Button
                             size="sm"
-                            className="relative z-10 bg-white text-red-900 hover:bg-red-50 font-bold border-none shadow-md transition-transform hover:scale-105"
+                            className="relative z-10 bg-primary text-primary-foreground font-black tracking-tighter shadow-[0_0_20px_var(--primary-custom)]/30 hover:brightness-110 font-bold border-none shadow-md transition-transform hover:scale-105"
                             onClick={() => setShowModal(true)}
                         >
                             Reativar Acesso

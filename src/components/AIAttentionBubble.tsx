@@ -41,7 +41,7 @@ export const AIAttentionBubble = () => {
             <div className="relative">
                 {/* Balão */}
                 <div className="bg-white dark:bg-slate-800 text-slate-800 dark:text-white px-4 py-2 rounded-2xl rounded-br-none shadow-lg border border-slate-100 dark:border-slate-700 flex items-center gap-2 animate-bounce-slow">
-                    <Sparkles className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+                    <Sparkles className="w-4 h-4 text-primary fill-primary" />
                     <span className="text-sm font-medium whitespace-nowrap">{message}</span>
                 </div>
 

@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { Home, ShoppingCart, Users, BarChart3, Package, MessageSquare, Layers, Sparkles } from 'lucide-react';
+import { Home, ShoppingCart, Users, BarChart3, Package, MessageSquare, Layers, Sparkles, Image as ImageIcon } from 'lucide-react';
 import { AIAssistant } from './AIAssistant';
 import { ThemeToggle } from './ThemeToggle';
 import { UserNav } from './UserNav';
@@ -19,6 +19,7 @@ import { DTFCalculatorModal } from './DTFCalculatorModal';
 import { SidebarShortcuts } from './SidebarShortcuts';
 import { useRealtimeSync } from '@/hooks/useRealtimeSync';
 import { SubscriptionAlert } from './SubscriptionAlert';
+import { useCompanyProfile } from '@/hooks/useCompanyProfile';
 
 const navItems = [
   { href: '/', icon: Home, label: 'Dashboard' },
@@ -50,6 +51,8 @@ const Layout = () => {
   // Desativa o zoom para todas as páginas dentro do Layout por padrão
   useViewportZoom(false);
 
+  const { companyProfile } = useCompanyProfile();
+
   const sidebarWidth = isExpanded ? 'w-[280px]' : 'w-[64px]';
   const gridTemplate = isExpanded ? 'md:grid-cols-[280px_1fr]' : 'md:grid-cols-[64px_1fr]';
 
@@ -68,12 +71,16 @@ const Layout = () => {
           {/* Header do Sidebar */}
           <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-4 overflow-hidden">
             <Link to="/" className="flex items-center gap-3 font-semibold text-sidebar-foreground">
-              <img src="/logo.png" alt="Direct DTF Logo" className="h-8 w-8 flex-shrink-0" />
+              {companyProfile?.company_logo_url ? (
+                <img src={companyProfile.company_logo_url} alt="Company Logo" className="h-8 w-8 object-contain flex-shrink-0" />
+              ) : (
+                <img src="/logo.png" alt="Direct DTF Logo" className="h-8 w-8 flex-shrink-0" />
+              )}
               <span className={cn(
                 "text-lg font-bold whitespace-nowrap transition-opacity duration-200",
                 isExpanded ? "opacity-100" : "opacity-0"
               )}>
-                DIRECT AI
+                {companyProfile?.company_name || 'DIRECT AI'}
               </span>
             </Link>
           </div>
@@ -175,7 +182,7 @@ const Layout = () => {
           onClick={openAIAssistant}
         >
           {/* Gradient Background */}
-          <div className="absolute inset-0 bg-gradient-to-br from-yellow-400 via-orange-500 to-pink-500 animate-gradient-slow" />
+          <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary/80 to-primary/60 animate-gradient-slow" />
 
           {/* Subtle Glass Overlay */}
           <div className="absolute inset-0.5 rounded-full bg-black/10 backdrop-blur-[2px] border border-white/20" />
