@@ -1567,27 +1567,28 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                 </div>
                             </div>
                         </div>
+                    </div>
 
-                        {/* Footer profissional */}
-                        <div className={cn(
-                            "flex justify-between items-center mt-6 pt-4 border-t bg-background/50 backdrop-blur-sm pb-2",
-                            isMobile && "flex-col gap-4"
-                        )}>
-                            {!isMobile && (
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center border border-emerald-100 dark:bg-emerald-500/10 dark:border-emerald-500/20">
-                                        <Calculator className="h-5 w-5 text-emerald-600" />
-                                    </div>
-                                    <div>
-                                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-tighter leading-none">Cálculo Preciso</div>
-                                        <div className="text-xs font-bold text-slate-900 dark:text-slate-100">DIRECT-AI ENGINE v2.8</div>
-                                    </div>
+                    {/* Footer profissional */}
+                    <div className={cn(
+                        "flex justify-between items-center mt-6 pt-4 border-t bg-background/50 backdrop-blur-sm pb-2",
+                        isMobile && "flex-col gap-4"
+                    )}>
+                        {!isMobile && (
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center border border-emerald-100 dark:bg-emerald-500/10 dark:border-emerald-500/20">
+                                    <Calculator className="h-5 w-5 text-emerald-600" />
                                 </div>
-                            )}
-                            <div id="calculator-finalize" className={cn("flex gap-3", isMobile ? "w-full" : "")}>
-                                <Button variant="ghost" size="sm" onClick={onClose} className="font-bold text-slate-500 rounded-xl">Voltar</Button>
+                                <div>
+                                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-tighter leading-none">Cálculo Preciso</div>
+                                    <div className="text-xs font-bold text-slate-900 dark:text-slate-100">DIRECT-AI ENGINE v2.8</div>
+                                </div>
                             </div>
+                        )}
+                        <div id="calculator-finalize" className={cn("flex gap-3", isMobile ? "w-full" : "")}>
+                            <Button variant="ghost" size="sm" onClick={onClose} className="font-bold text-slate-500 rounded-xl">Voltar</Button>
                         </div>
+                    </div>
                 </DialogContent>
             </Dialog>
 
@@ -1644,7 +1645,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                         </div>
                     </div>
                 </DialogContent>
-            </Dialog>
+            </Dialog >
 
             <TutorialGuide
                 steps={CALCULADORA_TOUR}
@@ -1657,3 +1658,5 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
         </>
     );
 };
+
+export default DTFCalculatorModal;
