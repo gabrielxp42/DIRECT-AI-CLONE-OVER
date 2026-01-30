@@ -81,14 +81,19 @@ const iconsMap: Record<string, any> = {
 
 const generateOrderSummary = (pedido: Pedido) => {
   const formatDate = (dateString: string) => {
-    return format(new Date(dateString), "dd/MM - HH:mm", { locale: ptBR });
+    try {
+      return format(new Date(dateString), "dd/MM - HH:mm", { locale: ptBR });
+    } catch (e) {
+      return "-";
+    }
   };
 
-  const formatCurrency = (value: number) => {
+  const formatCurrency = (value: any) => {
+    const val = Number(value) || 0;
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL'
-    }).format(value);
+    }).format(val);
   };
 
   const separator = "------------------------------------------";
@@ -110,13 +115,13 @@ const generateOrderSummary = (pedido: Pedido) => {
       const unitFull = isLinear ? 'Metros' : 'Unid.';
       const unitSingular = isLinear ? 'metro' : 'unid.';
       const quantityDisplay = isLinear
-        ? item.quantidade.toFixed(2).replace('.', ',')
+        ? Number(item.quantidade).toFixed(2).replace('.', ',')
         : item.quantidade;
 
       summary += `*Produto:* ${item.produto_nome} ${(item.tipo) ? `(${item.tipo.toUpperCase()})` : ''}\n`;
       summary += `*Tamanho:* ${quantityDisplay} ${unitFull}\n`;
       summary += `*Valor unitário:* ${formatCurrency(item.preco_unitario)}/${unitSingular}\n`;
-      summary += `*Total:* ${formatCurrency(item.preco_unitario * item.quantidade)}\n`;
+      summary += `*Total:* ${formatCurrency(Number(item.preco_unitario) * Number(item.quantidade))}\n`;
       if (item.observacao) {
         summary += `_Obs: ${item.observacao}_\n`;
       }
@@ -131,7 +136,7 @@ const generateOrderSummary = (pedido: Pedido) => {
   if (pedido.servicos && pedido.servicos.length > 0) {
     summary += `*SERVIÇOS EXTRAS*\n`;
     pedido.servicos.forEach(servico => {
-      const lineTotal = formatCurrency(servico.valor_unitario * servico.quantidade);
+      const lineTotal = formatCurrency(Number(servico.valor_unitario) * Number(servico.quantidade));
       const namePart = `${servico.nome} (${servico.quantidade}x)`;
       summary += `${namePart}\nTotal: ${lineTotal}\n`;
     });
@@ -140,22 +145,32 @@ const generateOrderSummary = (pedido: Pedido) => {
     summary += `${separator}\n\n`;
   }
 
-  const subtotalProdutos = pedido.subtotal_produtos || 0;
-  const subtotalServicos = pedido.subtotal_servicos || 0;
+  // Cálculos de Totais
+  const subtotalProdutos = Number(pedido.subtotal_produtos || 0);
+  const subtotalServicos = Number(pedido.subtotal_servicos || 0);
   const subtotal = subtotalProdutos + subtotalServicos;
-  const frete = pedido.tipo_entrega === 'frete' ? (pedido.valor_frete || 0) : 0;
-  const descontoPercentualCalculado = subtotal * ((pedido.desconto_percentual || 0) / 100);
-  const valorTotalCalculado = Math.max(0, subtotal + frete - (pedido.desconto_valor || 0) - descontoPercentualCalculado);
+  const frete = (pedido.tipo_entrega === 'frete' ? Number(pedido.valor_frete || 0) : 0);
+  const descontoValor = Number(pedido.desconto_valor || 0);
+  const descontoPercentual = Number(pedido.desconto_percentual || 0);
+  const descontoPercentualCalculado = subtotal * (descontoPercentual / 100);
 
-  summary += `*TOTAL: ${formatCurrency(valorTotalCalculado)}*\n`;
-  summary += `Status: ${statusText}\n`;
-  summary += `Entrega: ${pedido.tipo_entrega === 'retirada' ? 'RETIRADA' : 'FRETE'}\n`;
-  if (pedido.tipo_entrega === 'frete' && pedido.valor_frete && pedido.valor_frete > 0) {
-    summary += `Valor do Frete: ${formatCurrency(pedido.valor_frete)}\n`;
+  const valorTotalCalculado = Math.max(0, subtotal + frete - descontoValor - descontoPercentualCalculado);
+  const valorExibicao = Number(pedido.valor_total) || valorTotalCalculado;
+
+  summary += `*TOTAL: ${formatCurrency(valorExibicao)}*\n`;
+
+  // Só incluir informação de entrega se for FRETE
+  if (pedido.tipo_entrega === 'frete') {
+    summary += `ENTREGA: FRETE\n`;
+    if (pedido.valor_frete && Number(pedido.valor_frete) > 0) {
+      summary += `VALOR DO FRETE: ${formatCurrency(pedido.valor_frete)}\n`;
+    }
+    if (pedido.transportadora) {
+      summary += `TRANSPORTADORA: ${pedido.transportadora.toUpperCase()}\n`;
+    }
   }
-  if (pedido.tipo_entrega === 'frete' && pedido.transportadora) {
-    summary += `Transportadora: ${pedido.transportadora.toUpperCase()}\n`;
-  }
+
+  summary += `STATUS: ${statusText}\n`;
   summary += `\n*** AGRADECEMOS A PREFERÊNCIA ***`;
 
   return summary;
