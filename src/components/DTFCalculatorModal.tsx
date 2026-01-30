@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { Calculator, LayoutGrid, Ruler, Layers, ChevronRight, ChevronUp, ChevronDown, Info, HelpCircle, AlertTriangle, Plus, Minus, Maximize2, RotateCcw, RotateCw, MessageSquare, Share2, Copy, Download, Image as ImageIcon, Loader2, Sparkles, Bot, Settings2 } from "lucide-react";
+import { Calculator, LayoutGrid, Ruler, Layers, ChevronRight, ChevronUp, ChevronDown, Info, HelpCircle, AlertTriangle, Plus, Minus, Maximize2, RotateCcw, RotateCw, RefreshCw, MessageSquare, Share2, Copy, Download, Image as ImageIcon, Loader2, Sparkles, Bot, Settings2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -397,7 +397,11 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
         const safeImageHeight = Math.max(0.1, imageHeight);
         const imagesPerMeter = (100 / (safeImageHeight + separation)) * imagesPerRow;
         const currentContentWidth = (imagesPerRow * imageWidth) + ((imagesPerRow - 1) * separation);
-        const efficiency = rollWidth > 0 ? (currentContentWidth / rollWidth) * 100 : 0;
+
+        // Eficiência baseada em ÁREA (unificada com o modo multi-item)
+        const totalInkArea = finalQuantity * imageWidth * imageHeight;
+        const totalMaterialArea = rollWidth * totalHeightCm;
+        const efficiency = totalMaterialArea > 0 ? (totalInkArea / totalMaterialArea) * 100 : 0;
 
         // Sobra lateral real (Margem configurada + espaço vazio que sobrou por não caber mais uma logo)
         const realSideMargin = (rollWidth - currentContentWidth) / 2;
@@ -768,7 +772,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                         onChange={setImageWidth}
                                                         min={0.5}
                                                         max={rollWidth - 2}
-                                                        step={0.5}
+                                                        step={0.1}
                                                         fieldId="imageSize"
                                                         showButtons={false}
                                                         className="w-full"
@@ -783,7 +787,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                         onChange={setImageHeight}
                                                         min={0.5}
                                                         max={100}
-                                                        step={0.5}
+                                                        step={0.1}
                                                         fieldId="imageSize"
                                                         showButtons={false}
                                                         className="w-full"
@@ -791,6 +795,17 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                     />
                                                 </div>
                                             </div>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => {
+                                                    const tmp = imageWidth;
+                                                    setImageWidth(imageHeight);
+                                                    setImageHeight(tmp);
+                                                }}
+                                                className="w-full h-8 text-[9px] font-black uppercase tracking-widest text-primary/60 hover:text-primary hover:bg-primary/5 rounded-lg border border-primary/10 gap-2">
+                                                <RefreshCw className="h-3 w-3" /> Girar 90°
+                                            </Button>
                                         </div>
 
                                         <Separator className="bg-primary/5" />
@@ -1200,6 +1215,9 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                     <span className={cn("font-black tracking-tight", isMobile ? "text-2xl" : "text-3xl")}>
                                         {(mode === 'quick' ? results.totalMeters : multiResults.totalMeters).toFixed(2)}m
                                     </span>
+                                    <span className="text-[8px] font-black opacity-60 uppercase tracking-tighter mt-1">
+                                        Custo Est: R${((mode === 'quick' ? results.totalMeters : multiResults.totalMeters) * 50).toFixed(2)}
+                                    </span>
                                 </div>
 
                                 {mode === 'quick' && quickGoal === 'quantity' ? (
@@ -1234,15 +1252,15 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                 {mode === 'quick' ? (
                                                     <div className="flex flex-col gap-1">
                                                         {quickGoal === 'meters' ? (
-                                                            <span>Nesses <strong className="text-white">{quickMetersInput}m</strong>, você consegue espremer <strong className="text-white">{results.finalQuantity} unidades</strong>.</span>
+                                                            <span>Nesses <strong className="text-white">{quickMetersInput}m</strong>, você consegue espremer <strong className="text-white">{results.finalQuantity} {results.finalQuantity === 1 ? 'unidade' : 'unidades'}</strong>.</span>
                                                         ) : (
-                                                            <span>Para imprimir <strong className="text-white">{results.finalQuantity} unidades</strong>, você vai precisar de <strong className="text-white">{results.totalMeters.toFixed(2)}m</strong>.</span>
+                                                            <span>Para imprimir <strong className="text-white">{results.finalQuantity} {results.finalQuantity === 1 ? 'unidade' : 'unidades'}</strong>, você vai precisar de <strong className="text-white">{results.totalMeters.toFixed(2)}m</strong>.</span>
                                                         )}
-                                                        <span className="opacity-70">Cabem <strong className="text-white">{results.imagesPerRow} marcas</strong> por linha com <strong className="text-white">{results.efficiency}%</strong> do aproveitamento.</span>
+                                                        <span className="opacity-70">Cabem <strong className="text-white">{results.imagesPerRow} {results.imagesPerRow === 1 ? 'marca' : 'marcas'}</strong> por linha com <strong className="text-white">{results.efficiency}%</strong> de aproveitamento.</span>
                                                     </div>
                                                 ) : (
                                                     <div className="flex flex-col gap-1">
-                                                        <span>Otimizei <strong className="text-white">{multiResults.items.filter(i => i.quantity > 0).length} itens</strong> diferentes ({multiResults.totalQuantity} logos totais).</span>
+                                                        <span>Otimizei <strong className="text-white">{multiResults.items.filter(i => i.quantity > 0).length} {multiResults.items.filter(i => i.quantity > 0).length === 1 ? 'item diferente' : 'itens diferentes'}</strong> ({multiResults.totalQuantity} logos totais).</span>
                                                         <span>Produção total de <strong className="text-white">{multiResults.totalMeters.toFixed(2)}m</strong> com <strong className="text-white">{multiResults.efficiency}%</strong> de aproveitamento.</span>
                                                     </div>
                                                 )}
@@ -1561,6 +1579,9 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                         <div className="flex items-center gap-2 px-3 py-1 bg-slate-800/50 rounded-full border border-slate-700/50 ml-auto">
                                             <Badge variant="outline" className="bg-transparent text-slate-300 font-bold text-[9px] border-slate-700 px-2 py-0">
                                                 TOTAL: {(mode === 'quick' ? results.totalHeightCm : multiResults.totalHeightCm).toFixed(1)}cm
+                                            </Badge>
+                                            <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 font-black text-[9px] border-emerald-500/20 px-2 py-0">
+                                                EST. R$ {((mode === 'quick' ? results.totalMeters : multiResults.totalMeters) * 50).toFixed(2)}
                                             </Badge>
                                         </div>
                                     </div>
