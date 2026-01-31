@@ -26,10 +26,19 @@ import {
     Lock,
     Trophy,
     Target,
-    CheckCircle2
+    CheckCircle2,
+    Banknote,
+    Smartphone,
+    Barcode,
+    Wallet,
+    CheckSquare,
+    Square,
+    Calculator
 } from 'lucide-react';
 import { useSession } from '@/contexts/SessionProvider';
 import { cn } from '@/lib/utils';
+import { usePaymentMethods } from '@/hooks/usePaymentMethods';
+
 import { TutorialGuide } from '@/components/TutorialGuide';
 import { useTour } from '@/hooks/useTour';
 import { SETTINGS_TOUR } from '@/utils/tours';
@@ -112,6 +121,8 @@ export default function Settings() {
     const [isLocalUpdating, setIsLocalUpdating] = useState(false);
     const [isMagicModalOpen, setIsMagicModalOpen] = useState(false);
     const { session } = useSession();
+    const { methods: paymentMethods, toggleMethod: togglePaymentMethod } = usePaymentMethods();
+
 
     const isBrandingUnlocked = !!(
         companyProfile?.company_logo_url ||
@@ -749,6 +760,66 @@ export default function Settings() {
                                         className="h-11 md:h-10"
                                     />
                                 </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Payment Methods Configuration */}
+                    <Card id="payment-methods-section" className="border-border/50 shadow-sm overflow-hidden">
+                        <CardHeader className="pb-4 bg-muted/30">
+                            <StepBadge
+                                step={7}
+                                title="Formas de Pagamento"
+                                explanation="Defina quais opções de pagamento aparecerão como atalho na hora de alterar o status do pedido."
+                            />
+                        </CardHeader>
+                        <CardContent className="pt-6">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                                {paymentMethods.map((method) => {
+                                    const iconMap: Record<string, any> = { Banknote, Smartphone, CreditCard, Barcode, Building2 };
+                                    const Icon = iconMap[method.icon] || Banknote;
+                                    const colorMap: Record<string, string> = {
+                                        emerald: 'from-emerald-500/20 to-emerald-600/10 border-emerald-500/40 text-emerald-700 dark:text-emerald-300',
+                                        cyan: 'from-cyan-500/20 to-cyan-600/10 border-cyan-500/40 text-cyan-700 dark:text-cyan-300',
+                                        violet: 'from-violet-500/20 to-violet-600/10 border-violet-500/40 text-violet-700 dark:text-violet-300',
+                                        orange: 'from-orange-500/20 to-orange-600/10 border-orange-500/40 text-orange-700 dark:text-orange-300',
+                                        blue: 'from-blue-500/20 to-blue-600/10 border-blue-500/40 text-blue-700 dark:text-blue-300',
+                                    };
+                                    // Base styles for active state
+                                    const activeStyle = colorMap[method.color] || colorMap.emerald;
+                                    // Inactive style (grayscale)
+                                    const inactiveStyle = "bg-muted border-dashed border-border text-muted-foreground opacity-70 grayscale";
+
+                                    return (
+                                        <button
+                                            key={method.id}
+                                            onClick={() => togglePaymentMethod(method.id)}
+                                            className={cn(
+                                                "relative flex flex-col items-center justify-center gap-3 p-4 rounded-xl border-2 transition-all duration-300",
+                                                method.enabled
+                                                    ? `bg-gradient-to-br ${activeStyle} shadow-lg hover:scale-[1.02]`
+                                                    : `${inactiveStyle} hover:opacity-100 hover:border-primary/30`
+                                            )}
+                                        >
+                                            <div className={cn(
+                                                "w-10 h-10 rounded-full flex items-center justify-center transition-colors",
+                                                method.enabled ? "bg-background/30 backdrop-blur-sm" : "bg-muted-foreground/10"
+                                            )}>
+                                                <Icon className={cn("w-5 h-5", method.enabled ? "opacity-100" : "opacity-50")} />
+                                            </div>
+                                            <span className="text-sm font-bold">{method.label}</span>
+
+                                            {/* Checkbox indicator */}
+                                            <div className="absolute top-2 right-2">
+                                                {method.enabled ? (
+                                                    <CheckSquare className="w-4 h-4 text-primary" />
+                                                ) : (
+                                                    <Square className="w-4 h-4 text-muted-foreground/50" />
+                                                )}
+                                            </div>
+                                        </button>
+                                    );
+                                })}
                             </div>
                         </CardContent>
                     </Card>
