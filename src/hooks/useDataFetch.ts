@@ -204,13 +204,19 @@ const fetchPedidos = async (
         const cr = res.headers.get('content-range');
         const count = cr ? parseInt(cr.split('/')[1]) : data.length;
 
-        const ped = data.map((p: any) => ({
-          ...p,
-          pedido_items: (p.pedido_items || []).sort((a: any, b: any) => (a.ordem || 0) - (b.ordem || 0)),
-          servicos: p.pedido_servicos || [],
-          status_history: (p.pedido_status_history || []).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
-        }));
+        const ped = data.map((p: any) => {
+          const sortedHistory = (p.pedido_status_history || []).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+          const latestObservation = sortedHistory.find((h: any) => h.observacao)?.observacao || null;
+          return {
+            ...p,
+            pedido_items: (p.pedido_items || []).sort((a: any, b: any) => (a.ordem || 0) - (b.ordem || 0)),
+            servicos: p.pedido_servicos || [],
+            status_history: sortedHistory,
+            latest_status_observation: latestObservation,
+          };
+        });
         return { pedidos: ped as Pedido[], totalCount: count || 0 };
+
       } else {
         const errTxt = await res.text();
         console.error('[fetchPedidos] Erro na resposta do servidor:', res.status, errTxt);
@@ -270,12 +276,17 @@ const fetchPedidos = async (
   const { data, error, count } = await query;
   if (error) throw error;
 
-  const ped = (data || []).map(p => ({
-    ...p,
-    pedido_items: (p.pedido_items || []).sort((a: any, b: any) => (a.ordem || 0) - (b.ordem || 0)),
-    servicos: p.pedido_servicos || [],
-    status_history: (p.pedido_status_history || []).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
-  }));
+  const ped = (data || []).map((p: any) => {
+    const sortedHistory = (p.pedido_status_history || []).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    const latestObservation = sortedHistory.find((h: any) => h.observacao)?.observacao || null;
+    return {
+      ...p,
+      pedido_items: (p.pedido_items || []).sort((a: any, b: any) => (a.ordem || 0) - (b.ordem || 0)),
+      servicos: p.pedido_servicos || [],
+      status_history: sortedHistory,
+      latest_status_observation: latestObservation,
+    };
+  });
 
   return { pedidos: ped as Pedido[], totalCount: count || 0 };
 };

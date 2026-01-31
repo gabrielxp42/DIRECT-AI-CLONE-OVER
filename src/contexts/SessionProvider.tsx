@@ -10,6 +10,7 @@ type Profile = {
   id: string;
   organization_id: string | null;
   trial_start_date: string | null;
+  subscription_tier?: string | null;
   subscription_status: 'trial' | 'active' | 'expired' | null;
   daily_ai_count: number | null;
   completed_tours: string[] | null;

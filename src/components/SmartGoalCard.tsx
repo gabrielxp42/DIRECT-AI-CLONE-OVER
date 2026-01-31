@@ -10,6 +10,7 @@ import { AchievementsModal } from './AchievementsModal';
 import { useState, useEffect } from 'react';
 import { CelebrationModal } from './CelebrationModal';
 import { GiftUnlockModal } from './GiftUnlockModal';
+import { useSession } from '@/contexts/SessionProvider';
 
 interface Goal {
     id: string;
@@ -27,6 +28,7 @@ interface Goal {
 }
 
 export const SmartGoalCard = ({ stats }: { stats: any }) => {
+    const { profile, supabase } = useSession();
     const navigate = useNavigate();
     const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
     const [celebrationMilestone, setCelebrationMilestone] = useState<any | null>(null);
@@ -49,12 +51,18 @@ export const SmartGoalCard = ({ stats }: { stats: any }) => {
     ];
 
     useEffect(() => {
-        if (!stats) return;
+        if (!stats || !profile) return;
+
+        const serverCompletedTours = profile.completed_tours || [];
 
         // Procura a maior conquista recém-desbloqueada que ainda não foi comemorada
         const unacknowledged = milestones
             .filter(m => m.value >= m.target)
-            .filter(m => !localStorage.getItem(`acknowledged_milestone_${m.id}`))
+            .filter(m => {
+                const dbKey = `milestone:${m.id}`;
+                const localKey = `acknowledged_milestone_${m.id}`;
+                return !localStorage.getItem(localKey) && !serverCompletedTours.includes(dbKey);
+            })
             .sort((a, b) => b.target - a.target); // Pega a mais difícil primeiro
 
         if (unacknowledged.length > 0) {
@@ -65,7 +73,7 @@ export const SmartGoalCard = ({ stats }: { stats: any }) => {
                 setCelebrationMilestone(milestone);
             }
         }
-    }, [stats]);
+    }, [stats, profile]);
 
     // Timer do Flash Goal
     useEffect(() => {
@@ -106,15 +114,59 @@ export const SmartGoalCard = ({ stats }: { stats: any }) => {
         const s = seconds % 60;
         return `${h}h ${m}m ${s}s`;
     };
+    const persistMilestone = async (milestoneId: string, category?: string, target?: number) => {
+        const localKey = `acknowledged_milestone_${milestoneId}`;
+        const dbKey = `milestone:${milestoneId}`;
+
+        // 1. Guard no LocalStorage (Imediato)
+        localStorage.setItem(localKey, 'true');
+
+        // 2. Silenciamento em lote: Marcar todas as metas menores da mesma categoria como concluídas
+        if (category && target) {
+            milestones
+                .filter(m => m.category === category && m.target <= target)
+                .forEach(m => {
+                    localStorage.setItem(`acknowledged_milestone_${m.id}`, 'true');
+                });
+        }
+
+        // 3. Persistir no Banco de Dados
+        if (profile && supabase) {
+            try {
+                const currentTours = profile.completed_tours || [];
+
+                // Coleta IDs de metas menores para persistir em lote se necessário
+                const milestoneToPersist = [dbKey];
+                if (category && target) {
+                    milestones
+                        .filter(m => m.category === category && m.target <= target)
+                        .forEach(m => {
+                            const key = `milestone:${m.id}`;
+                            if (!milestoneToPersist.includes(key)) milestoneToPersist.push(key);
+                        });
+                }
+
+                const updatedTours = Array.from(new Set([...currentTours, ...milestoneToPersist]));
+
+                await supabase
+                    .from('profiles')
+                    .update({ completed_tours: updatedTours })
+                    .eq('id', profile.id);
+            } catch (err) {
+                console.error('[SmartGoalCard] Erro ao persistir conquista:', err);
+            }
+        }
+    };
+
     const handleCloseCelebration = () => {
         if (celebrationMilestone) {
-            localStorage.setItem(`acknowledged_milestone_${celebrationMilestone.id}`, 'true');
+            persistMilestone(celebrationMilestone.id, celebrationMilestone.category, celebrationMilestone.target);
             setCelebrationMilestone(null);
         }
     };
 
     const handleCloseGift = () => {
-        localStorage.setItem('acknowledged_milestone_white_label_unlock', 'true');
+        persistMilestone('white_label_unlock', 'growth', 100);
         // Force branding unlock in local storage so settings can enable it immediately
         localStorage.setItem('branding_feature_unlocked', 'true');
         setIsGiftOpen(false);

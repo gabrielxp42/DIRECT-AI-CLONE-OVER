@@ -13,21 +13,15 @@ export function GiftPlanModal() {
     const TRIGGER_PLAN = 'pro';
 
     useEffect(() => {
-        console.log("🎁 Checking Gift Modal conditions:", {
-            hasSession: !!session,
-            hasProfile: !!profile,
-            giftViewed: profile?.subscription_gift_viewed,
-            tier: profile?.subscription_tier,
-            status: profile?.subscription_status,
-            isGifted: profile?.is_gifted_plan
-        });
-
         if (session && profile) {
             const hasNotViewed = profile.subscription_gift_viewed === false;
+            // Immediate local check to avoid flickering if DB update is slow or cached
+            const localViewed = localStorage.getItem('subscription_gift_viewed') === 'true';
+
             // Safer check: either pro tier or active status
             const isPro = profile.subscription_tier === TRIGGER_PLAN || profile.subscription_status === 'active';
 
-            if (isPro && hasNotViewed) {
+            if (isPro && hasNotViewed && !localViewed) {
                 console.log("🎯 Triggering Gift/Welcome Modal!");
                 setIsOpen(true);
             }
@@ -36,12 +30,20 @@ export function GiftPlanModal() {
 
     const isGifted = profile?.is_gifted_plan === true;
 
-    const markAsViewed = async () => {
+    const markAsViewed = async (newOpenState?: boolean) => {
+        // Only trigger markAsViewed if we are actually closing the modal
+        if (newOpenState === true) return;
+
+        console.log("🎁 Marking gift as viewed and closing...");
         setIsOpen(false);
+
+        // 1. Guard Local (Imediato)
+        localStorage.setItem('subscription_gift_viewed', 'true');
+
         if (!session?.user?.id) return;
 
         try {
-            await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${session.user.id}`, {
+            const response = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${session.user.id}`, {
                 method: 'PATCH',
                 headers: {
                     'apikey': SUPABASE_ANON_KEY,
@@ -51,8 +53,15 @@ export function GiftPlanModal() {
                 },
                 body: JSON.stringify({ subscription_gift_viewed: true })
             });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                console.error("❌ Failed to mark gift as viewed in DB:", errorData);
+            } else {
+                console.log("✅ Gift marked as viewed in DB successfully");
+            }
         } catch (error) {
-            console.error("Error marking view:", error);
+            console.error("❌ Network error marking gift view:", error);
         }
     };
 
@@ -143,7 +152,7 @@ export function GiftPlanModal() {
                     >
                         <Button
                             className="w-full h-14 bg-[#FFF200] hover:bg-[#ffe600] text-black font-black uppercase tracking-widest text-sm rounded-xl shadow-[0_0_20px_rgba(255,242,0,0.4)] hover:shadow-[0_0_40px_rgba(255,242,0,0.6)] hover:scale-[1.02] transition-all duration-300 border-none relative overflow-hidden group"
-                            onClick={markAsViewed}
+                            onClick={() => markAsViewed(false)}
                         >
                             <span className="relative z-10">{isGifted ? "Resgatar Presente" : "Acessar Painel"}</span>
                             {/* Shine Effect */}
