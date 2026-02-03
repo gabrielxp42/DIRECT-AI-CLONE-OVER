@@ -424,3 +424,114 @@ export const generateOrderPDF = async (
     doc.save(fileName);
   }
 };
+
+export const generateOrderPDFBase64 = async (
+  pedido: Pedido,
+  tiposProducao?: TipoProducao[],
+  companyInfo?: CompanyInfoForPDF
+): Promise<string> => {
+  // Create a new doc for base64 export
+  const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.width;
+  const company = { ...DEFAULT_COMPANY_INFO, ...companyInfo };
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+  };
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('pt-BR');
+  };
+
+  let yPosition = 15;
+
+  // Header & Logo
+  doc.setDrawColor(0, 0, 0); doc.setLineWidth(0.5); doc.rect(10, 10, pageWidth - 20, 28);
+  doc.setFillColor(0, 0, 0); doc.rect(15, 13, 20, 20, 'F');
+  const logoUrl = company.logo_url || '/logo.png';
+  try {
+    const logoBase64 = await getImageAsBase64(logoUrl);
+    doc.addImage(logoBase64, 'PNG', 16, 14, 18, 18);
+  } catch (e) {
+    doc.setFillColor(0, 0, 0); doc.rect(16, 14, 18, 18, 'F');
+    doc.setFillColor(255, 242, 0); doc.ellipse(25, 23, 7, 7, 'F');
+  }
+
+  // Info
+  doc.setTextColor(0, 0, 0); doc.setFontSize(14); doc.setFont('helvetica', 'bold');
+  doc.text(company.company_name.toUpperCase(), 40, 20);
+  doc.setFontSize(7); doc.setFont('helvetica', 'normal');
+  if (company.address_full) {
+    doc.splitTextToSize(company.address_full, 80).slice(0, 2).forEach((l: any, i: number) => doc.text(l, 40, 26 + (i * 3)));
+  }
+  if (company.phone) doc.text(`TELEFONE: ${company.phone}`, 40, 32);
+  if (company.pix_key) doc.text(`PIX: ${company.pix_key}`, pageWidth - 55, 20);
+
+  yPosition = 45;
+
+  // Order Info
+  doc.setDrawColor(0, 0, 0); doc.rect(10, yPosition, pageWidth - 20, 10);
+  doc.setFontSize(9); doc.setFont('helvetica', 'bold');
+  doc.text(`Pedido nº ${pedido.order_number}`, 15, yPosition + 6);
+  doc.text(`Data: ${formatDate(pedido.created_at)}`, pageWidth - 60, yPosition + 6);
+  yPosition += 15;
+
+  // Client
+  doc.rect(10, yPosition, pageWidth - 20, 7); doc.setFillColor(240, 240, 240); doc.rect(10, yPosition, pageWidth - 20, 7, 'F');
+  doc.setTextColor(0, 0, 0); doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.text('Cliente', 15, yPosition + 5);
+  yPosition += 7;
+  doc.rect(10, yPosition, pageWidth - 20, 7); doc.setFont('helvetica', 'normal'); doc.text(`Nome: ${pedido.clientes?.nome || ''}`, 15, yPosition + 5);
+  yPosition += 7;
+  doc.rect(10, yPosition, pageWidth - 20, 7); doc.text(`Tel: ${pedido.clientes?.telefone || ''}`, 15, yPosition + 5);
+  yPosition += 12;
+
+  // Items
+  if (pedido.pedido_items.length > 0) {
+    autoTable(doc, {
+      startY: yPosition,
+      head: [['Nome', 'Qtd', 'Unit', 'Total']],
+      body: pedido.pedido_items.map((i: any) => [
+        i.produto_nome || i.produtos?.nome,
+        i.quantidade,
+        formatCurrency(i.preco_unitario),
+        formatCurrency(i.quantidade * i.preco_unitario)
+      ]),
+      theme: 'grid',
+      headStyles: { fillColor: [240, 240, 240], textColor: 0, fontSize: 8 },
+      bodyStyles: { fontSize: 7, textColor: 0 },
+      margin: { left: 10, right: 10 },
+      tableWidth: pageWidth - 20
+    });
+    yPosition = (doc as any).lastAutoTable.finalY + 3;
+  }
+
+  // Services
+  if (pedido.servicos?.length) {
+    autoTable(doc, {
+      startY: yPosition,
+      head: [['Nome', 'Qtd', 'Unit', 'Total']],
+      body: pedido.servicos.map((s: any) => [s.nome, s.quantidade, formatCurrency(s.valor_unitario), formatCurrency(s.quantidade * s.valor_unitario)]),
+      theme: 'grid',
+      headStyles: { fillColor: [240, 240, 240], textColor: 0, fontSize: 8 },
+      bodyStyles: { fontSize: 7, textColor: 0 },
+      margin: { left: 10, right: 10 },
+      tableWidth: pageWidth - 20
+    });
+    yPosition = (doc as any).lastAutoTable.finalY + 3;
+  }
+
+  // Totals
+  const subtotal = (pedido.subtotal_produtos || 0) + (pedido.subtotal_servicos || 0);
+  const discount = (pedido.desconto_valor || 0) + (subtotal * ((pedido.desconto_percentual || 0) / 100));
+  const final = Math.max(0, subtotal + (pedido.tipo_entrega === 'frete' ? (pedido.valor_frete || 0) : 0) - discount);
+
+  autoTable(doc, {
+    startY: yPosition,
+    body: [['Total Final', formatCurrency(final)]],
+    theme: 'grid',
+    bodyStyles: { fontSize: 8, fontStyle: 'bold' },
+    margin: { left: pageWidth - 90 },
+    tableWidth: 80
+  });
+
+  return doc.output('datauristring').split(',')[1];
+};

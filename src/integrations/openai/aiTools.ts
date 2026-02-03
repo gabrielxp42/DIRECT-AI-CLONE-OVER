@@ -2,6 +2,7 @@ import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/integrations/supaba
 import { getValidToken } from '@/utils/tokenGuard';
 import { generateOrderPDF } from '@/utils/pdfGenerator';
 import { removeAccents } from '@/utils/string';
+import { isEligibleForPlusMode } from '@/hooks/useIsPlusMode';
 
 // Tipos de dados para resultados de consultas Supabase com JOINs
 interface ClientName {
@@ -260,20 +261,55 @@ const send_whatsapp_message = async (args: { phone?: string; message: string; cl
 
   // Limpar telefone (apenas números)
   const cleanPhone = finalPhone.replace(/\D/g, '');
+
+  // --- LÓGICA DE ELEGIBILIDADE USANDO HELPER CENTRALIZADO ---
+  let canSendDirectly = false;
+  let isPlus = false;
+
+  try {
+    const token = await getValidToken();
+    if (token) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+
+        if (profile) {
+          const status = isEligibleForPlusMode(profile);
+          isPlus = status.isPlus;
+          canSendDirectly = status.canSendDirectly;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("Erro ao verificar elegibilidade de envio direto:", err);
+  }
+
+  // Se o modo for explicitamente 'link', forçamos false
+  if (args.mode === 'link') canSendDirectly = false;
+
   const encodedMessage = encodeURIComponent(args.message);
   const waLink = `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
 
   return {
-    type: 'whatsapp_action',
+    type: 'whatsapp_action', // Mantemos este tipo para renderizar o balão verde
     data: {
       phone: finalPhone,
+      cleanPhone: cleanPhone, // Necessário para o envio direto posterior
       clientName: resolvedClientName,
       message: args.message,
       link: waLink,
+      canSendDirectly: canSendDirectly, // Flag para o frontend saber se mostra botão de envio direto ou link
+      isPlus: isPlus, // Flag para UI saber se deve mostrar estilo Gabi ou padrão
       status: 'ready_to_send'
     },
-    message: `Pronto! Preparei a mensagem para **${resolvedClientName || finalPhone}**.\n\n[🟢 Clique aqui para enviar via WhatsApp](${waLink})`
+    // Mensagem de texto amigável caso a UI não renderize o card
+    message: `Pronto! Preparei a mensagem para **${resolvedClientName || finalPhone}**. Verifique abaixo e clique em enviar.`
   };
+
 };
 
 // Função para resetar a memória do usuário
@@ -1573,7 +1609,11 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
   }
 
   if (name === "send_whatsapp_message") {
-    return send_whatsapp_message(args);
+    // Passar o argumento 'mode' explicitamente
+    return send_whatsapp_message({
+      ...args,
+      mode: args.mode as 'link' | 'auto' // Garantir tipagem
+    });
   }
 
   if (name === "reset_user_memory") {

@@ -16,6 +16,10 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { showSuccess, showError } from "@/utils/toast";
 import { toPng, toBlob } from 'html-to-image';
+import { supabase } from "@/integrations/supabase/client";
+import { useIsPlusMode } from "@/hooks/useIsPlusMode";
+import { GabiActionDialog } from "@/components/GabiActionDialog";
+import { WhatsAppButton } from "./WhatsAppButton";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -268,6 +272,7 @@ const NumberInput = ({
 
 export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculatorModalProps) => {
     const isMobile = useIsMobile();
+    const { canSendDirectly: isPlusMode } = useIsPlusMode();
     // --- MODO RÁPIDO (WIZARD) ---
     type CalculatorMode = 'quick' | 'multi';
     const [mode, setMode] = useState<CalculatorMode>('quick');
@@ -587,10 +592,6 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
         showSuccess("Orçamento copiado para a área de transferência!");
     };
 
-    const handleShareWhatsApp = () => {
-        const text = encodeURIComponent(generateQuoteSummary());
-        window.open(`https://wa.me/?text=${text}`, '_blank');
-    };
 
     const handleDownloadImage = async () => {
         if (!previewRef.current) return;
@@ -653,7 +654,13 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                     onInteractOutside={(e) => isTourOpen && e.preventDefault()}
                     onEscapeKeyDown={(e) => isTourOpen && e.preventDefault()}
                     className={cn(
-                        "max-h-[96vh] overflow-hidden bg-background/98 backdrop-blur-xl border-primary/20 shadow-2xl transition-all duration-300 flex flex-col",
+                        "max-h-[96vh] overflow-hidden transition-all duration-300 flex flex-col",
+                        // Liquid Glass Base
+                        "bg-white/90 dark:bg-slate-950/80 backdrop-blur-2xl backdrop-saturate-150",
+                        // Borders and Shadows
+                        "border border-white/40 dark:border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.3)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.5)]",
+                        // Internal Gloss
+                        "before:absolute before:inset-0 before:bg-gradient-to-tr before:from-white/10 before:to-transparent before:pointer-events-none",
                         isMobile ? "max-w-[100vw] w-full p-3 rounded-t-[2.5rem] rounded-b-none bottom-0 top-auto translate-y-0 h-[95vh]" : "max-w-[95vw] lg:max-w-6xl w-full h-[90vh] p-8 rounded-[2rem]"
                     )}>
                     <DialogHeader>
@@ -707,13 +714,13 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                         </button>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 -mr-1">
-                        <div className="grid grid-cols-1 md:grid-cols-12 gap-6 lg:gap-8 mt-6 items-start">
+                    <div className="flex-1 overflow-hidden mt-6">
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-6 lg:gap-8 h-full items-start overflow-y-auto md:overflow-visible custom-scrollbar pr-1 -mr-1">
                             {/* Formulário - 5 colunas */}
-                            <div id="calculator-material-settings" className="md:col-span-5 space-y-6">
+                            <div id="calculator-material-settings" className="md:col-span-5 space-y-6 md:sticky md:top-0 md:max-h-full md:overflow-y-auto custom-scrollbar md:pr-4">
                                 {mode === 'quick' ? (
-                                    <Card className="border-primary/10 bg-slate-50/50 dark:bg-primary/5 flex flex-col overflow-hidden">
-                                        <div className="p-4 flex-1 space-y-6 max-h-[600px] overflow-y-auto custom-scrollbar">
+                                    <Card className="border-primary/20 bg-white/40 dark:bg-primary/5 backdrop-blur-md shadow-sm flex flex-col overflow-hidden">
+                                        <div className="p-4 flex-1 space-y-6">
                                             {/* SEÇÃO 1: Largura do Material */}
                                             <div className="space-y-3">
                                                 <div className="space-y-1">
@@ -918,7 +925,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                         </div>
                                     </Card>
                                 ) : (
-                                    <Card className="border-primary/10 bg-slate-50/50 dark:bg-primary/5">
+                                    <Card className="border-primary/20 bg-white/40 dark:bg-primary/5 backdrop-blur-md shadow-sm">
                                         <CardContent className="p-4 space-y-4">
                                             <div className="space-y-2">
                                                 <Label className="text-[10px] font-bold uppercase text-slate-500 dark:text-muted-foreground flex items-center justify-between tracking-wider">
@@ -1033,7 +1040,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                 </Label>
 
                                                 {/* Item List */}
-                                                <div className="space-y-4 max-h-[360px] overflow-y-auto pr-1 custom-scrollbar">
+                                                <div className="space-y-4 max-h-[400px] overflow-y-auto pr-1 custom-scrollbar">
                                                     {multiResults.items.map((item, index) => (
                                                         <div
                                                             key={item.id}
@@ -1240,31 +1247,32 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                         )}
                                     </div>
 
-                                    {/* Resumo Gabi - Universal Mode */}
-                                    <div className="relative group rounded-xl p-[1px] bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] shadow-lg shadow-purple-500/10">
+                                    {/* Resumo da Gabi - Estilo Oficial do Dashboard */}
+                                    <div className="relative group rounded-xl p-[1px] bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] shadow-lg shadow-purple-500/10 animate-in slide-in-from-bottom-2 duration-500">
                                         <div className="absolute inset-0 bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] opacity-20 blur-md rounded-xl" />
-                                        <div className="relative bg-slate-950/90 backdrop-blur-xl rounded-[10px] p-3 flex gap-3 items-start">
-                                            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-[#FF6B6B] to-[#ffd93d] flex items-center justify-center shrink-0 shadow-lg shadow-orange-500/20">
-                                                <Bot className="h-4 w-4 text-white" />
+                                        <div className="relative bg-slate-950/90 backdrop-blur-xl rounded-[10px] p-4 flex gap-4 items-start">
+                                            <div className="h-10 w-10 rounded-full bg-gradient-to-br from-[#FF6B6B] to-[#ffd93d] flex items-center justify-center shrink-0 shadow-lg shadow-orange-500/20">
+                                                <Bot className="h-5 w-5 text-white" />
                                             </div>
-                                            <div className="space-y-0.5">
-                                                <div className="text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent flex items-center gap-1">
+                                            <div className="space-y-1">
+                                                <div className="text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent flex items-center gap-2">
                                                     Resumo da Gabi
+                                                    <span className="bg-white/10 px-1.5 py-0.5 rounded text-[8px] text-white/60">GABI AI</span>
                                                 </div>
-                                                <div className="text-[11px] text-slate-300 leading-relaxed font-medium">
+                                                <div className="text-[12px] text-slate-300 leading-relaxed font-medium">
                                                     {mode === 'quick' ? (
                                                         <div className="flex flex-col gap-1">
                                                             {quickGoal === 'meters' ? (
-                                                                <span>Nesses <strong className="text-white">{quickMetersInput}m</strong>, você consegue espremer <strong className="text-white">{results.finalQuantity} {results.finalQuantity === 1 ? 'unidade' : 'unidades'}</strong>.</span>
+                                                                <span>Nesses <strong className="text-white font-black">{quickMetersInput}m</strong>, você consegue espremer <strong className="text-white font-black">{results.finalQuantity} {results.finalQuantity === 1 ? 'unidade' : 'unidades'}</strong>.</span>
                                                             ) : (
-                                                                <span>Para imprimir <strong className="text-white">{results.finalQuantity} {results.finalQuantity === 1 ? 'unidade' : 'unidades'}</strong>, você vai precisar de <strong className="text-white">{results.totalMeters.toFixed(2)}m</strong>.</span>
+                                                                <span>Para imprimir <strong className="text-white font-black">{results.finalQuantity} {results.finalQuantity === 1 ? 'unidade' : 'unidades'}</strong>, você vai precisar de <strong className="text-white font-black">{results.totalMeters.toFixed(2)}m</strong>.</span>
                                                             )}
-                                                            <span className="opacity-70">Cabem <strong className="text-white">{results.imagesPerRow} {results.imagesPerRow === 1 ? 'marca' : 'marcas'}</strong> por linha com <strong className="text-white">{results.efficiency}%</strong> de aproveitamento.</span>
+                                                            <span className="opacity-70 italic">Cabem <strong className="text-white font-black">{results.imagesPerRow} {results.imagesPerRow === 1 ? 'marca' : 'marcas'}</strong> por linha com <strong className="text-white font-black">{results.efficiency}%</strong> de aproveitamento.</span>
                                                         </div>
                                                     ) : (
                                                         <div className="flex flex-col gap-1">
-                                                            <span>Otimizei <strong className="text-white">{multiResults.items.filter(i => i.quantity > 0).length} {multiResults.items.filter(i => i.quantity > 0).length === 1 ? 'item diferente' : 'itens diferentes'}</strong> ({multiResults.totalQuantity} logos totais).</span>
-                                                            <span>Produção total de <strong className="text-white">{multiResults.totalMeters.toFixed(2)}m</strong> com <strong className="text-white">{multiResults.efficiency}%</strong> de aproveitamento.</span>
+                                                            <span>Otimizei <strong className="text-white font-black">{multiResults.items.filter(i => i.quantity > 0).length} {multiResults.items.filter(i => i.quantity > 0).length === 1 ? 'item diferente' : 'itens diferentes'}</strong> ({multiResults.totalQuantity} logos totais).</span>
+                                                            <span>Produção total de <strong className="text-white font-black">{multiResults.totalMeters.toFixed(2)}m</strong> com <strong className="text-white font-black">{multiResults.efficiency}%</strong> de aproveitamento.</span>
                                                         </div>
                                                     )}
                                                 </div>
@@ -1274,14 +1282,14 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
 
                                     {/* Ações de Compartilhamento Integradas */}
                                     <div className="space-y-2">
-                                        <Button
-                                            variant="default"
-                                            size="lg"
+                                        <WhatsAppButton
+                                            phone=""
+                                            message={generateQuoteSummary()}
+                                            label="COMPARTILHAR NO WHATSAPP"
                                             disabled={mode === 'quick' ? imageWidth + (margin * 2) > rollWidth : multiResults.totalItemsOverflowing > 0}
-                                            className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-lg shadow-emerald-500/10 active:scale-95 transition-all gap-3"
-                                            onClick={handleShareWhatsApp}>
-                                            <MessageSquare className="h-5 w-5" /> COMPARTILHAR NO WHATSAPP
-                                        </Button>
+                                            className="w-full h-12 text-xs rounded-xl font-black"
+                                            size="lg"
+                                        />
 
                                         <div className="grid grid-cols-2 gap-2">
                                             <Button
@@ -1309,7 +1317,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                 !isMobile && "sticky top-0"
                             )}>
                                 <div className={cn(
-                                    "h-full flex flex-col bg-slate-100/50 dark:bg-slate-900/50 rounded-2xl border border-slate-200/60 dark:border-slate-800 overflow-hidden shadow-inner relative",
+                                    "h-full flex flex-col bg-slate-100/50 dark:bg-slate-900/50 rounded-2xl border border-slate-200/60 dark:border-slate-800 overflow-y-auto custom-scrollbar shadow-inner relative",
                                     isFullscreenPreview && "fixed inset-0 z-[100] m-0 rounded-none bg-slate-950"
                                 )}>
                                     {isFullscreenPreview && (
@@ -1678,6 +1686,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                 onPrev={prevStep}
                 onClose={() => closeTour()}
             />
+            {/* WhatsApp Plus Mode Dialog Removed - now handled by WhatsAppButton component */}
         </>
     );
 };

@@ -4,7 +4,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { MessageSquare, Send, X, Bot, Sparkles, Mic, Paperclip, Share2, Calculator, Settings, Volume2, Maximize2, Minimize2, Image as ImageIcon, User, Check, ShoppingBag, Loader2, LayoutGrid } from 'lucide-react';
+import { MessageSquare, Send, X, Bot, Sparkles, Mic, Paperclip, Share2, Calculator, Settings, Volume2, Maximize2, Minimize2, Image as ImageIcon, User, Check, ShoppingBag, Loader2, LayoutGrid, CheckCircle2, Zap } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { getOpenAIClient, type ChatMessage } from '@/integrations/openai/client';
 import { openAIFunctions, callOpenAIFunction } from '@/integrations/openai/aiTools';
 import { useToast } from '@/hooks/use-toast';
@@ -81,6 +82,27 @@ export const AIAssistant = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Listener para eventos externos (ex: clique no Dashboard para cobrar)
+  useEffect(() => {
+    const handleTrigger = (event: CustomEvent<string>) => {
+      if (!isOpen) {
+        // Se estiver fechado, não conseguimos abrir daqui pois quem controla o isOpen é o Contexto.
+        // Mas quem dispara o evento (Widget) deve chamar open() antes.
+        // Apenas garantimos que vamos processar.
+      }
+
+      const message = event.detail;
+      if (message) {
+        handleSendMessage(message);
+      }
+    };
+
+    window.addEventListener('trigger-ai-message' as any, handleTrigger as any);
+    return () => {
+      window.removeEventListener('trigger-ai-message' as any, handleTrigger as any);
+    };
+  }, [isOpen]); // Dependência isOpen para garantir contexto atualizado, embora handleSendMessage seja estável
 
   const handleSendMessage = async (content: string) => {
     if (!content.trim() || isLoading) return;
@@ -398,42 +420,114 @@ export const AIAssistant = () => {
                               try {
                                 const content = typeof msg.content === 'string' ? msg.content : '';
                                 const result = JSON.parse(content);
-                                if (result.type === 'whatsapp_action') {
+                                if (result.type === 'whatsapp_action' || result.type === 'whatsapp_direct_sent') {
+                                  const isSent = result.type === 'whatsapp_direct_sent';
+
                                   return (
-                                    <div className="mt-2 bg-white dark:bg-slate-900 border-2 border-emerald-500/20 rounded-xl shadow-lg overflow-hidden">
-                                      <div className="bg-emerald-500/10 p-3 border-b border-emerald-500/10 flex items-center gap-2">
-                                        <Share2 className="h-4 w-4 text-emerald-500" />
-                                        <span className="font-bold text-sm text-emerald-600 dark:text-emerald-400">WhatsApp Pronto</span>
-                                      </div>
-                                      <div className="p-4 space-y-3">
-                                        <p className="text-xs text-zinc-400 line-clamp-2 italic">"{result.data.message}"</p>
-                                        <Button
-                                          className="w-full gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
-                                          onClick={() => window.open(result.data.link, '_blank')}
-                                        >
-                                          <MessageSquare className="h-4 w-4" />
-                                          Enviar Agora
-                                        </Button>
+                                    <div className="mt-2 w-full max-w-[340px] animate-in zoom-in-95 duration-300">
+                                      {/* Gabi Power Card */}
+                                      <div className="relative rounded-2xl overflow-hidden shadow-2xl ring-1 ring-white/10">
+                                        {/* Bg Glass Effect */}
+                                        <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-xl" />
+
+                                        {/* Header area with Gabi Colors */}
+                                        <div className="relative h-1 w-full bg-gradient-to-r from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7]" />
+
+                                        <div className="relative p-4 space-y-4">
+                                          <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                              <div className={cn(
+                                                "p-1.5 rounded-lg",
+                                                isSent ? "bg-emerald-500/10 text-emerald-500" : "bg-primary/10 text-primary"
+                                              )}>
+                                                {isSent ? <CheckCircle2 className="w-4 h-4" /> : <Share2 className="w-4 h-4" />}
+                                              </div>
+                                              <span className="text-[11px] font-black uppercase tracking-widest text-slate-200">
+                                                {isSent ? "Envio Realizado" : "Pronto para Enviar"}
+                                              </span>
+                                            </div>
+                                            {result.data.isPlus && (
+                                              <Badge className="bg-[#ffd93d]/10 text-[#ffd93d] border-[#ffd93d]/20 text-[8px] font-black h-4 px-1.5 uppercase tracking-tighter">
+                                                Plus Mode
+                                              </Badge>
+                                            )}
+                                          </div>
+
+                                          <div className="space-y-1">
+                                            <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest">Mensagem Preparada</p>
+                                            <div className="p-3 bg-white/5 rounded-xl border border-white/5">
+                                              <p className="text-xs text-slate-300 italic leading-relaxed">
+                                                "{result.data.message}"
+                                              </p>
+                                            </div>
+                                          </div>
+
+                                          <div className="flex items-center justify-between text-[10px] text-zinc-500 font-medium pb-1 border-b border-white/5">
+                                            <span>Destinatário:</span>
+                                            <span className="font-black text-slate-200 truncate ml-2">
+                                              {result.data.clientName || result.data.phone || 'Cliente'}
+                                            </span>
+                                          </div>
+
+                                          {!isSent ? (
+                                            <Button
+                                              className={cn(
+                                                "w-full h-11 transition-all hover:scale-[1.02] active:scale-[0.98] font-black uppercase tracking-widest text-[11px] gap-2 shadow-lg",
+                                                result.data.canSendDirectly
+                                                  ? "bg-gradient-to-r from-[#FF6B6B] to-[#ffd93d] text-slate-950"
+                                                  : "bg-emerald-500 hover:bg-emerald-600 text-white"
+                                              )}
+                                              disabled={isLoading}
+                                              onClick={async () => {
+                                                if (result.data.canSendDirectly && result.data.cleanPhone) {
+                                                  setIsLoading(true);
+                                                  setLoadingStatus("Gabi está enviando...");
+                                                  try {
+                                                    const { data: proxyResult, error: proxyError } = await supabase.functions.invoke('whatsapp-proxy', {
+                                                      body: {
+                                                        action: 'send-text',
+                                                        phone: result.data.cleanPhone,
+                                                        message: result.data.message
+                                                      }
+                                                    });
+
+                                                    if (!proxyError && proxyResult?.success) {
+                                                      toast({ title: "Mensagem enviada!", description: `Sua mensagem para ${result.data.clientName || 'o cliente'} foi enviada.` });
+                                                      setMessages(prev => [...prev, {
+                                                        role: 'assistant',
+                                                        content: `✅ Acabei de enviar a mensagem para **${result.data.clientName || result.data.phone}**! Tudo certinho. 🚀`
+                                                      }]);
+                                                    } else {
+                                                      throw new Error(proxyError?.message || "Erro no envio");
+                                                    }
+                                                  } catch (err) {
+                                                    console.error("Erro no envio:", err);
+                                                    toast({ title: "Erro no envio direto", description: "Tentando abrir o WhatsApp Web...", variant: "destructive" });
+                                                    window.open(result.data.link, '_blank');
+                                                  } finally {
+                                                    setIsLoading(false);
+                                                  }
+                                                } else {
+                                                  window.open(result.data.link, '_blank');
+                                                }
+                                              }}
+                                            >
+                                              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4 fill-current" />}
+                                              {result.data.canSendDirectly ? 'Confirmar Envio Direto' : 'Enviar via Link'}
+                                            </Button>
+                                          ) : (
+                                            <div className="flex items-center justify-center gap-1.5 py-2 text-[10px] text-emerald-500 font-black uppercase tracking-widest">
+                                              <Bot className="h-4 w-4" />
+                                              Processado por Gabi AI
+                                            </div>
+                                          )}
+                                        </div>
                                       </div>
                                     </div>
                                   );
                                 }
                               } catch (e) { return null; }
-                            })()
-                          ) : msg.name === 'update_branding' ? (
-                            (() => {
-                              try {
-                                const content = typeof msg.content === 'string' ? msg.content : '';
-                                const result = JSON.parse(content);
-                                if (result.success) {
-                                  return (
-                                    <div className="mt-2 bg-white dark:bg-slate-900 border-2 border-primary/20 rounded-xl p-3 flex items-center gap-3 animate-pulse">
-                                      <Sparkles className="h-5 w-5 text-yellow-500" />
-                                      <span className="text-sm font-bold">Visual atualizado com sucesso! ✨</span>
-                                    </div>
-                                  );
-                                }
-                              } catch (e) { return null; }
+                              return null;
                             })()
                           ) : null}
                         </div>

@@ -1,202 +1,407 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { MessageSquare, QrCode, RefreshCw, CheckCircle, XCircle, Loader2, AlertCircle } from "lucide-react";
-import { Separator } from "@/components/ui/separator";
+import { Card, CardContent } from "@/components/ui/card";
+import { MessageSquare, QrCode, RefreshCw, CheckCircle, Loader2, AlertCircle, Smartphone, ShieldCheck, Zap, Bot, Star, Gift, Crown, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/contexts/SessionProvider";
+import { useIsPlusMode } from "@/hooks/useIsPlusMode";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import { Badge } from "./ui/badge";
+import { SubscriptionModal } from "./SubscriptionModal";
+import { GabiSuccessModal } from "./GabiSuccessModal";
+import { motion, AnimatePresence } from "framer-motion";
 
 export function WhatsAppConnection() {
     const { profile } = useSession();
+    const { isPlus, isWhatsAppGifted } = useIsPlusMode();
     const [loading, setLoading] = useState(false);
     const [qrCode, setQrCode] = useState<string | null>(null);
     const [status, setStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
-    const [adminConfig, setAdminConfig] = useState<{ url: string; key: string } | null>(null);
+    const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+    const [showSuccessModal, setShowSuccessModal] = useState(false);
 
     useEffect(() => {
-        fetchAdminConfig();
         checkConnectionStatus();
-    }, []);
+    }, [profile]); // Re-run when profile updates
 
-    const fetchAdminConfig = async () => {
-        // Busca a configuração global salva pelo Admin (is_admin = true)
-        const { data: adminProfiles, error } = await supabase
-            .from('profiles')
-            .select('whatsapp_api_url, whatsapp_api_key')
-            .eq('is_admin', true)
-            .limit(1);
+    // Polling de status quando estiver connecting
+    useEffect(() => {
+        let interval: NodeJS.Timeout;
 
-        if (adminProfiles && adminProfiles[0]) {
-            setAdminConfig({
-                url: adminProfiles[0].whatsapp_api_url || '',
-                key: adminProfiles[0].whatsapp_api_key || ''
-            });
+        if (status === 'connecting') {
+            interval = setInterval(async () => {
+                try {
+                    const { data } = await supabase.functions.invoke('whatsapp-proxy', {
+                        body: { action: 'update-status' }
+                    });
+
+                    if (data?.connected) {
+                        setStatus('connected');
+                        setShowSuccessModal(true);
+                        toast.success("WhatsApp Conectado com Sucesso!", {
+                            description: "A Gabi AI já está no comando e pronta para avisar seus clientes."
+                        });
+                    }
+                } catch (e) {
+                    console.error("Status check failed", e);
+                }
+            }, 5000); // Checa a cada 5 segundos
         }
-    };
+
+        return () => {
+            if (interval) clearInterval(interval);
+        };
+    }, [status]);
 
     const checkConnectionStatus = async () => {
-        if (profile?.whatsapp_instance_id && profile?.whatsapp_instance_token) {
-            // Aqui faríamos o polling na Evolution API para ver se está CONNECTED
-            // Por enquanto vamos simular ou olhar o banco
-            if (profile.whatsapp_status === 'connected') {
-                setStatus('connected');
-            }
+        if (profile?.whatsapp_status === 'connected') {
+            setStatus('connected');
+        } else if (profile?.whatsapp_status === 'connecting') {
+            setStatus('connecting');
+        } else {
+            setStatus('disconnected');
         }
     };
 
     const handleConnect = async () => {
-        if (!adminConfig?.url || !adminConfig?.key) {
-            toast.error("Configuração da Evolution API não localizada. Contate o suporte.");
-            return;
-        }
-
         setLoading(true);
         setStatus('connecting');
+        setQrCode(null);
 
         try {
-            // 1. Criar instância se não existir
-            // 2. Buscar QR Code
-            // 3. Salvar tokens no profile
+            const instanceId = profile?.company_name?.toLowerCase().replace(/\s/g, '_') || `user_${profile?.id?.substring(0, 8)}`;
 
-            const instanceName = profile?.company_name?.toLowerCase().replace(/\s/g, '_') || `user_${profile?.id?.substring(0, 8)}`;
-
-            const createResponse = await fetch(`${adminConfig.url}/instance/create`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'apikey': adminConfig.key
-                },
-                body: JSON.stringify({
-                    instanceName,
-                    token: Math.random().toString(36).substring(7),
-                    qrcode: true
-                })
+            const { data, error } = await supabase.functions.invoke('whatsapp-proxy', {
+                body: { action: 'create', instanceName: instanceId }
             });
 
-            const data = await createResponse.json();
+            if (error) throw error;
 
-            if (data.qrcode?.base64) {
-                setQrCode(data.qrcode.base64);
-
-                // Atualiza o profile localmente e no banco
-                await supabase
-                    .from('profiles')
-                    .update({
-                        whatsapp_instance_id: instanceName,
-                        whatsapp_instance_token: data.token,
-                        whatsapp_status: 'connecting'
-                    })
-                    .eq('id', profile?.id);
-
-                toast.success("QR Code gerado! Escaneie agora.");
-            } else if (data.status === 403 || data.status === 'error') {
-                // Talvez já exista, tentar buscar o QR
-                fetchQRCode(instanceName);
+            if (data?.qrcode?.base64 || data?.base64) {
+                setQrCode(data.qrcode?.base64 || data.base64);
+                toast.success("QR Code gerado! Escaneie agora.", {
+                    description: "Abra o WhatsApp > Aparelhos Conectados > Conectar Aparelho"
+                });
+            } else if (data?.instance?.state === 'open' || data?.instance?.status === 'open') {
+                // Already connected
+                setStatus('connected');
+                toast.success("Instância já conectada!");
+                // Force update profile locally if needed
+            } else {
+                console.error("WhatsApp Integration Error:", data); // Log full response
+                const errorMsg = data?.error || data?.message || JSON.stringify(data);
+                toast.error(`Não foi possível obter o QR Code.`, {
+                    description: `Detalhe: ${errorMsg}`
+                });
+                setStatus('disconnected');
             }
-        } catch (error) {
+
+        } catch (error: any) {
             console.error(error);
-            toast.error("Erro ao conectar com a Evolution API.");
+            toast.error("Erro ao conectar: " + (error.message || "Erro desconhecido"));
             setStatus('disconnected');
         } finally {
             setLoading(false);
         }
     };
 
-    const fetchQRCode = async (instanceName: string) => {
+    const handleForceRefresh = async () => {
+        setLoading(true);
         try {
-            const response = await fetch(`${adminConfig?.url}/instance/connect/${instanceName}`, {
-                headers: { 'apikey': adminConfig?.key || '' }
+            const { data } = await supabase.functions.invoke('whatsapp-proxy', {
+                body: { action: 'update-status' }
             });
-            const data = await response.json();
-            if (data.base64) {
-                setQrCode(data.base64);
+
+            if (data?.connected) {
+                setStatus('connected');
+                toast.success("Considerei conectado!");
+            } else {
+                toast.info("Ainda sincronizando... Verifique se o QR Code foi escaneado.");
             }
         } catch (e) {
-            toast.error("Erro ao recuperar QR Code.");
+            toast.error("Erro ao verificar status.");
+        } finally {
+            setLoading(false);
         }
     };
 
-    return (
-        <Card className="border-none shadow-xl bg-white dark:bg-zinc-900 rounded-[2rem] overflow-hidden">
-            <CardHeader className="p-8">
-                <div className="flex items-center gap-4">
-                    <div className={`p-3 rounded-2xl ${status === 'connected' ? 'bg-green-500/10 text-green-500' : 'bg-primary/10 text-primary'}`}>
-                        <MessageSquare size={24} />
-                    </div>
-                    <div>
-                        <CardTitle className="text-xl font-black uppercase italic tracking-tighter">Conexão WhatsApp</CardTitle>
-                        <CardDescription className="text-sm font-medium">Conecte sua empresa ao motor da Gabi AI.</CardDescription>
-                    </div>
-                </div>
-            </CardHeader>
-            <CardContent className="p-8 pt-0 space-y-6">
-                {status === 'connected' ? (
-                    <div className="flex flex-col items-center justify-center py-10 space-y-4 bg-green-500/5 rounded-[2rem] border border-green-500/20">
-                        <div className="p-4 bg-green-500 rounded-full text-white">
-                            <CheckCircle size={48} />
-                        </div>
-                        <div className="text-center">
-                            <h3 className="text-2xl font-black italic uppercase tracking-tighter text-green-600">Conectado!</h3>
-                            <p className="text-sm font-bold text-green-700/60 uppercase tracking-widest">A Gabi já pode falar com seus clientes.</p>
-                        </div>
-                        <Button variant="outline" className="mt-4 rounded-xl text-red-500 hover:text-red-600 border-red-200">
-                            Desconectar Aparelho
-                        </Button>
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-                        <div className="space-y-4">
-                            <div className="space-y-2">
-                                <h3 className="text-lg font-black uppercase italic tracking-tighter">Como conectar?</h3>
-                                <ol className="text-sm space-y-3 text-muted-foreground font-medium">
-                                    <li className="flex gap-3"><span className="flex-none w-5 h-5 bg-primary/10 text-primary rounded-full flex items-center justify-center text-[10px] font-black">1</span> Clique no botão para gerar o QR Code.</li>
-                                    <li className="flex gap-3"><span className="flex-none w-5 h-5 bg-primary/10 text-primary rounded-full flex items-center justify-center text-[10px] font-black">2</span> Abra o WhatsApp no seu celular.</li>
-                                    <li className="flex gap-3"><span className="flex-none w-5 h-5 bg-primary/10 text-primary rounded-full flex items-center justify-center text-[10px] font-black">3</span> Vá em Configurações {'>'} Aparelhos Conectados.</li>
-                                    <li className="flex gap-3"><span className="flex-none w-5 h-5 bg-primary/10 text-primary rounded-full flex items-center justify-center text-[10px] font-black">4</span> Aponte a câmera para o código ao lado.</li>
-                                </ol>
-                            </div>
+    const handleDisconnect = async () => {
+        setLoading(true);
+        try {
+            const { error } = await supabase.functions.invoke('whatsapp-proxy', {
+                body: { action: 'delete' }
+            });
+            if (error) throw error;
 
-                            {!qrCode && (
-                                <Button
-                                    onClick={handleConnect}
-                                    disabled={loading}
-                                    className="w-full h-14 rounded-2xl font-black uppercase tracking-widest text-sm shadow-xl hover:scale-[1.02] transition-all"
+            setStatus('disconnected');
+            setQrCode(null);
+            toast.success("Desconectado com sucesso.");
+        } catch (error: any) {
+            toast.error("Erro ao desconectar.");
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    if (!isPlus) {
+        return (
+            <div className="relative group overflow-hidden rounded-3xl">
+                <div className="absolute -inset-0.5 bg-gradient-to-r from-primary/10 via-zinc-500/10 to-primary/10 blur-xl opacity-30" />
+                <Card className="border-white/5 bg-zinc-950/90 backdrop-blur-2xl shadow-2xl overflow-hidden relative">
+                    <CardContent className="p-8 md:p-12 flex flex-col items-center text-center space-y-8">
+                        <div className="relative">
+                            <div className="w-24 h-24 rounded-[2rem] bg-zinc-900 border border-white/5 flex items-center justify-center relative overflow-hidden">
+                                <Bot className="w-12 h-12 text-primary drop-shadow-[0_0_15px_rgba(255,242,0,0.5)]" />
+                                <div className="absolute inset-0 bg-gradient-to-tr from-primary/5 to-transparent" />
+                            </div>
+                            <div className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-zinc-950 border border-white/10 flex items-center justify-center">
+                                <Zap className="w-4 h-4 text-zinc-500" />
+                            </div>
+                        </div>
+
+                        <div className="space-y-4 max-w-md">
+                            <Badge className="bg-primary/10 text-primary border-primary/20 rounded-full px-4 py-1 text-[10px] font-black uppercase tracking-widest mb-2">
+                                Gabi Engine • Feature de Elite
+                            </Badge>
+                            <h2 className="text-3xl md:text-5xl font-black italic uppercase tracking-tighter text-white leading-[0.9]">
+                                WhatsApp <br />
+                                <span className="text-primary shimmer-text italic">Plus Mode</span>
+                            </h2>
+                            <p className="text-zinc-400 text-sm md:text-md font-bold italic leading-relaxed">
+                                "Ei! Notei que você ainda não habilitou meu motor de envios. No WhatsApp Plus eu aviso seus clientes na hora, envio fotos dos pedidos e organizo sua comunicação sozinho."
+                            </p>
+                        </div>
+
+                        <div className="w-full h-px bg-white/5" />
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
+                            <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-1">
+                                <span className="text-primary flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-left">
+                                    <CheckCircle className="w-3 h-3" /> Envio Direto
+                                </span>
+                                <p className="text-[10px] text-zinc-500 font-medium text-left">Sem wa.me. Envie direto do sistema.</p>
+                            </div>
+                            <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-1">
+                                <span className="text-primary flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-left">
+                                    <CheckCircle className="w-3 h-3" /> Automação
+                                </span>
+                                <p className="text-[10px] text-zinc-500 font-medium text-left">A Gabi cuida de avisar o cliente.</p>
+                            </div>
+                        </div>
+
+                        <Button
+                            className="w-full h-16 bg-primary hover:bg-[#ffe600] text-black font-black uppercase tracking-widest rounded-2xl transition-all hover:scale-[1.02] active:scale-[0.98] shadow-[0_15px_30px_-10px_rgba(255,242,0,0.3)] gap-3 group/btn"
+                            onClick={() => setIsUpgradeModalOpen(true)}
+                        >
+                            <Crown className="w-5 h-5 fill-black" />
+                            Quero o WhatsApp Plus Agora
+                            <ArrowRight className="w-5 h-5 group-hover/btn:translate-x-1 transition-transform" />
+                        </Button>
+
+                        <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-[0.2em] flex items-center gap-2">
+                            Indisponível no Plano Atual
+                        </p>
+                    </CardContent>
+                </Card>
+
+                <SubscriptionModal
+                    open={isUpgradeModalOpen}
+                    onOpenChange={setIsUpgradeModalOpen}
+                />
+            </div>
+        );
+    }
+
+    return (
+        <div className="relative group">
+            <div className={cn(
+                "absolute -inset-0.5 bg-gradient-to-r from-emerald-500/30 via-green-500/30 to-teal-500/30 blur-xl opacity-30 transition-opacity duration-1000",
+                status === 'connected' ? "opacity-50" : "opacity-30"
+            )} />
+
+            <Card className="border-zinc-200 dark:border-white/5 bg-white dark:bg-zinc-950/80 backdrop-blur-xl shadow-xl overflow-hidden relative rounded-3xl">
+                <div className="absolute top-0 right-0 p-3 opacity-5 pointer-events-none">
+                    <MessageSquare className="w-24 h-24 text-zinc-900 dark:text-white" />
+                </div>
+
+                <CardContent className="p-6 md:p-10 space-y-8">
+                    {/* Header styled like SmartGoalCard */}
+                    <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
+                        <div className="relative group/bot">
+                            <div className={cn(
+                                "p-4 rounded-[2rem] border transition-all duration-500",
+                                status === 'connected'
+                                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-500 scale-110 shadow-[0_0_30px_rgba(16,185,129,0.2)]"
+                                    : "bg-zinc-900 border-white/5 text-zinc-500"
+                            )}>
+                                <Bot className="w-10 h-10" />
+                            </div>
+                            {status === 'connected' && (
+                                <motion.div
+                                    initial={{ scale: 0 }}
+                                    animate={{ scale: 1 }}
+                                    className="absolute -top-2 -right-2 bg-emerald-500 text-white rounded-full p-1.5 border-4 border-zinc-950"
                                 >
-                                    {loading ? <Loader2 className="animate-spin mr-2" /> : <QrCode className="mr-2" />}
-                                    Gerar QR Code de Conexão
-                                </Button>
+                                    <Zap className="w-3 h-3 fill-current" />
+                                </motion.div>
                             )}
                         </div>
 
-                        <div className="flex flex-col items-center justify-center p-6 bg-zinc-50 dark:bg-zinc-800/50 rounded-[2.5rem] border-2 border-dashed border-zinc-200 dark:border-zinc-800 min-h-[300px]">
-                            {qrCode ? (
-                                <div className="relative p-4 bg-white rounded-3xl shadow-2xl">
-                                    <img src={qrCode} alt="WhatsApp QR Code" className="w-64 h-64 rounded-xl" />
-                                    <div className="absolute inset-x-0 -bottom-10 text-center">
-                                        <Button variant="link" size="sm" onClick={handleConnect} className="text-[10px] font-black uppercase italic tracking-widest">
-                                            <RefreshCw size={12} className="mr-1" /> Atualizar Código
-                                        </Button>
+                        <div className="text-center md:text-left space-y-2 flex-1">
+                            <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
+                                <Badge className="bg-primary/10 text-primary border-primary/20 rounded-full px-3 py-0.5 text-[9px] font-black uppercase tracking-widest">
+                                    Gabi Engine V2
+                                </Badge>
+                                {isWhatsAppGifted && (
+                                    <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 rounded-full px-3 py-0.5 text-[9px] font-black uppercase tracking-widest flex items-center gap-1">
+                                        <Gift className="w-3 h-3" /> Presente Ativo
+                                    </Badge>
+                                )}
+                            </div>
+                            <h2 className="text-3xl font-black italic uppercase tracking-tighter text-zinc-900 dark:text-white">
+                                {status === 'connected' ? "BOT ATIVO NO COMANDO" : "CONEXÃO DA INTELIGÊNCIA"}
+                            </h2>
+                            <p className="text-zinc-500 dark:text-zinc-400 text-sm font-bold italic leading-tight max-w-md">
+                                {status === 'connected'
+                                    ? "👋 Ei! Gabi aqui. Estou conectada e pronta para automatizar seus avisos de pedido."
+                                    : "👋 Olá! Sou a Gabi. Preciso que você conecte o WhatsApp para que eu possa falar com seus clientes."}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="p-5 rounded-2xl bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-100 dark:border-white/5 space-y-3">
+                            <div className="flex items-center gap-2 text-primary">
+                                <ShieldCheck className="w-4 h-4" />
+                                <span className="text-[10px] font-black uppercase tracking-widest">Segurança</span>
+                            </div>
+                            <p className="text-[11px] text-zinc-500 font-medium tracking-tight">Instância criptografada e dedicada.</p>
+                        </div>
+                        <div className="p-5 rounded-2xl bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-100 dark:border-white/5 space-y-3">
+                            <div className="flex items-center gap-2 text-primary">
+                                <Smartphone className="w-4 h-4" />
+                                <span className="text-[10px] font-black uppercase tracking-widest">Multi-Device</span>
+                            </div>
+                            <p className="text-[11px] text-zinc-500 font-medium tracking-tight">Use no PC e Celular simultaneamente.</p>
+                        </div>
+                        <div className="p-5 rounded-2xl bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-100 dark:border-white/5 space-y-3">
+                            <div className="flex items-center gap-2 text-primary">
+                                <Star className="w-4 h-4" />
+                                <span className="text-[10px] font-black uppercase tracking-widest">Gabi AI</span>
+                            </div>
+                            <p className="text-[11px] text-zinc-500 font-medium tracking-tight">Lógica inteligente de avisos inclusa.</p>
+                        </div>
+                    </div>
+
+                    {/* Connection Area */}
+                    <div className="pt-4 border-t border-zinc-200 dark:border-white/5">
+                        {status === 'connected' ? (
+                            <div className="flex flex-col md:flex-row items-center justify-between gap-6 p-6 rounded-2xl bg-emerald-500/5 border border-emerald-500/20">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-full bg-emerald-500 flex items-center justify-center text-white shadow-lg">
+                                        <CheckCircle className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <p className="text-zinc-900 dark:text-white font-black italic uppercase tracking-tighter text-xl">SISTEMA ONLINE</p>
+                                        <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest">Pronto para a ação</p>
                                     </div>
                                 </div>
-                            ) : (
-                                <div className="text-center space-y-4 opacity-30">
-                                    <QrCode size={80} className="mx-auto" />
-                                    <p className="text-xs font-black uppercase tracking-[0.2em]">Aguardando Geração</p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )}
+                                <Button
+                                    variant="outline"
+                                    onClick={handleDisconnect}
+                                    disabled={loading}
+                                    className="h-12 px-6 rounded-xl border-red-500/20 text-red-500 hover:bg-red-500 hover:text-white font-black uppercase tracking-widest text-xs transition-all"
+                                >
+                                    {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                                    Resetar Conexão
+                                </Button>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center space-y-6">
+                                {qrCode ? (
+                                    <div className="flex flex-col items-center text-center space-y-6 animate-in fade-in zoom-in duration-500">
+                                        <div className="relative group/qr p-4 bg-white rounded-3xl shadow-2xl">
+                                            <div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full opacity-50 group-hover:opacity-100 transition-opacity" />
+                                            <img
+                                                src={qrCode}
+                                                alt="WhatsApp QR Code"
+                                                className="w-48 h-48 md:w-64 md:h-64 relative z-10"
+                                            />
+                                        </div>
+                                        <div className="max-w-xs">
+                                            <p className="text-zinc-900 dark:text-white font-black italic uppercase tracking-widest text-sm mb-2">QR CODE PRONTO ✨</p>
+                                            <p className="text-zinc-500 text-[11px] font-bold leading-tight">
+                                                Abra o WhatsApp no seu celular {'>'} Aparelhos Conectados {'>'} Conectar um Aparelho.
+                                            </p>
+                                        </div>
+                                        <Button
+                                            variant="ghost"
+                                            onClick={handleConnect}
+                                            className="text-zinc-400 hover:text-white uppercase font-black text-[10px] tracking-widest"
+                                        >
+                                            Tive um problema, gerar novo QR Code
+                                        </Button>
+                                    </div>
+                                ) : (
+                                    <div className="w-full flex flex-col items-center py-8 space-y-4">
+                                        <Button
+                                            onClick={handleConnect}
+                                            disabled={loading || status === 'connecting'}
+                                            className="w-full max-w-sm h-16 bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 font-black uppercase tracking-[0.2em] rounded-2xl hover:scale-[1.02] transition-all shadow-xl group/btn overflow-hidden relative"
+                                        >
+                                            <span className="relative z-10 flex items-center gap-3">
+                                                {status === 'connecting' ? "SINCRONIZANDO..." : "CONECTAR AO MOTOR GABI"}
+                                                {status === 'connecting' ? <Loader2 className="w-5 h-5 animate-spin" /> : <QrCode className="w-5 h-5 group-hover/btn:rotate-12 transition-transform" />}
+                                            </span>
+                                            {status === 'connecting' && (
+                                                <div className="absolute inset-0 bg-primary/20 animate-pulse" />
+                                            )}
+                                        </Button>
 
-                <div className="p-4 bg-amber-500/10 rounded-2xl border border-amber-500/20 flex gap-4">
-                    <AlertCircle className="text-amber-500 shrink-0" size={20} />
-                    <p className="text-[11px] font-medium text-amber-700 leading-relaxed">
-                        <strong>Atenção:</strong> Mantenha seu celular conectado à internet para que a Gabi AI possa enviar as mensagens em seu nome. A conexão é segura e transparente.
-                    </p>
-                </div>
-            </CardContent>
-        </Card>
+                                        {status === 'connecting' && (
+                                            <div className="flex flex-col items-center space-y-2">
+                                                <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest italic animate-pulse">
+                                                    Estabelecendo Handshake com Evolução...
+                                                </p>
+                                                <div className="flex gap-4">
+                                                    <Button
+                                                        variant="link"
+                                                        size="sm"
+                                                        onClick={handleForceRefresh}
+                                                        className="text-[9px] text-zinc-400 hover:text-primary uppercase font-black"
+                                                    >
+                                                        Verificar Agora
+                                                    </Button>
+                                                    <Button
+                                                        variant="link"
+                                                        size="sm"
+                                                        onClick={handleDisconnect}
+                                                        className="text-[9px] text-red-400 hover:text-red-500 uppercase font-black"
+                                                    >
+                                                        Cancelar e Resetar
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {!loading && status === 'disconnected' && (
+                                            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest italic">
+                                                Pronto para gerar instância segura
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </CardContent>
+            </Card>
+
+            <GabiSuccessModal
+                isOpen={showSuccessModal}
+                onClose={() => setShowSuccessModal(false)}
+            />
+        </div>
     );
 }

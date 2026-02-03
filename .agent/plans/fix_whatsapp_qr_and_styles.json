@@ -1,0 +1,26 @@
+[
+    {
+        "title": "Atualizar Admin.tsx com Indicador de Status",
+        "description": "Adicionar um botão 'Testar Conexão' e um indicador visual (LED verde/vermelho) na aba 'Evolution API' do Admin. Isso permitirá verificar se a URL e a API Key globais estão corretas chamando o endpoint de status do proxy.",
+        "file_paths": [
+            "C:\\Users\\Direct\\Videos\\DIRECT-AI-GB-1\\src\\pages\\Admin.tsx"
+        ]
+    },
+    {
+        "title": "Corrigir e Melhorar Proxy WhatsApp",
+        "description": "Atualizar a função 'whatsapp-proxy' para incluir um endpoint de 'check-connection' que valida as credenciais contra a Evolution API. Também adicionar logs mais detalhados para capturar falhas de criação de instância.",
+        "file_paths": [
+            "C:\\Users\\Direct\\Videos\\DIRECT-AI-GB-1\\supabase\\functions\\whatsapp-proxy\\index.ts"
+        ]
+    },
+    {
+        "title": "Deploy da Função Proxy Atualizada",
+        "description": "Fazer o deploy da função proxy atualizada para efetivar as correções.",
+        "file_paths": []
+    },
+    {
+        "title": "Verificar URL da Evolution API",
+        "description": "Confirmar se a URL salva no banco (https://evodirectai-evolution.ztq2ue.easypanel.host) está acessível e correta. Observação: URLs do Easypanel às vezes precisam de porta ou configuração específica de proxy reverso.",
+        "file_paths": []
+    }
+]

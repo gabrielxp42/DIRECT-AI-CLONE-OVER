@@ -324,7 +324,7 @@ export const CALCULADORA_TOUR: TutorialStep[] = [
     {
         targetId: 'calculator-finalize',
         title: 'Finalização e Rapidez',
-        description: 'Gere um resumo detalhado para o WhatsApp ou baixe a imagem do preview para o seu cliente.',
+        description: 'Gere um resumo detalhado para seu cliente. Se o seu WhatsApp estiver conectado, enviamos direto! Caso contrário, geramos o link ou o resumo para você copiar.',
         position: 'top'
     }
 ];

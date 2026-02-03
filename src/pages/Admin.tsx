@@ -70,6 +70,8 @@ type AdminProfile = {
     is_admin: boolean;
     created_at: string;
     is_gifted_plan?: boolean;
+    is_whatsapp_plus_active?: boolean;
+    is_whatsapp_plus_gifted?: boolean;
     subscription_gift_viewed?: boolean;
     pedidos_count?: number;
     clientes_count?: number;
@@ -240,7 +242,9 @@ export default function Admin() {
             subscription_tier: user.subscription_tier,
             trial_start_date: user.trial_start_date,
             daily_ai_count: user.daily_ai_count,
-            is_gifted_plan: user.is_gifted_plan || false
+            is_gifted_plan: user.is_gifted_plan || false,
+            is_whatsapp_plus_active: (user as any).is_whatsapp_plus_active || false,
+            is_whatsapp_plus_gifted: (user as any).is_whatsapp_plus_gifted || false
         });
         fetchUserStats(user.id);
         setIsDetailOpen(true);
@@ -484,7 +488,7 @@ export default function Admin() {
                                             <TableCell className="p-6">
                                                 {user.subscription_status === 'active' ? (
                                                     <Badge className="bg-emerald-500/10 text-emerald-500 border-none rounded-lg px-3 py-1 font-black uppercase text-[10px]">
-                                                        Ativo {user.is_gifted_plan && "🎁"}
+                                                        Ativo {user.is_gifted_plan && "🎁"} {user.is_whatsapp_plus_active && "⚡"}
                                                     </Badge>
                                                 ) : (
                                                     <Badge variant="secondary" className="bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border-none rounded-lg px-3 py-1 font-black uppercase text-[10px]">
@@ -560,9 +564,19 @@ export default function Admin() {
                                 <div className="p-3 bg-green-500/10 rounded-2xl text-green-500">
                                     <Activity size={24} />
                                 </div>
-                                <div>
+                                <div className="flex-1">
                                     <CardTitle className="text-2xl font-black uppercase italic tracking-tighter">Motor de WhatsApp</CardTitle>
                                     <CardDescription>Configure as credenciais globais da Evolution API v2.</CardDescription>
+                                </div>
+                                {/* CONNECTION STATUS LED */}
+                                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700">
+                                    <div className={`w-3 h-3 rounded-full ${stats.mrr === -1 ? 'bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]' :
+                                        stats.mrr === 1 ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' :
+                                            'bg-zinc-400'
+                                        }`} />
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                                        {stats.mrr === -1 ? 'FALHA DE CONEXÃO' : stats.mrr === 1 ? 'API ONLINE' : 'STATUS DESCONHECIDO'}
+                                    </span>
                                 </div>
                             </div>
                         </CardHeader>
@@ -572,7 +586,7 @@ export default function Admin() {
                                     <label className="text-xs font-black uppercase tracking-widest text-muted-foreground">URL da API (Koyeb/Seu Link)</label>
                                     <Input
                                         placeholder="https://sua-api.koyeb.app"
-                                        className="h-12 rounded-xl"
+                                        className="h-12 rounded-xl border-zinc-200 dark:border-zinc-800"
                                         id="global_evolution_url"
                                         defaultValue={users.find(u => u.is_admin)?.whatsapp_api_url || ''}
                                     />
@@ -584,7 +598,7 @@ export default function Admin() {
                                         <Input
                                             type="password"
                                             placeholder="Sua_Chave_Secreta"
-                                            className="h-12 rounded-xl flex-1"
+                                            className="h-12 rounded-xl flex-1 border-zinc-200 dark:border-zinc-800"
                                             id="global_evolution_key"
                                             defaultValue={users.find(u => u.is_admin)?.whatsapp_api_key || ''}
                                         />
@@ -593,9 +607,39 @@ export default function Admin() {
                                 </div>
                             </div>
 
-                            <div className="pt-4 flex justify-end">
+                            <div className="pt-4 flex justify-end gap-3">
                                 <Button
-                                    className="rounded-2xl h-12 px-8 font-black uppercase tracking-widest shadow-lg shadow-green-500/20 bg-green-500 hover:bg-green-600"
+                                    variant="outline"
+                                    className="rounded-2xl h-12 px-6 font-black uppercase tracking-widest border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                                    onClick={async () => {
+                                        toast.info("Testando conexão...");
+                                        try {
+                                            const { data, error } = await supabase.functions.invoke('whatsapp-proxy', {
+                                                body: { action: 'check-connection' }
+                                            });
+
+                                            if (error) throw error;
+
+                                            if (data?.status === 'ok') {
+                                                toast.success("Conexão com Evolution API Estabelecida!");
+                                                setStats(s => ({ ...s, mrr: 1 }));
+                                            } else {
+                                                const msg = data?.message || data?.error || "Resposta inválida da API";
+                                                const details = data?.details ? (typeof data.details === 'object' ? JSON.stringify(data.details) : data.details) : "";
+                                                throw new Error(`${msg} ${details}`);
+                                            }
+                                        } catch (e: any) {
+                                            console.error(e);
+                                            toast.error("Falha na conexão: " + e.message);
+                                            setStats(s => ({ ...s, mrr: -1 })); // Hack: using MRR field for status
+                                        }
+                                    }}
+                                >
+                                    <RefreshCw className="mr-2 h-4 w-4" /> Testar Conexão
+                                </Button>
+
+                                <Button
+                                    className="rounded-2xl h-12 px-8 font-black uppercase tracking-widest shadow-lg shadow-green-500/20 bg-green-500 hover:bg-green-600 outline-none ring-0 border-0"
                                     onClick={async () => {
                                         const url = (document.getElementById('global_evolution_url') as HTMLInputElement).value;
                                         const key = (document.getElementById('global_evolution_key') as HTMLInputElement).value;
@@ -627,11 +671,11 @@ export default function Admin() {
 
                             <Separator className="my-8" />
 
-                            <div className="bg-muted/30 p-6 rounded-3xl space-y-4">
-                                <h4 className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
-                                    <ShieldAlert size={16} className="text-amber-500" /> Notas de Segurança
+                            <div className="bg-amber-500/5 border border-amber-500/20 p-6 rounded-3xl space-y-4">
+                                <h4 className="text-sm font-black uppercase tracking-widest flex items-center gap-2 text-amber-600">
+                                    <ShieldAlert size={16} /> Notas de Segurança
                                 </h4>
-                                <ul className="text-xs space-y-2 text-muted-foreground font-medium">
+                                <ul className="text-xs space-y-2 text-amber-700/80 font-medium">
                                     <li>• Estas credenciais são **GLOBAIS** e usadas para criar instâncias para novos clientes.</li>
                                     <li>• Apenas administradores do DIRECT AI têm acesso a esta aba.</li>
                                     <li>• Certifique-se de que a Evolution API está com o Cache Redis ativado para melhor estabilidade.</li>
@@ -783,15 +827,38 @@ export default function Admin() {
                             </div>
 
                             {editForm.subscription_status === 'active' && (
-                                <div className="flex items-center gap-3 p-4 bg-primary/5 rounded-2xl border border-primary/20">
-                                    <input
-                                        type="checkbox"
-                                        id="gifted"
-                                        checked={editForm.is_gifted_plan}
-                                        onChange={(e) => setEditForm(p => ({ ...p, is_gifted_plan: e.target.checked }))}
-                                        className="w-5 h-5 rounded-md accent-primary"
-                                    />
-                                    <label htmlFor="gifted" className="text-sm font-black uppercase italic">Considerar como Presente (Gift)</label>
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-3 p-4 bg-primary/5 rounded-2xl border border-primary/20">
+                                        <input
+                                            type="checkbox"
+                                            id="gifted"
+                                            checked={editForm.is_gifted_plan}
+                                            onChange={(e) => setEditForm(p => ({ ...p, is_gifted_plan: e.target.checked }))}
+                                            className="w-5 h-5 rounded-md accent-primary"
+                                        />
+                                        <label htmlFor="gifted" className="text-sm font-black uppercase italic">Considerar como Presente (Gift)</label>
+                                    </div>
+
+                                    <div className="flex items-center gap-3 p-4 bg-emerald-500/5 rounded-2xl border border-emerald-500/20">
+                                        <input
+                                            type="checkbox"
+                                            id="wa_plus"
+                                            checked={editForm.is_whatsapp_plus_active}
+                                            onChange={(e) => {
+                                                const checked = e.target.checked;
+                                                setEditForm(p => ({
+                                                    ...p,
+                                                    is_whatsapp_plus_active: checked,
+                                                    is_whatsapp_plus_gifted: checked
+                                                }));
+                                            }}
+                                            className="w-5 h-5 rounded-md accent-emerald-500"
+                                        />
+                                        <div className="flex flex-col">
+                                            <label htmlFor="wa_plus" className="text-sm font-black uppercase italic text-emerald-600">Poder WhatsApp Plus (Gift)</label>
+                                            <span className="text-[10px] text-zinc-500 font-medium uppercase tracking-widest">Libera o motor da Gabi Engine</span>
+                                        </div>
+                                    </div>
                                 </div>
                             )}
                         </div>

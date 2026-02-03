@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, X, MessageCircle, ExternalLink } from 'lucide-react';
+import { Sparkles, X, MessageCircle, ExternalLink, Bot, Crown } from 'lucide-react';
 import { useSession } from '@/contexts/SessionProvider';
 import {
     Accordion,
@@ -14,12 +14,18 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useClientes, usePedidos, useInsumos } from '@/hooks/useDataFetch';
+import { useToast } from "@/hooks/use-toast";
+import { GabiActionDialog } from './GabiActionDialog';
+import { useIsPlusMode } from '@/hooks/useIsPlusMode';
 
 // Interface para Insights Estruturados
 interface InsightAction {
     label: string;
     url?: string;
     type: 'whatsapp' | 'link' | 'action';
+    directMessage?: string; // Mensagem pronta para envio direto
+    actionType?: 'billing' | 'offer' | 'generic'; // Tipo da ação para estilização do dialog
+    phone?: string; // Telefone formatado para envio direto (evita parsing de URL)
 }
 
 interface InsightItem {
@@ -27,10 +33,25 @@ interface InsightItem {
     text: string;
     type: 'alert' | 'success' | 'info' | 'warning';
     action?: InsightAction;
+    aiAction?: {
+        message: string;
+    };
 }
 
 export const AIMessagesWidget: React.FC = () => {
-    const { session } = useSession();
+    const { session, supabase } = useSession();
+    const [selectedAction, setSelectedAction] = useState<{ message: string, type: 'billing' | 'offer' | 'generic', customerName: string, phone: string } | null>(null);
+    const [isActionLoading, setIsActionLoading] = useState(false);
+    const { toast } = useToast();
+    const { canSendDirectly: isPlusMode } = useIsPlusMode();
+
+    // Importar useAIAssistant dinamicamente ou usar window event dispatch se não estiver dentro do provider
+    // Como o widget está no dashboard, assumimos que está dentro do provider principal ou usaremos dispatch direto
+    // Para simplificar e evitar erro de hook fora de contexto se o widget for usado isoladamente:
+    const triggerAI = (msg: string) => {
+        // Disparar evento global que o AIAssistant escuta
+        window.dispatchEvent(new CustomEvent('trigger-ai-message', { detail: msg }));
+    };
     const isMobile = useIsMobile();
     const navigate = useNavigate();
     const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => {
@@ -118,9 +139,14 @@ export const AIMessagesWidget: React.FC = () => {
                 .forEach((cliente: any, idx) => {
                     if (cliente.dias >= 3) {
                         const isUrgent = cliente.dias >= 7;
-                        const phone = cliente.telefone?.replace(/\D/g, '');
+                        let phone = cliente.telefone?.replace(/\D/g, '');
+                        // Garantir formato 55...
+                        if (phone && phone.length >= 10 && !phone.startsWith('55')) {
+                            phone = `55${phone}`;
+                        }
+
                         const message = `Olá ${cliente.nome}, tudo bem? Vi que o pedido #${cliente.orderNumber} (R$ ${cliente.valor.toFixed(2)}) ainda está pendente. Podemos ajudar com algo?`;
-                        const whatsappLink = phone ? `https://wa.me/55${phone}?text=${encodeURIComponent(message)}` : undefined;
+                        const whatsappLink = phone ? `https://wa.me/${phone}?text=${encodeURIComponent(message)}` : undefined;
 
                         newInsights.push({
                             id: `billing-${idx}`,
@@ -129,10 +155,17 @@ export const AIMessagesWidget: React.FC = () => {
                                 ? `🚨 **${cliente.nome}** está há **${cliente.dias} dias** sem pagar o pedido #${cliente.orderNumber} (R$ ${cliente.valor.toFixed(2)})!`
                                 : `⚠️ **${cliente.nome}** tem pedido #${cliente.orderNumber} pendente há ${cliente.dias} dias.`,
                             action: whatsappLink ? {
-                                label: 'Cobrar no WhatsApp',
+                                label: 'Cobrar agora',
                                 url: whatsappLink,
-                                type: 'whatsapp'
-                            } : undefined
+                                type: 'action', // Alterado para action
+                                directMessage: message, // Prepara envio direto
+                                actionType: 'billing',
+                                phone: phone // Passando telefone limpo e formatado diretamente
+                            } : undefined,
+                            // Dados extras para ação da IA (MANTIDO para compatibilidade, mas a ação principal agora é o botão direto)
+                            aiAction: {
+                                message: `Use a ferramenta 'send_whatsapp_message' para enviar uma mensagem de cobrança amigável para o cliente ${cliente.nome} (Telefone: ${cliente.telefone || 'Desconhecido'}) referente ao pedido #${cliente.orderNumber} no valor de R$ ${cliente.valor.toFixed(2)}. Diga que estamos aguardando o pagamento. NÃO altere o status do pedido. Apenas envie a mensagem.`
+                            }
                         });
                     }
                 });
@@ -150,7 +183,11 @@ export const AIMessagesWidget: React.FC = () => {
 
             if (vipsInativos.length > 0) {
                 const vip = vipsInativos[0];
-                const phone = vip.telefone?.replace(/\D/g, '');
+                let phone = vip.telefone?.replace(/\D/g, '');
+                if (phone && phone.length >= 10 && !phone.startsWith('55')) {
+                    phone = `55${phone}`;
+                }
+
                 const message = `Olá ${vip.nome}! Sentimos sua falta. Que tal aproveitar nossas ofertas da semana?`;
 
                 newInsights.push({
@@ -159,9 +196,15 @@ export const AIMessagesWidget: React.FC = () => {
                     text: `💎 **${vip.nome}** é cliente VIP mas não compra há dias. Ofereça um desconto!`,
                     action: phone ? {
                         label: 'Enviar Oferta',
-                        url: `https://wa.me/55${phone}?text=${encodeURIComponent(message)}`,
-                        type: 'whatsapp'
-                    } : undefined
+                        url: `https://wa.me/${phone}?text=${encodeURIComponent(message)}`,
+                        type: 'action',
+                        directMessage: message,
+                        actionType: 'offer',
+                        phone: phone
+                    } : undefined,
+                    aiAction: {
+                        message: `Use a ferramenta 'send_whatsapp_message' para enviar uma oferta especial para o cliente VIP ${vip.nome} (Telefone: ${vip.telefone || 'Desconhecido'}) que não compra há dias. Ofereça um desconto atrativo e diga que sentimos falta dele! NÃO altere status de nenhum pedido.`
+                    }
                 });
             }
         }
@@ -237,6 +280,80 @@ export const AIMessagesWidget: React.FC = () => {
         });
     }, [clientes, pedidos, insumos, loading, session?.user?.id]);
 
+    const handleActionClickMain = (e: React.MouseEvent, item: InsightItem) => {
+        e.stopPropagation();
+        if (item.action?.type === 'action' && item.action.directMessage) {
+            // Extrair nome do cliente
+            let customerName = "Cliente";
+            const nameMatch = item.text.match(/\*\*(.*?)\*\*/);
+            if (nameMatch) customerName = nameMatch[1];
+
+            // Tentar usar o telefone formatado direto do objeto de ação
+            let phone = item.action.phone || "";
+
+            // Fallback: Extrair telefone do URL se não houver no objeto (legado/outros casos)
+            if (!phone) {
+                if (item.action.url && item.action.url.includes('phone=')) {
+                    phone = item.action.url.split('phone=')[1]?.split('&')[0];
+                } else if (item.action.url && item.action.url.includes('wa.me/')) {
+                    phone = item.action.url.split('wa.me/')[1]?.split('?')[0];
+                }
+            }
+
+            console.log("Gabi Action Clicked:", { customerName, phone, message: item.action.directMessage });
+
+            setSelectedAction({
+                message: item.action.directMessage,
+                type: item.action.actionType || 'generic',
+                customerName: customerName,
+                phone: phone
+            });
+        } else if (item.action?.type === 'whatsapp') {
+            window.open(item.action.url, '_blank');
+        } else if (item.action?.url) {
+            navigate(item.action.url);
+        }
+    };
+
+    const handleConfirmActionMain = async () => {
+        if (!selectedAction) return;
+        setIsActionLoading(true);
+
+        try {
+            // Chamada à Edge Function whatsapp-proxy
+            const { data, error } = await supabase.functions.invoke('whatsapp-proxy', {
+                body: {
+                    action: 'send-text',
+                    phone: selectedAction.phone,
+                    message: selectedAction.message
+                }
+            });
+
+            if (error) throw error;
+            if (!data || !data.success) throw new Error(data?.message || 'Erro ao enviar mensagem');
+
+            toast({
+                title: "Sucesso! 🚀",
+                description: `Mensagem enviada para ${selectedAction.customerName}.`,
+                duration: 3000,
+                className: "bg-green-500 text-white border-0"
+            });
+
+            setSelectedAction(null);
+        } catch (err: any) {
+            console.error('Erro no envio:', err);
+            toast({
+                title: "Erro no envio ❌",
+                description: "Não foi possível enviar automaticamente. Abrindo WhatsApp Web...",
+                variant: "destructive",
+            });
+            // Fallback
+            setSelectedAction(null);
+        } finally {
+            setIsActionLoading(false);
+        }
+    };
+
     const handleDismiss = (id: string) => {
         setDismissedIds(prev => {
             const newSet = new Set(prev).add(id);
@@ -308,24 +425,69 @@ export const AIMessagesWidget: React.FC = () => {
                                     __html: item.text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
                                 }} />
 
-                                {item.action && (
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="w-fit h-8 text-xs gap-2 bg-background/50 hover:bg-background"
-                                        onClick={() => {
-                                            if (item.action?.type === 'whatsapp') {
-                                                window.open(item.action.url, '_blank');
-                                            } else if (item.action?.url) {
-                                                navigate(item.action.url);
-                                            }
-                                        }}
-                                    >
-                                        {item.action.type === 'whatsapp' && <MessageCircle className="h-3 w-3 text-green-500" />}
-                                        {item.action.label}
-                                        <ExternalLink className="h-3 w-3 opacity-50" />
-                                    </Button>
-                                )}
+                                <div className="flex gap-2 flex-wrap items-center mt-1">
+                                    {item.action && item.action.type !== 'action' && (
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="h-8 text-xs gap-2 bg-background/50 hover:bg-background border-zinc-200 dark:border-zinc-800"
+                                            onClick={(e) => {
+                                                e.stopPropagation(); // Previne que o clique dispare o drag ou outros eventos do pai
+                                                if (item.action?.type === 'whatsapp') {
+                                                    window.open(item.action.url, '_blank');
+                                                } else if (item.action?.url) {
+                                                    navigate(item.action.url);
+                                                }
+                                            }}
+                                        >
+                                            {item.action.type === 'whatsapp' && <MessageCircle className="h-3.5 w-3.5 text-green-500" />}
+                                            {item.action.label}
+                                            <ExternalLink className="h-3 w-3 opacity-50" />
+                                        </Button>
+                                    )}
+
+                                    {/* Botão AI Action - Condicional baseado no Plus Mode */}
+                                    {item.aiAction && (
+                                        isPlusMode ? (
+                                            /* PLUS MODE: Botão Gabi Premium - Abre Dialog */
+                                            <div className="relative group rounded-lg p-[1px] bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] shadow-sm hover:shadow-md transition-all cursor-pointer"
+                                                onClick={(e) => {
+                                                    if (item.action?.type === 'action') {
+                                                        handleActionClickMain(e, item);
+                                                    } else {
+                                                        e.stopPropagation();
+                                                        triggerAI(item.aiAction!.message);
+                                                    }
+                                                }}>
+                                                <div className="absolute inset-0 bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] opacity-20 blur-sm rounded-lg group-hover:opacity-40 transition-opacity" />
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    className="relative h-8 text-xs gap-2 bg-slate-950/90 text-white hover:bg-slate-900 border-0 hover:text-white w-full"
+                                                >
+                                                    <Sparkles className="h-3.5 w-3.5 text-[#ffd93d]" />
+                                                    {item.action?.actionType === 'offer' ? "DEIXAR A GABI OFERECER O DESCONTO ⚡" : "DEIXAR A GABI COBRAR 👊🏽"}
+                                                </Button>
+                                            </div>
+                                        ) : (
+                                            /* NORMAL MODE: Botão WhatsApp Verde - Abre Link */
+                                            <Button
+                                                size="sm"
+                                                className="h-8 text-xs gap-2 bg-[#25D366] hover:bg-[#20BA5C] text-white border-0 shadow-sm"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (item.action?.url) {
+                                                        window.open(item.action.url, '_blank');
+                                                    }
+                                                }}
+                                            >
+                                                <MessageCircle className="h-3.5 w-3.5" />
+                                                {item.action?.actionType === 'offer' ? "Enviar Oferta" : "Enviar Cobrança"}
+                                                <ExternalLink className="h-3 w-3 opacity-70" />
+                                            </Button>
+                                        )
+                                    )}
+                                </div>
                             </div>
 
                             <motion.button
@@ -338,8 +500,9 @@ export const AIMessagesWidget: React.FC = () => {
                             </motion.button>
                         </Card>
                     </motion.div>
-                )}
-            </AnimatePresence>
+                )
+                }
+            </AnimatePresence >
         );
     };
 
@@ -408,6 +571,18 @@ export const AIMessagesWidget: React.FC = () => {
                 </div>
             </div>
             <Content />
+            {/* Renderizar o Dialog na raiz do Widget para garantir que não seja afetado pelo overflow ou layout dos cards */}
+            {selectedAction && (
+                <GabiActionDialog
+                    isOpen={!!selectedAction}
+                    onOpenChange={(open) => !open && setSelectedAction(null)}
+                    customerName={selectedAction.customerName}
+                    messagePreview={selectedAction.message}
+                    onConfirm={handleConfirmActionMain}
+                    isLoading={isActionLoading}
+                    actionType={selectedAction.type}
+                />
+            )}
         </div>
     );
 };

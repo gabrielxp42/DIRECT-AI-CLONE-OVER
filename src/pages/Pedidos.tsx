@@ -12,6 +12,7 @@ import { DTFCalculatorModal } from '@/components/DTFCalculatorModal';
 import { PedidoDetails } from '@/components/PedidoDetails';
 import { EmptyState } from '@/components/EmptyState';
 import { showSuccess, showError } from '@/utils/toast';
+import { generateOrderPDFBase64 } from '@/utils/pdfGenerator';
 import {
   Dialog,
   DialogContent,
@@ -61,6 +62,8 @@ import { motion } from 'framer-motion';
 import { toPng, toBlob } from 'html-to-image';
 import { Share2, Copy, Download, Image as ImageIcon } from 'lucide-react';
 import { logger } from '@/utils/logger';
+import { useIsPlusMode } from '@/hooks/useIsPlusMode';
+import { GabiActionDialog } from '@/components/GabiActionDialog';
 
 const ITEMS_PER_PAGE_OPTIONS = [10, 20, 50, 100];
 
@@ -182,7 +185,9 @@ const PedidosPage: React.FC = () => {
   const queryClient = useQueryClient();
   const accessToken = session?.access_token;
   const { canWriteData } = useSubscription();
+  const { canSendDirectly: isPlusMode } = useIsPlusMode();
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [whatsAppDialog, setWhatsAppDialog] = useState<{ open: boolean; pedido: Pedido | null; summary: string }>({ open: false, pedido: null, summary: '' });
   const { isTourOpen, currentStep, steps, startTour, nextStep, prevStep, closeTour, shouldAutoStart } = useTour(PEDIDOS_TOUR, 'pedidos');
   const { companyProfile } = useCompanyProfile();
 
@@ -390,18 +395,142 @@ const PedidosPage: React.FC = () => {
 
   const handleShareWhatsApp = (pedido: Pedido) => {
     const summary = generateOrderSummary(pedido);
-    const encodedText = encodeURIComponent(summary);
 
     // Tentar usar o telefone do cliente, se disponível
     let phone = pedido.clientes?.telefone || '';
     // Limpar telefone (manter apenas números)
     phone = phone.replace(/\D/g, '');
 
-    const url = phone
-      ? `https://wa.me/55${phone}?text=${encodedText}`
-      : `https://wa.me/?text=${encodedText}`;
+    if (isPlusMode) {
+      // PLUS MODE: Abrir dialog para envio direto (mesmo se sem telefone, o dialog permite buscar)
+      setWhatsAppDialog({ open: true, pedido, summary });
+    } else {
+      // NORMAL MODE: Abrir link wa.me
+      const encodedText = encodeURIComponent(summary);
+      const url = phone
+        ? `https://wa.me/55${phone}?text=${encodedText}`
+        : `https://wa.me/?text=${encodedText}`;
+      window.open(url, '_blank');
+    }
+  };
 
-    window.open(url, '_blank');
+  const handleConfirmWhatsAppSend = async (data: { phone?: string; attachPdf?: boolean }) => {
+    if (!whatsAppDialog.pedido) return;
+
+    try {
+      const phone = (data.phone || whatsAppDialog.pedido.clientes?.telefone || '').replace(/\D/g, '');
+      const formattedPhone = phone.startsWith('55') ? phone : `55${phone}`;
+      let action = 'send-text';
+      let bodyData: any = {
+        phone: formattedPhone,
+        message: whatsAppDialog.summary
+      };
+
+      if (data.attachPdf) {
+        showSuccess("Preparando anexo...");
+        const pdfBase64 = await generateOrderPDFBase64(whatsAppDialog.pedido);
+
+        const fileName = `pedido_${whatsAppDialog.pedido.id}_${Date.now()}.pdf`;
+
+        // Converte para binário (compatível com navegador)
+        const binaryString = window.atob(pdfBase64);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+
+        // Upload pro Supabase
+        const { error: uploadError } = await supabase.storage
+          .from('order-pdfs')
+          .upload(fileName, bytes, {
+            contentType: 'application/pdf',
+            upsert: true
+          });
+
+        if (!uploadError) {
+          const { data: { publicUrl } } = supabase.storage
+            .from('order-pdfs')
+            .getPublicUrl(fileName);
+
+          action = 'send-media';
+          bodyData = {
+            phone: formattedPhone,
+            message: whatsAppDialog.summary,
+            mediaUrl: publicUrl, // Evolution baixa e anexa como arquivo
+            mediaName: `Pedido_${whatsAppDialog.pedido.order_number}.pdf`,
+            mediaType: 'document'
+          };
+        } else {
+          // Se falhar o upload, tenta o clássico
+          action = 'send-media';
+          bodyData = {
+            phone: formattedPhone,
+            message: whatsAppDialog.summary,
+            mediaBase64: pdfBase64,
+            mediaName: `Pedido_${whatsAppDialog.pedido.order_number}.pdf`,
+            mediaType: 'document'
+          };
+        }
+      }
+
+      const { data: resultData, error } = await supabase.functions.invoke('whatsapp-proxy', {
+        body: {
+          action,
+          ...bodyData
+        },
+      });
+
+      if (error) throw error;
+      if (!resultData?.success) throw new Error(resultData?.message || 'Erro ao enviar');
+
+      showSuccess(`Resumo enviado para ${whatsAppDialog.pedido.clientes?.nome || 'cliente'}!`);
+      setWhatsAppDialog({ open: false, pedido: null, summary: '' });
+    } catch (err: any) {
+      console.error('Erro no envio direto:', err);
+
+      const errorMessage = err.message || JSON.stringify(err);
+
+      // Se foi envio de mídia e falhou por erro de upload, tenta só texto
+      if (data.attachPdf && errorMessage.includes("Media upload failed")) {
+        console.log('[WhatsApp] Media failed, retrying with text only...');
+        showError('PDF não suportado pelo servidor. Enviando apenas texto...');
+
+        try {
+          const phone = (data.phone || whatsAppDialog.pedido.clientes?.telefone || '').replace(/\D/g, '');
+          const formattedPhone = phone.startsWith('55') ? phone : `55${phone}`;
+
+          const { data: textResult, error: textError } = await supabase.functions.invoke('whatsapp-proxy', {
+            body: {
+              action: 'send-text',
+              phone: formattedPhone,
+              message: whatsAppDialog.summary + '\n\n📎 (PDF disponível para download no sistema)'
+            },
+          });
+
+          if (!textError && textResult?.success) {
+            showSuccess(`Texto enviado! PDF não suportado pelo servidor.`);
+            setWhatsAppDialog({ open: false, pedido: null, summary: '' });
+            return;
+          }
+        } catch (textErr) {
+          console.error('Fallback text also failed:', textErr);
+        }
+      }
+
+      if (errorMessage.includes("Instância não conectada") || errorMessage.includes("Disconnected")) {
+        showError('Seu WhatsApp não está conectado! Vá em Configurações > WhatsApp para conectar.');
+      } else {
+        showError(`Erro: ${errorMessage.substring(0, 100)}. Abrindo WhatsApp Web...`);
+        // Fallback to wa.me link only for non-connection errors
+        const phone = (whatsAppDialog.pedido.clientes?.telefone || '').replace(/\D/g, '');
+        const encodedText = encodeURIComponent(whatsAppDialog.summary);
+        const url = phone
+          ? `https://wa.me/55${phone}?text=${encodedText}`
+          : `https://wa.me/?text=${encodedText}`;
+        window.open(url, '_blank');
+      }
+      setWhatsAppDialog({ open: false, pedido: null, summary: '' });
+    }
   };
 
   const handleDownloadCardImage = async (pedidoId: string, orderNumber: number) => {
@@ -527,7 +656,7 @@ const PedidosPage: React.FC = () => {
     }
   });
 
-  const handleSubmitStatusChange = (newStatus: string, observacao?: string) => {
+  const handleSubmitStatusChange = (newStatus: string, observacao?: string, notifyClient?: boolean) => {
     if (!statusChangePedido) return;
     updateStatusMutation.mutate({
       id: statusChangePedido.id,
@@ -536,6 +665,22 @@ const PedidosPage: React.FC = () => {
       statusAnterior: statusChangePedido.status,
       pedidoFull: statusChangePedido
     });
+
+    // Auto-Notify Client via Gabi AI (WhatsApp)
+    if (notifyClient && newStatus === 'aguardando retirada') {
+      showSuccess("Gabi AI: Enviando notificação...");
+      supabase.functions.invoke('send-whatsapp-notification', {
+        body: { orderId: statusChangePedido.id }
+      }).then(({ error, data }) => {
+        if (error) {
+          console.error("Erro Gabi AI:", error);
+          showError("Gabi não conseguiu enviar o Zap. Verifique a conexão.");
+        } else {
+          console.log("Gabi AI Response:", data);
+          showSuccess("Gabi AI: Mensagem enviada com sucesso!");
+        }
+      });
+    }
   };
 
   const deletePedidoMutation = useMutation({
@@ -1390,9 +1535,18 @@ const PedidosPage: React.FC = () => {
                           <Copy className="h-4 w-4 mr-2 text-amber-500" />
                           Copiar Resumo
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleShareWhatsApp(pedido); }} className="cursor-pointer">
-                          <MessageSquare className="h-4 w-4 mr-2 text-green-500" />
-                          Enviar no WhatsApp
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleShareWhatsApp(pedido); }} className={`cursor-pointer ${isPlusMode ? 'bg-gradient-to-r from-orange-500/10 via-yellow-500/10 to-purple-500/10' : ''}`}>
+                          {isPlusMode ? (
+                            <>
+                              <Sparkles className="h-4 w-4 mr-2 text-orange-500" />
+                              Enviar Direto ⚡
+                            </>
+                          ) : (
+                            <>
+                              <MessageSquare className="h-4 w-4 mr-2 text-green-500" />
+                              Enviar no WhatsApp
+                            </>
+                          )}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDownloadCardImage(pedido.id, pedido.order_number); }} className="cursor-pointer">
@@ -1599,6 +1753,17 @@ const PedidosPage: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* WhatsApp Plus Mode Dialog */}
+      <GabiActionDialog
+        isOpen={whatsAppDialog.open}
+        onOpenChange={(open) => !open && setWhatsAppDialog({ open: false, pedido: null, summary: '' })}
+        customerName={whatsAppDialog.pedido?.clientes?.nome || 'Cliente'}
+        phone={whatsAppDialog.pedido?.clientes?.telefone || ''}
+        messagePreview={whatsAppDialog.summary}
+        onConfirm={handleConfirmWhatsAppSend}
+        actionType="generic"
+      />
     </div>
   );
 };

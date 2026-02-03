@@ -26,6 +26,10 @@ type Profile = {
   whatsapp_status?: string | null;
   whatsapp_api_url?: string | null;
   whatsapp_api_key?: string | null;
+  is_whatsapp_plus_active?: boolean;
+  is_whatsapp_plus_gifted?: boolean;
+  is_whatsapp_plus_gifted_viewed?: boolean;
+  company_name?: string | null;
 };
 
 type SessionContextType = {

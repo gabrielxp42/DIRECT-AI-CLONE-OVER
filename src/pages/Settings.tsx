@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Input } from '@/components/ui/input';
@@ -33,7 +34,9 @@ import {
     Wallet,
     CheckSquare,
     Square,
-    Calculator
+    Calculator,
+    Zap,
+    ChevronDown
 } from 'lucide-react';
 import { useSession } from '@/contexts/SessionProvider';
 import { cn } from '@/lib/utils';
@@ -52,6 +55,9 @@ import {
 import { hexToHSL, getContrastColor } from '@/utils/colors';
 import { WhatsAppConnection } from '@/components/WhatsAppConnection';
 import { DemoDataGenerator } from '@/components/DemoDataGenerator';
+import { GabiSuccessModal } from '@/components/GabiSuccessModal';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from '@/components/ui/use-toast';
 
 const PIX_KEY_TYPES = [
     { value: 'cpf', label: 'CPF' },
@@ -76,13 +82,42 @@ const MagicMessageRotator = () => {
         "🪄 A mágica acontece aqui"
     ];
     const [index, setIndex] = useState(0);
+    const [magicCode, setMagicCode] = useState('');
+    const [showSuccessModal, setShowSuccessModal] = useState(false);
+    const [isLoadingMagic, setIsLoadingMagic] = useState(false);
 
-    useEffect(() => {
-        const interval = setInterval(() => {
-            setIndex((prev) => (prev + 1) % messages.length);
-        }, 3500);
-        return () => clearInterval(interval);
-    }, []);
+    const handleMagicCode = async () => {
+        if (magicCode === 'DTFAGUDOS') {
+            setIsLoadingMagic(true);
+            try {
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) return;
+
+                const { error } = await supabase
+                    .from('profiles')
+                    .update({
+                        subscription_tier: 'expert',
+                        is_whatsapp_plus_gifted: true,
+                        is_whatsapp_plus_active: true
+                    })
+                    .eq('id', user.id);
+
+                if (error) throw error;
+
+                setShowSuccessModal(true);
+                setMagicCode('');
+            } catch (error) {
+                console.error('Error applying magic code:', error);
+                toast({
+                    title: "Erro ao ativar código",
+                    description: "Tente novamente mais tarde.",
+                    variant: "destructive"
+                });
+            } finally {
+                setIsLoadingMagic(false);
+            }
+        }
+    };
 
     return (
         <div className="relative h-5 overflow-hidden flex items-center justify-center min-w-[170px]">
@@ -124,6 +159,43 @@ export default function Settings() {
     const { session } = useSession();
     const { methods: paymentMethods, toggleMethod: togglePaymentMethod } = usePaymentMethods();
 
+    const [magicCode, setMagicCode] = useState('');
+    const [showSuccessModal, setShowSuccessModal] = useState(false);
+    const [isLoadingMagic, setIsLoadingMagic] = useState(false);
+
+    const handleMagicCode = async () => {
+        if (magicCode === 'DTFAGUDOS') {
+            setIsLoadingMagic(true);
+            try {
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) return;
+
+                const { error } = await supabase
+                    .from('profiles')
+                    .update({
+                        subscription_tier: 'expert',
+                        is_whatsapp_plus_gifted: true,
+                        is_whatsapp_plus_active: true
+                    })
+                    .eq('id', user.id);
+
+                if (error) throw error;
+
+                setShowSuccessModal(true);
+                setMagicCode('');
+            } catch (error) {
+                console.error('Error applying magic code:', error);
+                toast({
+                    title: "Erro ao ativar código",
+                    description: "Tente novamente mais tarde.",
+                    variant: "destructive"
+                });
+            } finally {
+                setIsLoadingMagic(false);
+            }
+        }
+    };
+
 
     const isBrandingUnlocked = !!(
         companyProfile?.company_logo_url ||
@@ -142,6 +214,22 @@ export default function Settings() {
         closeTour,
         shouldAutoStart
     } = useTour(SETTINGS_TOUR, 'settings');
+
+    const location = useLocation();
+
+    // Handle deep linking/scrolling when hash is present
+    useEffect(() => {
+        if (location.hash && !isLoading) {
+            const id = location.hash.replace('#', '');
+            const element = document.getElementById(id);
+            if (element) {
+                // Pequeno delay para garantir que o layout renderizou
+                setTimeout(() => {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 500);
+            }
+        }
+    }, [location.hash, isLoading]);
 
     useEffect(() => {
         if (shouldAutoStart && !isLoading) {
@@ -847,6 +935,80 @@ export default function Settings() {
                         Salvar Alterações
                     </Button>
                 </div>
+
+                {/* Magic Unlock Section (Premium Card) */}
+                <div className="mt-8 pt-6 border-t border-dashed border-slate-700/50">
+                    <div
+                        onClick={() => setIsMagicModalOpen(true)}
+                        className="relative group overflow-hidden rounded-2xl border border-dashed border-slate-700 bg-slate-900/40 p-6 transition-all hover:bg-slate-900/60 hover:border-slate-600 cursor-pointer"
+                    >
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:animate-shimmer" />
+
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-xl bg-[#ffd93d]/10 flex items-center justify-center ring-1 ring-[#ffd93d]/20 group-hover:ring-[#ffd93d]/50 transition-all">
+                                <Zap className="w-6 h-6 text-[#ffd93d]" />
+                            </div>
+                            <div className="flex-1 space-y-1">
+                                <h3 className="text-sm font-bold text-slate-200">Possui um Código de Resgate?</h3>
+                                <p className="text-xs text-slate-400">Ative recursos exclusivos para sua conta.</p>
+                            </div>
+                            <Button variant="ghost" size="icon" className="text-slate-500 group-hover:text-slate-200">
+                                <ChevronDown className="w-4 h-4 -rotate-90" />
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Redeem Code Modal */}
+                <Dialog open={isMagicModalOpen} onOpenChange={setIsMagicModalOpen}>
+                    <DialogContent className="sm:max-w-md bg-slate-950 border-slate-800">
+                        <DialogHeader>
+                            <DialogTitle className="text-center text-xl font-black uppercase tracking-widest text-slate-200">
+                                <span className="text-[#ffd93d]">Resgatar</span> Código
+                            </DialogTitle>
+                            <DialogDescription className="text-center text-slate-400">
+                                Digite o código mágico para desbloquear o poder total.
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        <div className="py-6 flex justify-center">
+                            <Input
+                                type="text"
+                                placeholder="DIGITE AQUI"
+                                className="text-center text-2xl font-black uppercase tracking-[0.2em] h-16 w-full max-w-[280px] bg-slate-900/50 border-2 border-slate-800 focus:border-[#ffd93d] focus:ring-[#ffd93d]/20 transition-all rounded-xl"
+                                value={magicCode}
+                                onChange={(e) => setMagicCode(e.target.value.toUpperCase())}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        handleMagicCode();
+                                        setIsMagicModalOpen(false);
+                                    }
+                                }}
+                                autoFocus
+                            />
+                        </div>
+
+                        <DialogFooter className="sm:justify-center">
+                            <Button
+                                size="lg"
+                                className="w-full max-w-[280px] bg-gradient-to-r from-[#ffd93d] to-[#ff9f43] text-slate-950 font-black uppercase tracking-widest hover:opacity-90 transition-opacity"
+                                onClick={() => {
+                                    handleMagicCode();
+                                    setIsMagicModalOpen(false);
+                                }}
+                                disabled={isLoadingMagic || !magicCode}
+                            >
+                                {isLoadingMagic ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4 fill-current" />}
+                                Resgatar Agora
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+
+                <GabiSuccessModal
+                    isOpen={showSuccessModal}
+                    onClose={() => setShowSuccessModal(false)}
+                />
 
                 {/* Premium Sticky Bottom Bar (Mobile) */}
                 <div className="md:hidden fixed bottom-0 left-0 right-0 p-4 bg-background/80 backdrop-blur-xl border-t border-border/50 z-50">
