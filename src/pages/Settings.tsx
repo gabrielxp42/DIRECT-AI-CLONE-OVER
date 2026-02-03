@@ -51,6 +51,7 @@ import {
 } from "@/components/ui/tooltip";
 import { hexToHSL, getContrastColor } from '@/utils/colors';
 import { WhatsAppConnection } from '@/components/WhatsAppConnection';
+import { DemoDataGenerator } from '@/components/DemoDataGenerator';
 
 const PIX_KEY_TYPES = [
     { value: 'cpf', label: 'CPF' },
@@ -866,6 +867,12 @@ export default function Settings() {
                         Salvar Configurações
                     </Button>
                 </div>
+                {/* Demo Tools Zone */}
+                <div className="pt-8 mt-8 border-t border-dashed opacity-50 hover:opacity-100 transition-opacity">
+                    <p className="text-xs text-muted-foreground mb-4 font-mono uppercase tracking-widest">Área de Demonstração</p>
+                    <DemoDataGenerator />
+                </div>
+
                 <MagicSettingsModal
                     isOpen={isMagicModalOpen}
                     onOpenChange={setIsMagicModalOpen}

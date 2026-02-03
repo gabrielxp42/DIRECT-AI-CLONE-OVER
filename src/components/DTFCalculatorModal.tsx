@@ -653,8 +653,8 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                     onInteractOutside={(e) => isTourOpen && e.preventDefault()}
                     onEscapeKeyDown={(e) => isTourOpen && e.preventDefault()}
                     className={cn(
-                        "max-h-[96vh] overflow-y-auto bg-background/95 backdrop-blur-xl border-primary/20 shadow-2xl custom-scrollbar transition-all duration-300",
-                        isMobile ? "max-w-[100vw] w-full p-3 rounded-t-[2rem] rounded-b-none bottom-0 top-auto translate-y-0" : "max-w-4xl p-6 rounded-3xl"
+                        "max-h-[96vh] overflow-hidden bg-background/98 backdrop-blur-xl border-primary/20 shadow-2xl transition-all duration-300 flex flex-col",
+                        isMobile ? "max-w-[100vw] w-full p-3 rounded-t-[2.5rem] rounded-b-none bottom-0 top-auto translate-y-0 h-[95vh]" : "max-w-[95vw] lg:max-w-6xl w-full h-[90vh] p-8 rounded-[2rem]"
                     )}>
                     <DialogHeader>
                         <div id="calculator-title" className="flex items-center justify-between w-full">
@@ -707,604 +707,606 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                         </button>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-4 md:gap-6 mt-4 items-start">
-                        {/* Formulário - 5 colunas */}
-                        <div id="calculator-material-settings" className="md:col-span-5 space-y-4 md:sticky md:top-0">
-                            {mode === 'quick' ? (
-                                <Card className="border-primary/10 bg-slate-50/50 dark:bg-primary/5 flex flex-col overflow-hidden">
-                                    <div className="p-4 flex-1 space-y-6 max-h-[600px] overflow-y-auto custom-scrollbar">
-                                        {/* SEÇÃO 1: Largura do Material */}
-                                        <div className="space-y-3">
-                                            <div className="space-y-1">
-                                                <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
-                                                    <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center font-black">1</div>
-                                                    Largura da Folha (Rolo)
-                                                </h3>
-                                            </div>
-                                            <div className="space-y-2">
-                                                <NumberInput
-                                                    id="quickRollWidth"
-                                                    value={rollWidth}
-                                                    onChange={setRollWidth}
-                                                    min={10}
-                                                    max={120}
-                                                    step={1}
-                                                    fieldId="rollWidth"
-                                                    suffix="cm"
-                                                    showButtons={false}
-                                                    className="w-full"
-                                                    setHoveredField={setHoveredField}
-                                                />
-                                                <div className="grid grid-cols-2 gap-2">
-                                                    {[30, 58].map((w) => (
-                                                        <button
-                                                            key={w}
-                                                            onClick={() => setRollWidth(w)}
-                                                            className={cn(
-                                                                "py-1.5 rounded-lg text-[10px] font-black transition-all border",
-                                                                rollWidth === w
-                                                                    ? "bg-primary border-primary text-primary-foreground shadow-sm"
-                                                                    : "bg-[var(--primary-custom)]/5 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500"
-                                                            )}>
-                                                            {w}CM {w === 58 ? '(PADRÃO)' : '(PEQUENO)'}
-                                                        </button>
-                                                    ))}
+                    <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 -mr-1">
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-6 lg:gap-8 mt-6 items-start">
+                            {/* Formulário - 5 colunas */}
+                            <div id="calculator-material-settings" className="md:col-span-5 space-y-6">
+                                {mode === 'quick' ? (
+                                    <Card className="border-primary/10 bg-slate-50/50 dark:bg-primary/5 flex flex-col overflow-hidden">
+                                        <div className="p-4 flex-1 space-y-6 max-h-[600px] overflow-y-auto custom-scrollbar">
+                                            {/* SEÇÃO 1: Largura do Material */}
+                                            <div className="space-y-3">
+                                                <div className="space-y-1">
+                                                    <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+                                                        <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center font-black">1</div>
+                                                        Largura da Folha (Rolo)
+                                                    </h3>
                                                 </div>
-                                            </div>
-                                        </div>
-
-                                        <Separator className="bg-primary/5" />
-
-                                        {/* SEÇÃO 2: Tamanho da Logo */}
-                                        <div className="space-y-3">
-                                            <div className="space-y-1">
-                                                <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
-                                                    <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center font-black">2</div>
-                                                    Tamanho do Adesivo
-                                                </h3>
-                                            </div>
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <div className="space-y-1.5">
-                                                    <Label className="text-[9px] uppercase font-black text-slate-400">Largura (cm)</Label>
+                                                <div className="space-y-2">
                                                     <NumberInput
-                                                        id="quickWidth"
-                                                        value={imageWidth}
-                                                        onChange={setImageWidth}
-                                                        min={0.5}
-                                                        max={rollWidth - 2}
-                                                        step={0.1}
-                                                        fieldId="imageSize"
-                                                        showButtons={false}
-                                                        className="w-full"
-                                                        setHoveredField={setHoveredField}
-                                                    />
-                                                </div>
-                                                <div className="space-y-1.5">
-                                                    <Label className="text-[9px] uppercase font-black text-slate-400">Altura (cm)</Label>
-                                                    <NumberInput
-                                                        id="quickHeight"
-                                                        value={imageHeight}
-                                                        onChange={setImageHeight}
-                                                        min={0.5}
-                                                        max={100}
-                                                        step={0.1}
-                                                        fieldId="imageSize"
-                                                        showButtons={false}
-                                                        className="w-full"
-                                                        setHoveredField={setHoveredField}
-                                                    />
-                                                </div>
-                                            </div>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => {
-                                                    const tmp = imageWidth;
-                                                    setImageWidth(imageHeight);
-                                                    setImageHeight(tmp);
-                                                }}
-                                                className="w-full h-8 text-[9px] font-black uppercase tracking-widest text-primary/60 hover:text-primary hover:bg-primary/5 rounded-lg border border-primary/10 gap-2">
-                                                <RefreshCw className="h-3 w-3" /> Girar 90°
-                                            </Button>
-                                        </div>
-
-                                        <Separator className="bg-primary/5" />
-
-                                        {/* SEÇÃO 3: Objetivo */}
-                                        <div className="space-y-3 pb-2">
-                                            <div className="space-y-1">
-                                                <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
-                                                    <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center font-black">3</div>
-                                                    O que deseja calcular?
-                                                </h3>
-                                            </div>
-
-                                            <div className="grid grid-cols-2 gap-2">
-                                                <button
-                                                    onClick={() => setQuickGoal('meters')}
-                                                    className={cn(
-                                                        "p-3 rounded-xl border-2 transition-all flex flex-col items-center text-center gap-1 min-h-[80px] justify-center",
-                                                        quickGoal === 'meters' ? "border-primary bg-primary/10" : "border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900"
-                                                    )}>
-                                                    <Ruler className={cn("h-4 w-4", quickGoal === 'meters' ? "text-primary" : "text-slate-400")} />
-                                                    <div className={cn("font-black text-[10px] leading-tight", quickGoal === 'meters' ? "text-slate-900 dark:text-white" : "text-slate-500")}>Saber quanto material vou usar</div>
-                                                </button>
-
-                                                <button
-                                                    onClick={() => setQuickGoal('quantity')}
-                                                    className={cn(
-                                                        "p-3 rounded-xl border-2 transition-all flex flex-col items-center text-center gap-1 min-h-[80px] justify-center",
-                                                        quickGoal === 'quantity' ? "border-primary bg-primary/10" : "border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900"
-                                                    )}>
-                                                    <Layers className={cn("h-4 w-4", quickGoal === 'quantity' ? "text-primary" : "text-slate-400")} />
-                                                    <div className={cn("font-black text-[10px] leading-tight", quickGoal === 'quantity' ? "text-slate-900 dark:text-white" : "text-slate-500")}>Saber quantas logos cabem no metro</div>
-                                                </button>
-                                            </div>
-
-                                            <div className="mt-2 space-y-4">
-                                                {quickGoal === 'meters' ? (
-                                                    <div className="space-y-2">
-                                                        <Label className="text-[9px] uppercase font-black text-primary">Quantas logos no total?</Label>
-                                                        <NumberInput
-                                                            id="quickQuantity"
-                                                            value={quantity}
-                                                            onChange={setQuantity}
-                                                            min={1}
-                                                            max={10000}
-                                                            step={10}
-                                                            fieldId="quantity"
-                                                            className="w-full text-2xl font-black"
-                                                            setHoveredField={setHoveredField}
-                                                        />
-                                                    </div>
-                                                ) : (
-                                                    <div className="space-y-2">
-                                                        <Label className="text-[9px] uppercase font-black text-primary">Quantos metros de rolo?</Label>
-                                                        <NumberInput
-                                                            id="quickMeters"
-                                                            value={quickMetersInput}
-                                                            onChange={setQuickMetersInput}
-                                                            min={0.5}
-                                                            max={50}
-                                                            step={0.5}
-                                                            fieldId="meters"
-                                                            suffix="m"
-                                                            className="w-full text-2xl font-black"
-                                                            setHoveredField={setHoveredField}
-                                                        />
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Configurações Simplificadas de Margem e Espaço (Botões Únicos) */}
-                                    <div className="px-4 py-3 bg-slate-100/50 dark:bg-slate-800/20 border-t border-slate-200 dark:border-slate-800">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <Label className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
-                                                Ajustes de Impressão
-                                            </Label>
-                                            <InfoTooltip
-                                                fieldId="printAdjust"
-                                                label="Ajuda"
-                                                content="Econômico (M:0.2cm, E:0.2cm) | Padrão (M:0.5cm, E:0.4cm) | Folgado (M:1.0cm, E:0.6cm)"
-                                                hoveredField={hoveredField}
-                                                setHoveredField={setHoveredField}
-                                            />
-                                        </div>
-                                        <div className="grid grid-cols-3 gap-2">
-                                            {[
-                                                { label: 'Econômico', m: 0.2, s: 0.2 },
-                                                { label: 'Padrão', m: 0.5, s: 0.4 },
-                                                { label: 'Folgado', m: 1.0, s: 0.6 }
-                                            ].map((config) => (
-                                                <button
-                                                    key={config.label}
-                                                    onClick={() => {
-                                                        setMargin(config.m);
-                                                        setSeparation(config.s);
-                                                    }}
-                                                    className={cn(
-                                                        "py-2 px-1 rounded-xl text-[10px] font-black transition-all",
-                                                        (margin === config.m && separation === config.s)
-                                                            ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
-                                                            : "bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-800"
-                                                    )}>
-                                                    {config.label.toUpperCase()}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </Card>
-                            ) : (
-                                <Card className="border-primary/10 bg-slate-50/50 dark:bg-primary/5">
-                                    <CardContent className="p-4 space-y-4">
-                                        <div className="space-y-2">
-                                            <Label className="text-[10px] font-bold uppercase text-slate-500 dark:text-muted-foreground flex items-center justify-between tracking-wider">
-                                                <div className="flex items-center gap-1">
-                                                    <Settings2 className="h-3 w-3 text-primary" /> Configurações do Rolo
-                                                </div>
-                                                <div className="flex items-center gap-4">
-                                                    {[
-                                                        { label: 'Eco', m: 0.2, s: 0.2 },
-                                                        { label: 'Padrão', m: 0.5, s: 0.4 },
-                                                        { label: 'Folgado', m: 1.0, s: 0.6 }
-                                                    ].map((config) => (
-                                                        <button
-                                                            key={config.label}
-                                                            onClick={(e) => {
-                                                                e.preventDefault();
-                                                                setMargin(config.m);
-                                                                setSeparation(config.s);
-                                                            }}
-                                                            className={cn(
-                                                                "text-[9px] font-black transition-all hover:text-primary",
-                                                                (margin === config.m && separation === config.s)
-                                                                    ? "text-primary underline underline-offset-4"
-                                                                    : "text-slate-400"
-                                                            )}>
-                                                            {config.label.toUpperCase()}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </Label>
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div className="space-y-1.5 p-0.5">
-                                                    <div className="min-h-[32px] flex items-end pb-1">
-                                                        <InfoTooltip
-                                                            id="rollWidth"
-                                                            fieldId="rollWidth"
-                                                            label="Largura do Rolo (cm)"
-                                                            content="A largura útil do rolo de DTF que você está usando (comum: 30cm ou 58cm)."
-                                                            hoveredField={hoveredField}
-                                                            setHoveredField={setHoveredField}
-                                                        />
-                                                    </div>
-                                                    <NumberInput
-                                                        id="rollWidth"
+                                                        id="quickRollWidth"
                                                         value={rollWidth}
                                                         onChange={setRollWidth}
-                                                        min={20}
+                                                        min={10}
                                                         max={120}
                                                         step={1}
                                                         fieldId="rollWidth"
-                                                        showButtons={true}
+                                                        suffix="cm"
+                                                        showButtons={false}
+                                                        className="w-full"
                                                         setHoveredField={setHoveredField}
                                                     />
-                                                    <div className="flex gap-1 pt-1">
+                                                    <div className="grid grid-cols-2 gap-2">
                                                         {[30, 58].map((w) => (
-                                                            <Button
+                                                            <button
                                                                 key={w}
-                                                                variant="outline"
-                                                                size="sm"
-                                                                className={`h-7 text-[10px] flex-1 touch-manipulation transition-all ${rollWidth === w ? 'bg-primary border-primary/50 text-primary-foreground font-bold shadow-md' : 'text-slate-500 dark:text-muted-foreground hover:bg-slate-100 dark:hover:bg-slate-800'}`}
-                                                                onClick={() => setRollWidth(w)}>
-                                                                {w}cm
-                                                            </Button>
+                                                                onClick={() => setRollWidth(w)}
+                                                                className={cn(
+                                                                    "py-1.5 rounded-lg text-[10px] font-black transition-all border",
+                                                                    rollWidth === w
+                                                                        ? "bg-primary border-primary text-primary-foreground shadow-sm"
+                                                                        : "bg-[var(--primary-custom)]/5 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500"
+                                                                )}>
+                                                                {w}CM {w === 58 ? '(PADRÃO)' : '(PEQUENO)'}
+                                                            </button>
                                                         ))}
                                                     </div>
                                                 </div>
-                                                {/* Configuração de Margens de Segurança */}
-                                                <div className="space-y-1.5 p-0.5">
-                                                    <div className="min-h-[32px] flex items-end pb-1">
-                                                        <InfoTooltip
-                                                            id="margin"
-                                                            fieldId="margin"
-                                                            label="Margem de Segurança (cm)"
-                                                            content="Espaço de segurança nas bordas (topo, fundo e laterais)."
-                                                            hoveredField={hoveredField}
+                                            </div>
+
+                                            <Separator className="bg-primary/5" />
+
+                                            {/* SEÇÃO 2: Tamanho da Logo */}
+                                            <div className="space-y-3">
+                                                <div className="space-y-1">
+                                                    <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+                                                        <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center font-black">2</div>
+                                                        Tamanho do Adesivo
+                                                    </h3>
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div className="space-y-1.5">
+                                                        <Label className="text-[9px] uppercase font-black text-slate-400">Largura (cm)</Label>
+                                                        <NumberInput
+                                                            id="quickWidth"
+                                                            value={imageWidth}
+                                                            onChange={setImageWidth}
+                                                            min={0.5}
+                                                            max={rollWidth - 2}
+                                                            step={0.1}
+                                                            fieldId="imageSize"
+                                                            showButtons={false}
+                                                            className="w-full"
                                                             setHoveredField={setHoveredField}
                                                         />
                                                     </div>
-                                                    <NumberInput
-                                                        id="margin"
-                                                        value={margin}
-                                                        onChange={setMargin}
-                                                        min={0}
-                                                        max={10}
-                                                        step={0.5}
-                                                        fieldId="margin"
-                                                        showButtons={true}
-                                                        highlight={hoveredField === 'margin'}
-                                                        setHoveredField={setHoveredField}
-                                                    />
-                                                    <div className="flex gap-1 pt-1">
-                                                        {[0.2, 0.5, 1.0].map((m) => (
-                                                            <Button
-                                                                key={m}
-                                                                variant="outline"
-                                                                size="sm"
-                                                                className={`h-7 flex-1 text-[10px] uppercase font-bold transition-all ${margin === m ? 'bg-primary border-primary/50 text-primary-foreground font-bold shadow-md' : 'text-slate-500 dark:text-muted-foreground hover:bg-slate-100 dark:hover:bg-slate-800'}`}
-                                                                onClick={() => setMargin(m)}>
-                                                                {m}cm
-                                                            </Button>
-                                                        ))}
+                                                    <div className="space-y-1.5">
+                                                        <Label className="text-[9px] uppercase font-black text-slate-400">Altura (cm)</Label>
+                                                        <NumberInput
+                                                            id="quickHeight"
+                                                            value={imageHeight}
+                                                            onChange={setImageHeight}
+                                                            min={0.5}
+                                                            max={100}
+                                                            step={0.1}
+                                                            fieldId="imageSize"
+                                                            showButtons={false}
+                                                            className="w-full"
+                                                            setHoveredField={setHoveredField}
+                                                        />
                                                     </div>
+                                                </div>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => {
+                                                        const tmp = imageWidth;
+                                                        setImageWidth(imageHeight);
+                                                        setImageHeight(tmp);
+                                                    }}
+                                                    className="w-full h-8 text-[9px] font-black uppercase tracking-widest text-primary/60 hover:text-primary hover:bg-primary/5 rounded-lg border border-primary/10 gap-2">
+                                                    <RefreshCw className="h-3 w-3" /> Girar 90°
+                                                </Button>
+                                            </div>
+
+                                            <Separator className="bg-primary/5" />
+
+                                            {/* SEÇÃO 3: Objetivo */}
+                                            <div className="space-y-3 pb-2">
+                                                <div className="space-y-1">
+                                                    <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+                                                        <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center font-black">3</div>
+                                                        O que deseja calcular?
+                                                    </h3>
+                                                </div>
+
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    <button
+                                                        onClick={() => setQuickGoal('meters')}
+                                                        className={cn(
+                                                            "p-3 rounded-xl border-2 transition-all flex flex-col items-center text-center gap-1 min-h-[80px] justify-center",
+                                                            quickGoal === 'meters' ? "border-primary bg-primary/10" : "border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900"
+                                                        )}>
+                                                        <Ruler className={cn("h-4 w-4", quickGoal === 'meters' ? "text-primary" : "text-slate-400")} />
+                                                        <div className={cn("font-black text-[10px] leading-tight", quickGoal === 'meters' ? "text-slate-900 dark:text-white" : "text-slate-500")}>Saber quanto material vou usar</div>
+                                                    </button>
+
+                                                    <button
+                                                        onClick={() => setQuickGoal('quantity')}
+                                                        className={cn(
+                                                            "p-3 rounded-xl border-2 transition-all flex flex-col items-center text-center gap-1 min-h-[80px] justify-center",
+                                                            quickGoal === 'quantity' ? "border-primary bg-primary/10" : "border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900"
+                                                        )}>
+                                                        <Layers className={cn("h-4 w-4", quickGoal === 'quantity' ? "text-primary" : "text-slate-400")} />
+                                                        <div className={cn("font-black text-[10px] leading-tight", quickGoal === 'quantity' ? "text-slate-900 dark:text-white" : "text-slate-500")}>Saber quantas logos cabem no metro</div>
+                                                    </button>
+                                                </div>
+
+                                                <div className="mt-2 space-y-4">
+                                                    {quickGoal === 'meters' ? (
+                                                        <div className="space-y-2">
+                                                            <Label className="text-[9px] uppercase font-black text-primary">Quantas logos no total?</Label>
+                                                            <NumberInput
+                                                                id="quickQuantity"
+                                                                value={quantity}
+                                                                onChange={setQuantity}
+                                                                min={1}
+                                                                max={10000}
+                                                                step={10}
+                                                                fieldId="quantity"
+                                                                className="w-full text-2xl font-black"
+                                                                setHoveredField={setHoveredField}
+                                                            />
+                                                        </div>
+                                                    ) : (
+                                                        <div className="space-y-2">
+                                                            <Label className="text-[9px] uppercase font-black text-primary">Quantos metros de rolo?</Label>
+                                                            <NumberInput
+                                                                id="quickMeters"
+                                                                value={quickMetersInput}
+                                                                onChange={setQuickMetersInput}
+                                                                min={0.5}
+                                                                max={50}
+                                                                step={0.5}
+                                                                fieldId="meters"
+                                                                suffix="m"
+                                                                className="w-full text-2xl font-black"
+                                                                setHoveredField={setHoveredField}
+                                                            />
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
 
-                                        <Separator className="bg-primary/10" />
-
-                                        <div id="calculator-main-input" className="space-y-4">
-                                            <Label className="text-[10px] font-bold uppercase text-slate-500 dark:text-muted-foreground flex items-center gap-1 tracking-wider">
-                                                <Layers className="h-3 w-3 text-primary" /> Itens do Orçamento
-                                            </Label>
-
-                                            {/* Item List */}
-                                            <div className="space-y-4 max-h-[360px] overflow-y-auto pr-1 custom-scrollbar">
-                                                {multiResults.items.map((item, index) => (
-                                                    <div
-                                                        key={item.id}
+                                        {/* Configurações Simplificadas de Margem e Espaço (Botões Únicos) */}
+                                        <div className="px-4 py-3 bg-slate-100/50 dark:bg-slate-800/20 border-t border-slate-200 dark:border-slate-800">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <Label className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
+                                                    Ajustes de Impressão
+                                                </Label>
+                                                <InfoTooltip
+                                                    fieldId="printAdjust"
+                                                    label="Ajuda"
+                                                    content="Econômico (M:0.2cm, E:0.2cm) | Padrão (M:0.5cm, E:0.4cm) | Folgado (M:1.0cm, E:0.6cm)"
+                                                    hoveredField={hoveredField}
+                                                    setHoveredField={setHoveredField}
+                                                />
+                                            </div>
+                                            <div className="grid grid-cols-3 gap-2">
+                                                {[
+                                                    { label: 'Econômico', m: 0.2, s: 0.2 },
+                                                    { label: 'Padrão', m: 0.5, s: 0.4 },
+                                                    { label: 'Folgado', m: 1.0, s: 0.6 }
+                                                ].map((config) => (
+                                                    <button
+                                                        key={config.label}
+                                                        onClick={() => {
+                                                            setMargin(config.m);
+                                                            setSeparation(config.s);
+                                                        }}
                                                         className={cn(
-                                                            "p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border space-y-4 shadow-sm transition-all duration-300",
-                                                            item.isOverflowing ? "border-red-500/50 bg-red-500/5" : "border-slate-200 dark:border-slate-700",
-                                                            item.shouldRotate ? "ring-2 ring-primary/30 border-primary/40" : ""
+                                                            "py-2 px-1 rounded-xl text-[10px] font-black transition-all",
+                                                            (margin === config.m && separation === config.s)
+                                                                ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
+                                                                : "bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-800"
                                                         )}>
-                                                        <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-2">
-                                                            <div className="flex items-center gap-2 flex-1 mr-2">
-                                                                <span className="text-[10px] font-black text-slate-400 bg-slate-200 dark:bg-slate-700 w-5 h-5 rounded-md flex items-center justify-center shrink-0">
-                                                                    {index + 1}
-                                                                </span>
-                                                                <Input
-                                                                    value={item.name}
-                                                                    onChange={(e) => updateItem(item.id, 'name', e.target.value)}
-                                                                    className="h-7 text-[10px] font-black uppercase bg-transparent border-none p-0 focus-visible:ring-0 text-slate-700 dark:text-slate-200 focus:text-primary transition-colors"
-                                                                    placeholder="Nome do Item"
-                                                                />
-                                                            </div>
-                                                            <div className="flex items-center gap-1.5 ml-auto">
-                                                                {item.shouldRotate && (
-                                                                    <Badge variant="outline" className="h-6 bg-primary/10 text-primary border-primary/20 text-[8px] font-black animate-pulse">
-                                                                        <Sparkles className="h-2 w-2 mr-1" /> OTIMIZAR
-                                                                    </Badge>
-                                                                )}
-                                                                <Button
-                                                                    variant="ghost"
-                                                                    size="icon"
-                                                                    className={cn(
-                                                                        "h-8 w-8 transition-all duration-300 rounded-lg",
-                                                                        item.width < item.height ? "text-primary bg-primary/10" : "text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700",
-                                                                        item.shouldRotate && "bg-primary/20 text-primary ring-2 ring-primary/50"
-                                                                    )}
-                                                                    onClick={() => rotateItem(item.id)}>
-                                                                    <RotateCw className={cn("h-4 w-4 transition-transform duration-500", item.width < item.height && "rotate-180")} />
-                                                                </Button>
-                                                                <div className="w-px h-4 bg-slate-200 dark:border-slate-700 mx-0.5" />
-                                                                <Button
-                                                                    variant="ghost"
-                                                                    size="icon"
-                                                                    className="h-8 w-8 text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                                                                    onClick={() => removeItem(item.id)}
-                                                                    disabled={items.length <= 1}>
-                                                                    <Minus className="h-4 w-4" />
-                                                                </Button>
-                                                            </div>
-                                                        </div>
-
-                                                        {item.isOverflowing && (
-                                                            <div className="flex items-center gap-1.5 px-2 py-1 bg-red-500/10 border border-red-500/20 rounded-md animate-pulse">
-                                                                <AlertTriangle className="h-3 w-3 text-red-500" />
-                                                                <span className="text-[9px] font-bold text-red-500 uppercase tracking-tighter">Item não cabe no rolo com as margens!</span>
-                                                            </div>
-                                                        )}
-
-                                                        <div className="grid grid-cols-2 gap-4">
-                                                            {/* Tamanho */}
-                                                            <div className="space-y-1">
-                                                                <Label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Tamanho (cm)</Label>
-                                                                <div className="flex items-center gap-1.5">
-                                                                    <NumberInput
-                                                                        id={`width-${item.id}`}
-                                                                        value={item.width}
-                                                                        onChange={(val) => updateItem(item.id, 'width', val)}
-                                                                        min={0.5}
-                                                                        max={50}
-                                                                        step={0.5}
-                                                                        fieldId="itemWidth"
-                                                                        showButtons={true}
-                                                                        placeholder="L"
-                                                                        className="flex-1"
-                                                                        setHoveredField={setHoveredField}
-                                                                    />
-                                                                    <div className="w-2 h-0.5 bg-slate-300 shrink-0" />
-                                                                    <NumberInput
-                                                                        id={`height-${item.id}`}
-                                                                        value={item.height}
-                                                                        onChange={(val) => updateItem(item.id, 'height', val)}
-                                                                        min={0.5}
-                                                                        max={50}
-                                                                        step={0.5}
-                                                                        fieldId="itemHeight"
-                                                                        showButtons={true}
-                                                                        placeholder="A"
-                                                                        className="flex-1"
-                                                                        setHoveredField={setHoveredField}
-                                                                    />
-                                                                </div>
-                                                            </div>
-
-                                                            <div className="space-y-1">
-                                                                <div className="flex items-center justify-between">
-                                                                    <Label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Qtd</Label>
-                                                                    <button
-                                                                        onClick={() => {
-                                                                            setActiveFillingItemId(item.id);
-                                                                            setIsFillDialogOpen(true);
-                                                                        }}
-                                                                        id="calculator-item-actions"
-                                                                        className="text-[9px] font-black text-primary hover:underline flex items-center gap-0.5">
-                                                                        <Maximize2 className="h-2 w-2" /> PREENCHER
-                                                                    </button>
-                                                                </div>
-                                                                <NumberInput
-                                                                    id={`quantity-${item.id}`}
-                                                                    value={item.quantity}
-                                                                    onChange={(val) => updateItem(item.id, 'quantity', val)}
-                                                                    min={1}
-                                                                    max={10000}
-                                                                    step={1}
-                                                                    fieldId="itemQuantity"
-                                                                    showButtons={true}
-                                                                    highlight={true}
-                                                                    className="w-full"
-                                                                    setHoveredField={setHoveredField}
-                                                                />
-                                                            </div>
-                                                        </div>
-                                                    </div>
+                                                        {config.label.toUpperCase()}
+                                                    </button>
                                                 ))}
                                             </div>
-
-                                            {/* Actions */}
-                                            <div className="flex gap-2">
-                                                <GlassTooltip content="Adicionar um novo tamanho de logo">
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        className="flex-1 h-10 text-xs border-dashed border-primary/30 text-primary hover:bg-primary/5 font-bold rounded-xl"
-                                                        onClick={addItem}>
-                                                        <Plus className="h-4 w-4 mr-1" /> Adicionar Item
-                                                    </Button>
-                                                </GlassTooltip>
-                                            </div>
-
-                                            {/* Separation (shared across all items) */}
-                                            <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
-                                                <div className="flex items-center justify-between">
-                                                    <Label className="text-[10px] text-slate-500">Espaço entre logos:</Label>
-                                                    <div className="flex gap-1">
-                                                        {[0.2, 0.4, 0.6].map((s) => (
-                                                            <Button
-                                                                key={s}
-                                                                variant="outline"
-                                                                size="sm"
-                                                                className={`h-6 px-2 text-[10px] ${separation === s ? 'bg-yellow-600 border-yellow-700 text-white font-bold' : 'text-slate-500 dark:text-muted-foreground hover:bg-slate-100 dark:hover:bg-slate-800'}`}
-                                                                onClick={() => setSeparation(s)}>
-                                                                {s}cm
-                                                            </Button>
+                                        </div>
+                                    </Card>
+                                ) : (
+                                    <Card className="border-primary/10 bg-slate-50/50 dark:bg-primary/5">
+                                        <CardContent className="p-4 space-y-4">
+                                            <div className="space-y-2">
+                                                <Label className="text-[10px] font-bold uppercase text-slate-500 dark:text-muted-foreground flex items-center justify-between tracking-wider">
+                                                    <div className="flex items-center gap-1">
+                                                        <Settings2 className="h-3 w-3 text-primary" /> Configurações do Rolo
+                                                    </div>
+                                                    <div className="flex items-center gap-4">
+                                                        {[
+                                                            { label: 'Eco', m: 0.2, s: 0.2 },
+                                                            { label: 'Padrão', m: 0.5, s: 0.4 },
+                                                            { label: 'Folgado', m: 1.0, s: 0.6 }
+                                                        ].map((config) => (
+                                                            <button
+                                                                key={config.label}
+                                                                onClick={(e) => {
+                                                                    e.preventDefault();
+                                                                    setMargin(config.m);
+                                                                    setSeparation(config.s);
+                                                                }}
+                                                                className={cn(
+                                                                    "text-[9px] font-black transition-all hover:text-primary",
+                                                                    (margin === config.m && separation === config.s)
+                                                                        ? "text-primary underline underline-offset-4"
+                                                                        : "text-slate-400"
+                                                                )}>
+                                                                {config.label.toUpperCase()}
+                                                            </button>
                                                         ))}
+                                                    </div>
+                                                </Label>
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div className="space-y-1.5 p-0.5">
+                                                        <div className="min-h-[32px] flex items-end pb-1">
+                                                            <InfoTooltip
+                                                                id="rollWidth"
+                                                                fieldId="rollWidth"
+                                                                label="Largura do Rolo (cm)"
+                                                                content="A largura útil do rolo de DTF que você está usando (comum: 30cm ou 58cm)."
+                                                                hoveredField={hoveredField}
+                                                                setHoveredField={setHoveredField}
+                                                            />
+                                                        </div>
+                                                        <NumberInput
+                                                            id="rollWidth"
+                                                            value={rollWidth}
+                                                            onChange={setRollWidth}
+                                                            min={20}
+                                                            max={120}
+                                                            step={1}
+                                                            fieldId="rollWidth"
+                                                            showButtons={true}
+                                                            setHoveredField={setHoveredField}
+                                                        />
+                                                        <div className="flex gap-1 pt-1">
+                                                            {[30, 58].map((w) => (
+                                                                <Button
+                                                                    key={w}
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    className={`h-7 text-[10px] flex-1 touch-manipulation transition-all ${rollWidth === w ? 'bg-primary border-primary/50 text-primary-foreground font-bold shadow-md' : 'text-slate-500 dark:text-muted-foreground hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                                                                    onClick={() => setRollWidth(w)}>
+                                                                    {w}cm
+                                                                </Button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                    {/* Configuração de Margens de Segurança */}
+                                                    <div className="space-y-1.5 p-0.5">
+                                                        <div className="min-h-[32px] flex items-end pb-1">
+                                                            <InfoTooltip
+                                                                id="margin"
+                                                                fieldId="margin"
+                                                                label="Margem de Segurança (cm)"
+                                                                content="Espaço de segurança nas bordas (topo, fundo e laterais)."
+                                                                hoveredField={hoveredField}
+                                                                setHoveredField={setHoveredField}
+                                                            />
+                                                        </div>
+                                                        <NumberInput
+                                                            id="margin"
+                                                            value={margin}
+                                                            onChange={setMargin}
+                                                            min={0}
+                                                            max={10}
+                                                            step={0.5}
+                                                            fieldId="margin"
+                                                            showButtons={true}
+                                                            highlight={hoveredField === 'margin'}
+                                                            setHoveredField={setHoveredField}
+                                                        />
+                                                        <div className="flex gap-1 pt-1">
+                                                            {[0.2, 0.5, 1.0].map((m) => (
+                                                                <Button
+                                                                    key={m}
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    className={`h-7 flex-1 text-[10px] uppercase font-bold transition-all ${margin === m ? 'bg-primary border-primary/50 text-primary-foreground font-bold shadow-md' : 'text-slate-500 dark:text-muted-foreground hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                                                                    onClick={() => setMargin(m)}>
+                                                                    {m}cm
+                                                                </Button>
+                                                            ))}
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
-                                        </div>
+
+                                            <Separator className="bg-primary/10" />
+
+                                            <div id="calculator-main-input" className="space-y-4">
+                                                <Label className="text-[10px] font-bold uppercase text-slate-500 dark:text-muted-foreground flex items-center gap-1 tracking-wider">
+                                                    <Layers className="h-3 w-3 text-primary" /> Itens do Orçamento
+                                                </Label>
+
+                                                {/* Item List */}
+                                                <div className="space-y-4 max-h-[360px] overflow-y-auto pr-1 custom-scrollbar">
+                                                    {multiResults.items.map((item, index) => (
+                                                        <div
+                                                            key={item.id}
+                                                            className={cn(
+                                                                "p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border space-y-4 shadow-sm transition-all duration-300",
+                                                                item.isOverflowing ? "border-red-500/50 bg-red-500/5" : "border-slate-200 dark:border-slate-700",
+                                                                item.shouldRotate ? "ring-2 ring-primary/30 border-primary/40" : ""
+                                                            )}>
+                                                            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-2">
+                                                                <div className="flex items-center gap-2 flex-1 mr-2">
+                                                                    <span className="text-[10px] font-black text-slate-400 bg-slate-200 dark:bg-slate-700 w-5 h-5 rounded-md flex items-center justify-center shrink-0">
+                                                                        {index + 1}
+                                                                    </span>
+                                                                    <Input
+                                                                        value={item.name}
+                                                                        onChange={(e) => updateItem(item.id, 'name', e.target.value)}
+                                                                        className="h-7 text-[10px] font-black uppercase bg-transparent border-none p-0 focus-visible:ring-0 text-slate-700 dark:text-slate-200 focus:text-primary transition-colors"
+                                                                        placeholder="Nome do Item"
+                                                                    />
+                                                                </div>
+                                                                <div className="flex items-center gap-1.5 ml-auto">
+                                                                    {item.shouldRotate && (
+                                                                        <Badge variant="outline" className="h-6 bg-primary/10 text-primary border-primary/20 text-[8px] font-black animate-pulse">
+                                                                            <Sparkles className="h-2 w-2 mr-1" /> OTIMIZAR
+                                                                        </Badge>
+                                                                    )}
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="icon"
+                                                                        className={cn(
+                                                                            "h-8 w-8 transition-all duration-300 rounded-lg",
+                                                                            item.width < item.height ? "text-primary bg-primary/10" : "text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700",
+                                                                            item.shouldRotate && "bg-primary/20 text-primary ring-2 ring-primary/50"
+                                                                        )}
+                                                                        onClick={() => rotateItem(item.id)}>
+                                                                        <RotateCw className={cn("h-4 w-4 transition-transform duration-500", item.width < item.height && "rotate-180")} />
+                                                                    </Button>
+                                                                    <div className="w-px h-4 bg-slate-200 dark:border-slate-700 mx-0.5" />
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="icon"
+                                                                        className="h-8 w-8 text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                                                        onClick={() => removeItem(item.id)}
+                                                                        disabled={items.length <= 1}>
+                                                                        <Minus className="h-4 w-4" />
+                                                                    </Button>
+                                                                </div>
+                                                            </div>
+
+                                                            {item.isOverflowing && (
+                                                                <div className="flex items-center gap-1.5 px-2 py-1 bg-red-500/10 border border-red-500/20 rounded-md animate-pulse">
+                                                                    <AlertTriangle className="h-3 w-3 text-red-500" />
+                                                                    <span className="text-[9px] font-bold text-red-500 uppercase tracking-tighter">Item não cabe no rolo com as margens!</span>
+                                                                </div>
+                                                            )}
+
+                                                            <div className="grid grid-cols-2 gap-4">
+                                                                {/* Tamanho */}
+                                                                <div className="space-y-1">
+                                                                    <Label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Tamanho (cm)</Label>
+                                                                    <div className="flex items-center gap-1.5">
+                                                                        <NumberInput
+                                                                            id={`width-${item.id}`}
+                                                                            value={item.width}
+                                                                            onChange={(val) => updateItem(item.id, 'width', val)}
+                                                                            min={0.5}
+                                                                            max={50}
+                                                                            step={0.5}
+                                                                            fieldId="itemWidth"
+                                                                            showButtons={true}
+                                                                            placeholder="L"
+                                                                            className="flex-1"
+                                                                            setHoveredField={setHoveredField}
+                                                                        />
+                                                                        <div className="w-2 h-0.5 bg-slate-300 shrink-0" />
+                                                                        <NumberInput
+                                                                            id={`height-${item.id}`}
+                                                                            value={item.height}
+                                                                            onChange={(val) => updateItem(item.id, 'height', val)}
+                                                                            min={0.5}
+                                                                            max={50}
+                                                                            step={0.5}
+                                                                            fieldId="itemHeight"
+                                                                            showButtons={true}
+                                                                            placeholder="A"
+                                                                            className="flex-1"
+                                                                            setHoveredField={setHoveredField}
+                                                                        />
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="space-y-1">
+                                                                    <div className="flex items-center justify-between">
+                                                                        <Label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Qtd</Label>
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                setActiveFillingItemId(item.id);
+                                                                                setIsFillDialogOpen(true);
+                                                                            }}
+                                                                            id="calculator-item-actions"
+                                                                            className="text-[9px] font-black text-primary hover:underline flex items-center gap-0.5">
+                                                                            <Maximize2 className="h-2 w-2" /> PREENCHER
+                                                                        </button>
+                                                                    </div>
+                                                                    <NumberInput
+                                                                        id={`quantity-${item.id}`}
+                                                                        value={item.quantity}
+                                                                        onChange={(val) => updateItem(item.id, 'quantity', val)}
+                                                                        min={1}
+                                                                        max={10000}
+                                                                        step={1}
+                                                                        fieldId="itemQuantity"
+                                                                        showButtons={true}
+                                                                        highlight={true}
+                                                                        className="w-full"
+                                                                        setHoveredField={setHoveredField}
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+
+                                                {/* Actions */}
+                                                <div className="flex gap-2">
+                                                    <GlassTooltip content="Adicionar um novo tamanho de logo">
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="flex-1 h-10 text-xs border-dashed border-primary/30 text-primary hover:bg-primary/5 font-bold rounded-xl"
+                                                            onClick={addItem}>
+                                                            <Plus className="h-4 w-4 mr-1" /> Adicionar Item
+                                                        </Button>
+                                                    </GlassTooltip>
+                                                </div>
+
+                                                {/* Separation (shared across all items) */}
+                                                <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
+                                                    <div className="flex items-center justify-between">
+                                                        <Label className="text-[10px] text-slate-500">Espaço entre logos:</Label>
+                                                        <div className="flex gap-1">
+                                                            {[0.2, 0.4, 0.6].map((s) => (
+                                                                <Button
+                                                                    key={s}
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    className={`h-6 px-2 text-[10px] ${separation === s ? 'bg-yellow-600 border-yellow-700 text-white font-bold' : 'text-slate-500 dark:text-muted-foreground hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                                                                    onClick={() => setSeparation(s)}>
+                                                                    {s}cm
+                                                                </Button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
 
 
 
-                                    </CardContent>
-                                </Card>
-                            )}
+                                        </CardContent>
+                                    </Card>
+                                )}
 
-                            {/* Alerta de Erro se não couber */}
-                            {imageWidth + (margin * 2) > rollWidth && (
-                                <div className="p-3 bg-red-500/10 border border-red-500/50 rounded-lg flex items-center gap-2 text-red-500">
-                                    <Info className="h-4 w-4" />
-                                    <span className="text-xs font-bold">Erro: A logo não cabe na largura do rolo com essas margens!</span>
-                                </div>
-                            )}
-
-                            {/* Resultados Rápidos */}
-                            <div className={cn("grid gap-3", isMobile ? "grid-cols-2" : "grid-cols-2")}>
-                                <div className={cn(
-                                    "p-3 bg-primary text-primary-foreground rounded-xl shadow-lg shadow-primary/20 ring-4 ring-primary/10 flex flex-col items-center justify-center text-center transition-transform",
-                                    !isMobile && "scale-105"
-                                )}>
-                                    <span className="text-[10px] uppercase font-bold opacity-90 tracking-wider">
-                                        {mode === 'quick' && quickGoal === 'quantity' ? "Metragem Alvo" : "Metragem total"}
-                                    </span>
-                                    <span className={cn("font-black tracking-tight", isMobile ? "text-2xl" : "text-3xl")}>
-                                        {(mode === 'quick' ? results.totalMeters : multiResults.totalMeters).toFixed(2)}m
-                                    </span>
-                                    <span className="text-[8px] font-black opacity-60 uppercase tracking-tighter mt-1">
-                                        Custo Est: R${((mode === 'quick' ? results.totalMeters : multiResults.totalMeters) * 50).toFixed(2)}
-                                    </span>
-                                </div>
-
-                                {mode === 'quick' && quickGoal === 'quantity' ? (
-                                    <div className="p-3 bg-emerald-500 text-white rounded-xl shadow-lg shadow-emerald-500/20 ring-4 ring-emerald-500/10 flex flex-col items-center justify-center text-center animate-in zoom-in duration-300">
-                                        <span className="text-[10px] uppercase font-bold opacity-90 tracking-wider">Total de Itens</span>
-                                        <span className={cn("font-black tracking-tight", isMobile ? "text-2xl" : "text-3xl")}>
-                                            {results.finalQuantity} <span className="text-sm font-bold opacity-70">un</span>
-                                        </span>
-                                    </div>
-                                ) : (
-                                    <div id="calculator-efficiency-badge" className="p-3 bg-sky-50 dark:bg-slate-800 text-sky-950 dark:text-slate-100 rounded-xl shadow-sm border border-sky-100 dark:border-white/5 flex flex-col items-center justify-center text-center">
-                                        <span className="text-[10px] uppercase font-bold text-sky-800 dark:text-slate-400 tracking-wider">
-                                            Eficiência
-                                        </span>
-                                        <span className={cn("font-black tracking-tight", isMobile ? "text-xl" : "text-2xl")}>
-                                            {mode === 'quick' ? results.efficiency : multiResults.efficiency}%
-                                        </span>
+                                {/* Alerta de Erro se não couber */}
+                                {imageWidth + (margin * 2) > rollWidth && (
+                                    <div className="p-3 bg-red-500/10 border border-red-500/50 rounded-lg flex items-center gap-2 text-red-500">
+                                        <Info className="h-4 w-4" />
+                                        <span className="text-xs font-bold">Erro: A logo não cabe na largura do rolo com essas margens!</span>
                                     </div>
                                 )}
-                                {/* Resumo Gabi - Universal Mode */}
-                                <div className="relative group rounded-xl p-[1px] bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] shadow-lg shadow-purple-500/10 mt-2">
-                                    <div className="absolute inset-0 bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] opacity-20 blur-md rounded-xl" />
-                                    <div className="relative bg-slate-950/90 backdrop-blur-xl rounded-[10px] p-3 flex gap-3 items-start">
-                                        <div className="h-8 w-8 rounded-full bg-gradient-to-br from-[#FF6B6B] to-[#ffd93d] flex items-center justify-center shrink-0 shadow-lg shadow-orange-500/20">
-                                            <Bot className="h-4 w-4 text-white" />
+
+                                {/* Resultados Rápidos - Layout Grid Profissional */}
+                                <div className="space-y-4 pt-2">
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className={cn(
+                                            "p-4 bg-primary text-primary-foreground rounded-2xl shadow-xl shadow-primary/20 ring-4 ring-primary/10 flex flex-col items-center justify-center text-center transition-all hover:scale-[1.02]",
+                                        )}>
+                                            <span className="text-[10px] uppercase font-bold opacity-90 tracking-wider">
+                                                {mode === 'quick' && quickGoal === 'quantity' ? "Metragem Alvo" : "Metragem total"}
+                                            </span>
+                                            <span className={cn("font-black tracking-tight", isMobile ? "text-2xl" : "text-3xl")}>
+                                                {(mode === 'quick' ? results.totalMeters : multiResults.totalMeters).toFixed(2)}m
+                                            </span>
+                                            <span className="text-[8px] font-black opacity-60 uppercase tracking-tighter mt-1">
+                                                Custo Est: R${((mode === 'quick' ? results.totalMeters : multiResults.totalMeters) * 50).toFixed(2)}
+                                            </span>
                                         </div>
-                                        <div className="space-y-0.5">
-                                            <div className="text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent flex items-center gap-1">
-                                                Resumo da Gabi
+
+                                        {mode === 'quick' && quickGoal === 'quantity' ? (
+                                            <div className="p-3 bg-emerald-500 text-white rounded-xl shadow-lg shadow-emerald-500/20 ring-4 ring-emerald-500/10 flex flex-col items-center justify-center text-center animate-in zoom-in duration-300">
+                                                <span className="text-[10px] uppercase font-bold opacity-90 tracking-wider">Total de Itens</span>
+                                                <span className={cn("font-black tracking-tight", isMobile ? "text-2xl" : "text-3xl")}>
+                                                    {results.finalQuantity} <span className="text-sm font-bold opacity-70">un</span>
+                                                </span>
                                             </div>
-                                            <div className="text-[11px] text-slate-300 leading-relaxed font-medium">
-                                                {mode === 'quick' ? (
-                                                    <div className="flex flex-col gap-1">
-                                                        {quickGoal === 'meters' ? (
-                                                            <span>Nesses <strong className="text-white">{quickMetersInput}m</strong>, você consegue espremer <strong className="text-white">{results.finalQuantity} {results.finalQuantity === 1 ? 'unidade' : 'unidades'}</strong>.</span>
-                                                        ) : (
-                                                            <span>Para imprimir <strong className="text-white">{results.finalQuantity} {results.finalQuantity === 1 ? 'unidade' : 'unidades'}</strong>, você vai precisar de <strong className="text-white">{results.totalMeters.toFixed(2)}m</strong>.</span>
-                                                        )}
-                                                        <span className="opacity-70">Cabem <strong className="text-white">{results.imagesPerRow} {results.imagesPerRow === 1 ? 'marca' : 'marcas'}</strong> por linha com <strong className="text-white">{results.efficiency}%</strong> de aproveitamento.</span>
-                                                    </div>
-                                                ) : (
-                                                    <div className="flex flex-col gap-1">
-                                                        <span>Otimizei <strong className="text-white">{multiResults.items.filter(i => i.quantity > 0).length} {multiResults.items.filter(i => i.quantity > 0).length === 1 ? 'item diferente' : 'itens diferentes'}</strong> ({multiResults.totalQuantity} logos totais).</span>
-                                                        <span>Produção total de <strong className="text-white">{multiResults.totalMeters.toFixed(2)}m</strong> com <strong className="text-white">{multiResults.efficiency}%</strong> de aproveitamento.</span>
-                                                    </div>
-                                                )}
+                                        ) : (
+                                            <div id="calculator-efficiency-badge" className="p-3 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-xl shadow-sm border border-slate-200 dark:border-white/5 flex flex-col items-center justify-center text-center">
+                                                <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 tracking-wider">
+                                                    Eficiência
+                                                </span>
+                                                <span className={cn("font-black tracking-tight", isMobile ? "text-xl" : "text-2xl")}>
+                                                    {mode === 'quick' ? results.efficiency : multiResults.efficiency}%
+                                                </span>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Resumo Gabi - Universal Mode */}
+                                    <div className="relative group rounded-xl p-[1px] bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] shadow-lg shadow-purple-500/10">
+                                        <div className="absolute inset-0 bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] opacity-20 blur-md rounded-xl" />
+                                        <div className="relative bg-slate-950/90 backdrop-blur-xl rounded-[10px] p-3 flex gap-3 items-start">
+                                            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-[#FF6B6B] to-[#ffd93d] flex items-center justify-center shrink-0 shadow-lg shadow-orange-500/20">
+                                                <Bot className="h-4 w-4 text-white" />
+                                            </div>
+                                            <div className="space-y-0.5">
+                                                <div className="text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent flex items-center gap-1">
+                                                    Resumo da Gabi
+                                                </div>
+                                                <div className="text-[11px] text-slate-300 leading-relaxed font-medium">
+                                                    {mode === 'quick' ? (
+                                                        <div className="flex flex-col gap-1">
+                                                            {quickGoal === 'meters' ? (
+                                                                <span>Nesses <strong className="text-white">{quickMetersInput}m</strong>, você consegue espremer <strong className="text-white">{results.finalQuantity} {results.finalQuantity === 1 ? 'unidade' : 'unidades'}</strong>.</span>
+                                                            ) : (
+                                                                <span>Para imprimir <strong className="text-white">{results.finalQuantity} {results.finalQuantity === 1 ? 'unidade' : 'unidades'}</strong>, você vai precisar de <strong className="text-white">{results.totalMeters.toFixed(2)}m</strong>.</span>
+                                                            )}
+                                                            <span className="opacity-70">Cabem <strong className="text-white">{results.imagesPerRow} {results.imagesPerRow === 1 ? 'marca' : 'marcas'}</strong> por linha com <strong className="text-white">{results.efficiency}%</strong> de aproveitamento.</span>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex flex-col gap-1">
+                                                            <span>Otimizei <strong className="text-white">{multiResults.items.filter(i => i.quantity > 0).length} {multiResults.items.filter(i => i.quantity > 0).length === 1 ? 'item diferente' : 'itens diferentes'}</strong> ({multiResults.totalQuantity} logos totais).</span>
+                                                            <span>Produção total de <strong className="text-white">{multiResults.totalMeters.toFixed(2)}m</strong> com <strong className="text-white">{multiResults.efficiency}%</strong> de aproveitamento.</span>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
-                                {/* Ações de Compartilhamento Integradas ao Fluxo de Resultados */}
-                                <div className="mt-4 flex gap-2">
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
+
+                                    {/* Ações de Compartilhamento Integradas */}
+                                    <div className="space-y-2">
+                                        <Button
+                                            variant="default"
+                                            size="lg"
+                                            disabled={mode === 'quick' ? imageWidth + (margin * 2) > rollWidth : multiResults.totalItemsOverflowing > 0}
+                                            className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-lg shadow-emerald-500/10 active:scale-95 transition-all gap-3"
+                                            onClick={handleShareWhatsApp}>
+                                            <MessageSquare className="h-5 w-5" /> COMPARTILHAR NO WHATSAPP
+                                        </Button>
+
+                                        <div className="grid grid-cols-2 gap-2">
                                             <Button
-                                                variant="default"
+                                                variant="outline"
                                                 size="sm"
-                                                disabled={mode === 'quick' ? imageWidth + (margin * 2) > rollWidth : multiResults.totalItemsOverflowing > 0}
-                                                className="flex-1 h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-lg shadow-emerald-500/10 active:scale-95 transition-all gap-2">
-                                                <Share2 className="h-4 w-4" /> COMPARTILHAR RESULTADOS
+                                                className="h-10 text-[9px] font-black uppercase tracking-widest border-primary/20 text-primary hover:bg-primary/5 rounded-xl gap-2"
+                                                onClick={handleCopyToClipboard}>
+                                                <Copy className="h-3.5 w-3.5" /> Copiar Resumo
                                             </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end" className="w-56 p-2">
-                                            <div className="px-2 py-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Enviar Dados</div>
-                                            <DropdownMenuItem onClick={handleShareWhatsApp} className="gap-2 cursor-pointer text-green-600 font-bold py-2">
-                                                <MessageSquare className="h-4 w-4" /> WhatsApp
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem onClick={handleCopyToClipboard} className="gap-2 cursor-pointer py-2">
-                                                <Copy className="h-4 w-4" /> Copiar Resumo
-                                            </DropdownMenuItem>
-                                            <DropdownMenuSeparator />
-                                            <div className="px-2 py-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Exportar</div>
-                                            <DropdownMenuItem onClick={handleDownloadImage} className="gap-2 cursor-pointer py-2">
-                                                <Download className="h-4 w-4" /> Baixar PNG
-                                            </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="h-10 text-[9px] font-black uppercase tracking-widest border-primary/20 text-primary hover:bg-primary/5 rounded-xl gap-2"
+                                                onClick={handleDownloadImage}>
+                                                <Download className="h-3.5 w-3.5" /> Baixar Imagem
+                                            </Button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
-                            {/* Botão de Compartilhar Orçamento (Posicionado abaixo do Resumo) */}
-                            {/* The original button was removed as per instruction to relocate */}
-
-                            {/* Área de Preview (Lado Direito) */}
+                            {/* Área de Preview (Lado Direito) - 7 colunas */}
                             <div className={cn(
-                                "md:col-span-7 lg:col-span-7 flex flex-col",
-                                isMobile ? "h-[450px] mt-4" : "sticky top-4 h-full"
+                                "md:col-span-7 flex flex-col h-full min-h-[500px] md:min-h-0",
+                                !isMobile && "sticky top-0"
                             )}>
                                 <div className={cn(
                                     "h-full flex flex-col bg-slate-100/50 dark:bg-slate-900/50 rounded-2xl border border-slate-200/60 dark:border-slate-800 overflow-hidden shadow-inner relative",
@@ -1592,7 +1594,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
 
                     {/* Footer profissional */}
                     <div className={cn(
-                        "flex justify-between items-center mt-6 pt-4 border-t bg-background/50 backdrop-blur-sm pb-2",
+                        "flex justify-between items-center mt-auto pt-4 border-t bg-background/50 backdrop-blur-sm pb-2",
                         isMobile && "flex-col gap-4"
                     )}>
                         {!isMobile && (
@@ -1666,7 +1668,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                         </div>
                     </div>
                 </DialogContent>
-            </Dialog >
+            </Dialog>
 
             <TutorialGuide
                 steps={CALCULADORA_TOUR}

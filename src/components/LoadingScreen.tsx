@@ -13,13 +13,24 @@ const LoadingScreen = ({ minDisplayTime = 800 }: LoadingScreenProps) => {
   const { companyProfile } = useCompanyProfile();
   const [imgError, setImgError] = useState(false);
 
-  // Use cached branding if available to prevent showing default logo while profile is loading
   const cachedLogo = typeof localStorage !== 'undefined' ? localStorage.getItem('cached_company_logo') : null;
   const cachedName = typeof localStorage !== 'undefined' ? localStorage.getItem('cached_company_name') : null;
 
   // Use the company logo if available, fallback to cached, then to default
   const logoUrl = companyProfile?.company_logo_url || cachedLogo || "/logo.png";
   const companyName = companyProfile?.company_name || cachedName || "DIRECT AI";
+
+  const [imgLoaded, setImgLoaded] = useState(false);
+
+  useEffect(() => {
+    // Sync to cache when profile loads successfully
+    if (companyProfile?.company_logo_url) {
+      localStorage.setItem('cached_company_logo', companyProfile.company_logo_url);
+    }
+    if (companyProfile?.company_name) {
+      localStorage.setItem('cached_company_name', companyProfile.company_name);
+    }
+  }, [companyProfile]);
 
   useEffect(() => {
     // Preload da imagem via JS para garantir cache
@@ -78,9 +89,10 @@ const LoadingScreen = ({ minDisplayTime = 800 }: LoadingScreenProps) => {
               <img
                 src={logoUrl}
                 alt={`${companyName} Logo`}
-                className="loading-screen__logo"
+                className={`loading-screen__logo ${imgLoaded ? 'loading-screen__logo--loaded' : 'loading-screen__logo--loading'}`}
                 loading="eager"
                 decoding="async"
+                onLoad={() => setImgLoaded(true)}
                 onError={() => setImgError(true)}
               />
             )}
