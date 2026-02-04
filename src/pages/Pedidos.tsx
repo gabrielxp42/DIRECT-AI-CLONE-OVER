@@ -31,7 +31,7 @@ import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { Calendar } from '@/components/ui/calendar';
 import { generateOrderPDF } from '@/utils/pdfGenerator';
-import { generateOrderPDF } from '@/utils/pdfGenerator';
+
 const StatusChangeDialog = lazy(() => import('@/components/StatusChangeDialog').then(m => ({ default: m.StatusChangeDialog })));
 const StatusHistoryDialog = lazy(() => import('@/components/StatusHistoryDialog').then(m => ({ default: m.StatusHistoryDialog })));
 import {
