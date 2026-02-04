@@ -316,7 +316,19 @@ export const fetchReportData = async (
 
             const isPaid = isPaidStatus || (isAwaitingPickup && wasPaid);
 
+            // 1. COMPONENT BREAKDOWN (DEMAND) - All Orders (Requested by user for backlog visibility)
+            if (order.pedido_items) {
+                order.pedido_items.forEach((item: any) => {
+                    const tipoRaw = (item.tipo || 'dtf').toLowerCase().trim();
+                    const tipo = tipoRaw === '' ? 'outro' : tipoRaw;
+
+                    totalsByType[tipo] = (totalsByType[tipo] || 0) + (Number(item.quantidade) || 0);
+                    revenueByType[tipo] = (revenueByType[tipo] || 0) + (Number(item.quantidade) * Number(item.preco_unitario || 0));
+                });
+            }
+
             if (isPaid) {
+
                 // Cálculo robusto do faturamento "limpo" (sem frete)
                 const subtotal = (order.subtotal_produtos || 0) + (order.subtotal_servicos || 0);
                 const dPerc = subtotal * ((order.desconto_percentual || 0) / 100);
@@ -325,20 +337,14 @@ export const fetchReportData = async (
 
                 totalCost += calculateOrderCost(order);
 
-                // Meters and Product Sales (based on creation, only for PAID)
                 if (order.pedido_items) {
                     order.pedido_items.forEach((item: any) => {
                         const tipoRaw = (item.tipo || 'dtf').toLowerCase().trim();
-                        const tipo = tipoRaw === '' ? 'outro' : tipoRaw;
-
-                        // REGRA: Apenas metros reais (ignora varejo/unidades na soma linear)
-                        const isRoll = ['dtf', 'vinil', 'adesivo'].some(t => tipo.includes(t)) && !tipo.includes('varejo');
+                        // Filter for Linear Meters (Roll only)
+                        const isRoll = ['dtf', 'vinil', 'adesivo'].some(t => tipoRaw.includes(t)) && !tipoRaw.includes('varejo');
                         if (isRoll) {
                             totalMeters += (Number(item.quantidade) || 0);
                         }
-
-                        totalsByType[tipo] = (totalsByType[tipo] || 0) + (Number(item.quantidade) || 0);
-                        revenueByType[tipo] = (revenueByType[tipo] || 0) + (Number(item.quantidade) * Number(item.preco_unitario || 0));
 
                         const productName = item.produtos?.nome || item.produto_nome || 'Produto não encontrado';
                         const existingProd = productSales.get(productName) || { totalSold: 0, revenue: 0 };
@@ -348,6 +354,7 @@ export const fetchReportData = async (
                         });
                     });
                 }
+
 
                 // Customer Spending (only for PAID)
                 const customerName = order.clientes?.nome || 'Cliente Anônimo';
@@ -593,17 +600,20 @@ export const fetchReportData = async (
         const profit = Number((rev - cost).toFixed(2));
 
         const bucketTotals: Record<string, number> = {};
+        // Chart bars show REALIZED production (Paid) and ROLL only to avoid confusion
         productionOrders.forEach((o: any) => {
             if (o.pedido_items) {
                 o.pedido_items.forEach((item: any) => {
-                    o.pedido_items.forEach((item: any) => {
-                        const tipoRaw = (item.tipo || 'outro').toLowerCase().trim();
-                        const tipo = tipoRaw === '' ? 'outro' : tipoRaw;
+                    const tipoRaw = (item.tipo || 'outro').toLowerCase().trim();
+                    const tipo = tipoRaw === '' ? 'outro' : tipoRaw;
+                    const isRoll = ['dtf', 'vinil', 'adesivo'].some(t => tipo.includes(t)) && !tipo.includes('varejo');
+                    if (isRoll) {
                         bucketTotals[tipo] = Number(((bucketTotals[tipo] || 0) + (Number(item.quantidade) || 0)).toFixed(2));
-                    });
+                    }
                 });
             }
         });
+
 
         revenueByPeriod.push({ period: bucket.label, revenue: rev, profit: profit, meters: met });
         metersByPeriod.push({ period: bucket.label, meters: met, ...bucketTotals });
