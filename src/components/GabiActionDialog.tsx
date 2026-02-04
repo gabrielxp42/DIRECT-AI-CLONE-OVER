@@ -96,13 +96,19 @@ export const GabiActionDialog: React.FC<GabiActionDialogProps> = ({
                         <div className="h-12 w-12 rounded-full bg-white/20 border-2 border-white/30 flex items-center justify-center shadow-lg backdrop-blur-md">
                             {getIcon()}
                         </div>
-                        <div>
+                        <div className="flex-1">
                             <h2 className="text-xl font-black text-white tracking-wide uppercase">
                                 Gabi Action
                             </h2>
-                            <p className="text-xs text-white/80 font-medium">
-                                Automação Inteligente ⚡
-                            </p>
+                            <div className="flex items-center gap-2">
+                                <p className="text-xs text-white/80 font-medium">
+                                    Automação via
+                                </p>
+                                <div className="flex items-center gap-1 bg-[#25D366] px-2 py-0.5 rounded-full">
+                                    <MessageCircle className="w-3 h-3 text-white" />
+                                    <span className="text-[10px] font-black text-white tracking-wide">WhatsApp</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -122,7 +128,8 @@ export const GabiActionDialog: React.FC<GabiActionDialogProps> = ({
                     {/* Seção de Seleção de Destinatário */}
                     <div className="space-y-3 px-2">
                         <div className="flex items-center justify-between">
-                            <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                            <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                                <MessageCircle className="w-3.5 h-3.5 text-[#25D366]" />
                                 WhatsApp do Destinatário
                             </Label>
                             {clients && clients.length > 0 && (
