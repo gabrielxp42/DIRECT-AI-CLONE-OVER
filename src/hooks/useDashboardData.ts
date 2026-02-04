@@ -103,10 +103,11 @@ const fetchDashboardData = async (userId: string | undefined): Promise<Dashboard
 
     // Previous Month Orders (needed for growth)
     doFetch('pedidos', new URLSearchParams({
-      select: 'id,valor_total,created_at,status,total_metros,user_id,pedido_status_history(*)',
+      select: 'id,valor_total,created_at,status,total_metros,user_id,pedido_items(tipo,quantidade),pedido_status_history(*)',
       created_at: `gte.${firstDayPreviousMonth.toISOString()}`,
       user_id: `eq.${userId}`
     })).then(data => data.filter((d: any) => new Date(d.created_at) <= lastDayPreviousMonth && d.user_id === userId)),
+
 
     // Customers (Counts only)
     doCount('clientes', new URLSearchParams({
@@ -132,7 +133,7 @@ const fetchDashboardData = async (userId: string | undefined): Promise<Dashboard
     doCount('pedidos', new URLSearchParams({ user_id: `eq.${userId}` })),
     // Lifetime Sales Data Fetch
     doFetch('pedidos', new URLSearchParams({
-      select: 'valor_total,total_metros,status,user_id,tipo_entrega,valor_frete,subtotal_produtos,subtotal_servicos,desconto_percentual,desconto_valor,pedido_status_history(*)',
+      select: 'valor_total,total_metros,status,user_id,tipo_entrega,valor_frete,subtotal_produtos,subtotal_servicos,desconto_percentual,desconto_valor,pedido_items(tipo,quantidade),pedido_status_history(*)',
       status: 'in.(pago,entregue,aguardando retirada)',
       user_id: `eq.${userId}`
     })).then(data => {
@@ -159,20 +160,53 @@ const fetchDashboardData = async (userId: string | undefined): Promise<Dashboard
   // Let's fix the call above in next iteration or just rely on 'previousCustomers' fetched logic if needed.
   // Actually, let's keep it simple: the dashboard relies on these numbers.
 
+  // Helper logic for verified payment
+  const isPaidOrder = (order: any) => {
+    const s = order.status?.toLowerCase();
+    const isPaidStatus = ['pago', 'entregue'].includes(s);
+    const isAwaitingPickup = s === 'aguardando retirada';
+    let wasPaid = false;
+    if (isAwaitingPickup && Array.isArray(order.pedido_status_history)) {
+      wasPaid = order.pedido_status_history.some((h: any) =>
+        h.status_novo?.toLowerCase() === 'pago' || h.status_anterior?.toLowerCase() === 'pago'
+      );
+    }
+    return isPaidStatus || (isAwaitingPickup && wasPaid);
+  };
+
+  // Helper logic for roll media calculation
+  const calculateOrderRollMeters = (order: any) => {
+    let meters = 0;
+    if (order.pedido_items && Array.isArray(order.pedido_items)) {
+      order.pedido_items.forEach((item: any) => {
+        const tipo = (item.tipo || 'dtf').toLowerCase().trim();
+        const isRoll = ['dtf', 'vinil', 'adesivo'].some(t => tipo.includes(t)) && !tipo.includes('varejo');
+        if (isRoll) {
+          meters += (Number(item.quantidade) || 0);
+        }
+      });
+    }
+    return meters;
+  };
+
   // Calculate total meters dynamically from items
   const productionTotals: Record<string, number> = {};
   let totalMeters = 0;
 
   currentOrders.forEach((order: any) => {
-    // Ignorar pedidos cancelados nas métricas de produção
-    if (order.status === 'cancelado') return;
+    const isPaid = isPaidOrder(order);
 
-    totalMeters += (order.total_metros || 0);
-    if (order.pedido_items) {
+    // Current production totals (Demand/Backlog visibility)
+    if (order.status !== 'cancelado' && order.pedido_items) {
       order.pedido_items.forEach((item: any) => {
         const tipo = (item.tipo || 'dtf').toLowerCase();
         productionTotals[tipo] = (productionTotals[tipo] || 0) + (Number(item.quantidade) || 0);
       });
+    }
+
+    // Big metric (Total Linear) strictly PAID + ROLL
+    if (isPaid) {
+      totalMeters += calculateOrderRollMeters(order);
     }
   });
 
@@ -180,9 +214,10 @@ const fetchDashboardData = async (userId: string | undefined): Promise<Dashboard
   const totalMetersVinil = productionTotals['vinil'] || 0;
 
   const previousTotalMeters = previousOrders.reduce((sum: number, order: any) => {
-    if (order.status === 'cancelado') return sum;
-    return sum + (order.total_metros || 0);
+    if (!isPaidOrder(order)) return sum;
+    return sum + calculateOrderRollMeters(order);
   }, 0);
+
 
   // Calculate sales with strict deduplication
   const calculateSales = (orders: any[]) => {
@@ -224,7 +259,11 @@ const fetchDashboardData = async (userId: string | undefined): Promise<Dashboard
   // Calculate Lifetime Stats
   const lifetimeData = lifetimeOrdersData || [];
   const lifetimeSales = calculateSales(lifetimeData);
-  const lifetimeMeters = lifetimeData.reduce((sum: number, order: any) => sum + (order.total_metros || 0), 0);
+  const lifetimeMeters = lifetimeData.reduce((sum: number, order: any) => {
+    // lifetimeData is already filtered by status in query, but let's ensure roll logic
+    return sum + calculateOrderRollMeters(order);
+  }, 0);
+
   const lifetimeOrders = lifetimeData.length;
 
   const newCustomers = currentCustomersCount; // Approximate or exact from doCount
