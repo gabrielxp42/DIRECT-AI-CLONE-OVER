@@ -360,7 +360,7 @@ Deno.serve(async (req: Request) => {
                     mimetype: "application/pdf",
                     caption: message || "",
                     media: mediaContent,
-                    fileName: mediaName || "documento.pdf"
+                    fileName: mediaName || `documento_${Date.now()}.pdf`
                 };
 
                 const resp = await fetch(sendUrl, {

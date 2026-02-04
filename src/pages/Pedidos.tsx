@@ -63,7 +63,7 @@ import { toPng, toBlob } from 'html-to-image';
 import { Share2, Copy, Download, Image as ImageIcon } from 'lucide-react';
 import { logger } from '@/utils/logger';
 import { useIsPlusMode } from '@/hooks/useIsPlusMode';
-import { GabiActionDialog } from '@/components/GabiActionDialog';
+import { WhatsAppActionDialog } from '@/components/WhatsAppActionDialog';
 
 const ITEMS_PER_PAGE_OPTIONS = [10, 20, 50, 100];
 
@@ -414,7 +414,7 @@ const PedidosPage: React.FC = () => {
     }
   };
 
-  const handleConfirmWhatsAppSend = async (data: { phone?: string; attachPdf?: boolean }) => {
+  const handleConfirmWhatsAppSend = async (data: { phone?: string; attachPdf?: boolean } = {}) => {
     if (!whatsAppDialog.pedido) return;
 
     try {
@@ -427,7 +427,7 @@ const PedidosPage: React.FC = () => {
       };
 
       if (data.attachPdf) {
-        showSuccess("Preparando anexo...");
+        showSuccess("Preparando PDF e link público...");
         const pdfBase64 = await generateOrderPDFBase64(whatsAppDialog.pedido);
 
         const fileName = `pedido_${whatsAppDialog.pedido.id}_${Date.now()}.pdf`;
@@ -451,6 +451,8 @@ const PedidosPage: React.FC = () => {
           const { data: { publicUrl } } = supabase.storage
             .from('order-pdfs')
             .getPublicUrl(fileName);
+
+          console.log('[WhatsApp] Generated Policy-Compliant URL:', publicUrl);
 
           action = 'send-media';
           bodyData = {
@@ -1755,14 +1757,14 @@ const PedidosPage: React.FC = () => {
       </Dialog>
 
       {/* WhatsApp Plus Mode Dialog */}
-      <GabiActionDialog
+      <WhatsAppActionDialog
         isOpen={whatsAppDialog.open}
         onOpenChange={(open) => !open && setWhatsAppDialog({ open: false, pedido: null, summary: '' })}
         customerName={whatsAppDialog.pedido?.clientes?.nome || 'Cliente'}
         phone={whatsAppDialog.pedido?.clientes?.telefone || ''}
         messagePreview={whatsAppDialog.summary}
         onConfirm={handleConfirmWhatsAppSend}
-        actionType="generic"
+        isLoading={isGlobalLoading}
       />
     </div>
   );
