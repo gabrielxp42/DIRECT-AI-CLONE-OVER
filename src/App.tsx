@@ -1,36 +1,37 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Index from "./pages/Index";
-import NotFound from "./pages/NotFound";
+import { lazy, Suspense } from "react";
 import Layout from "./components/Layout";
-import Login from "./pages/Login";
 import { SessionProvider } from "./contexts/SessionProvider";
 import { ThemeProvider } from "./components/ThemeProvider";
 import ProtectedRoute from "./components/ProtectedRoute";
-import Clientes from "./pages/Clientes";
-import Produtos from "./pages/Produtos";
-import Pedidos from "./pages/Pedidos";
-import Reports from "./pages/Reports";
-import Insumos from "./pages/Insumos";
-import Settings from "./pages/Settings";
-import Admin from "./pages/Admin";
-import ResetPassword from "./pages/ResetPassword";
-import Checkout from "./pages/Checkout";
-import Legal from "./pages/Legal";
-import Profile from "./pages/Profile";
 import { AIAssistantProvider } from "./contexts/AIAssistantProvider";
 import { DynamicThemeProvider } from "./components/DynamicThemeProvider";
-import { useEffect, useRef } from "react";
-import { useSession } from "./contexts/SessionProvider";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { TrialBanner } from "./components/TrialBanner";
-// import { setupAuthRefreshInterceptor } from "./utils/authRefresh";
+import { AntiScraper } from "./components/AntiScraper";
+import { PWAManager } from "./components/PWAManager";
+import { InstallPrompt } from "./components/InstallPrompt";
+import AdminRoute from "./components/AdminRoute";
 
-// Configurar interceptor de renovação de token
-// setupAuthRefreshInterceptor();
+// Lazy Load Pages
+const Index = lazy(() => import("./pages/Index"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const Login = lazy(() => import("./pages/Login"));
+const Clientes = lazy(() => import("./pages/Clientes"));
+const Produtos = lazy(() => import("./pages/Produtos"));
+const Pedidos = lazy(() => import("./pages/Pedidos"));
+const Reports = lazy(() => import("./pages/Reports"));
+const Insumos = lazy(() => import("./pages/Insumos"));
+const Settings = lazy(() => import("./pages/Settings"));
+const Admin = lazy(() => import("./pages/Admin"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const Checkout = lazy(() => import("./pages/Checkout"));
+const Legal = lazy(() => import("./pages/Legal"));
+const Profile = lazy(() => import("./pages/Profile"));
 
 // Configurar QueryClient com opções otimizadas
 const queryClient = new QueryClient({
@@ -49,12 +50,11 @@ const queryClient = new QueryClient({
   },
 });
 
-import { AntiScraper } from "./components/AntiScraper";
-import { PWAManager } from "./components/PWAManager";
-import { InstallPrompt } from "./components/InstallPrompt";
-import AdminRoute from "./components/AdminRoute";
-
-// ... (código existente)
+const GlobalLoader = () => (
+  <div className="flex h-screen w-full items-center justify-center bg-background">
+    <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+  </div>
+);
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -62,8 +62,8 @@ const App = () => (
       <TooltipProvider>
         <AIAssistantProvider>
           <Toaster />
-          <Sonner position="top-center" /> {/* Alterado para top-center */}
-          <AntiScraper /> {/* Proteção Anti-Clone Ativa */}
+          <Sonner position="top-center" />
+          <AntiScraper />
           <BrowserRouter>
             <SessionProvider>
               <DynamicThemeProvider>
@@ -71,32 +71,33 @@ const App = () => (
                 <InstallPrompt />
                 <TrialBanner />
                 <ErrorBoundary>
-                  <Routes>
-                    <Route path="/login" element={<Login />} />
-                    <Route path="/reset-password" element={<ResetPassword />} />
-                    <Route path="/terms" element={<Legal />} />
-                    <Route path="/privacy" element={<Legal />} />
-                    <Route path="/checkout" element={<Checkout />} />
-                    <Route element={<ProtectedRoute />}>
-                      <Route element={<Layout />}>
-                        <Route path="/" element={<Index />} />
-                        <Route path="/clientes" element={<Clientes />} />
-                        <Route path="/produtos" element={<Produtos />} />
-                        <Route path="/pedidos" element={<Pedidos />} />
-                        <Route path="/reports" element={<Reports />} />
-                        <Route path="/insumos" element={<Insumos />} />
-                        <Route path="/settings" element={<Settings />} />
-                        <Route path="/profile" element={<Profile />} />
-                        <Route path="/admin" element={
-                          <AdminRoute>
-                            <Admin />
-                          </AdminRoute>
-                        } />
-                        {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                        <Route path="*" element={<NotFound />} />
+                  <Suspense fallback={<GlobalLoader />}>
+                    <Routes>
+                      <Route path="/login" element={<Login />} />
+                      <Route path="/reset-password" element={<ResetPassword />} />
+                      <Route path="/terms" element={<Legal />} />
+                      <Route path="/privacy" element={<Legal />} />
+                      <Route path="/checkout" element={<Checkout />} />
+                      <Route element={<ProtectedRoute />}>
+                        <Route element={<Layout />}>
+                          <Route path="/" element={<Index />} />
+                          <Route path="/clientes" element={<Clientes />} />
+                          <Route path="/produtos" element={<Produtos />} />
+                          <Route path="/pedidos" element={<Pedidos />} />
+                          <Route path="/reports" element={<Reports />} />
+                          <Route path="/insumos" element={<Insumos />} />
+                          <Route path="/settings" element={<Settings />} />
+                          <Route path="/profile" element={<Profile />} />
+                          <Route path="/admin" element={
+                            <AdminRoute>
+                              <Admin />
+                            </AdminRoute>
+                          } />
+                          <Route path="*" element={<NotFound />} />
+                        </Route>
                       </Route>
-                    </Route>
-                  </Routes>
+                    </Routes>
+                  </Suspense>
                 </ErrorBoundary>
               </DynamicThemeProvider>
             </SessionProvider>

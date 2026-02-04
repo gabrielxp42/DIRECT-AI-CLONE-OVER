@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, lazy, Suspense } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useSession } from '@/contexts/SessionProvider';
 import { Pedido, StatusHistoryItem, PedidoStatus } from '@/types/pedido';
@@ -7,10 +7,11 @@ import { Produto } from '@/types/produto';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Plus, Search, Filter, Eye, Edit, Trash2, Loader2, CalendarIcon, DollarSign, FileText, Scissors, History, MessageSquare, MoreHorizontal, User, Clock, CheckCircle, XCircle, Package, X, Printer, Ruler, PackageOpen, Wrench, Users, Activity, CheckSquare, ChevronDown, Sparkles, ScrollText, Calculator, Bike, Zap, Tag, Layers, PenTool, BadgeCheck, Palette, Info } from 'lucide-react';
-import { PedidoForm } from '@/components/PedidoForm';
-import { DTFCalculatorModal } from '@/components/DTFCalculatorModal';
-import { PedidoDetails } from '@/components/PedidoDetails';
 import { EmptyState } from '@/components/EmptyState';
+// Lazy loaded components definitions
+const PedidoForm = lazy(() => import('@/components/PedidoForm').then(m => ({ default: m.PedidoForm })));
+const DTFCalculatorModal = lazy(() => import('@/components/DTFCalculatorModal').then(m => ({ default: m.DTFCalculatorModal })));
+const PedidoDetails = lazy(() => import('@/components/PedidoDetails').then(m => ({ default: m.PedidoDetails })));
 import { showSuccess, showError } from '@/utils/toast';
 import { generateOrderPDFBase64 } from '@/utils/pdfGenerator';
 import {
@@ -30,8 +31,9 @@ import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { Calendar } from '@/components/ui/calendar';
 import { generateOrderPDF } from '@/utils/pdfGenerator';
-import { StatusChangeDialog } from '@/components/StatusChangeDialog';
-import { StatusHistoryDialog } from '@/components/StatusHistoryDialog';
+import { generateOrderPDF } from '@/utils/pdfGenerator';
+const StatusChangeDialog = lazy(() => import('@/components/StatusChangeDialog').then(m => ({ default: m.StatusChangeDialog })));
+const StatusHistoryDialog = lazy(() => import('@/components/StatusHistoryDialog').then(m => ({ default: m.StatusHistoryDialog })));
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -52,7 +54,7 @@ import { DateRange } from 'react-day-picker'; // Importar DateRange
 import { SUPABASE_URL, SUPABASE_ANON_KEY, supabase } from '@/integrations/supabase/client';
 import { getValidToken } from '@/utils/tokenGuard';
 import { useSubscription } from '@/hooks/useSubscription';
-import { SubscriptionModal } from '@/components/SubscriptionModal';
+const SubscriptionModal = lazy(() => import('@/components/SubscriptionModal').then(m => ({ default: m.SubscriptionModal })));
 import { TutorialGuide } from '@/components/TutorialGuide';
 import { useTour } from '@/hooks/useTour';
 import { PEDIDOS_TOUR } from '@/utils/tours';
@@ -1673,63 +1675,65 @@ const PedidosPage: React.FC = () => {
         </>
       )}
 
-      <PedidoForm
-        isOpen={isFormOpen}
-        onOpenChange={setIsFormOpen}
-        onSubmit={handleSubmitPedido}
-        isSubmitting={handleSubmitPedidoMutation.isPending}
-        initialData={editingPedido}
-        clientes={clientes || []}
-        produtos={produtos || []}
-      />
-
-      {viewingPedidoId && (
-        <PedidoDetails
-          isOpen={isDetailsOpen}
-          onOpenChange={setIsDetailsOpen}
-          pedidoId={viewingPedidoId}
+      <Suspense fallback={null}>
+        <PedidoForm
+          isOpen={isFormOpen}
+          onOpenChange={setIsFormOpen}
+          onSubmit={handleSubmitPedido}
+          isSubmitting={handleSubmitPedidoMutation.isPending}
+          initialData={editingPedido}
           clientes={clientes || []}
           produtos={produtos || []}
-          onEdit={handleEditPedido}
-          onDelete={deletePedidoMutation.mutate}
         />
-      )}
 
-      {statusChangePedido && (
-        <StatusChangeDialog
-          isOpen={isStatusChangeOpen}
-          onOpenChange={setIsStatusChangeOpen}
-          currentStatus={statusChangePedido.status}
-          onStatusChange={handleSubmitStatusChange}
-          isLoading={updateStatusMutation.isPending}
-          orderNumber={statusChangePedido.order_number}
-          pagoAt={statusChangePedido.pago_at}
+        {viewingPedidoId && (
+          <PedidoDetails
+            isOpen={isDetailsOpen}
+            onOpenChange={setIsDetailsOpen}
+            pedidoId={viewingPedidoId}
+            clientes={clientes || []}
+            produtos={produtos || []}
+            onEdit={handleEditPedido}
+            onDelete={deletePedidoMutation.mutate}
+          />
+        )}
+
+        {statusChangePedido && (
+          <StatusChangeDialog
+            isOpen={isStatusChangeOpen}
+            onOpenChange={setIsStatusChangeOpen}
+            currentStatus={statusChangePedido.status}
+            onStatusChange={handleSubmitStatusChange}
+            isLoading={updateStatusMutation.isPending}
+            orderNumber={statusChangePedido.order_number}
+            pagoAt={statusChangePedido.pago_at}
+          />
+        )}
+
+        {viewingStatusHistory && (
+          <StatusHistoryDialog
+            isOpen={isStatusHistoryOpen}
+            onOpenChange={setIsStatusHistoryOpen}
+            statusHistory={viewingStatusHistory.status_history || []}
+            orderNumber={viewingStatusHistory.order_number}
+          />
+        )}
+
+        <SubscriptionModal open={showUpgradeModal} onOpenChange={setShowUpgradeModal} />
+
+        <TutorialGuide
+          isOpen={isTourOpen}
+          currentStep={currentStep}
+          steps={steps}
+          onNext={nextStep}
+          onPrev={prevStep}
+          onClose={closeTour}
         />
-      )}
-
-      {viewingStatusHistory && (
-        <StatusHistoryDialog
-          isOpen={isStatusHistoryOpen}
-          onOpenChange={setIsStatusHistoryOpen}
-          statusHistory={viewingStatusHistory.status_history || []}
-          orderNumber={viewingStatusHistory.order_number}
+        <DTFCalculatorModal
+          isOpen={isCalculatorOpen}
+          onClose={() => setIsCalculatorOpen(false)}
         />
-      )}
-
-      <SubscriptionModal open={showUpgradeModal} onOpenChange={setShowUpgradeModal} />
-
-      <TutorialGuide
-        isOpen={isTourOpen}
-        currentStep={currentStep}
-        steps={steps}
-        onNext={nextStep}
-        onPrev={prevStep}
-        onClose={closeTour}
-      />
-      <DTFCalculatorModal
-        isOpen={isCalculatorOpen}
-        onClose={() => setIsCalculatorOpen(false)}
-      />
+      </Suspense>
 
       <Dialog open={!!pedidoToDelete} onOpenChange={(open) => !open && setPedidoToDelete(null)}>
         <DialogContent onClick={(e) => e.stopPropagation()}>
