@@ -408,6 +408,13 @@ export const AIMessagesWidget: React.FC = () => {
                         drag={isMobile ? "x" : false}
                         dragConstraints={{ left: 0, right: 0 }}
                         dragElastic={0.15}
+                        onDragStart={(event, info) => {
+                            // Cancelar drag se clicar em botão ou elemento interativo
+                            const target = (event as any).target as HTMLElement;
+                            if (target.closest('button') || target.closest('[role="button"]') || target.closest('.cursor-pointer')) {
+                                return false;
+                            }
+                        }}
                         onDragEnd={handleDragEnd}
                         initial={{ opacity: 0, x: -30, scale: 0.95 }}
                         animate={{ opacity: 1, x: 0, scale: 1 }}
@@ -452,10 +459,11 @@ export const AIMessagesWidget: React.FC = () => {
                                             /* PLUS MODE: Botão Gabi Premium - Abre Dialog */
                                             <div className="relative group rounded-lg p-[1px] bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] shadow-sm hover:shadow-md transition-all cursor-pointer"
                                                 onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    e.preventDefault();
                                                     if (item.action?.type === 'action') {
                                                         handleActionClickMain(e, item);
                                                     } else {
-                                                        e.stopPropagation();
                                                         triggerAI(item.aiAction!.message);
                                                     }
                                                 }}>
