@@ -578,6 +578,7 @@ export const AIMessagesWidget: React.FC = () => {
                     onOpenChange={(open) => !open && setSelectedAction(null)}
                     customerName={selectedAction.customerName}
                     messagePreview={selectedAction.message}
+                    phone={selectedAction.phone}
                     onConfirm={handleConfirmActionMain}
                     isLoading={isActionLoading}
                     actionType={selectedAction.type}
