@@ -314,43 +314,51 @@ export const fetchReportData = async (
                 );
             }
 
-            if (isPaidStatus || (isAwaitingPickup && wasPaid)) {
+            const isPaid = isPaidStatus || (isAwaitingPickup && wasPaid);
+
+            if (isPaid) {
                 // Cálculo robusto do faturamento "limpo" (sem frete)
                 const subtotal = (order.subtotal_produtos || 0) + (order.subtotal_servicos || 0);
                 const dPerc = subtotal * ((order.desconto_percentual || 0) / 100);
                 const faturamentoLimpo = Math.max(0, subtotal - (order.desconto_valor || 0) - dPerc);
                 totalRevenue += faturamentoLimpo;
-            }
 
-            totalCost += calculateOrderCost(order);
-            totalMeters += (order.total_metros || 0);
-        }
+                totalCost += calculateOrderCost(order);
 
-        // Meters and Product Sales (based on creation)
-        if (createdInRange && order.pedido_items) {
-            order.pedido_items.forEach((item: any) => {
-                const tipo = (item.tipo || 'dtf').toLowerCase();
-                totalsByType[tipo] = (totalsByType[tipo] || 0) + (Number(item.quantidade) || 0);
-                revenueByType[tipo] = (revenueByType[tipo] || 0) + (Number(item.quantidade) * Number(item.preco_unitario || 0));
+                // Meters and Product Sales (based on creation, only for PAID)
+                if (order.pedido_items) {
+                    order.pedido_items.forEach((item: any) => {
+                        const tipoRaw = (item.tipo || 'dtf').toLowerCase().trim();
+                        const tipo = tipoRaw === '' ? 'outro' : tipoRaw;
 
-                const productName = item.produtos?.nome || item.produto_nome || 'Produto não encontrado';
-                const existingProd = productSales.get(productName) || { totalSold: 0, revenue: 0 };
-                productSales.set(productName, {
-                    totalSold: existingProd.totalSold + item.quantidade,
-                    revenue: existingProd.revenue + (item.quantidade * item.preco_unitario)
+                        // REGRA: Apenas metros reais (ignora varejo/unidades na soma linear)
+                        const isRoll = ['dtf', 'vinil', 'adesivo'].some(t => tipo.includes(t)) && !tipo.includes('varejo');
+                        if (isRoll) {
+                            totalMeters += (Number(item.quantidade) || 0);
+                        }
+
+                        totalsByType[tipo] = (totalsByType[tipo] || 0) + (Number(item.quantidade) || 0);
+                        revenueByType[tipo] = (revenueByType[tipo] || 0) + (Number(item.quantidade) * Number(item.preco_unitario || 0));
+
+                        const productName = item.produtos?.nome || item.produto_nome || 'Produto não encontrado';
+                        const existingProd = productSales.get(productName) || { totalSold: 0, revenue: 0 };
+                        productSales.set(productName, {
+                            totalSold: existingProd.totalSold + item.quantidade,
+                            revenue: existingProd.revenue + (item.quantidade * item.preco_unitario)
+                        });
+                    });
+                }
+
+                // Customer Spending (only for PAID)
+                const customerName = order.clientes?.nome || 'Cliente Anônimo';
+                const existingCust = customerSpending.get(customerName) || { totalOrders: 0, totalSpent: 0 };
+                customerSpending.set(customerName, {
+                    totalOrders: existingCust.totalOrders + 1,
+                    totalSpent: existingCust.totalSpent + (order.valor_total || 0)
                 });
-            });
+            }
         }
 
-        // Customer Spending (based on creation)
-        if (createdInRange) {
-            const customerName = order.clientes?.nome || 'Cliente Anônimo';
-            const existingCust = customerSpending.get(customerName) || { totalOrders: 0, totalSpent: 0 };
-            customerSpending.set(customerName, {
-                totalOrders: existingCust.totalOrders + 1,
-                totalSpent: existingCust.totalSpent + (order.valor_total || 0)
-            });
-        }
 
         // Financial Report (status snapshot for orders in period)
         if (createdInRange) {
@@ -553,9 +561,34 @@ export const fetchReportData = async (
             return sum + Math.max(0, subtotal - (o.desconto_valor || 0) - dPerc);
         }, 0);
 
-        // Somar metros apenas de pedidos NÃO cancelados
-        const productionOrders = ordersInBucket.filter((o: any) => o.status !== 'cancelado');
-        const met = Number(productionOrders.reduce((sum: number, o: any) => sum + (o.total_metros || 0), 0).toFixed(2));
+        // Somar metros apenas de pedidos PAGOS (consistência total)
+        const productionOrders = ordersInBucket.filter((o: any) => {
+            const s = o.status?.toLowerCase();
+            const isPaidStatus = ['pago', 'entregue'].includes(s);
+            const isAwaitingPickup = s === 'aguardando retirada';
+            let wasPaid = false;
+            if (isAwaitingPickup && Array.isArray(o.pedido_status_history)) {
+                wasPaid = o.pedido_status_history.some((h: any) =>
+                    h.status_novo?.toLowerCase() === 'pago' || h.status_anterior?.toLowerCase() === 'pago'
+                );
+            }
+            return isPaidStatus || (isAwaitingPickup && wasPaid);
+        });
+
+        const met = Number(productionOrders.reduce((sum: number, o: any) => {
+            let orderMeters = 0;
+            if (o.pedido_items) {
+                o.pedido_items.forEach((item: any) => {
+                    const tipo = (item.tipo || 'dtf').toLowerCase().trim();
+                    const isRoll = ['dtf', 'vinil', 'adesivo'].some(t => tipo.includes(t)) && !tipo.includes('varejo');
+                    if (isRoll) {
+                        orderMeters += (Number(item.quantidade) || 0);
+                    }
+                });
+            }
+            return sum + orderMeters;
+        }, 0).toFixed(2));
+
         const cost = productionOrders.reduce((sum: number, o: any) => sum + calculateOrderCost(o), 0);
         const profit = Number((rev - cost).toFixed(2));
 
