@@ -148,15 +148,28 @@ const Layout = () => {
 
       {/* Main Content (Segunda Coluna do Grid) */}
       <div className="flex flex-col">
-        <header className="flex h-14 items-center gap-4 border-b bg-background px-4 lg:h-[60px] lg:px-6">
-          <div className="flex items-center gap-2 font-semibold md:hidden">
-            <img src="/logo.png" alt="Direct DTF Logo" className="h-8 w-8" />
-            <span>DIRECT AI</span>
+        <header className="fixed top-0 left-0 right-0 z-40 w-full border-b bg-background/80 backdrop-blur-md transition-all duration-300">
+          {/* Safe Area Spacer for iOS/Mobile */}
+          <div className="h-safe-top pt-safe" />
+
+          <div className="flex h-14 items-center gap-4 px-4 lg:h-[60px] lg:px-6">
+            <div className="flex items-center gap-2 font-semibold md:hidden">
+              <img src="/logo.png" alt="Direct DTF Logo" className="h-8 w-8" />
+              <span className="tracking-tighter font-black italic">DIRECT AI</span>
+            </div>
+
+            <div className="w-full flex-1" />
+
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+              <UserNav />
+            </div>
           </div>
-          <div className="w-full flex-1" />
-          <ThemeToggle />
-          <UserNav />
         </header>
+
+        {/* Global Spacers to prevent content from going under the fixed header */}
+        <div className="h-14 lg:h-[60px]" />
+        <div className="h-safe-top pt-safe" />
 
         <SubscriptionAlert />
 

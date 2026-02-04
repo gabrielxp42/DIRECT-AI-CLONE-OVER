@@ -661,7 +661,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                         "border border-white/40 dark:border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.3)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.5)]",
                         // Internal Gloss
                         "before:absolute before:inset-0 before:bg-gradient-to-tr before:from-white/10 before:to-transparent before:pointer-events-none",
-                        isMobile ? "max-w-[100vw] w-full p-3 rounded-t-[2.5rem] rounded-b-none bottom-0 top-auto translate-y-0 h-[95vh]" : "max-w-[95vw] lg:max-w-6xl w-full h-[90vh] p-8 rounded-[2rem]"
+                        isMobile ? "max-w-[100vw] w-full p-3 pb-safe rounded-t-[2.5rem] rounded-b-none bottom-0 top-auto translate-y-0 h-[95vh]" : "max-w-[95vw] lg:max-w-6xl w-full h-[90vh] p-8 rounded-[2rem]"
                     )}>
                     <DialogHeader>
                         <div id="calculator-title" className="flex items-center justify-between w-full">

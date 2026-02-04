@@ -69,8 +69,8 @@ export const MobileBottomNav = ({ onOpenCalculator }: { onOpenCalculator?: () =>
 
   return (
     <>
-      <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 ios-glass border-t border-white/10 z-40">
-        <div className="flex justify-around items-center h-full relative">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 min-h-16 h-auto pb-safe ios-glass border-t border-white/10 z-40">
+        <div className="flex justify-around items-center h-16 relative">
           <div className="flex justify-around items-center w-full">
             {navItemsLeft.map(renderNavItem)}
             <div className="w-16" /> {/* Spacer for the central button */}
@@ -80,7 +80,7 @@ export const MobileBottomNav = ({ onOpenCalculator }: { onOpenCalculator?: () =>
       </div>
 
       {/* Central Add Button */}
-      <div className="md:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-50">
+      <div className="md:hidden fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 z-50">
         <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
           <SheetTrigger asChild>
             <Button
@@ -93,7 +93,7 @@ export const MobileBottomNav = ({ onOpenCalculator }: { onOpenCalculator?: () =>
           </SheetTrigger>
           <SheetContent
             side="bottom"
-            className="rounded-t-[2.5rem] p-0 overflow-hidden ios-glass border-t-0 border-x-0 shadow-2xl transition-all duration-500"
+            className="rounded-t-[2.5rem] p-0 pb-safe overflow-hidden ios-glass border-t-0 border-x-0 shadow-2xl transition-all duration-500"
           >
             {/* iOS Handle */}
             <div className="absolute top-3 left-1/2 -translate-x-1/2 w-10 h-1 bg-white/20 rounded-full" />
@@ -184,7 +184,7 @@ export const MobileBottomNav = ({ onOpenCalculator }: { onOpenCalculator?: () =>
       `}} />
 
       {/* Add padding to the bottom of the main content to avoid overlap */}
-      <div className="md:hidden h-16" />
+      <div className="md:hidden h-[calc(4rem+env(safe-area-inset-bottom))]" />
     </>
   );
 };

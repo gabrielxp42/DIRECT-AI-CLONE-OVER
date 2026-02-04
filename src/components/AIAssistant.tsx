@@ -269,13 +269,15 @@ export const AIAssistant = () => {
           exit={{ opacity: 0, scale: 0.7, y: 40, x: 20 }}
           transition={{ type: "spring", damping: 20, stiffness: 300 }}
           style={{ originX: 1, originY: 1 }}
-          className="fixed right-6 bottom-6 z-50"
+          className="fixed inset-x-0 bottom-0 md:inset-auto md:right-6 md:bottom-6 z-[60] p-0 md:p-0"
         >
           <Card className={cn(
             "flex flex-col shadow-2xl border-white/20 dark:bg-zinc-950/20 backdrop-blur-40 transition-all duration-300 overflow-hidden ring-1 ring-white/10",
-            isMinimized ? "h-16 w-72" : "h-[600px] w-[380px] md:w-[420px]"
+            isMinimized
+              ? "h-16 w-full md:w-72 rounded-t-3xl md:rounded-2xl"
+              : "h-[90vh] md:h-[600px] w-full md:w-[420px] rounded-t-[2.5rem] md:rounded-3xl"
           )}>
-            <CardHeader className="flex flex-row items-center justify-between p-4 border-b border-white/5 bg-white/5 backdrop-blur-40">
+            <CardHeader className="flex flex-row items-center justify-between p-4 border-b border-white/5 bg-white/5 backdrop-blur-40 pt-safe">
               <div className="flex items-center gap-3">
                 <div className="p-0.5 rounded-full bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] shadow-lg">
                   <div className="w-10 h-10 rounded-full bg-slate-950 flex items-center justify-center">
