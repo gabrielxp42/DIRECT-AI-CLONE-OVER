@@ -55,8 +55,8 @@ export const useClientes = () => {
       return fetchClientes(accessToken, userId, organizationId);
     },
     enabled: isEnabled,
-    staleTime: 0,
-    refetchOnMount: true,
+    enabled: isEnabled,
+    staleTime: 1000 * 60 * 5, // 5 minutes
   });
 };
 
@@ -83,8 +83,8 @@ export const useProdutos = () => {
       return fetchProdutos(accessToken, userId, organizationId);
     },
     enabled: isEnabled,
-    staleTime: 0,
-    refetchOnMount: true,
+    enabled: isEnabled,
+    staleTime: 1000 * 60 * 5, // 5 minutes
   });
 };
 
@@ -108,138 +108,23 @@ const fetchPedidos = async (
   const start = (page - 1) * limit;
   const trimmedSearchTerm = searchTerm.trim();
 
-  const validToken = await getValidToken();
-  const effectiveToken = validToken || accessToken;
-
-  if (effectiveToken) {
-    try {
-      const baseUrl = `${SUPABASE_URL}/rest/v1/pedidos`;
-      const selectQuery = `*,clientes(id,nome,telefone,email,endereco),pedido_items(*),pedido_servicos(*),pedido_status_history(*)`;
-      let queryParams = new URLSearchParams();
-      queryParams.append('select', selectQuery);
-
-      // Filtro de contexto: Organização ou Usuário
-      if (organizationId) {
-        queryParams.append('organization_id', `eq.${organizationId}`);
-      } else {
-        queryParams.append('user_id', `eq.${userId}`);
-      }
-
-      queryParams.append('order', 'order_number.desc');
-      queryParams.append('limit', String(limit));
-      queryParams.append('offset', String(start));
-
-      if (filterStatus === 'pendente-pagamento') {
-        queryParams.append('status', 'not.in.(pago,cancelado,entregue)');
-      } else if (filterStatus !== 'todos') {
-        queryParams.append('status', `eq.${filterStatus}`);
-      }
-
-      if (filterDateRange?.from) queryParams.append('created_at', `gte.${filterDateRange.from.toISOString()}`);
-      if (filterDateRange?.to) {
-        const d = new Date(filterDateRange.to);
-        d.setHours(23, 59, 59, 999);
-        queryParams.append('created_at', `lte.${d.toISOString()}`);
-      }
-
-      if (filterClientId) {
-        queryParams.append('cliente_id', `eq.${filterClientId}`);
-      } else if (trimmedSearchTerm) {
-        const isNumeric = !isNaN(Number(trimmedSearchTerm));
-        if (isNumeric) {
-          queryParams.append('or', `(order_number.eq.${trimmedSearchTerm},observacoes.ilike.*${trimmedSearchTerm}*)`);
-        } else {
-          try {
-            const term = encodeURIComponent(trimmedSearchTerm);
-            // Busca de clientes usando wildcards standard do PostgREST (*) e priorizando organização
-            const contextFilter = organizationId ? `organization_id=eq.${organizationId}` : `user_id=eq.${userId}`;
-            const clientsUrl = `${SUPABASE_URL}/rest/v1/clientes?select=id,nome,email,telefone&${contextFilter}&or=(nome.ilike.*${term}*,email.ilike.*${term}*,telefone.ilike.*${term}*)&limit=1000`;
-
-            console.log('[fetchPedidos] Pesquisando clientes:', clientsUrl);
-
-            const cRes = await fetch(clientsUrl, {
-              headers: {
-                apikey: SUPABASE_ANON_KEY,
-                Authorization: `Bearer ${effectiveToken}`
-              }
-            });
-
-            if (cRes.ok) {
-              const found = await cRes.json();
-              console.log(`[fetchPedidos] ${found.length} clientes encontrados.`);
-
-              const normSearch = removeAccents(trimmedSearchTerm.toLowerCase());
-              const matches = found.filter((c: any) =>
-                removeAccents((c.nome || '').toLowerCase()).includes(normSearch) ||
-                (c.email || '').toLowerCase().includes(normSearch) ||
-                (c.telefone || '').includes(trimmedSearchTerm)
-              );
-
-              const final = matches.length > 0 ? matches : found;
-              if (final.length > 0) {
-                const ids = final.map((c: any) => c.id).join(',');
-                queryParams.append('cliente_id', `in.(${ids})`);
-              } else {
-                queryParams.append('observacoes', `ilike.*${trimmedSearchTerm}*`);
-              }
-            } else {
-              console.warn('[fetchPedidos] Falha ao buscar clientes:', cRes.status);
-              queryParams.append('observacoes', `ilike.*${trimmedSearchTerm}*`);
-            }
-          } catch (e) {
-            console.error('[fetchPedidos] Erro na busca de clientes:', e);
-            queryParams.append('observacoes', `ilike.*${trimmedSearchTerm}*`);
-          }
-        }
-      }
-
-      console.log('[fetchPedidos] URL Final:', `${baseUrl}?${queryParams.toString()}`);
-
-      const res = await fetch(`${baseUrl}?${queryParams.toString()}`, {
-        headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${effectiveToken}`, Prefer: 'count=exact' }
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        const cr = res.headers.get('content-range');
-        const count = cr ? parseInt(cr.split('/')[1]) : data.length;
-
-        const ped = data.map((p: any) => {
-          const sortedHistory = (p.pedido_status_history || []).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-          const latestObservation = sortedHistory.find((h: any) => h.observacao)?.observacao || null;
-          return {
-            ...p,
-            pedido_items: (p.pedido_items || []).sort((a: any, b: any) => (a.ordem || 0) - (b.ordem || 0)),
-            servicos: p.pedido_servicos || [],
-            status_history: sortedHistory,
-            latest_status_observation: latestObservation,
-          };
-        });
-        return { pedidos: ped as Pedido[], totalCount: count || 0 };
-
-      } else {
-        const errTxt = await res.text();
-        console.error('[fetchPedidos] Erro na resposta do servidor:', res.status, errTxt);
-      }
-    } catch (e) {
-      console.error('[fetchPedidos] Falha catastrófica no direct fetch:', e);
-    }
-  }
-
-  // Fallback: Supabase-JS
-  console.log('[fetchPedidos] Usando fallback Supabase-JS');
+  // 1. Build Query using Supabase Client
   let query = supabase
     .from('pedidos')
     .select('*,clientes(id,nome,telefone,email,endereco),pedido_items(*),pedido_servicos(*),pedido_status_history(*)', { count: 'exact' });
 
+  // 2. Apply Organization/User Context
   if (organizationId) {
     query = query.eq('organization_id', organizationId);
   } else {
     query = query.eq('user_id', userId);
   }
 
+  // 3. Apply Pagination & Ordering
+  // Note: Sorting is done DB-side for performance
   query = query.order('order_number', { ascending: false }).range(start, start + limit - 1);
 
+  // 4. Apply Filters
   if (filterStatus === 'pendente-pagamento') {
     query = query.not('status', 'in', '(pago,cancelado,entregue)');
   } else if (filterStatus !== 'todos') {
@@ -253,12 +138,15 @@ const fetchPedidos = async (
     query = query.lte('created_at', d.toISOString());
   }
 
+  // 5. Apply Search (Smart Search)
   if (filterClientId) {
     query = query.eq('cliente_id', filterClientId);
   } else if (trimmedSearchTerm) {
     if (!isNaN(Number(trimmedSearchTerm))) {
+      // Numeric search: Order Number
       query = query.or(`order_number.eq.${Number(trimmedSearchTerm)},observacoes.ilike.%${trimmedSearchTerm}%`);
     } else {
+      // Text search: Try finding clients first
       let clientQ = supabase.from('clientes').select('id');
       if (organizationId) clientQ = clientQ.eq('organization_id', organizationId);
       else clientQ = clientQ.eq('user_id', userId);
@@ -266,21 +154,28 @@ const fetchPedidos = async (
       const { data: cls } = await clientQ.or(`nome.ilike.%${trimmedSearchTerm}%,email.ilike.%${trimmedSearchTerm}%`).limit(100);
 
       if (cls && cls.length > 0) {
+        // If clients found, filter orders by these clients
         query = query.in('cliente_id', cls.map(c => c.id));
       } else {
+        // Fallback to observations
         query = query.ilike('observacoes', `%${trimmedSearchTerm}%`);
       }
     }
   }
 
+  // 6. Execute Query
   const { data, error, count } = await query;
   if (error) throw error;
 
+  // 7. Process Data (Lightweight client-side sorting for sub-items)
   const ped = (data || []).map((p: any) => {
+    // Sort history by date desc
     const sortedHistory = (p.pedido_status_history || []).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     const latestObservation = sortedHistory.find((h: any) => h.observacao)?.observacao || null;
+
     return {
       ...p,
+      // Sort items by order index
       pedido_items: (p.pedido_items || []).sort((a: any, b: any) => (a.ordem || 0) - (b.ordem || 0)),
       servicos: p.pedido_servicos || [],
       status_history: sortedHistory,
@@ -310,8 +205,8 @@ export const usePaginatedPedidos = (
       return await fetchPedidos(supabase, userId, page, limit, filterStatus, filterDateRange, filterClientId, searchTerm, organizationId, accessToken);
     },
     enabled: !sessionLoading && !!userId && !!supabase,
-    staleTime: 0,
-    refetchOnMount: true,
+    enabled: !sessionLoading && !!userId && !!supabase,
+    staleTime: 1000 * 60 * 1, // 1 minute (orders update frequently)
   });
 };
 
@@ -345,7 +240,8 @@ export const usePedidos = () => {
     queryKey: ["all-pedidos-unpaginated", organizationId || userId],
     queryFn: () => fetchAllPedidos(userId!),
     enabled: !sessionLoading && !!userId && !!supabase,
-    staleTime: 0,
+    enabled: !sessionLoading && !!userId && !!supabase,
+    staleTime: 1000 * 60 * 5, // 5 minutes
   });
 };
 
