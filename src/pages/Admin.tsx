@@ -57,6 +57,9 @@ import {
 } from "@/components/ui/tooltip";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { motion } from "framer-motion";
+import { AdminGeminiConfig } from "@/components/AdminGeminiConfig";
+import { AdminAIMonitoring } from "@/components/AdminAIMonitoring";
+import { Brain } from "lucide-react";
 
 type AdminProfile = {
     id: string;
@@ -253,9 +256,20 @@ export default function Admin() {
     const handleSaveDetail = async () => {
         if (!selectedUser) return;
         try {
+            // When gifting a plan or WA plus, we need to reset the "viewed" flags 
+            // so the user sees the celebration modal again
+            const finalForm = { ...editForm };
+
+            if (editForm.is_gifted_plan && !selectedUser.is_gifted_plan) {
+                (finalForm as any).subscription_gift_viewed = false;
+            }
+            if (editForm.is_whatsapp_plus_gifted && !(selectedUser as any).is_whatsapp_plus_gifted) {
+                (finalForm as any).is_whatsapp_plus_gifted_viewed = false;
+            }
+
             const { error } = await supabase
                 .from('profiles')
-                .update(editForm)
+                .update(finalForm)
                 .eq('id', selectedUser.id);
 
             if (error) throw error;
@@ -431,7 +445,11 @@ export default function Admin() {
             <Tabs defaultValue="users" className="w-full">
                 <TabsList className="bg-muted/50 p-1 rounded-2xl mb-8 flex overflow-x-auto scrollbar-hide w-full md:w-auto">
                     <TabsTrigger value="users" className="rounded-xl px-4 md:px-8 font-black uppercase tracking-widest text-[11px] flex-1 md:flex-none shrink-0">Usuários</TabsTrigger>
-                    <TabsTrigger value="logs" className="rounded-xl px-4 md:px-8 font-black uppercase tracking-widest text-[11px] flex-1 md:flex-none shrink-0">Monitoramento IA</TabsTrigger>
+                    <TabsTrigger value="logs" className="rounded-xl px-4 md:px-8 font-black uppercase tracking-widest text-[11px] flex-1 md:flex-none shrink-0">Logs</TabsTrigger>
+                    <TabsTrigger value="ai-monitoring" className="rounded-xl px-4 md:px-8 font-black uppercase tracking-widest text-[11px] flex-1 md:flex-none shrink-0 flex items-center gap-2">
+                        <Brain size={14} /> Monitoramento IA
+                    </TabsTrigger>
+                    <TabsTrigger value="gemini-config" className="rounded-xl px-4 md:px-8 font-black uppercase tracking-widest text-[11px] flex-1 md:flex-none shrink-0 text-violet-500">Gemini Config</TabsTrigger>
                     <TabsTrigger value="evolution" className="rounded-xl px-4 md:px-8 font-black uppercase tracking-widest text-[11px] flex-1 md:flex-none shrink-0 text-green-500">Evolution API</TabsTrigger>
                     <TabsTrigger value="marketing" className="rounded-xl px-4 md:px-8 font-black uppercase tracking-widest text-[11px] flex-1 md:flex-none shrink-0">Marketing & Ganhos</TabsTrigger>
                 </TabsList>
@@ -551,9 +569,56 @@ export default function Admin() {
                     </Card>
                 </TabsContent>
 
-                {/* ABA DE MONITORAMENTO IA (LOGS) */}
+                {/* ABA DE LOGS DO SISTEMA */}
                 <TabsContent value="logs">
                     {/* ... (conteúdo existente do logs) */}
+                    <Card className="shadow-2xl rounded-[2rem] overflow-hidden border-none bg-white dark:bg-zinc-900/50 backdrop-blur-xl">
+                        <CardHeader className="p-8">
+                            <CardTitle className="text-2xl font-black uppercase italic tracking-tighter">Logs do Sistema</CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Data</TableHead>
+                                        <TableHead>Nível</TableHead>
+                                        <TableHead>Mensagem</TableHead>
+                                        <TableHead>Usuário</TableHead>
+                                        <TableHead>Ação</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {logs.map((log) => (
+                                        <TableRow key={log.id}>
+                                            <TableCell>{new Date(log.created_at).toLocaleString()}</TableCell>
+                                            <TableCell>
+                                                <Badge variant={log.level === 'error' ? 'destructive' : 'outline'}>
+                                                    {log.level}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell>{log.message}</TableCell>
+                                            <TableCell>{log.profile?.company_name || 'Sistema'}</TableCell>
+                                            <TableCell>
+                                                {!log.resolved && (
+                                                    <Button size="sm" onClick={() => resolveLog(log.id)}>Resolver</Button>
+                                                )}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+
+                {/* ABA MONITORAMENTO IA (NOVA) */}
+                <TabsContent value="ai-monitoring">
+                    <AdminAIMonitoring />
+                </TabsContent>
+
+                {/* ABA GEMINI CONFIG (NOVA) */}
+                <TabsContent value="gemini-config">
+                    <AdminGeminiConfig />
                 </TabsContent>
 
                 {/* ABA DE CONFIGURAÇÃO EVOLUTION API */}

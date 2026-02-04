@@ -62,8 +62,38 @@ Deno.serve(async (req: Request) => {
                 });
                 const checkData = await checkResp.json();
 
+                // Shared Webhook Configuration Logic
+                const configureWebhook = async () => {
+                    try {
+                        const WEBHOOK_URL = `${Deno.env.get('SUPABASE_URL')}/functions/v1/whatsapp-webhook`;
+                        console.log(`[Proxy] Configuring Webhook for ${instanceId} -> ${WEBHOOK_URL}`);
+
+                        await fetch(`${EVOLUTION_URL}/webhook/set/${instanceId}`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'apikey': EVOLUTION_KEY
+                            },
+                            body: JSON.stringify({
+                                webhook: {
+                                    enabled: true,
+                                    url: WEBHOOK_URL,
+                                    webhookByEvents: true,
+                                    events: ["MESSAGES_UPSERT"]
+                                }
+                            })
+                        });
+                    } catch (webhookErr) {
+                        console.error("[Proxy] Warning: Failed to set webhook:", webhookErr);
+                    }
+                };
+
                 if (checkData.instance?.state === 'open') {
-                    // Se já estiver aberto, atualiza no banco e retorna sucesso imediato
+                    // Instance exists and is open
+                    // FORCE WEBHOOK CONFIGURATION (To update URL or Enable it)
+                    await configureWebhook();
+
+                    // Update DB and return
                     await supabaseAdmin
                         .from('profiles')
                         .update({
@@ -75,7 +105,7 @@ Deno.serve(async (req: Request) => {
 
                     result = { instance: { state: 'open' }, status: 'connected' };
                 } else {
-                    // Se não estiver aberto, tenta criar ou conectar para pegar o QR
+                    // Create new instance
                     const createResp = await fetch(`${EVOLUTION_URL}/instance/create`, {
                         method: 'POST',
                         headers: {
@@ -93,12 +123,14 @@ Deno.serve(async (req: Request) => {
                     const createData = await createResp.json();
 
                     if (createResp.status === 403 || (createData.error && createData.error.includes("already exists"))) {
+                        // ....
+                        // Existing connection logic fallback
                         const connectResp = await fetch(`${EVOLUTION_URL}/instance/connect/${instanceId}`, {
                             headers: { 'apikey': EVOLUTION_KEY }
                         });
                         result = await connectResp.json();
                     } else if (!createResp.ok) {
-                        // Propaga o erro real da Evolution v2
+                        // Error handling
                         console.error("Evolution v2 Error Details:", createData);
                         result = {
                             error: true,
@@ -107,6 +139,36 @@ Deno.serve(async (req: Request) => {
                         };
                     } else {
                         result = createData;
+                    }
+
+                    // Configure Webhook for new instance
+                    await configureWebhook();
+
+
+                    // AUTO-CONFIGURE WEBHOOK
+                    // Ensure the instance sends messages to our Supabase Webhook
+                    try {
+                        const WEBHOOK_URL = `${Deno.env.get('SUPABASE_URL')}/functions/v1/whatsapp-webhook`;
+                        console.log(`[Proxy] Configuring Webhook for ${instanceId} -> ${WEBHOOK_URL}`);
+
+                        await fetch(`${EVOLUTION_URL}/webhook/set/${instanceId}`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'apikey': EVOLUTION_KEY
+                            },
+                            body: JSON.stringify({
+                                webhook: {
+                                    enabled: true,
+                                    url: WEBHOOK_URL,
+                                    webhookByEvents: true,
+                                    events: ["MESSAGES_UPSERT"]
+                                }
+                            })
+                        });
+                    } catch (webhookErr) {
+                        console.error("[Proxy] Warning: Failed to set webhook:", webhookErr);
+                        // Don't fail the whole request just because of webhook (fail-soft)
                     }
 
                     // Se gerou QR ou conectou, marca como 'connecting' inicialmente (ou connected se open)
@@ -344,6 +406,47 @@ Deno.serve(async (req: Request) => {
                 }
             } catch (err: any) {
                 result = { status: 'error', message: "Falha na rede/DNS", details: err.message };
+            }
+
+        } else if (body.action === 'configure-webhook') {
+            const { data: profile } = await supabaseAdmin
+                .from('profiles')
+                .select('whatsapp_instance_id')
+                .eq('id', user.id)
+                .single();
+
+            const instanceId = body.instanceName || profile?.whatsapp_instance_id;
+            if (!instanceId) throw new Error("Instance ID not found");
+
+            const WEBHOOK_URL = `${Deno.env.get('SUPABASE_URL')}/functions/v1/whatsapp-webhook`;
+            console.log(`[Proxy] FORCE Configuring Webhook for ${instanceId} -> ${WEBHOOK_URL}`);
+
+            // Evolution v2 often uses this structure for /webhook/set/{instanceId}
+            const payload = {
+                webhook: {
+                    enabled: true,
+                    url: WEBHOOK_URL,
+                    webhookByEvents: false,
+                    events: ["MESSAGES_UPSERT"]
+                }
+            };
+
+            console.log(`[Proxy] Sending payload to Evolution: ${JSON.stringify(payload)}`);
+
+            const resp = await fetch(`${EVOLUTION_URL}/webhook/set/${instanceId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': EVOLUTION_KEY
+                },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await resp.json();
+            if (!resp.ok) {
+                result = { error: true, message: "Failed to configure webhook", details: data };
+            } else {
+                result = { success: true, data };
             }
 
         } else if (body.action === 'status') {

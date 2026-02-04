@@ -58,6 +58,14 @@ import { DemoDataGenerator } from '@/components/DemoDataGenerator';
 import { GabiSuccessModal } from '@/components/GabiSuccessModal';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/components/ui/use-toast';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+} from "@/components/ui/dialog";
 
 const PIX_KEY_TYPES = [
     { value: 'cpf', label: 'CPF' },

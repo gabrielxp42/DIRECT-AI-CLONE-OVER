@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { Badge } from "./ui/badge";
 import { SubscriptionModal } from "./SubscriptionModal";
 import { GabiSuccessModal } from "./GabiSuccessModal";
+import { AITrainingProgressCard } from "./AITrainingProgressCard";
 import { motion, AnimatePresence } from "framer-motion";
 
 export function WhatsAppConnection() {
@@ -402,6 +403,13 @@ export function WhatsAppConnection() {
                 isOpen={showSuccessModal}
                 onClose={() => setShowSuccessModal(false)}
             />
+
+            {/* AI Training Progress - Show after connection */}
+            {status === 'connected' && (
+                <div className="mt-6">
+                    <AITrainingProgressCard />
+                </div>
+            )}
         </div>
     );
 }
