@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { MessageCircle, Send, CheckCircle, Smartphone, User, Search, Check, ChevronsUpDown, Users, ChevronDown, ChevronUp, Printer } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useClientes } from '@/hooks/useDataFetch';
+import { useIsMobile } from '@/hooks/use-mobile';
 import {
     Command,
     CommandEmpty,
@@ -49,6 +50,7 @@ export const GabiActionDialog: React.FC<GabiActionDialogProps> = ({
     isLoading = false,
     actionType = 'generic'
 }) => {
+    const isMobile = useIsMobile();
     const [phone, setPhone] = React.useState(initialPhone);
     const [clientOpen, setClientOpen] = React.useState(false);
     const [isExpanded, setIsExpanded] = React.useState(false);
@@ -80,7 +82,15 @@ export const GabiActionDialog: React.FC<GabiActionDialogProps> = ({
 
     return (
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-md border-0 p-0 overflow-y-auto max-h-[95vh] bg-slate-950/95 text-white backdrop-blur-xl scrollbar-hide">
+            <DialogContent className={cn(
+                "border-0 p-0 overflow-y-auto bg-slate-950/95 text-white backdrop-blur-xl scrollbar-hide",
+                isMobile
+                    ? "max-w-[100vw] w-full p-0 pb-safe rounded-t-[2.5rem] rounded-b-none bottom-0 top-auto translate-y-0 h-[95vh]"
+                    : "sm:max-w-md max-h-[95vh]"
+            )}>
+                {isMobile && (
+                    <div className="absolute top-3 left-1/2 -translate-x-1/2 w-12 h-1.5 bg-white/20 rounded-full z-50" />
+                )}
                 {/* Header com Gradiente Animado */}
                 <div className={`relative h-24 bg-gradient-to-br ${getGradient()} p-6 flex items-center justify-between overflow-hidden`}>
                     <div className="absolute inset-0 bg-black/10 backdrop-blur-[1px]" />

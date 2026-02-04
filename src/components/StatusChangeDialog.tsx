@@ -5,6 +5,7 @@ import { CheckCircle, Banknote, Smartphone, CreditCard, Barcode, Building2, Mess
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { usePaymentMethods } from "@/hooks/usePaymentMethods";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 
 import {
@@ -55,6 +56,7 @@ export const StatusChangeDialog = ({
   orderNumber,
   pagoAt
 }: StatusChangeDialogProps) => {
+  const isMobile = useIsMobile();
   const [selectedStatus, setSelectedStatus] = useState(currentStatus);
   const [observacao, setObservacao] = useState("");
   const [notifyClient, setNotifyClient] = useState(false);
@@ -79,8 +81,16 @@ export const StatusChangeDialog = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
+      <DialogContent className={cn(
+        "border-0 p-0 overflow-y-auto bg-slate-950/95 text-white backdrop-blur-xl scrollbar-hide",
+        isMobile
+          ? "max-w-[100vw] w-full p-0 pb-safe rounded-t-[2.5rem] rounded-b-none bottom-0 top-auto translate-y-0 h-[95vh]"
+          : "max-w-[95vw] md:max-w-[550px] max-h-[90vh] md:max-h-none md:overflow-visible"
+      )}>
+        {isMobile && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 w-12 h-1.5 bg-white/20 rounded-full z-50" />
+        )}
+        <DialogHeader className={cn(isMobile ? "p-6 pb-2" : "p-6")}>
           <DialogTitle>Alterar Status do Pedido</DialogTitle>
           <DialogDescription>
             {orderNumber && `Pedido #${orderNumber} - `}
@@ -88,7 +98,7 @@ export const StatusChangeDialog = ({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
+        <div className="space-y-2.5 py-2">
           <div className="space-y-2">
             <Label>Status Atual</Label>
             <div className="flex items-center justify-between">
@@ -126,17 +136,17 @@ export const StatusChangeDialog = ({
 
           {/* Gabi AI Trigger for WhatsApp */}
           {selectedStatus === 'aguardando retirada' && (
-            <div className="animate-in fade-in slide-in-from-top-2 duration-300 mt-4">
-              <div className="relative group rounded-xl p-[1px] bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] shadow-lg shadow-purple-500/10">
-                <div className="absolute inset-0 bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] opacity-20 blur-md rounded-xl" />
-                <div className="relative bg-slate-950/90 backdrop-blur-xl rounded-[10px] p-4 flex gap-4 items-start">
+            <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+              <div className="relative group rounded-lg p-[1px] bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] shadow-md shadow-purple-500/10">
+                <div className="absolute inset-0 bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] opacity-20 blur-md rounded-lg" />
+                <div className="relative bg-slate-950/90 backdrop-blur-xl rounded-lg p-2.5 flex gap-2.5 items-start">
 
                   {/* Gabi Avatar */}
-                  <div className="h-10 w-10 rounded-full bg-gradient-to-br from-[#FF6B6B] to-[#ffd93d] flex items-center justify-center shrink-0 shadow-lg shadow-orange-500/20">
-                    <MessageCircle className="h-5 w-5 text-white" />
+                  <div className="h-8 w-8 rounded-full bg-gradient-to-br from-[#FF6B6B] to-[#ffd93d] flex items-center justify-center shrink-0 shadow-md shadow-orange-500/20">
+                    <MessageCircle className="h-4 w-4 text-white" />
                   </div>
 
-                  <div className="space-y-3 w-full">
+                  <div className="space-y-1.5 w-full">
                     <div className="flex justify-between items-start">
                       <div className="space-y-0.5">
                         <div className="text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent flex items-center gap-1">
@@ -168,7 +178,7 @@ export const StatusChangeDialog = ({
           )}
 
           {isStatusChanged && (
-            <div className="space-y-4">
+            <div className="space-y-2.5">
               <div className="space-y-2">
                 <Label htmlFor="observacao">Observação (opcional)</Label>
                 <Textarea
@@ -176,20 +186,20 @@ export const StatusChangeDialog = ({
                   placeholder="Ex: Pago 50% do valor, Cliente retirou parcialmente, etc."
                   value={observacao}
                   onChange={(e) => setObservacao(e.target.value)}
-                  rows={2}
+                  rows={1}
                   maxLength={500}
                   className="resize-none"
                 />
               </div>
 
               {/* Payment Method Shortcuts - Premium Design */}
-              <div className="rounded-xl border bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900/50 dark:to-slate-800/30 p-4 space-y-3">
+              <div className="rounded-lg border bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900/50 dark:to-slate-800/30 p-2.5 space-y-1.5">
                 <div className="flex items-center justify-between">
                   <h4 className="text-sm font-bold text-foreground">💰 Forma de Pagamento</h4>
                   <span className="text-[10px] text-muted-foreground bg-background/50 px-2 py-0.5 rounded-full">Toque para adicionar</span>
                 </div>
 
-                <div className="grid grid-cols-3 gap-3">
+                <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent">
                   {activeMethods.map((method) => {
                     const iconMap: Record<string, any> = { Banknote, Smartphone, CreditCard, Barcode, Building2 };
                     const Icon = iconMap[method.icon] || Banknote;
@@ -233,21 +243,21 @@ export const StatusChangeDialog = ({
                           setObservacao(prev => prev.trim() + separator + method.label);
                         }}
                         className={cn(
-                          "group relative flex flex-col items-center justify-center gap-2 p-4 rounded-xl bg-gradient-to-br border-2 transition-all duration-200 active:scale-95 hover:shadow-lg",
+                          "group relative flex flex-row items-center justify-center gap-1 p-2 rounded-lg bg-gradient-to-br border-2 transition-all duration-200 active:scale-95 hover:shadow-md flex-shrink-0",
                           styles.container
                         )}
                       >
                         <div className={cn(
-                          "w-10 h-10 rounded-full flex items-center justify-center transition-colors",
+                          "w-7 h-7 rounded-full flex items-center justify-center transition-colors",
                           styles.iconBg
                         )}>
                           <Icon className={cn(
-                            "w-5 h-5",
+                            "w-3.5 h-3.5",
                             styles.textColor
                           )} />
                         </div>
                         <span className={cn(
-                          "text-sm font-bold",
+                          "text-xs font-bold whitespace-nowrap",
                           styles.textColor
                         )}>{method.label}</span>
                       </button>
@@ -283,7 +293,7 @@ export const StatusChangeDialog = ({
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className={cn(isMobile ? "p-6 pt-2 bg-transparent border-t-0" : "p-4 bg-slate-900/50 backdrop-blur-md border-t border-white/5")}>
           <Button variant="outline" onClick={handleCancel} disabled={isLoading}>
             Cancelar
           </Button>

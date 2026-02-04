@@ -10,6 +10,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Clock, User, MessageSquare } from "lucide-react";
 import { StatusHistoryItem } from "@/types/pedido";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
 
 interface StatusHistoryDialogProps {
   isOpen: boolean;
@@ -24,6 +26,7 @@ export const StatusHistoryDialog = ({
   statusHistory,
   orderNumber
 }: StatusHistoryDialogProps) => {
+  const isMobile = useIsMobile();
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString('pt-BR');
   };
@@ -49,14 +52,22 @@ export const StatusHistoryDialog = ({
     }
   };
 
-  const sortedHistory = [...statusHistory].sort((a, b) => 
+  const sortedHistory = [...statusHistory].sort((a, b) =>
     new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   );
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] max-h-[600px]">
-        <DialogHeader>
+      <DialogContent className={cn(
+        "border-0 p-0 overflow-y-auto bg-slate-950/95 text-white backdrop-blur-xl scrollbar-hide",
+        isMobile
+          ? "max-w-[100vw] w-full p-0 pb-safe rounded-t-[2.5rem] rounded-b-none bottom-0 top-auto translate-y-0 h-[95vh]"
+          : "sm:max-w-[500px] max-h-[600px]"
+      )}>
+        {isMobile && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 w-12 h-1.5 bg-white/20 rounded-full z-50" />
+        )}
+        <DialogHeader className={cn(isMobile ? "p-6 pb-2" : "p-6")}>
           <DialogTitle>Histórico de Status</DialogTitle>
           <DialogDescription>
             {orderNumber && `Pedido #${orderNumber} - `}
@@ -64,7 +75,7 @@ export const StatusHistoryDialog = ({
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="max-h-[400px] pr-4">
+        <ScrollArea className={cn("pr-4", isMobile ? "flex-1 px-6 pb-6" : "max-h-[400px]")}>
           {sortedHistory.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -77,14 +88,14 @@ export const StatusHistoryDialog = ({
                   {index < sortedHistory.length - 1 && (
                     <div className="absolute left-4 top-12 bottom-0 w-px bg-border" />
                   )}
-                  
+
                   <div className="flex gap-4">
                     <div className="flex-shrink-0">
                       <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
                         <Clock className="h-4 w-4 text-primary-foreground" />
                       </div>
                     </div>
-                    
+
                     <div className="flex-1 space-y-2">
                       <div className="flex items-center gap-2 flex-wrap">
                         <Badge className={getStatusColor(item.status_anterior)}>
@@ -95,12 +106,12 @@ export const StatusHistoryDialog = ({
                           {item.status_novo}
                         </Badge>
                       </div>
-                      
+
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <User className="h-3 w-3" />
                         <span>{formatDate(item.created_at)}</span>
                       </div>
-                      
+
                       {item.observacao && (
                         <div className="bg-muted p-3 rounded-md">
                           <div className="flex items-start gap-2">
@@ -111,7 +122,7 @@ export const StatusHistoryDialog = ({
                       )}
                     </div>
                   </div>
-                  
+
                   {index < sortedHistory.length - 1 && (
                     <Separator className="mt-4" />
                   )}

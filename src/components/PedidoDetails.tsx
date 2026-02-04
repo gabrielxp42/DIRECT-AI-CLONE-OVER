@@ -57,6 +57,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTiposProducao, deductInsumosFromPedido, restoreInsumosFromPedido, isInventoryConsumingStatus } from '@/hooks/useDataFetch';
+import { useIsMobile } from "@/hooks/use-mobile";
 import { showError, showSuccess } from '@/utils/toast';
 import {
   AlertDialog,
@@ -94,6 +95,7 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
   onEdit,
   onDelete
 }) => {
+  const isMobile = useIsMobile();
   const { supabase, session } = useSession();
   const { data: tiposProducao } = useTiposProducao();
   const [pedido, setPedido] = useState<Pedido | null>(null);
@@ -357,8 +359,13 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
   if (loading) {
     return (
       <Dialog open={isOpen} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className={cn(
+          "border-0 p-0 overflow-y-auto bg-slate-950/95 text-white backdrop-blur-xl scrollbar-hide",
+          isMobile
+            ? "max-w-[100vw] w-full p-0 pb-safe rounded-t-[2.5rem] rounded-b-none bottom-0 top-auto translate-y-0 h-[95vh]"
+            : "max-w-5xl max-h-[85vh]"
+        )}>
+          <DialogHeader className={cn(isMobile ? "p-6" : "p-6")}>
             <DialogTitle>Carregando Pedido...</DialogTitle>
           </DialogHeader>
           <div className="flex justify-center items-center h-64">
@@ -372,8 +379,13 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
   if (!pedido) {
     return (
       <Dialog open={isOpen} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className={cn(
+          "border-0 p-0 overflow-y-auto bg-slate-950/95 text-white backdrop-blur-xl scrollbar-hide",
+          isMobile
+            ? "max-w-[100vw] w-full p-0 pb-safe rounded-t-[2.5rem] rounded-b-none bottom-0 top-auto translate-y-0 h-[95vh]"
+            : "max-w-5xl max-h-[85vh]"
+        )}>
+          <DialogHeader className={cn(isMobile ? "p-6" : "p-6")}>
             <DialogTitle>Detalhes do Pedido</DialogTitle>
           </DialogHeader>
           <div className="text-center py-8">
@@ -386,8 +398,16 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-5xl max-w-[95vw] max-h-[95vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className={cn(
+        "border-0 p-0 overflow-y-auto bg-slate-950/95 text-white backdrop-blur-xl scrollbar-hide",
+        isMobile
+          ? "max-w-[100vw] w-full p-0 pb-safe rounded-t-[2.5rem] rounded-b-none bottom-0 top-auto translate-y-0 h-[95vh]"
+          : "sm:max-w-5xl max-w-[95vw] max-h-[95vh]"
+      )}>
+        {isMobile && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 w-12 h-1.5 bg-white/20 rounded-full z-50" />
+        )}
+        <DialogHeader className={cn(isMobile ? "p-6 pb-2" : "p-6")}>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <DialogTitle className="text-2xl">Pedido #{pedido.order_number}</DialogTitle>
@@ -487,7 +507,7 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
           </div>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+        <div className={cn("mt-6", isMobile ? "px-6 pb-20" : "")}>
           <div className="md:col-span-2 space-y-6">
             {/* Itens do Pedido */}
             {pedido.pedido_items && pedido.pedido_items.length > 0 && (
