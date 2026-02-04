@@ -1,11 +1,10 @@
 import { useState } from "react";
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { CheckCircle, Banknote, Smartphone, CreditCard, Barcode, Building2, MessageCircle, Sparkles, DollarSign } from "lucide-react";
+import { CheckCircle, Banknote, Smartphone, CreditCard, Barcode, Building2, MessageCircle, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { usePaymentMethods } from "@/hooks/usePaymentMethods";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 
 import {
@@ -56,7 +55,6 @@ export const StatusChangeDialog = ({
   orderNumber,
   pagoAt
 }: StatusChangeDialogProps) => {
-  const isMobile = useIsMobile();
   const [selectedStatus, setSelectedStatus] = useState(currentStatus);
   const [observacao, setObservacao] = useState("");
   const [notifyClient, setNotifyClient] = useState(false);
@@ -81,16 +79,8 @@ export const StatusChangeDialog = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className={cn(
-        "border-0 p-0 overflow-y-auto bg-slate-950/95 text-white backdrop-blur-xl scrollbar-hide",
-        isMobile
-          ? "max-w-[100vw] w-full p-0 pb-safe rounded-t-[2.5rem] rounded-b-none bottom-0 top-auto translate-y-0 h-[95vh]"
-          : "max-w-[95vw] md:max-w-[550px] max-h-[90vh] md:max-h-none md:overflow-visible"
-      )}>
-        {isMobile && (
-          <div className="absolute top-3 left-1/2 -translate-x-1/2 w-12 h-1.5 bg-white/20 rounded-full z-50" />
-        )}
-        <DialogHeader className={cn(isMobile ? "p-6 pb-2" : "p-6")}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
           <DialogTitle>Alterar Status do Pedido</DialogTitle>
           <DialogDescription>
             {orderNumber && `Pedido #${orderNumber} - `}
@@ -98,7 +88,7 @@ export const StatusChangeDialog = ({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-2.5 py-2">
+        <div className="space-y-4 py-4">
           <div className="space-y-2">
             <Label>Status Atual</Label>
             <div className="flex items-center justify-between">
@@ -136,17 +126,17 @@ export const StatusChangeDialog = ({
 
           {/* Gabi AI Trigger for WhatsApp */}
           {selectedStatus === 'aguardando retirada' && (
-            <div className="animate-in fade-in slide-in-from-top-2 duration-300">
-              <div className="relative group rounded-lg p-[1px] bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] shadow-md shadow-purple-500/10">
-                <div className="absolute inset-0 bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] opacity-20 blur-md rounded-lg" />
-                <div className="relative bg-slate-950/90 backdrop-blur-xl rounded-lg p-2.5 flex gap-2.5 items-start">
+            <div className="animate-in fade-in slide-in-from-top-2 duration-300 mt-4">
+              <div className="relative group rounded-xl p-[1px] bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] shadow-lg shadow-purple-500/10">
+                <div className="absolute inset-0 bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] opacity-20 blur-md rounded-xl" />
+                <div className="relative bg-slate-950/90 backdrop-blur-xl rounded-[10px] p-4 flex gap-4 items-start">
 
                   {/* Gabi Avatar */}
-                  <div className="h-8 w-8 rounded-full bg-gradient-to-br from-[#FF6B6B] to-[#ffd93d] flex items-center justify-center shrink-0 shadow-md shadow-orange-500/20">
-                    <MessageCircle className="h-4 w-4 text-white" />
+                  <div className="h-10 w-10 rounded-full bg-gradient-to-br from-[#FF6B6B] to-[#ffd93d] flex items-center justify-center shrink-0 shadow-lg shadow-orange-500/20">
+                    <MessageCircle className="h-5 w-5 text-white" />
                   </div>
 
-                  <div className="space-y-1.5 w-full">
+                  <div className="space-y-3 w-full">
                     <div className="flex justify-between items-start">
                       <div className="space-y-0.5">
                         <div className="text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent flex items-center gap-1">
@@ -178,7 +168,7 @@ export const StatusChangeDialog = ({
           )}
 
           {isStatusChanged && (
-            <div className="space-y-2.5">
+            <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="observacao">Observação (opcional)</Label>
                 <Textarea
@@ -188,49 +178,47 @@ export const StatusChangeDialog = ({
                   onChange={(e) => setObservacao(e.target.value)}
                   rows={2}
                   maxLength={500}
-                  className="resize-none bg-slate-900/50 border-slate-800 focus:border-primary/50 transition-colors"
+                  className="resize-none"
                 />
               </div>
 
               {/* Payment Method Shortcuts - Premium Design */}
-              <div className="rounded-xl border border-white/5 bg-slate-900/30 p-3 space-y-3">
+              <div className="rounded-xl border bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900/50 dark:to-slate-800/30 p-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-2">
-                    <DollarSign className="w-3 h-3 text-primary" />
-                    Forma de Pagamento
-                  </h4>
+                  <h4 className="text-sm font-bold text-foreground">💰 Forma de Pagamento</h4>
+                  <span className="text-[10px] text-muted-foreground bg-background/50 px-2 py-0.5 rounded-full">Toque para adicionar</span>
                 </div>
 
-                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
+                <div className="grid grid-cols-3 gap-3">
                   {activeMethods.map((method) => {
                     const iconMap: Record<string, any> = { Banknote, Smartphone, CreditCard, Barcode, Building2 };
                     const Icon = iconMap[method.icon] || Banknote;
 
                     const colorMap: Record<string, { container: string, iconBg: string, textColor: string }> = {
                       emerald: {
-                        container: 'border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500/10 hover:border-emerald-500/40',
-                        iconBg: 'bg-emerald-500/20',
-                        textColor: 'text-emerald-400'
+                        container: 'from-emerald-500/20 to-emerald-600/10 border-emerald-500/40 hover:border-emerald-500 hover:shadow-emerald-500/20',
+                        iconBg: 'bg-emerald-500/20 group-hover:bg-emerald-500/30',
+                        textColor: 'text-emerald-600 dark:text-emerald-400'
                       },
                       cyan: {
-                        container: 'border-cyan-500/20 bg-cyan-500/5 hover:bg-cyan-500/10 hover:border-cyan-500/40',
-                        iconBg: 'bg-cyan-500/20',
-                        textColor: 'text-cyan-400'
+                        container: 'from-cyan-500/20 to-cyan-600/10 border-cyan-500/40 hover:border-cyan-500 hover:shadow-cyan-500/20',
+                        iconBg: 'bg-cyan-500/20 group-hover:bg-cyan-500/30',
+                        textColor: 'text-cyan-600 dark:text-cyan-400'
                       },
                       violet: {
-                        container: 'border-violet-500/20 bg-violet-500/5 hover:bg-violet-500/10 hover:border-violet-500/40',
-                        iconBg: 'bg-violet-500/20',
-                        textColor: 'text-violet-400'
+                        container: 'from-violet-500/20 to-violet-600/10 border-violet-500/40 hover:border-violet-500 hover:shadow-violet-500/20',
+                        iconBg: 'bg-violet-500/20 group-hover:bg-violet-500/30',
+                        textColor: 'text-violet-600 dark:text-violet-400'
                       },
                       orange: {
-                        container: 'border-orange-500/20 bg-orange-500/5 hover:bg-orange-500/10 hover:border-orange-500/40',
-                        iconBg: 'bg-orange-500/20',
-                        textColor: 'text-orange-400'
+                        container: 'from-orange-500/20 to-orange-600/10 border-orange-500/40 hover:border-orange-500 hover:shadow-orange-500/20',
+                        iconBg: 'bg-orange-500/20 group-hover:bg-orange-500/30',
+                        textColor: 'text-orange-600 dark:text-orange-400'
                       },
                       blue: {
-                        container: 'border-blue-500/20 bg-blue-500/5 hover:bg-blue-500/10 hover:border-blue-500/40',
-                        iconBg: 'bg-blue-500/20',
-                        textColor: 'text-blue-400'
+                        container: 'from-blue-500/20 to-blue-600/10 border-blue-500/40 hover:border-blue-500 hover:shadow-blue-500/20',
+                        iconBg: 'bg-blue-500/20 group-hover:bg-blue-500/30',
+                        textColor: 'text-blue-600 dark:text-blue-400'
                       },
                     };
 
@@ -245,21 +233,21 @@ export const StatusChangeDialog = ({
                           setObservacao(prev => prev.trim() + separator + method.label);
                         }}
                         className={cn(
-                          "group relative flex flex-col items-center justify-center gap-1.5 p-2 px-3 rounded-xl border transition-all duration-200 active:scale-95 flex-shrink-0 min-w-[70px]",
+                          "group relative flex flex-col items-center justify-center gap-2 p-4 rounded-xl bg-gradient-to-br border-2 transition-all duration-200 active:scale-95 hover:shadow-lg",
                           styles.container
                         )}
                       >
                         <div className={cn(
-                          "w-8 h-8 rounded-full flex items-center justify-center transition-colors",
+                          "w-10 h-10 rounded-full flex items-center justify-center transition-colors",
                           styles.iconBg
                         )}>
                           <Icon className={cn(
-                            "w-4 h-4",
+                            "w-5 h-5",
                             styles.textColor
                           )} />
                         </div>
                         <span className={cn(
-                          "text-[10px] font-black uppercase tracking-tight whitespace-nowrap",
+                          "text-sm font-bold",
                           styles.textColor
                         )}>{method.label}</span>
                       </button>
@@ -279,25 +267,23 @@ export const StatusChangeDialog = ({
 
 
           {isStatusChanged && (
-            <div className="bg-slate-900/80 border border-white/5 p-4 rounded-xl space-y-3">
-              <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">Resumo da alteração</div>
-              <div className="flex items-center gap-3">
-                <div className="opacity-50 scale-90Origin-left">
-                  <OrderStatusBadge status={currentStatus} />
-                </div>
-                <div className="text-primary animate-pulse">→</div>
+            <div className="bg-muted p-3 rounded-lg">
+              <div className="text-sm font-medium mb-1">Resumo da alteração:</div>
+              <div className="flex items-center gap-2 text-sm">
+                <OrderStatusBadge status={currentStatus} />
+                <span>→</span>
                 <OrderStatusBadge status={selectedStatus} />
               </div>
               {observacao.trim() && (
-                <div className="text-[10px] text-slate-400 bg-black/20 p-2 rounded-lg border border-white/5 italic line-clamp-2">
-                  <span className="font-bold text-slate-300">OBS:</span> {observacao.trim()}
+                <div className="text-xs text-muted-foreground mt-2">
+                  <strong>Observação:</strong> {observacao.trim()}
                 </div>
               )}
             </div>
           )}
         </div>
 
-        <DialogFooter className={cn(isMobile ? "p-6 pt-2 bg-transparent border-t-0" : "p-4 bg-slate-900/50 backdrop-blur-md border-t border-white/5")}>
+        <DialogFooter>
           <Button variant="outline" onClick={handleCancel} disabled={isLoading}>
             Cancelar
           </Button>

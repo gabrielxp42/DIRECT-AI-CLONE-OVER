@@ -44,8 +44,8 @@ export const StatusHistoryDialog = ({
       case 'cancelado':
         return 'bg-red-100 text-red-800';
       case 'pago':
-        return 'bg-green-500 text-white';
-      case 'aguardando retirada': // Novo status
+        return 'bg-emerald-500 text-white';
+      case 'aguardando retirada':
         return 'bg-orange-500 text-white';
       default:
         return 'bg-gray-100 text-gray-800';
@@ -59,73 +59,54 @@ export const StatusHistoryDialog = ({
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className={cn(
-        "border-0 p-0 overflow-y-auto bg-slate-950/95 text-white backdrop-blur-xl scrollbar-hide",
+        "gap-0 p-0 bg-zinc-950 text-white border-zinc-900 shadow-2xl flex flex-col overflow-hidden",
         isMobile
-          ? "max-w-[100vw] w-full p-0 pb-safe rounded-t-[2.5rem] rounded-b-none bottom-0 top-auto translate-y-0 h-[95vh]"
-          : "sm:max-w-[500px] max-h-[600px]"
+          ? "w-full rounded-t-[2rem] rounded-b-none h-[95vh] fixed bottom-0 left-0 right-0 top-auto translate-y-0 max-w-full"
+          : "max-w-[500px] max-h-[600px] rounded-2xl"
       )}>
         {isMobile && (
-          <div className="absolute top-3 left-1/2 -translate-x-1/2 w-12 h-1.5 bg-white/20 rounded-full z-50" />
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 w-12 h-1.5 bg-zinc-800 rounded-full z-50" />
         )}
-        <DialogHeader className={cn(isMobile ? "p-6 pb-2" : "p-6")}>
-          <DialogTitle>Histórico de Status</DialogTitle>
-          <DialogDescription>
+        <DialogHeader className={cn("shrink-0 border-b border-zinc-800 bg-zinc-900 px-6 py-4", isMobile && "pt-10")}>
+          <DialogTitle>Histérico de Status</DialogTitle>
+          <DialogDescription className="text-zinc-400">
             {orderNumber && `Pedido #${orderNumber} - `}
-            Acompanhe todas as alterações de status realizadas.
+            Acompanhe as mudanças do pedido.
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className={cn("pr-4", isMobile ? "flex-1 px-6 pb-6" : "max-h-[400px]")}>
+        <ScrollArea className="flex-1 p-6 scrollbar-hide">
           {sortedHistory.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
+            <div className="text-center py-8 text-zinc-500">
               <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>Nenhuma alteração de status registrada ainda.</p>
+              <p>Nenhuma alteração registrada.</p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-6">
               {sortedHistory.map((item, index) => (
-                <div key={item.id} className="relative">
+                <div key={item.id} className="relative pl-6">
                   {index < sortedHistory.length - 1 && (
-                    <div className="absolute left-4 top-12 bottom-0 w-px bg-border" />
+                    <div className="absolute left-2.5 top-8 bottom-0 w-0.5 bg-zinc-800" />
                   )}
-
-                  <div className="flex gap-4">
-                    <div className="flex-shrink-0">
-                      <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-                        <Clock className="h-4 w-4 text-primary-foreground" />
-                      </div>
-                    </div>
-
-                    <div className="flex-1 space-y-2">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Badge className={getStatusColor(item.status_anterior)}>
-                          {item.status_anterior}
-                        </Badge>
-                        <span className="text-muted-foreground">→</span>
-                        <Badge className={getStatusColor(item.status_novo)}>
-                          {item.status_novo}
-                        </Badge>
-                      </div>
-
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <User className="h-3 w-3" />
-                        <span>{formatDate(item.created_at)}</span>
-                      </div>
-
-                      {item.observacao && (
-                        <div className="bg-muted p-3 rounded-md">
-                          <div className="flex items-start gap-2">
-                            <MessageSquare className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-                            <p className="text-sm">{item.observacao}</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                  <div className="absolute left-0 top-1 w-5 h-5 rounded-full bg-zinc-800 border-2 border-zinc-900 flex items-center justify-center">
+                    <div className="w-1.5 h-1.5 rounded-full bg-primary" />
                   </div>
-
-                  {index < sortedHistory.length - 1 && (
-                    <Separator className="mt-4" />
-                  )}
+                  <div className="bg-zinc-900/50 border border-zinc-800 p-4 rounded-xl space-y-3">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge variant="secondary" className="text-[10px]">{item.status_anterior}</Badge>
+                      <span className="text-zinc-600">→</span>
+                      <Badge className={cn("text-[10px]", getStatusColor(item.status_novo))}>{item.status_novo}</Badge>
+                    </div>
+                    <div className="flex items-center gap-2 text-[10px] text-zinc-500 font-bold uppercase tracking-widest">
+                      <User className="h-3 w-3" />
+                      <span>{formatDate(item.created_at)}</span>
+                    </div>
+                    {item.observacao && (
+                      <div className="text-sm text-zinc-300 italic border-l-2 border-zinc-800 pl-3">
+                        "{item.observacao}"
+                      </div>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
