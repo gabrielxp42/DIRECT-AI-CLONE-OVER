@@ -153,7 +153,8 @@ const Layout = () => {
           <div className="h-safe-top pt-safe" />
 
           <div className="flex h-14 items-center gap-4 px-4 lg:h-[60px] lg:px-6">
-            <div className="flex items-center gap-2 font-semibold md:hidden">
+            {/* Logo - visible on all screen sizes */}
+            <div className="flex items-center gap-2 font-semibold">
               <img src="/logo.png" alt="Direct DTF Logo" className="h-8 w-8" />
               <span className="tracking-tighter font-black italic">DIRECT AI</span>
             </div>
