@@ -315,9 +315,11 @@ export const AIMessagesWidget: React.FC = () => {
         }
     };
 
-    const handleConfirmActionMain = async () => {
+    const handleConfirmActionMain = async (editedMessage?: string) => {
         if (!selectedAction) return;
         setIsActionLoading(true);
+
+        const currentMessage = editedMessage || selectedAction.message;
 
         try {
             // Chamada à Edge Function whatsapp-proxy
@@ -325,7 +327,7 @@ export const AIMessagesWidget: React.FC = () => {
                 body: {
                     action: 'send-text',
                     phone: selectedAction.phone,
-                    message: selectedAction.message
+                    message: currentMessage
                 }
             });
 
@@ -461,17 +463,30 @@ export const AIMessagesWidget: React.FC = () => {
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     e.preventDefault();
+                                                    console.log("Gabi Button Click");
                                                     if (item.action?.type === 'action') {
                                                         handleActionClickMain(e, item);
                                                     } else {
                                                         triggerAI(item.aiAction!.message);
                                                     }
-                                                }}>
-                                                <div className="absolute inset-0 bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] opacity-20 blur-sm rounded-lg group-hover:opacity-40 transition-opacity" />
+                                                }}
+                                                onTouchEnd={(e) => {
+                                                    // Garantia para mobile dentro de áreas de drag (motion.div)
+                                                    e.stopPropagation();
+                                                    e.preventDefault();
+                                                    console.log("Gabi Button TouchEnd");
+                                                    if (item.action?.type === 'action') {
+                                                        handleActionClickMain(e as any, item);
+                                                    } else {
+                                                        triggerAI(item.aiAction!.message);
+                                                    }
+                                                }}
+                                            >
+                                                <div className="absolute inset-0 bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] opacity-20 blur-sm rounded-lg group-hover:opacity-40 transition-opacity pointer-events-none" />
                                                 <Button
                                                     size="sm"
                                                     variant="ghost"
-                                                    className="relative h-8 text-xs gap-2 bg-slate-950/90 text-white hover:bg-slate-900 border-0 hover:text-white w-full"
+                                                    className="relative h-8 text-xs gap-2 bg-slate-950/90 text-white hover:bg-slate-900 border-0 hover:text-white w-full pointer-events-none"
                                                 >
                                                     <Sparkles className="h-3.5 w-3.5 text-[#ffd93d]" />
                                                     {item.action?.actionType === 'offer' ? "DEIXAR A GABI OFERECER O DESCONTO ⚡" : "DEIXAR A GABI COBRAR 👊🏽"}
@@ -587,7 +602,7 @@ export const AIMessagesWidget: React.FC = () => {
                     customerName={selectedAction.customerName}
                     messagePreview={selectedAction.message}
                     phone={selectedAction.phone}
-                    onConfirm={handleConfirmActionMain}
+                    onConfirm={(msg) => handleConfirmActionMain(msg)}
                     isLoading={isActionLoading}
                     actionType={selectedAction.type}
                 />

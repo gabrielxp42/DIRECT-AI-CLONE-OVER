@@ -468,78 +468,81 @@ const PedidosPage: React.FC = () => {
     }
   };
 
-  const handleConfirmWhatsAppSend = async (data: { phone?: string; attachPdf?: boolean } = {}) => {
+  const handleConfirmWhatsAppSend = async (data: { phone?: string; attachPdf?: boolean; includeText?: boolean } = {}) => {
     if (!whatsAppDialog.pedido) return;
 
     try {
       const phone = (data.phone || whatsAppDialog.pedido.clientes?.telefone || '').replace(/\D/g, '');
       const formattedPhone = phone.startsWith('55') ? phone : `55${phone}`;
-      let action = 'send-text';
-      let bodyData: any = {
-        phone: formattedPhone,
-        message: whatsAppDialog.summary
-      };
 
+      // Etapa 1: Enviar PDF (Se solicitado)
       if (data.attachPdf) {
-        showSuccess("Preparando PDF e link público...");
+        showSuccess("Preparando PDF...");
         const pdfBase64 = await generateOrderPDFBase64(whatsAppDialog.pedido);
-
         const fileName = `pedido_${whatsAppDialog.pedido.id}_${Date.now()}.pdf`;
 
-        // Converte para binário (compatível com navegador)
+        // Upload pro Supabase p/ garantir URL válida
         const binaryString = window.atob(pdfBase64);
         const bytes = new Uint8Array(binaryString.length);
         for (let i = 0; i < binaryString.length; i++) {
           bytes[i] = binaryString.charCodeAt(i);
         }
 
-        // Upload pro Supabase
-        const { error: uploadError } = await supabase.storage
-          .from('order-pdfs')
-          .upload(fileName, bytes, {
-            contentType: 'application/pdf',
-            upsert: true
-          });
+        const { error: uploadError } = await supabase.storage.from('order-pdfs').upload(fileName, bytes, {
+          contentType: 'application/pdf',
+          upsert: true
+        });
 
+        if (uploadError) console.error('[WhatsApp] Upload failed:', uploadError);
+
+        let fileUrlToUse = '';
         if (!uploadError) {
-          const { data: { publicUrl } } = supabase.storage
-            .from('order-pdfs')
-            .getPublicUrl(fileName);
+          const { data: signedData } = await supabase.storage.from('order-pdfs').createSignedUrl(fileName, 3600);
+          if (signedData?.signedUrl) fileUrlToUse = signedData.signedUrl;
+        }
 
-          console.log('[WhatsApp] Generated Policy-Compliant URL:', publicUrl);
-
-          action = 'send-media';
-          bodyData = {
+        // ENVIO DO PDF (SEM LEGENDA para evitar erro "Media upload failed")
+        const { data: pdfResult, error: pdfError } = await supabase.functions.invoke('whatsapp-proxy', {
+          body: {
+            action: 'send-media',
             phone: formattedPhone,
-            message: whatsAppDialog.summary,
-            mediaUrl: publicUrl, // Evolution baixa e anexa como arquivo
+            mediaUrl: fileUrlToUse,
+            mediaBase64: pdfBase64, // Fallback: Envia também o Base64 para caso a URL falhe
             mediaName: `Pedido_${whatsAppDialog.pedido.order_number}.pdf`,
-            mediaType: 'document'
-          };
+            mediaType: 'document',
+            message: ''
+          },
+        });
+
+        if (pdfError || !pdfResult?.success) {
+          console.error('[WhatsApp] Erro no envio do PDF:', pdfError || pdfResult);
+          // Se falhar o PDF, avisamos mas tentamos mandar o texto se estiver marcado
+          showError(`Falha ao enviar PDF. Erro: ${pdfResult?.message || 'Desconhecido'}`);
         } else {
-          // Se falhar o upload, tenta o clássico
-          action = 'send-media';
-          bodyData = {
-            phone: formattedPhone,
-            message: whatsAppDialog.summary,
-            mediaBase64: pdfBase64,
-            mediaName: `Pedido_${whatsAppDialog.pedido.order_number}.pdf`,
-            mediaType: 'document'
-          };
+          showSuccess("PDF enviado com sucesso!");
         }
       }
 
-      const { data: resultData, error } = await supabase.functions.invoke('whatsapp-proxy', {
-        body: {
-          action,
-          ...bodyData
-        },
-      });
+      // Etapa 2: Enviar Texto (Se solicitado)
+      // Enviamos SEPARADAMENTE para garantir que o texto chegue mesmo se o PDF falhar, e vice-versa.
+      if (data.includeText) {
+        // Pequeno delay para garantir a ordem no WhatsApp (opcional, mas bom UX)
+        if (data.attachPdf) await new Promise(r => setTimeout(r, 1000));
 
-      if (error) throw error;
-      if (!resultData?.success) throw new Error(resultData?.message || 'Erro ao enviar');
+        const { data: textResult, error: textError } = await supabase.functions.invoke('whatsapp-proxy', {
+          body: {
+            action: 'send-text',
+            phone: formattedPhone,
+            message: whatsAppDialog.summary
+          },
+        });
 
-      showSuccess(`Resumo enviado para ${whatsAppDialog.pedido.clientes?.nome || 'cliente'}!`);
+        if (textError || !textResult?.success) {
+          throw new Error(textResult?.message || 'Erro ao enviar texto');
+        }
+        showSuccess("Resumo de texto enviado!");
+      }
+
       setWhatsAppDialog({ open: false, pedido: null, summary: '' });
     } catch (err: any) {
       console.error('Erro no envio direto:', err);

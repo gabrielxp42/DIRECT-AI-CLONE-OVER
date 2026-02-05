@@ -318,7 +318,7 @@ Deno.serve(async (req: Request) => {
 
         } else if (body.action === 'send-media') {
             // Nova ação para envio de mídia (PDF, Imagem)
-            const { phone, message, mediaBase64, mediaName, mediaType } = body;
+            const { phone, message, mediaBase64, mediaName, mediaType, mimetype, mediatype } = body;
 
             if (!phone || (!mediaBase64 && !body.mediaUrl)) {
                 return new Response(JSON.stringify({ error: true, message: "Telefone e mídia são obrigatórios" }), { status: 400, headers: corsHeaders });
@@ -336,32 +336,52 @@ Deno.serve(async (req: Request) => {
 
             try {
                 let cleanPhone = phone.replace(/\D/g, "");
+                // Garante o 55 se o número tiver 10 ou 11 dígitos
                 if (cleanPhone.length === 11 && !cleanPhone.startsWith("55")) cleanPhone = "55" + cleanPhone;
                 if (cleanPhone.length === 10 && !cleanPhone.startsWith("55")) cleanPhone = "55" + cleanPhone;
 
-                // Endpoint padrão de mídia da Evolution API v2
-                const sendUrl = `${EVOLUTION_URL}/message/sendMedia/${senderProfile.whatsapp_instance_id}`;
-                console.log(`[Proxy] Sending media to ${cleanPhone} via ${senderProfile.whatsapp_instance_id}`);
+                // Adiciona o '+' visto no n8n do usuário para máxima compatibilidade
+                const phoneWithPlus = cleanPhone.startsWith('+') ? cleanPhone : '+' + cleanPhone;
 
-                let mediaContent = body.mediaUrl || ""; // Prioridade para URL
+                // Decisão do endpoint
+                // O endpoint sendDocument retornou 404, então vamos forçar sendMedia
+                const isDoc = (mediaType === 'document' || mediatype === 'document' || (mediaName && mediaName.endsWith('.pdf')));
+                const endpoint = 'sendMedia';
+                const sendUrl = `${EVOLUTION_URL}/message/${endpoint}/${senderProfile.whatsapp_instance_id}`;
 
-                if (!mediaContent && mediaBase64) {
-                    // Fallback para base64 se não tiver URL
-                    mediaContent = mediaBase64.includes(',') ? mediaBase64.split(',')[1] : mediaBase64;
+                // Garantir que o nome do arquivo SEMPRE exista (obrigatório para Base64)
+                const finalFileName = mediaName || `documento_${Date.now()}.pdf`;
+                console.log(`[Proxy] Sending ${isDoc ? 'document' : 'media'} to ${phoneWithPlus} via ${endpoint} | FileName: ${finalFileName}`);
+
+                // ESTRATÉGIA v44: Raw Base64 (Sem Prefixo)
+                // O erro "Owned media must be a url or base64" sugere que o endpoint rejeita Data URIs.
+                // Vamos enviar apenas o conteúdo Base64 puro.
+
+                let mediaContent = "";
+
+                if (mediaBase64) {
+                    // Remover prefixo se houver
+                    mediaContent = mediaBase64.includes('base64,') ? mediaBase64.split('base64,')[1] : mediaBase64;
+                    console.log(`[Proxy] v44: Using Frontend Base64 (Raw). Length: ${mediaContent.length}`);
+                } else if (body.mediaUrl) {
+                    mediaContent = body.mediaUrl;
+                    console.log(`[Proxy] v44: Fallback to URL string: ${body.mediaUrl}`);
                 }
 
                 if (!mediaContent) {
-                    throw new Error("Nenhum conteúdo de mídia (URL ou Base64) fornecido");
+                    return new Response(JSON.stringify({ error: true, message: "Mídia obrigatória (Base64 ou URL)" }), { status: 400, headers: corsHeaders });
                 }
 
-                const payload = {
-                    number: cleanPhone,
+                let payload: any = {
+                    number: phoneWithPlus,
                     mediatype: "document",
                     mimetype: "application/pdf",
                     caption: message || "",
                     media: mediaContent,
-                    fileName: mediaName || `documento_${Date.now()}.pdf`
+                    fileName: finalFileName
                 };
+
+                console.log(`[Proxy] v44 Payload prepared for ${finalFileName}`);
 
                 const resp = await fetch(sendUrl, {
                     method: 'POST',
@@ -376,9 +396,11 @@ Deno.serve(async (req: Request) => {
                     result = { success: true, data };
                 } else {
                     console.error("Evolution Send Media Error:", data);
+                    // Retornar a mensagem de erro REAL da evolution para facilitar o debug no frontend
+                    const detailedError = data?.response?.message || data?.message || "Erro no envio de mídia";
                     result = {
                         error: true,
-                        message: `Evolution: ${data?.response?.message || data?.message || "Erro no envio de mídia"}`,
+                        message: `Evolution: ${detailedError}`,
                         details: data
                     };
                 }

@@ -70,6 +70,19 @@ export const useRealtimeSync = () => {
                     // O SmartGoalCard vai reagir a essa mudança automaticamente
                 }
             )
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'ai_agent_training'
+                },
+                (payload) => {
+                    console.log('[Realtime] Alteração em AI Agent Training detectada:', payload.eventType);
+                    queryClient.invalidateQueries({ queryKey: ['ai-agents'] });
+                    queryClient.invalidateQueries({ queryKey: ['ai-training'] });
+                }
+            )
             .subscribe((status) => {
                 console.log('[Realtime] Status da conexão:', status);
             });

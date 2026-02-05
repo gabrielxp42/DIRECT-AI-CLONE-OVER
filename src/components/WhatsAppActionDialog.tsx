@@ -21,7 +21,7 @@ interface WhatsAppActionDialogProps {
     customerName: string;
     phone: string;
     messagePreview: string;
-    onConfirm: (data: { phone: string; attachPdf: boolean }) => void;
+    onConfirm: (data: { phone: string; attachPdf: boolean; includeText: boolean }) => void;
     isLoading?: boolean;
 }
 
@@ -37,6 +37,7 @@ export const WhatsAppActionDialog = ({
     const isMobile = useIsMobile();
     const [editablePhone, setEditablePhone] = useState(phone);
     const [attachPdf, setAttachPdf] = useState(true);
+    const [includeText, setIncludeText] = useState(true);
 
     // Atualiza o telefone local quando a prop muda
     useEffect(() => {
@@ -46,7 +47,8 @@ export const WhatsAppActionDialog = ({
     const handleConfirm = () => {
         onConfirm({
             phone: editablePhone,
-            attachPdf
+            attachPdf,
+            includeText
         });
     };
 
@@ -85,33 +87,56 @@ export const WhatsAppActionDialog = ({
                         />
                     </div>
 
-                    {/* Toggle PDF */}
-                    <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border border-border">
-                        <div className="space-y-1">
-                            <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                                <FileText className="h-4 w-4 text-amber-500" />
-                                Anexar Pedido em PDF?
+                    {/* Toggles */}
+                    <div className="space-y-3">
+                        {/* Toggle PDF */}
+                        <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border border-border">
+                            <div className="space-y-1">
+                                <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                                    <FileText className="h-4 w-4 text-amber-500" />
+                                    Anexar Pedido em PDF?
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    Envia o arquivo PDF.
+                                </p>
                             </div>
-                            <p className="text-xs text-muted-foreground">
-                                Envia o arquivo PDF junto com o resumo.
-                            </p>
+                            <Switch
+                                checked={attachPdf}
+                                onCheckedChange={setAttachPdf}
+                                className="data-[state=checked]:bg-green-500"
+                            />
                         </div>
-                        <Switch
-                            checked={attachPdf}
-                            onCheckedChange={setAttachPdf}
-                            className="data-[state=checked]:bg-green-500"
-                        />
+
+                        {/* Toggle Texto */}
+                        <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border border-border">
+                            <div className="space-y-1">
+                                <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                                    <MessageSquare className="h-4 w-4 text-blue-500" />
+                                    Incluir Resumo em Texto?
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    Envia o resumo do pedido como mensagem de texto.
+                                </p>
+                            </div>
+                            <Switch
+                                checked={includeText}
+                                onCheckedChange={setIncludeText}
+                                className="data-[state=checked]:bg-blue-500"
+                            />
+                        </div>
                     </div>
 
                     {/* Preview da Mensagem */}
-                    <div className="space-y-2">
-                        <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                            Prévia da Mensagem
-                        </Label>
-                        <div className="text-xs text-muted-foreground bg-muted/30 p-4 rounded-xl border border-border max-h-[120px] overflow-y-auto whitespace-pre-wrap font-mono">
-                            {messagePreview}
+                    {includeText && (
+                        <div className="space-y-2">
+                            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                                Prévia da Mensagem
+                            </Label>
+                            <div className="text-xs text-muted-foreground bg-muted/30 p-4 rounded-xl border border-border max-h-[120px] overflow-y-auto whitespace-pre-wrap font-mono">
+                                {messagePreview}
+                            </div>
                         </div>
-                    </div>
+                    )}
                 </div>
 
                 <DialogFooter className="p-6 pt-0 gap-3">
@@ -124,7 +149,7 @@ export const WhatsAppActionDialog = ({
                     </Button>
                     <Button
                         onClick={handleConfirm}
-                        disabled={isLoading}
+                        disabled={isLoading || (!attachPdf && !includeText)}
                         className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold h-12 shadow-lg shadow-green-900/20 dark:shadow-green-900/10"
                     >
                         {isLoading ? (
@@ -135,7 +160,7 @@ export const WhatsAppActionDialog = ({
                         ) : (
                             <div className="flex items-center gap-2">
                                 <Send className="h-4 w-4" />
-                                Enviar Mensagem
+                                Enviar
                             </div>
                         )}
                     </Button>

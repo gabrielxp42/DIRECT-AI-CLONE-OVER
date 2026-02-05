@@ -77,9 +77,32 @@ export function AdminAIMonitoring() {
     useEffect(() => {
         fetchAgents();
 
-        // Refresh every 30 seconds
-        const interval = setInterval(fetchAgents, 30000);
-        return () => clearInterval(interval);
+        // Realtime subscription for immediate updates
+        const channel = supabase
+            .channel('ai-monitoring-realtime')
+            .on(
+                'postgres_changes',
+                {
+                    event: '*', // Listen to INSERT, UPDATE, DELETE
+                    schema: 'public',
+                    table: 'ai_agent_training'
+                },
+                (payload) => {
+                    console.log('[AI Monitoring] Realtime update received:', payload.eventType);
+                    fetchAgents(); // Refresh data on any change
+                }
+            )
+            .subscribe((status) => {
+                console.log('[AI Monitoring] Subscription status:', status);
+            });
+
+        // Fallback polling every 60 seconds (reduced from 30s since we have realtime now)
+        const interval = setInterval(fetchAgents, 60000);
+
+        return () => {
+            clearInterval(interval);
+            supabase.removeChannel(channel);
+        };
     }, []);
 
     const fetchAgents = async () => {
