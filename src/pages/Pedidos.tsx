@@ -108,9 +108,14 @@ const generateOrderSummary = (pedido: Pedido, template?: string) => {
   // --- Logic for Dynamic Template ---
   if (template) {
     const clientName = pedido.clientes?.nome || "Cliente";
-    const itemsList = pedido.pedido_items?.map((item: any) =>
-      `• ${item.quantidade}x ${item.produtos?.nome || item.produto_nome || "Item"}`
-    ).join('\n') || "";
+
+    // Itens agora mostram o valor de cada item
+    const itemsList = pedido.pedido_items?.map((item: any) => {
+      const itemTotal = Number(item.preco_unitario || 0) * Number(item.quantidade || 0);
+      const totalStr = formatCurrency(itemTotal);
+      return `• ${item.quantidade}x ${item.produtos?.nome || item.produto_nome || "Item"} - ${totalStr}`;
+    }).join('\n') || "";
+
     const dateStr = formatDate(pedido.created_at);
     const phoneStr = pedido.clientes?.telefone || '-';
     const statusStr = pedido.status === 'pago' ? 'PAGO' : 'NÃO PAGO';
@@ -121,24 +126,33 @@ const generateOrderSummary = (pedido: Pedido, template?: string) => {
       servicosStr += `*SERVIÇOS EXTRAS*\n`;
       pedido.servicos.forEach(servico => {
         const lineTotal = formatCurrency(Number(servico.valor_unitario) * Number(servico.quantidade));
-        servicosStr += `${servico.nome} (${servico.quantidade}x)\nTotal: ${lineTotal}\n`;
+        servicosStr += `${servico.nome} (${servico.quantidade}x) - ${lineTotal}\n`;
       });
     }
 
-    // Delivery Info formatting
+    // Delivery Info formatting - sem redundância
     let entregaStr = "";
     if (pedido.tipo_entrega === 'frete') {
-      entregaStr += `ENTREGA: FRETE\n`;
+      // Não mostrar "ENTREGA: FRETE" redundante, só os detalhes
       if (pedido.valor_frete && Number(pedido.valor_frete) > 0) {
-        entregaStr += `VALOR DO FRETE: ${formatCurrency(pedido.valor_frete)}\n`;
+        entregaStr += `FRETE: ${formatCurrency(pedido.valor_frete)}\n`;
       }
       if (pedido.transportadora) {
         entregaStr += `TRANSPORTADORA: ${pedido.transportadora.toUpperCase()}\n`;
       }
     } else {
-      entregaStr = "ENTREGA: RETIRADA";
+      entregaStr = "RETIRADA NO LOCAL";
     }
 
+    // RECALCULAR o total (igual à nota térmica) - não confiar no valor do banco
+    const subtotalProdutos = Number(pedido.subtotal_produtos || 0);
+    const subtotalServicos = Number(pedido.subtotal_servicos || 0);
+    const subtotal = subtotalProdutos + subtotalServicos;
+    const frete = (pedido.tipo_entrega === 'frete' ? Number(pedido.valor_frete || 0) : 0);
+    const descontoValor = Number(pedido.desconto_valor || 0);
+    const descontoPercentual = Number(pedido.desconto_percentual || 0);
+    const descontoPercentualCalculado = subtotal * (descontoPercentual / 100);
+    const valorTotalCalculado = Math.max(0, subtotal + frete - descontoValor - descontoPercentualCalculado);
 
     let finalMessage = template
       .replace(/{{cliente}}/g, clientName)
@@ -146,7 +160,7 @@ const generateOrderSummary = (pedido: Pedido, template?: string) => {
       .replace(/{{order_number}}/g, (pedido.order_number || 0).toString())
       .replace(/{{data_criacao}}/g, dateStr)
       .replace(/{{tracking_code}}/g, pedido.tracking_code || "")
-      .replace(/{{total}}/g, formatCurrency(pedido.valor_total || 0))
+      .replace(/{{total}}/g, formatCurrency(valorTotalCalculado))
       .replace(/{{itens}}/g, itemsList || "Nenhum item")
       .replace(/{{servicos}}/g, servicosStr)
       .replace(/{{entrega_info}}/g, entregaStr)
@@ -200,7 +214,7 @@ const generateOrderSummary = (pedido: Pedido, template?: string) => {
     summary += `${separator}\n\n`;
   }
 
-  // Cálculos de Totais
+  // Cálculos de Totais - RECALCULAR sempre (igual à nota térmica)
   const subtotalProdutos = Number(pedido.subtotal_produtos || 0);
   const subtotalServicos = Number(pedido.subtotal_servicos || 0);
   const subtotal = subtotalProdutos + subtotalServicos;
@@ -209,20 +223,21 @@ const generateOrderSummary = (pedido: Pedido, template?: string) => {
   const descontoPercentual = Number(pedido.desconto_percentual || 0);
   const descontoPercentualCalculado = subtotal * (descontoPercentual / 100);
 
+  // SEMPRE recalcular o total (não confiar no valor do banco que pode estar incorreto)
   const valorTotalCalculado = Math.max(0, subtotal + frete - descontoValor - descontoPercentualCalculado);
-  const valorExibicao = Number(pedido.valor_total) || valorTotalCalculado;
 
-  summary += `*TOTAL: ${formatCurrency(valorExibicao)}*\n`;
+  summary += `*TOTAL: ${formatCurrency(valorTotalCalculado)}*\n`;
 
-  // Só incluir informação de entrega se for FRETE
+  // Informação de entrega - sem redundância
   if (pedido.tipo_entrega === 'frete') {
-    summary += `ENTREGA: FRETE\n`;
     if (pedido.valor_frete && Number(pedido.valor_frete) > 0) {
-      summary += `VALOR DO FRETE: ${formatCurrency(pedido.valor_frete)}\n`;
+      summary += `FRETE: ${formatCurrency(pedido.valor_frete)}\n`;
     }
     if (pedido.transportadora) {
       summary += `TRANSPORTADORA: ${pedido.transportadora.toUpperCase()}\n`;
     }
+  } else if (pedido.tipo_entrega === 'retirada') {
+    summary += `RETIRADA NO LOCAL\n`;
   }
 
   summary += `STATUS: ${statusText}\n`;
