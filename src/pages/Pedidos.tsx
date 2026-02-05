@@ -84,7 +84,7 @@ const iconsMap: Record<string, any> = {
   Palette
 };
 
-const generateOrderSummary = (pedido: Pedido) => {
+const generateOrderSummary = (pedido: Pedido, template?: string) => {
   const formatDate = (dateString: string) => {
     try {
       return format(new Date(dateString), "dd/MM - HH:mm", { locale: ptBR });
@@ -103,9 +103,59 @@ const generateOrderSummary = (pedido: Pedido) => {
 
   const separator = "------------------------------------------";
   const dashedSeparator = "        ------------------";
-
   const statusText = pedido.status === 'pago' ? 'PAGO' : 'NÃO PAGO';
 
+  // --- Logic for Dynamic Template ---
+  if (template) {
+    const clientName = pedido.clientes?.nome || "Cliente";
+    const itemsList = pedido.pedido_items?.map((item: any) =>
+      `• ${item.quantidade}x ${item.produtos?.nome || item.produto_nome || "Item"}`
+    ).join('\n') || "";
+    const dateStr = formatDate(pedido.created_at);
+    const phoneStr = pedido.clientes?.telefone || '-';
+    const statusStr = pedido.status === 'pago' ? 'PAGO' : 'NÃO PAGO';
+
+    // Services formatting
+    let servicosStr = "";
+    if (pedido.servicos && pedido.servicos.length > 0) {
+      servicosStr += `*SERVIÇOS EXTRAS*\n`;
+      pedido.servicos.forEach(servico => {
+        const lineTotal = formatCurrency(Number(servico.valor_unitario) * Number(servico.quantidade));
+        servicosStr += `${servico.nome} (${servico.quantidade}x)\nTotal: ${lineTotal}\n`;
+      });
+    }
+
+    // Delivery Info formatting
+    let entregaStr = "";
+    if (pedido.tipo_entrega === 'frete') {
+      entregaStr += `ENTREGA: FRETE\n`;
+      if (pedido.valor_frete && Number(pedido.valor_frete) > 0) {
+        entregaStr += `VALOR DO FRETE: ${formatCurrency(pedido.valor_frete)}\n`;
+      }
+      if (pedido.transportadora) {
+        entregaStr += `TRANSPORTADORA: ${pedido.transportadora.toUpperCase()}\n`;
+      }
+    } else {
+      entregaStr = "ENTREGA: RETIRADA";
+    }
+
+
+    let finalMessage = template
+      .replace(/{{cliente}}/g, clientName)
+      .replace(/{{telefone}}/g, phoneStr)
+      .replace(/{{order_number}}/g, (pedido.order_number || 0).toString())
+      .replace(/{{data_criacao}}/g, dateStr)
+      .replace(/{{tracking_code}}/g, pedido.tracking_code || "")
+      .replace(/{{total}}/g, formatCurrency(pedido.valor_total || 0))
+      .replace(/{{itens}}/g, itemsList || "Nenhum item")
+      .replace(/{{servicos}}/g, servicosStr)
+      .replace(/{{entrega_info}}/g, entregaStr)
+      .replace(/{{status}}/g, statusStr);
+
+    return finalMessage;
+  }
+
+  // --- Fallback to Hardcoded (Original) Logic ---
   let summary = `*PEDIDO #${pedido.order_number}*\n`;
   summary += `${formatDate(pedido.created_at)}\n\n`;
   summary += `${separator}\n`;
@@ -387,7 +437,8 @@ const PedidosPage: React.FC = () => {
 
   // --- Funções de Compartilhamento ---
   const handleCopySummary = (pedido: Pedido) => {
-    const summary = generateOrderSummary(pedido);
+    const template = companyProfile?.gabi_templates?.['order_summary'];
+    const summary = generateOrderSummary(pedido, template);
     navigator.clipboard.writeText(summary).then(() => {
       showSuccess("Resumo copiado para a área de transferência!");
     }).catch(() => {
@@ -396,7 +447,8 @@ const PedidosPage: React.FC = () => {
   };
 
   const handleShareWhatsApp = (pedido: Pedido) => {
-    const summary = generateOrderSummary(pedido);
+    const template = companyProfile?.gabi_templates?.['order_summary'];
+    const summary = generateOrderSummary(pedido, template);
 
     // Tentar usar o telefone do cliente, se disponível
     let phone = pedido.clientes?.telefone || '';
@@ -638,6 +690,10 @@ const PedidosPage: React.FC = () => {
 
       // --- Lógica de Inventário Unificada ---
       if (pedidoFull) {
+        // Se o status for enviado e tiver rastreio, atualizar no banco junto com o status
+        if (newStatus === 'enviado' && (pedidoFull as any).tracking_code) {
+          // A mutação já vai cuidar do status, mas precisamos garantir que o rastreio acompanhe
+        }
         const wasConsuming = isInventoryConsumingStatus(statusAnterior);
         const isNowConsuming = isInventoryConsumingStatus(newStatus);
 
@@ -660,28 +716,36 @@ const PedidosPage: React.FC = () => {
     }
   });
 
-  const handleSubmitStatusChange = (newStatus: string, observacao?: string, notifyClient?: boolean) => {
+  const handleSubmitStatusChange = (newStatus: string, observacao?: string, notifyClient?: boolean, trackingCode?: string) => {
     if (!statusChangePedido) return;
     updateStatusMutation.mutate({
       id: statusChangePedido.id,
       newStatus,
       observacao,
       statusAnterior: statusChangePedido.status,
-      pedidoFull: statusChangePedido
+      pedidoFull: { ...statusChangePedido, tracking_code: trackingCode }
     });
 
     // Auto-Notify Client via Gabi AI (WhatsApp)
-    if (notifyClient && newStatus === 'aguardando retirada') {
+    if (notifyClient && ['pago', 'aguardando retirada', 'enviado'].includes(newStatus)) {
       showSuccess("Gabi AI: Enviando notificação...");
+      console.log("Gabi Payload to Send:", { orderId: statusChangePedido.id, status: newStatus });
       supabase.functions.invoke('send-whatsapp-notification', {
-        body: { orderId: statusChangePedido.id }
+        body: {
+          orderId: statusChangePedido.id,
+          status: newStatus,
+          trackingCode
+        }
       }).then(({ error, data }) => {
         if (error) {
-          console.error("Erro Gabi AI:", error);
-          showError("Gabi não conseguiu enviar o Zap. Verifique a conexão.");
+          console.error("Erro Gabi AI (Net):", error);
+          showError("Erro de conexão com a Gabi. Tente novamente.");
+        } else if (data && (data.error || data.success === false)) {
+          console.error("Erro Gabi AI (API):", data);
+          showError(`Gabi falhou: ${data.error || data.message || "Erro desconhecido"}`);
         } else {
           console.log("Gabi AI Response:", data);
-          showSuccess("Gabi AI: Mensagem enviada com sucesso!");
+          showSuccess("Gabi AI: Notificação enviada!");
         }
       });
     }

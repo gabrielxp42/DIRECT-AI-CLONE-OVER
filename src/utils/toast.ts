@@ -1,14 +1,14 @@
 import { toast } from "sonner";
 import { hapticSuccess, hapticError } from "./haptic";
 
-export const showSuccess = (message: string) => {
+export const showSuccess = (message: string, options?: any) => {
   hapticSuccess();
-  toast.success(message);
+  toast.success(message, options);
 };
 
-export const showError = (message: string) => {
+export const showError = (message: string, options?: any) => {
   hapticError();
-  toast.error(message);
+  toast.error(message, options);
 };
 
 export const showLoading = (message: string) => {

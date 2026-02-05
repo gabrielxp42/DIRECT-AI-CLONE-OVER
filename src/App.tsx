@@ -32,6 +32,8 @@ const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const Checkout = lazy(() => import("./pages/Checkout"));
 const Legal = lazy(() => import("./pages/Legal"));
 const Profile = lazy(() => import("./pages/Profile"));
+const GabiSettings = lazy(() => import("./pages/GabiSettings"));
+
 
 // Configurar QueryClient com opções otimizadas
 const queryClient = new QueryClient({
@@ -88,6 +90,8 @@ const App = () => (
                           <Route path="/insumos" element={<Insumos />} />
                           <Route path="/settings" element={<Settings />} />
                           <Route path="/profile" element={<Profile />} />
+                          <Route path="/gabi" element={<GabiSettings />} />
+
                           <Route path="/admin" element={
                             <AdminRoute>
                               <Admin />

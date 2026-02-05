@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { CheckCircle, Banknote, Smartphone, CreditCard, Barcode, Building2, MessageCircle, Sparkles } from "lucide-react";
+import { CheckCircle, Banknote, Smartphone, CreditCard, Barcode, Building2, MessageCircle, Sparkles, Clock, MapPin, Truck, AlertCircle, XCircle, Send } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { useSession } from "@/contexts/SessionProvider";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { usePaymentMethods } from "@/hooks/usePaymentMethods";
@@ -30,20 +32,20 @@ interface StatusChangeDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   currentStatus: string;
-  onStatusChange: (newStatus: string, observacao?: string, notifyClient?: boolean) => void;
+  pagoAt?: string | null;
   isLoading?: boolean;
   orderNumber?: number;
-  pagoAt?: string | null;
+  onStatusChange: (newStatus: string, observacao?: string, notifyClient?: boolean, trackingCode?: string) => void;
 }
 
 const orderStatuses = [
-  { value: 'pendente', label: 'Pendente' },
-  { value: 'processando', label: 'Processando' },
-  { value: 'enviado', label: 'Enviado' },
-  { value: 'entregue', label: 'Entregue' },
-  { value: 'cancelado', label: 'Cancelado' },
-  { value: 'pago', label: 'Pago' },
-  { value: 'aguardando retirada', label: 'Aguardando Retirada' }, // Novo status
+  { value: 'pago', label: 'Pago', icon: Banknote },
+  { value: 'processando', label: 'Em Produção', icon: Clock },
+  { value: 'aguardando retirada', label: 'Pronto para Retirada', icon: MapPin },
+  { value: 'enviado', label: 'Enviado / Despachado', icon: Truck },
+  { value: 'entregue', label: 'Entregue', icon: CheckCircle },
+  { value: 'pendente', label: 'Pendente', icon: AlertCircle },
+  { value: 'cancelado', label: 'Cancelado', icon: XCircle },
 ];
 
 export const StatusChangeDialog = ({
@@ -58,13 +60,15 @@ export const StatusChangeDialog = ({
   const [selectedStatus, setSelectedStatus] = useState(currentStatus);
   const [observacao, setObservacao] = useState("");
   const [notifyClient, setNotifyClient] = useState(false);
+  const [trackingCode, setTrackingCode] = useState("");
   const { activeMethods } = usePaymentMethods();
+  const { profile } = useSession();
 
   const handleSubmit = () => {
-
     if (selectedStatus !== currentStatus) {
-      onStatusChange(selectedStatus, observacao.trim() || undefined, notifyClient);
+      onStatusChange(selectedStatus, observacao.trim() || undefined, notifyClient, trackingCode.trim() || undefined);
       setObservacao("");
+      setTrackingCode("");
     }
     onOpenChange(false);
   };
@@ -79,7 +83,7 @@ export const StatusChangeDialog = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-200 dark:scrollbar-thumb-zinc-800">
         <DialogHeader>
           <DialogTitle>Alterar Status do Pedido</DialogTitle>
           <DialogDescription>
@@ -106,9 +110,11 @@ export const StatusChangeDialog = ({
             <Label htmlFor="new-status">Novo Status</Label>
             <Select value={selectedStatus} onValueChange={(val) => {
               setSelectedStatus(val);
-              // Reset notification check when status changes, or default to true for "aguardando retirada"
-              if (val === 'aguardando retirada') {
+              // Reset notification check when status changes, or default to true for specific statuses
+              if (['aguardando retirada', 'enviado', 'pago'].includes(val)) {
                 setNotifyClient(true);
+              } else {
+                setNotifyClient(false);
               }
             }}>
               <SelectTrigger>
@@ -117,15 +123,34 @@ export const StatusChangeDialog = ({
               <SelectContent>
                 {orderStatuses.map((status) => (
                   <SelectItem key={status.value} value={status.value}>
-                    {status.label}
+                    <div className="flex items-center gap-2">
+                      <status.icon className="h-4 w-4 text-muted-foreground" />
+                      {status.label}
+                    </div>
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
+          {selectedStatus === 'enviado' && (
+            <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
+              <Label htmlFor="tracking-code">Código de Rastreio</Label>
+              <div className="relative">
+                <Truck className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="tracking-code"
+                  placeholder="Insira o código de rastreio..."
+                  className="pl-10"
+                  value={trackingCode}
+                  onChange={(e) => setTrackingCode(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+
           {/* Gabi AI Trigger for WhatsApp */}
-          {selectedStatus === 'aguardando retirada' && (
+          {['pago', 'aguardando retirada', 'enviado'].includes(selectedStatus) && (
             <div className="animate-in fade-in slide-in-from-top-2 duration-300 mt-4">
               <div className="relative group rounded-xl p-[1px] bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] shadow-lg shadow-purple-500/10">
                 <div className="absolute inset-0 bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] opacity-20 blur-md rounded-xl" />
@@ -144,7 +169,9 @@ export const StatusChangeDialog = ({
                           <span className="bg-white/10 px-1 py-0.5 rounded text-[7px] text-white/50 tracking-normal">WHATSAPP AGENT</span>
                         </div>
                         <p className="text-xs text-slate-300 leading-relaxed font-medium">
-                          Notei que o pedido está pronto! Quer que eu envie uma mensagem chamando o cliente? 🚀
+                          {selectedStatus === 'pago' && "Confirmamos o pagamento! Quer que eu envie uma confirmação para o cliente? 😊"}
+                          {selectedStatus === 'aguardando retirada' && "Notei que o pedido está pronto! Quer que eu envie uma mensagem chamando o cliente? 🚀"}
+                          {selectedStatus === 'enviado' && "Pedido despachado! Quer que eu envie os detalhes e o rastreio para o cliente? 🚚"}
                         </p>
                       </div>
                     </div>

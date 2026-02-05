@@ -94,7 +94,7 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
   onEdit,
   onDelete
 }) => {
-  const { supabase, session } = useSession();
+  const { supabase, session, profile } = useSession();
   const { data: tiposProducao } = useTiposProducao();
   const [pedido, setPedido] = useState<Pedido | null>(null);
   const [statusHistory, setStatusHistory] = useState<StatusHistoryItem[]>([]);
@@ -125,7 +125,7 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
         'Content-Type': 'application/json'
       };
 
-      const selectParam = '*,clientes(id,nome,telefone,email,endereco),pedido_items(*),pedido_servicos(*),pedido_status_history(*)';
+      const selectParam = '*,clientes(id,nome,telefone,email,endereco),pedido_items(*,produtos(*,produto_tipo(*))),pedido_servicos(*),pedido_status_history(*)';
       const url = `${SUPABASE_URL}/rest/v1/pedidos?select=${encodeURIComponent(selectParam)}&id=eq.${pedidoId}`;
 
       const response = await fetch(url, { method: 'GET', headers, cache: 'no-store' });
@@ -298,7 +298,7 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
   };
 
 
-  const handleSubmitStatusChange = async (newStatus: string, observacao?: string) => {
+  const handleSubmitStatusChange = async (newStatus: string, observacao?: string, notifyClient?: boolean, trackingCode?: string) => {
     if (!pedido || !supabase) return;
 
     try {
@@ -307,10 +307,11 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
 
       const updatePayload: any = { status: newStatus };
       if (pago_at !== undefined) updatePayload.pago_at = pago_at;
+      if (trackingCode) updatePayload.tracking_code = trackingCode;
 
       const { error } = await supabase
         .from('pedidos')
-        .update(updatePayload) // Usando a coluna 'status' e 'pago_at'
+        .update(updatePayload)
         .eq('id', pedido.id);
 
       if (error) throw error;
@@ -345,8 +346,14 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
       }
 
       showSuccess("Status atualizado com sucesso!");
+
       // Atualizar o pedido localmente
-      setPedido({ ...pedido, status: newStatus as any });
+      setPedido({ ...pedido, status: newStatus as any, tracking_code: trackingCode || pedido.tracking_code });
+      // Recarregar histórico
+      fetchPedidoDetails();
+
+      // Atualizar o pedido localmente
+      setPedido({ ...pedido, status: newStatus as any, tracking_code: trackingCode || pedido.tracking_code });
       // Recarregar histórico
       fetchPedidoDetails();
     } catch (error: any) {
@@ -634,110 +641,88 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
 
               {(() => {
                 const subtotal = (pedido.subtotal_produtos || 0) + (pedido.subtotal_servicos || 0);
-                const frete = pedido.tipo_entrega === 'frete' ? (pedido.valor_frete || 0) : 0;
+                const frete = (pedido.tipo_entrega === 'frete') ? (pedido.valor_frete || 0) : 0;
                 const descontoPercentualCalculado = subtotal * ((pedido.desconto_percentual || 0) / 100);
                 const valorTotalCalculado = Math.max(0, subtotal + frete - (pedido.desconto_valor || 0) - descontoPercentualCalculado);
 
                 return (
-                  <div className="space-y-3">
-                    <div className="flex justify-between">
-                      <span>Subtotal Produtos:</span>
-                      <span className="font-medium">{formatCurrency(pedido.subtotal_produtos || 0)}</span>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm text-muted-foreground">
+                        <span>Subtotal:</span>
+                        <span className="font-medium">{formatCurrency(subtotal)}</span>
+                      </div>
+
+                      {frete > 0 && (
+                        <div className="flex justify-between text-sm text-blue-600 font-bold bg-blue-50 dark:bg-blue-900/20 p-2 rounded-lg border border-blue-100 dark:border-blue-900/30 transition-all hover:shadow-sm">
+                          <div className="flex items-center">
+                            <Truck className="h-4 w-4 mr-2" />
+                            <span>Frete ({pedido.transportadora || 'Transportadora'}):</span>
+                          </div>
+                          <span>{formatCurrency(frete)}</span>
+                        </div>
+                      )}
+
+                      {pedido.desconto_valor > 0 && (
+                        <div className="flex justify-between text-sm text-emerald-600 font-bold bg-emerald-50 dark:bg-emerald-900/20 p-2 rounded-lg border border-emerald-100 dark:border-emerald-900/30 transition-all hover:shadow-sm">
+                          <div className="flex items-center">
+                            <Tag className="h-4 w-4 mr-2" />
+                            <span>Desconto (Valor):</span>
+                          </div>
+                          <span>-{formatCurrency(pedido.desconto_valor)}</span>
+                        </div>
+                      )}
+
+                      {(pedido.desconto_percentual || 0) > 0 && (
+                        <div className="flex justify-between text-sm text-emerald-600 font-bold bg-emerald-50 dark:bg-emerald-900/20 p-2 rounded-lg border border-emerald-100 dark:border-emerald-900/30 transition-all hover:shadow-sm">
+                          <div className="flex items-center">
+                            <Tag className="h-4 w-4 mr-2" />
+                            <span>Desconto ({pedido.desconto_percentual}%):</span>
+                          </div>
+                          <span>-{formatCurrency(descontoPercentualCalculado)}</span>
+                        </div>
+                      )}
                     </div>
 
-                    <div className="flex justify-between">
-                      <span>Subtotal Serviços:</span>
-                      <span className="font-medium">{formatCurrency(pedido.subtotal_servicos || 0)}</span>
-                    </div>
-
-                    {pedido.desconto_valor > 0 && (
-                      <div className="flex justify-between text-red-600">
-                        <div className="flex items-center">
-                          <Tag className="h-4 w-4 mr-1" />
-                          <span>Desconto (R$):</span>
-                        </div>
-                        <span>-{formatCurrency(pedido.desconto_valor)}</span>
-                      </div>
-                    )}
-
-                    {pedido.desconto_percentual > 0 && (
-                      <div className="flex justify-between text-red-600">
-                        <div className="flex items-center">
-                          <Percent className="h-4 w-4 mr-1" />
-                          <span>Desconto ({pedido.desconto_percentual}%):</span>
-                        </div>
-                        <span>-{formatCurrency(descontoPercentualCalculado)}</span>
-                      </div>
-                    )}
-
-                    {pedido.tipo_entrega && (
-                      <div className="pt-3 border-t space-y-2">
-                        <div className="flex justify-between items-center">
-                          <div className="flex items-center text-muted-foreground text-sm">
-                            {pedido.tipo_entrega === 'frete' ? (
-                              <>
-                                <Bike className="h-4 w-4 mr-2 text-orange-600" />
-                                <span>Entrega (Frete)</span>
-                              </>
-                            ) : (
-                              <>
-                                <Package className="h-4 w-4 mr-2 text-primary" />
-                                <span>Retirada no Local</span>
-                              </>
-                            )}
-                          </div>
-                          {pedido.tipo_entrega === 'frete' && pedido.valor_frete > 0 && (
-                            <span className="font-medium text-orange-600">
-                              {formatCurrency(pedido.valor_frete)}
-                            </span>
-                          )}
-                        </div>
-
-                        {pedido.tipo_entrega === 'frete' && pedido.transportadora && (
-                          <div className="flex items-center bg-orange-50 dark:bg-orange-950/20 p-2 rounded border border-orange-100 dark:border-orange-900/50">
-                            <Truck className="h-4 w-4 mr-2 text-orange-600" />
-                            <span className="text-xs font-medium text-orange-700 dark:text-orange-400 truncate">
-                              Transportadora: {pedido.transportadora}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* NOVO: Total de Metros Split */}
+                    {/* NOVO: Total de Metros Split (Moved inside summary for better context) */}
                     {pedido.total_metros > 0 && (
-                      <div className="space-y-1 border-t pt-3 pb-2">
+                      <div className="space-y-1.5 border-t border-dashed pt-3">
                         {pedido.total_metros_dtf > 0 && (
-                          <div className="flex justify-between text-sm">
-                            <div className="flex items-center text-blue-600 font-medium">
-                              <Printer className="h-4 w-4 mr-1" />
+                          <div className="flex justify-between text-[11px] uppercase tracking-wider text-muted-foreground font-bold">
+                            <div className="flex items-center">
+                              <Printer className="h-3 w-3 mr-1" />
                               <span>Total DTF:</span>
                             </div>
-                            <span className="font-semibold text-blue-600">{pedido.total_metros_dtf.toFixed(2)} ML</span>
+                            <span>{pedido.total_metros_dtf.toFixed(2)} ML</span>
                           </div>
                         )}
                         {pedido.total_metros_vinil > 0 && (
-                          <div className="flex justify-between text-sm">
-                            <div className="flex items-center text-orange-600 font-medium">
-                              <Scissors className="h-4 w-4 mr-1" />
+                          <div className="flex justify-between text-[11px] uppercase tracking-wider text-muted-foreground font-bold">
+                            <div className="flex items-center">
+                              <Scissors className="h-3 w-3 mr-1" />
                               <span>Total Vinil:</span>
                             </div>
-                            <span className="font-semibold text-orange-600">{pedido.total_metros_vinil.toFixed(2)} ML</span>
+                            <span>{pedido.total_metros_vinil.toFixed(2)} ML</span>
                           </div>
                         )}
-                        <div className="flex justify-between border-t pt-1 mt-1">
-                          <div className="flex items-center font-semibold text-gray-700 dark:text-gray-300">
-                            <Ruler className="h-4 w-4 mr-1" />
+                        <div className="flex justify-between text-xs font-black text-foreground border-t border-zinc-100 dark:border-zinc-800 pt-1 mt-1">
+                          <div className="flex items-center uppercase">
+                            <Ruler className="h-3 w-3 mr-1" />
                             <span>Total Metros:</span>
                           </div>
-                          <span className="font-semibold">{pedido.total_metros.toFixed(2)} ML</span>
+                          <span>{pedido.total_metros.toFixed(2)} ML</span>
                         </div>
                       </div>
                     )}
 
-                    <div className="border-t pt-3 flex justify-between text-lg font-semibold">
-                      <span>Total Final:</span>
-                      <span>{formatCurrency(valorTotalCalculado)}</span>
+                    <div className="border-t-2 border-primary/20 pt-4 flex justify-between items-end">
+                      <div className="flex flex-col">
+                        <span className="text-[10px] uppercase font-black text-muted-foreground tracking-widest">Valor Final do Pedido</span>
+                        <span className="text-xl font-black tracking-tighter leading-none">Total Geral</span>
+                      </div>
+                      <span className="text-3xl font-black tracking-tighter text-primary animate-in fade-in zoom-in duration-500">
+                        {formatCurrency(valorTotalCalculado)}
+                      </span>
                     </div>
                   </div>
                 );
@@ -746,7 +731,7 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
             </div>
           </div>
         </div>
-      </DialogContent>
+      </DialogContent >
 
       {pedido && (
         <StatusChangeDialog
@@ -759,14 +744,16 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
         />
       )}
 
-      {pedido && (
-        <StatusHistoryDialog
-          isOpen={isStatusHistoryOpen}
-          onOpenChange={setIsStatusHistoryOpen}
-          statusHistory={pedido.status_history || []}
-          orderNumber={pedido.order_number}
-        />
-      )}
-    </Dialog>
+      {
+        pedido && (
+          <StatusHistoryDialog
+            isOpen={isStatusHistoryOpen}
+            onOpenChange={setIsStatusHistoryOpen}
+            statusHistory={pedido.status_history || []}
+            orderNumber={pedido.order_number}
+          />
+        )
+      }
+    </Dialog >
   );
 };

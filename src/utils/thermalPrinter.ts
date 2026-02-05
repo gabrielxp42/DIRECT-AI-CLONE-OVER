@@ -181,22 +181,53 @@ export const printThermalReceipt = (pedido: Pedido) => {
 
       ${servicesHtml}
 
-      ${hasFreight ? `
-      <div class="compact-row" style="margin-top: 5px; font-weight: bold; font-size: 13px;">
-         <span class="compact-name" style="text-align: right; padding-right: 10px;">VALOR DO FRETE:</span>
-         <span class="compact-price">${formatCurrency(freightValue)}</span>
-      </div>` : ''}
-
       ${(() => {
       const subtotal = (pedido.subtotal_produtos || 0) + (pedido.subtotal_servicos || 0);
       const dPerc = subtotal * ((pedido.desconto_percentual || 0) / 100);
       const valorTotalCalculado = Math.max(0, subtotal + freightValue - (pedido.desconto_valor || 0) - dPerc);
 
-      return `
+      let summaryHtml = `
+          <div class="separator-dashed">- - - - - - - - - - - -</div>
+          <div class="compact-row">
+            <span class="compact-name">Subtotal:</span>
+            <span class="compact-price">${formatCurrency(subtotal)}</span>
+          </div>
+        `;
+
+      if (freightValue > 0) {
+        summaryHtml += `
+            <div class="compact-row">
+              <span class="compact-name">Frete:</span>
+              <span class="compact-price">${formatCurrency(freightValue)}</span>
+            </div>
+          `;
+      }
+
+      if (pedido.desconto_valor > 0) {
+        summaryHtml += `
+            <div class="compact-row" style="color: #c00;">
+              <span class="compact-name">Desconto (R$):</span>
+              <span class="compact-price">-${formatCurrency(pedido.desconto_valor)}</span>
+            </div>
+          `;
+      }
+
+      if (pedido.desconto_percentual > 0) {
+        summaryHtml += `
+            <div class="compact-row" style="color: #c00;">
+              <span class="compact-name">Desconto (${pedido.desconto_percentual}%):</span>
+              <span class="compact-price">-${formatCurrency(dPerc)}</span>
+            </div>
+          `;
+      }
+
+      summaryHtml += `
           <div class="total-block">
             TOTAL: ${formatCurrency(valorTotalCalculado)}
           </div>
         `;
+
+      return summaryHtml;
     })()}
       
       <div style="margin-top: 10px; border-top: 1px dashed #ccc; padding-top: 5px; font-size: 11px;">

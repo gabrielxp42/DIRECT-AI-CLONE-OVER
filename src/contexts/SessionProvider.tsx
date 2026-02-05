@@ -32,6 +32,14 @@ type Profile = {
   company_name?: string | null;
   company_logo_url?: string | null;
   company_primary_color?: string | null;
+  company_address_street?: string | null;
+  company_address_number?: string | null;
+  company_address_neighborhood?: string | null;
+  company_address_city?: string | null;
+  company_address_state?: string | null;
+  company_address_zip?: string | null;
+  company_business_hours?: string | null;
+  gabi_templates?: Record<string, string> | null;
 };
 
 
