@@ -57,9 +57,17 @@ export const StatusChangeDialog = ({
   orderNumber,
   pagoAt
 }: StatusChangeDialogProps) => {
+  // Helper to get stored preference
+  const getStoredPref = (status: string) => {
+    const stored = localStorage.getItem(`gabi_notify_pref_${status}`);
+    if (stored !== null) return stored === 'true';
+    // Default fallback: true for specific statuses
+    return ['aguardando retirada', 'enviado', 'pago'].includes(status);
+  };
+
   const [selectedStatus, setSelectedStatus] = useState(currentStatus);
   const [observacao, setObservacao] = useState("");
-  const [notifyClient, setNotifyClient] = useState(false);
+  const [notifyClient, setNotifyClient] = useState(() => getStoredPref(currentStatus));
   const [trackingCode, setTrackingCode] = useState("");
   const { activeMethods } = usePaymentMethods();
   const { profile } = useSession();
@@ -110,12 +118,8 @@ export const StatusChangeDialog = ({
             <Label htmlFor="new-status">Novo Status</Label>
             <Select value={selectedStatus} onValueChange={(val) => {
               setSelectedStatus(val);
-              // Reset notification check when status changes, or default to true for specific statuses
-              if (['aguardando retirada', 'enviado', 'pago'].includes(val)) {
-                setNotifyClient(true);
-              } else {
-                setNotifyClient(false);
-              }
+              // Load preference for the new status
+              setNotifyClient(getStoredPref(val));
             }}>
               <SelectTrigger>
                 <SelectValue />
@@ -177,7 +181,13 @@ export const StatusChangeDialog = ({
                     </div>
 
                     {/* Action Area - Green for WhatsApp Context */}
-                    <div className="flex items-center gap-3 bg-emerald-500/10 p-2 rounded-lg border border-emerald-500/20 transition-colors hover:bg-emerald-500/20 cursor-pointer" onClick={() => setNotifyClient(!notifyClient)}>
+                    <div className="flex items-center gap-3 bg-emerald-500/10 p-2 rounded-lg border border-emerald-500/20 transition-colors hover:bg-emerald-500/20 cursor-pointer"
+                      onClick={() => {
+                        const newValue = !notifyClient;
+                        setNotifyClient(newValue);
+                        // Save preference for THIS specific status
+                        localStorage.setItem(`gabi_notify_pref_${selectedStatus}`, String(newValue));
+                      }}>
                       <div className={`w-5 h-5 rounded flex items-center justify-center transition-all ${notifyClient ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.3)]' : 'bg-zinc-800 border border-zinc-700'}`}>
                         {notifyClient && <CheckCircle size={12} className="text-white" />}
                       </div>

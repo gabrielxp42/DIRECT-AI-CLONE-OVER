@@ -104,10 +104,11 @@ Deno.serve(async (req: Request) => {
             }
 
             if (!messages || messages.length === 0) {
+                console.log(`[Processor] No new messages for user ${userId}. Skipping.`);
                 continue; // Nothing to do for this user
             }
 
-            console.log(`[Processor] Analyzing ${messages.length} messages for user ${userId}`);
+            console.log(`[Processor] Found ${messages.length} messages for user ${userId}. Starting Gemini analysis...`);
 
             // Format conversation for Gemini
             const conversationText = messages.map(m =>
@@ -118,6 +119,8 @@ Deno.serve(async (req: Request) => {
             const analysisResult = await analyzeWithGemini(conversationText, GEMINI_KEY, MODEL);
 
             if (analysisResult) {
+                console.log(`[Processor] Gemini analysis successful for ${userId}. Extracted ${analysisResult.knowledge_entries?.length || 0} entries.`);
+
                 // Save Knowledge
                 if (analysisResult.knowledge_entries && analysisResult.knowledge_entries.length > 0) {
                     const entries = analysisResult.knowledge_entries.map((entry: any) => ({
@@ -129,17 +132,50 @@ Deno.serve(async (req: Request) => {
                         is_active: true
                     }));
 
-                    await supabase.from('ai_knowledge_base').insert(entries);
+                    const { error: knError } = await supabase.from('ai_knowledge_base').insert(entries);
+                    if (knError) console.error(`[Processor] Error saving knowledge for ${userId}:`, knError);
                 }
 
-                // Update Training Metrics
-                await supabase.rpc('update_training_progress', {
-                    p_user_id: userId,
-                    p_conversations_analyzed: (trainingRecord.conversations_analyzed || 0) + 1, // Rough count, actually batches
-                    p_patterns_identified: (analysisResult.knowledge_entries?.length || 0)
-                });
+                // Calculate Metric Increments based on findings
+                const findings = analysisResult.knowledge_entries || [];
+                const hasTone = findings.some((f: any) => f.type === 'tone');
+                const hasProduct = findings.some((f: any) => f.type === 'product');
+                const hasBusinessRule = findings.some((f: any) => f.type === 'business_rule');
+                const hasClientProfile = findings.some((f: any) => f.type === 'client_profile');
 
-                // Calculate new confidence
+                // Get current values to increment
+                const { data: currentTraining } = await supabase
+                    .from('ai_agent_training')
+                    .select('similarity_score, coverage_score, tone_consistency_score, product_knowledge_score')
+                    .eq('user_id', userId)
+                    .single();
+
+                const currentSim = currentTraining?.similarity_score || 0;
+                const currentCov = currentTraining?.coverage_score || 0;
+                const currentTone = currentTraining?.tone_consistency_score || 0;
+                const currentProd = currentTraining?.product_knowledge_score || 0;
+
+                // Updates (Logarithmic growth to 100 to simulate learning curve)
+                const newSim = Math.min(100, currentSim + (findings.length > 0 ? 5 : 0));
+                const newCov = Math.min(100, currentCov + (hasBusinessRule ? 5 : 2) + (hasClientProfile ? 3 : 0));
+                const newTone = Math.min(100, currentTone + (hasTone ? 10 : 1));
+                const newProd = Math.min(100, currentProd + (hasProduct ? 8 : 1));
+
+                // Update Training Record directly with all metrics
+                await supabase
+                    .from('ai_agent_training')
+                    .update({
+                        conversations_analyzed: (trainingRecord.conversations_analyzed || 0) + 1,
+                        patterns_identified: (trainingRecord.patterns_identified || 0) + findings.length,
+                        last_analysis_at: new Date().toISOString(),
+                        similarity_score: newSim,
+                        coverage_score: newCov,
+                        tone_consistency_score: newTone,
+                        product_knowledge_score: newProd
+                    })
+                    .eq('user_id', userId);
+
+                // Calculate new confidence (based on the updated metrics)
                 await supabase.rpc('calculate_confidence_score', { p_user_id: userId });
 
                 // Mark messages as analyzed

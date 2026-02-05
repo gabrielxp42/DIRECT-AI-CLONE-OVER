@@ -125,7 +125,7 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
         'Content-Type': 'application/json'
       };
 
-      const selectParam = '*,clientes(id,nome,telefone,email,endereco),pedido_items(*,produtos(*,produto_tipo(*))),pedido_servicos(*),pedido_status_history(*)';
+      const selectParam = '*,clientes(id,nome,telefone,email,endereco),pedido_items(*,produtos(*)),pedido_servicos(*),pedido_status_history(*)';
       const url = `${SUPABASE_URL}/rest/v1/pedidos?select=${encodeURIComponent(selectParam)}&id=eq.${pedidoId}`;
 
       const response = await fetch(url, { method: 'GET', headers, cache: 'no-store' });

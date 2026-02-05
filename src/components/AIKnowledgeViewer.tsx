@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, BookOpen, Tag, MessageSquare, AlertTriangle, Check, X } from 'lucide-react';
+import { Loader2, BookOpen, Tag, MessageSquare, AlertTriangle, Check, X, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -72,6 +72,21 @@ export function AIKnowledgeViewer({ userId }: AIKnowledgeViewerProps) {
         }
     };
 
+    const deleteEntry = async (id: string) => {
+        try {
+            const { error } = await supabase
+                .from('ai_knowledge_base')
+                .delete()
+                .eq('id', id);
+
+            if (error) throw error;
+
+            setEntries(entries.filter(e => e.id !== id));
+        } catch (error) {
+            console.error('Error deleting knowledge:', error);
+        }
+    };
+
     const toggleStatus = async (id: string, currentStatus: boolean) => {
         try {
             const { error } = await supabase
@@ -127,7 +142,7 @@ export function AIKnowledgeViewer({ userId }: AIKnowledgeViewerProps) {
                 </Tabs>
             </div>
 
-            <ScrollArea className="h-[400px] pr-4">
+            <ScrollArea className="h-[430px] pr-4">
                 <div className="space-y-3">
                     <AnimatePresence>
                         {filteredEntries.map((entry) => (
@@ -137,44 +152,63 @@ export function AIKnowledgeViewer({ userId }: AIKnowledgeViewerProps) {
                                 animate={{ opacity: 1, scale: 1 }}
                                 exit={{ opacity: 0, scale: 0.95 }}
                             >
-                                <Card className={`border overflow-hidden ${!entry.is_active ? 'opacity-60 bg-muted/50' : ''}`}>
-                                    <div className="p-3 flex gap-3">
-                                        <div className="mt-1">
+                                <Card className={`border overflow-hidden bg-card/40 backdrop-blur-sm ${!entry.is_active ? 'opacity-50 grayscale' : ''}`}>
+                                    <div className="p-4 flex gap-4">
+                                        <div className="mt-1 flex-shrink-0">
                                             {getTypeIcon(entry.knowledge_type)}
                                         </div>
-                                        <div className="flex-1 space-y-2">
-                                            <div className="flex items-start justify-between">
-                                                <Badge variant="outline" className="text-[10px] uppercase tracking-wider">
-                                                    {getTypeLabel(entry.knowledge_type)}
-                                                </Badge>
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-xs text-muted-foreground font-mono">
+                                        <div className="flex-1 min-w-0 space-y-3">
+                                            <div className="flex items-start justify-between gap-2">
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <Badge variant="outline" className="text-[10px] uppercase tracking-wider bg-primary/5">
+                                                        {getTypeLabel(entry.knowledge_type)}
+                                                    </Badge>
+                                                    <span className="text-[10px] text-muted-foreground font-mono bg-muted/50 px-1.5 py-0.5 rounded">
                                                         {(entry.confidence * 100).toFixed(0)}% confiança
                                                     </span>
+                                                </div>
+                                                <div className="flex items-center gap-1 flex-shrink-0">
                                                     <button
                                                         onClick={() => toggleStatus(entry.id, entry.is_active)}
-                                                        className={`p-1 rounded-full transition-colors ${entry.is_active
-                                                                ? 'hover:bg-red-100 text-green-500 hover:text-red-500'
-                                                                : 'hover:bg-green-100 text-gray-400 hover:text-green-500'
+                                                        className={`p-1.5 rounded-lg transition-all ${entry.is_active
+                                                            ? 'bg-primary/10 text-primary hover:bg-primary/20'
+                                                            : 'bg-muted text-muted-foreground hover:bg-primary/10 hover:text-primary'
                                                             }`}
-                                                        title={entry.is_active ? "Desativar" : "Ativar"}
+                                                        title={entry.is_active ? "Desativar regra" : "Ativar regra"}
                                                     >
-                                                        {entry.is_active ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
+                                                        <Check className={`w-3.5 h-3.5 ${!entry.is_active ? 'opacity-30' : ''}`} />
+                                                    </button>
+
+                                                    <button
+                                                        onClick={() => {
+                                                            if (confirm('Tem certeza que deseja excluir este padrão de conhecimento permanentemente?')) {
+                                                                deleteEntry(entry.id);
+                                                            }
+                                                        }}
+                                                        className="p-1.5 rounded-lg transition-all bg-red-500/10 text-red-500 hover:bg-red-500/20"
+                                                        title="Excluir permanentemente"
+                                                    >
+                                                        <Trash2 className="w-3.5 h-3.5" />
                                                     </button>
                                                 </div>
                                             </div>
 
-                                            <div className="text-sm bg-muted/30 p-2 rounded-md font-mono text-xs overflow-x-auto">
-                                                <pre>{JSON.stringify(entry.content, null, 2)}</pre>
+                                            <div className="text-sm bg-black/20 p-3 rounded-lg font-mono text-xs overflow-hidden border border-white/5">
+                                                <pre className="whitespace-pre-wrap break-words text-indigo-200/90 leading-relaxed">
+                                                    {JSON.stringify(entry.content, null, 2)}
+                                                </pre>
                                             </div>
 
-                                            <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                                                <div className="flex items-center gap-1">
-                                                    <MessageSquare className="w-3 h-3" />
-                                                    {entry.source_count} fontes
+                                            <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-1 border-t border-white/5">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="flex items-center gap-1">
+                                                        <MessageSquare className="w-3 h-3 text-primary/60" />
+                                                        <span className="font-semibold text-primary/80">{entry.source_count}</span>
+                                                        <span>fontes de dados</span>
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    Criado em {new Date(entry.created_at).toLocaleDateString()}
+                                                <div className="tabular-nums">
+                                                    {new Date(entry.created_at).toLocaleDateString('pt-BR')}
                                                 </div>
                                             </div>
                                         </div>
