@@ -23,7 +23,15 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [acceptedTerms, setAcceptedTerms] = useState(false);
 
+  // Logo and Name branding (fallback to cache for White Label persistence)
+
+  const cachedLogo = typeof localStorage !== 'undefined' ? localStorage.getItem('cached_company_logo') : null;
+  const cachedName = typeof localStorage !== 'undefined' ? localStorage.getItem('cached_company_name') : null;
+  const logoUrl = cachedLogo || "/logo.png";
+  const companyName = cachedName || "Direct AI";
+
   useEffect(() => {
+
     const useSession = sessionStorage.getItem('supabase-use-session-storage') === 'true';
     setRememberMe(!useSession);
   }, []);
@@ -126,10 +134,11 @@ const Login = () => {
         {/* Header */}
         <div className="text-center space-y-4">
           <div className="inline-flex p-4 rounded-3xl bg-white/5 border border-white/10 mb-2 shadow-xl shadow-[#FFF200]/10 ring-1 ring-white/5 mx-auto">
-            <img src="/logo.png" alt="Logo" className="w-16 h-16 object-contain drop-shadow-md" />
+            <img src={logoUrl} alt="Logo" className="w-16 h-16 object-contain drop-shadow-md" />
           </div>
           <div className="space-y-2">
-            <h1 className="text-3xl font-bold text-white tracking-tight">Direct AI</h1>
+            <h1 className="text-3xl font-bold text-white tracking-tight">{companyName}</h1>
+
             <p className="text-base text-zinc-400 font-medium">
               {mode === 'signin' && 'Bem-vindo de volta'}
               {mode === 'signup' && 'Crie sua conta'}
@@ -292,9 +301,10 @@ const Login = () => {
         {/* Brand Version */}
         <div className="text-center pt-2">
           <span className="text-[10px] text-zinc-600 font-bold tracking-[0.3em] uppercase">
-            Direct AI &bull; {APP_VERSION}
+            {companyName} &bull; {APP_VERSION}
           </span>
         </div>
+
       </div>
     </div>
   )

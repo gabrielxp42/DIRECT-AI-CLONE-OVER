@@ -30,7 +30,10 @@ type Profile = {
   is_whatsapp_plus_gifted?: boolean;
   is_whatsapp_plus_gifted_viewed?: boolean;
   company_name?: string | null;
+  company_logo_url?: string | null;
+  company_primary_color?: string | null;
 };
+
 
 type SessionContextType = {
   session: Session | null;

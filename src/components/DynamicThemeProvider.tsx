@@ -36,14 +36,22 @@ export const DynamicThemeProvider = ({ children }: { children: React.ReactNode }
             document.head.appendChild(meta);
         }
 
-        // 2. Dynamic Favicon
+        // 2. Dynamic Favicon & Apple Touch Icons
         const logoUrl = companyProfile?.company_logo_url;
         if (logoUrl) {
+            // Update Favicon
             const linkIcon = document.querySelector('link[rel*="icon"]') as HTMLLinkElement;
             if (linkIcon) {
                 linkIcon.href = logoUrl;
             }
+
+            // Update all Apple Touch Icons (for iOS PWA)
+            const appleIcons = document.querySelectorAll('link[rel="apple-touch-icon"]');
+            appleIcons.forEach(icon => {
+                (icon as HTMLLinkElement).href = logoUrl;
+            });
         }
+
 
         // 3. Dynamic Web Manifest for PWA
         // This allows the "App Name" and "Theme Color" to be dynamic
@@ -57,12 +65,13 @@ export const DynamicThemeProvider = ({ children }: { children: React.ReactNode }
             display: 'standalone',
             start_url: '/',
             icons: logoUrl ? [
-                { src: logoUrl, sizes: '192x192', type: 'image/png' },
-                { src: logoUrl, sizes: '512x512', type: 'image/png' }
+                { src: logoUrl, sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
+                { src: logoUrl, sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
             ] : [
-                { src: '/logo.png', sizes: '192x192', type: 'image/png' },
-                { src: '/logo.png', sizes: '512x512', type: 'image/png' }
+                { src: '/logo.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+                { src: '/logo.png', sizes: '512x512', type: 'image/png', purpose: 'any' }
             ]
+
         };
 
         const stringManifest = JSON.stringify(manifest);

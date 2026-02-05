@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import './LoadingScreen.css';
 import { useCompanyProfile } from '@/hooks/useCompanyProfile';
+import { useSession } from '@/contexts/SessionProvider';
+
 
 
 interface LoadingScreenProps {
@@ -10,8 +12,12 @@ interface LoadingScreenProps {
 const LoadingScreen = ({ minDisplayTime = 800 }: LoadingScreenProps) => {
   const [isVisible, setIsVisible] = useState(true);
   const [shouldRender, setShouldRender] = useState(true);
-  const { companyProfile } = useCompanyProfile();
+  const { companyProfile: queryProfile } = useCompanyProfile();
+  const { profile: sessionProfile } = useSession();
   const [imgError, setImgError] = useState(false);
+
+  const companyProfile = queryProfile || sessionProfile;
+
 
   const cachedLogo = typeof localStorage !== 'undefined' ? localStorage.getItem('cached_company_logo') : null;
   const cachedName = typeof localStorage !== 'undefined' ? localStorage.getItem('cached_company_name') : null;

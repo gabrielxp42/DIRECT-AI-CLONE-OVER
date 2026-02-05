@@ -5,6 +5,11 @@ import { APP_VERSION } from "@/utils/version";
 
 const NotFound = () => {
   const navigate = useNavigate();
+  const cachedLogo = typeof localStorage !== 'undefined' ? localStorage.getItem('cached_company_logo') : null;
+  const cachedName = typeof localStorage !== 'undefined' ? localStorage.getItem('cached_company_name') : null;
+  const logoUrl = cachedLogo || "/logo.png";
+  const companyName = cachedName || "Direct AI";
+
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center p-4 relative overflow-hidden bg-[#0a0a0a] pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] pr-[env(safe-area-inset-right)] pl-[env(safe-area-inset-left)]">
@@ -65,15 +70,16 @@ const NotFound = () => {
         {/* Logo and Branding Footer */}
         <div className="flex flex-col items-center gap-4 animate-in fade-in duration-1000 delay-500">
           <div className="flex items-center gap-2">
-            <span className="text-xl font-bold text-white tracking-tighter">Direct AI</span>
+            <span className="text-xl font-bold text-white tracking-tighter">{companyName}</span>
             <div className="w-8 h-8 rounded-lg bg-[#FFF200] flex items-center justify-center p-1.5 shadow-[0_0_15px_rgba(255,242,0,0.3)]">
-              <img src="/logo.png" alt="Logo" className="w-full h-full object-contain brightness-0" />
+              <img src={logoUrl} alt="Logo" className="w-full h-full object-contain brightness-0" />
             </div>
           </div>
           <span className="text-[10px] text-zinc-600 font-bold tracking-[0.3em] uppercase">
             Gestão Inteligente &bull; {APP_VERSION}
           </span>
         </div>
+
       </div>
     </div>
   );

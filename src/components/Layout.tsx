@@ -153,11 +153,17 @@ const Layout = () => {
           <div className="h-safe-top pt-safe" />
 
           <div className="flex h-14 items-center gap-4 px-4 lg:h-[60px] lg:px-6">
-            {/* Logo - visible on all screen sizes */}
             <div className="flex items-center gap-2 font-semibold">
-              <img src="/logo.png" alt="Direct DTF Logo" className="h-8 w-8" />
-              <span className="tracking-tighter font-black italic">DIRECT AI</span>
+              {companyProfile?.company_logo_url ? (
+                <img src={companyProfile.company_logo_url} alt="Company Logo" className="h-8 w-8 object-contain" />
+              ) : (
+                <img src="/logo.png" alt="Direct AI Logo" className="h-8 w-8" />
+              )}
+              <span className="tracking-tighter font-black italic">
+                {companyProfile?.company_name || 'DIRECT AI'}
+              </span>
             </div>
+
 
             <div className="w-full flex-1" />
 
