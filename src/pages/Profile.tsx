@@ -188,8 +188,15 @@ export default function Profile() {
                                             </p>
                                         </div>
 
-                                        <div className={`h-24 w-24 md:h-32 md:w-32 rounded-[2rem] border-2 flex items-center justify-center transition-all ${subscription.isActive ? 'border-primary bg-primary/10 shadow-[0_0_30px_rgba(255,242,0,0.2)] text-primary' : 'border-white/10 bg-white/5 text-white/10'}`}>
-                                            <Zap className={`w-12 h-12 md:w-16 md:h-16 ${subscription.isActive ? 'fill-primary' : ''}`} />
+                                        <div className="flex flex-col gap-3">
+                                            <div className={`h-24 w-24 md:h-32 md:w-32 rounded-[2rem] border-2 flex items-center justify-center transition-all ${subscription.isActive ? 'border-primary bg-primary/10 shadow-[0_0_30px_rgba(255,242,0,0.2)] text-primary' : 'border-white/10 bg-white/5 text-white/10'}`}>
+                                                <Zap className={`w-12 h-12 md:w-16 md:h-16 ${subscription.isActive ? 'fill-primary' : ''}`} />
+                                            </div>
+                                            {subscription.isWhatsAppPlusActive && (
+                                                <Badge className="bg-emerald-500 text-white border-0 font-black italic uppercase tracking-tighter py-1 px-3 rounded-full shadow-[0_0_15px_rgba(16,185,129,0.3)]">
+                                                    WhatsApp Plus Ativo
+                                                </Badge>
+                                            )}
                                         </div>
                                     </div>
 
@@ -251,6 +258,20 @@ export default function Profile() {
                                                     DESBLOQUEAR PODER ELITE <ArrowRight className="w-6 h-6" />
                                                 </span>
                                                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent -translate-x-full group-hover:animate-shimmer" />
+                                            </Button>
+                                        )}
+
+                                        {!subscription.isWhatsAppPlusActive && (
+                                            <Button
+                                                onClick={() => navigate('/checkout')}
+                                                variant="outline"
+                                                className="w-full h-18 border-emerald-500/50 hover:bg-emerald-500/10 text-emerald-400 font-bold uppercase tracking-wider text-sm rounded-[2rem] gap-3 group relative overflow-hidden"
+                                            >
+                                                <div className="absolute inset-0 bg-emerald-500/5 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
+                                                <div className="relative z-10 flex items-center gap-3">
+                                                    <MessageSquare className="w-5 h-5" />
+                                                    Ativar WhatsApp Plus Boost (R$ 27)
+                                                </div>
                                             </Button>
                                         )}
                                     </div>

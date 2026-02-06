@@ -217,6 +217,19 @@ Deno.serve(async (req: Request) => {
 
                 results.push({ userId, status: 'success', insights: analysisResult.knowledge_entries?.length });
             } else {
+                console.error(`[Processor] Gemini analysis failed for ${userId}. Recording log.`);
+
+                // Log: Analysis failed (API error or empty response)
+                await supabase.from('ai_training_logs').insert({
+                    user_id: userId,
+                    agent_type: 'evaluator',
+                    action: 'analysis_failed',
+                    details: {
+                        message: "Falha na análise da Gemini. Verifique se a API Key é válida ou se a cota foi atingida.",
+                        is_error: true
+                    }
+                });
+
                 results.push({ userId, status: 'failed_analysis' });
             }
         }

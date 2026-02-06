@@ -31,6 +31,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AIKnowledgeViewer } from './AIKnowledgeViewer';
 import { AITrainingLogs } from './AITrainingLogs';
+import { cn } from '@/lib/utils';
 
 interface AgentTraining {
     id: string;
@@ -74,6 +75,7 @@ export function AdminAIMonitoring() {
     const [isLoading, setIsLoading] = useState(true);
     const [selectedAgent, setSelectedAgent] = useState<AgentTraining | null>(null);
     const [isDetailOpen, setIsDetailOpen] = useState(false);
+    const [hasRecentError, setHasRecentError] = useState(false);
 
     useEffect(() => {
         fetchAgents();
@@ -141,11 +143,29 @@ export function AdminAIMonitoring() {
                     totalCost,
                     avgConfidence: Math.round(avgConfidence)
                 });
+
+                // Check for errors in the last 24h
+                checkSystemHealth();
             }
         } catch (error) {
             console.error('Error fetching agents:', error);
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const checkSystemHealth = async () => {
+        try {
+            const { data } = await supabase
+                .from('ai_training_logs')
+                .select('id')
+                .eq('action', 'analysis_failed')
+                .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+                .limit(1);
+
+            setHasRecentError(data && data.length > 0);
+        } catch (e) {
+            console.error(e);
         }
     };
 
@@ -202,15 +222,41 @@ export function AdminAIMonitoring() {
 
     return (
         <div className="space-y-6">
-            {/* Header */}
-            <div>
-                <h2 className="text-2xl font-bold flex items-center gap-2">
-                    <Brain className="w-6 h-6 text-primary" />
-                    Monitoramento de Agentes IA
-                </h2>
-                <p className="text-sm text-muted-foreground mt-1">
-                    Acompanhe o treinamento e performance dos agentes Gemini
-                </p>
+            {/* Header with System Status Indicator */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                    <h2 className="text-2xl font-bold flex items-center gap-2">
+                        <Brain className="w-6 h-6 text-primary" />
+                        Monitoramento de Agentes IA
+                    </h2>
+                    <p className="text-sm text-muted-foreground mt-1">
+                        Acompanhe o treinamento e performance dos agentes Gemini
+                    </p>
+                </div>
+
+                <div className="flex items-center gap-3 bg-card border rounded-full px-4 py-2 self-start md:self-center shadow-sm">
+                    <div className="flex items-center gap-2">
+                        <div className={cn(
+                            "h-2 w-2 rounded-full",
+                            hasRecentError
+                                ? "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]"
+                                : (agents.length > 0 ? "bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]" : "bg-zinc-500")
+                        )} />
+                        <span className="text-[10px] font-bold uppercase tracking-wider">
+                            {hasRecentError ? "Gemini API: Instável" : "Gemini API: Ativa"}
+                        </span>
+                    </div>
+                    <div className="w-[1px] h-3 bg-border mx-1" />
+                    <div className="flex items-center gap-2">
+                        <div className={cn(
+                            "h-2 w-2 rounded-full",
+                            hasRecentError ? "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]" : "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]"
+                        )} />
+                        <span className="text-[10px] font-bold uppercase tracking-wider">
+                            {hasRecentError ? "Quota: Esgotada/Erro" : "Quota: OK"}
+                        </span>
+                    </div>
+                </div>
             </div>
 
             {/* Stats Cards */}

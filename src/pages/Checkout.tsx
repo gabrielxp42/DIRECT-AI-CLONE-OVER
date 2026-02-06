@@ -101,6 +101,10 @@ const Checkout = () => {
         cvv: ''
     });
     const [clientInfo, setClientInfo] = useState({ cpfCnpj: '', postalCode: '', addressNumber: '', phone: '' });
+    const [productType, setProductType] = useState<'PRO' | 'BOOST'>('PRO');
+    const [partnerCode, setPartnerCode] = useState('');
+    const [isApplyingCode, setIsApplyingCode] = useState(false);
+    const [isBoostUnlocked, setIsBoostUnlocked] = useState(false);
 
     // Auto-polling for PIX payment status
     useEffect(() => {
@@ -235,7 +239,8 @@ const Checkout = () => {
                         postalCode: clientInfo.postalCode.replace(/\D/g, '') || '00000000',
                         addressNumber: clientInfo.addressNumber || '0',
                         phone: clientInfo.phone.replace(/\D/g, '') || '00000000000'
-                    }
+                    },
+                    productType
                 })
             });
 
@@ -298,6 +303,35 @@ const Checkout = () => {
         }
     };
 
+    const handleApplyPartnerCode = async () => {
+        if (!partnerCode || !session?.user) return;
+        setIsApplyingCode(true);
+        try {
+            // Simplificando: Aqui faríamos uma chamada ao banco ou edge function para validar o código
+            // Para este MVP, vamos considerar qualquer código 'GABI27' ou vindo do admin como válido
+            // No futuro, isso deve bater numa tabela 'partner_codes'
+            const { data, error } = await supabase
+                .from('profiles')
+                .update({
+                    partner_code: partnerCode.toUpperCase(),
+                    is_whatsapp_plus_active: true,
+                    is_whatsapp_plus_gifted: true
+                })
+                .eq('id', session.user.id)
+                .select();
+
+            if (error) throw error;
+
+            setIsBoostUnlocked(true);
+            toast.success("Código de Parceiro Aplicado! WhatsApp Plus Desbloqueado ⚡");
+            if (productType === 'BOOST') setProductType('PRO'); // Volta para o pro se estava no boost
+        } catch (err: any) {
+            toast.error("Erro ao aplicar código: " + err.message);
+        } finally {
+            setIsApplyingCode(false);
+        }
+    };
+
     const steps = [
         { number: 1, label: 'Criar Conta', icon: User },
         { number: 2, label: 'Pagamento', icon: CreditCardIcon },
@@ -331,7 +365,9 @@ const Checkout = () => {
                         </h1>
                         <div className="flex items-baseline gap-3 mb-2">
                             <span className="text-white/30 text-lg line-through font-bold">R$ 147</span>
-                            <span className="text-4xl font-black text-white italic tracking-tighter">R$ 97</span>
+                            <span className="text-4xl font-black text-white italic tracking-tighter">
+                                R$ {productType === 'BOOST' ? '27' : '97'}
+                            </span>
                         </div>
                         <p className="text-xs font-bold text-emerald-400 uppercase tracking-widest bg-emerald-500/10 inline-block px-2 py-1 rounded">7 dias de garantia total</p>
                     </div>
@@ -398,6 +434,72 @@ const Checkout = () => {
                         {step === 2 && (
                             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="h-full flex flex-col">
                                 <h2 className="text-2xl font-black italic text-white uppercase tracking-tighter mb-6 text-center">Finalizar Pagamento</h2>
+
+                                {/* Product Selection */}
+                                <div className="space-y-3 mb-6">
+                                    <div
+                                        onClick={() => !isBoostUnlocked && setProductType('PRO')}
+                                        className={cn(
+                                            "p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden",
+                                            productType === 'PRO' ? "border-[#FFF200] bg-[#FFF200]/10" : "border-white/5 bg-white/5 opacity-50"
+                                        )}
+                                    >
+                                        <div className="flex justify-between items-center relative z-10">
+                                            <div className="flex items-center gap-3">
+                                                <Crown className={cn("w-5 h-5", productType === 'PRO' ? "text-[#FFF200]" : "text-white/20")} />
+                                                <div className="flex flex-col text-left">
+                                                    <span className="text-xs font-black uppercase text-white">Plano Profissional</span>
+                                                    <span className="text-[10px] text-white/50">Acesso completo ao painel</span>
+                                                </div>
+                                            </div>
+                                            <span className="text-sm font-black text-white italic">R$ 97/mês</span>
+                                        </div>
+                                    </div>
+
+                                    <div
+                                        onClick={() => !isBoostUnlocked && setProductType('BOOST')}
+                                        className={cn(
+                                            "p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden",
+                                            productType === 'BOOST' ? "border-emerald-500 bg-emerald-500/10" : "border-white/5 bg-white/5 opacity-50",
+                                            isBoostUnlocked && "border-primary/40 bg-primary/20 cursor-default opacity-100"
+                                        )}
+                                    >
+                                        <div className="flex justify-between items-center relative z-10">
+                                            <div className="flex items-center gap-3">
+                                                <Zap className={cn("w-5 h-5", productType === 'BOOST' || isBoostUnlocked ? "text-emerald-400" : "text-white/20")} />
+                                                <div className="flex flex-col text-left">
+                                                    <span className="text-xs font-black uppercase text-white">WhatsApp Plus Boost</span>
+                                                    <span className="text-[10px] text-white/50">{isBoostUnlocked ? "CORTESIA APLICADA" : "Motor de IA no seu WhatsApp"}</span>
+                                                </div>
+                                            </div>
+                                            {isBoostUnlocked ? (
+                                                <CheckCircle2 size={18} className="text-emerald-400" />
+                                            ) : (
+                                                <span className="text-sm font-black text-white italic">R$ 27 (Taxa Única)</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Partner/Unlock Code */}
+                                {!isBoostUnlocked && (
+                                    <div className="mb-6 p-1 bg-white/5 rounded-2xl border border-white/10 flex gap-2">
+                                        <Input
+                                            placeholder="CÓDIGO DE PARCEIRO"
+                                            value={partnerCode}
+                                            onChange={e => setPartnerCode(e.target.value)}
+                                            className="bg-transparent border-0 h-10 text-[10px] font-black uppercase placeholder:text-white/20"
+                                        />
+                                        <Button
+                                            onClick={handleApplyPartnerCode}
+                                            disabled={!partnerCode || isApplyingCode}
+                                            variant="secondary"
+                                            className="h-10 rounded-xl px-4 text-[10px] font-black uppercase tracking-widest bg-white/10 hover:bg-white/20 text-white"
+                                        >
+                                            {isApplyingCode ? <Loader2 size={12} className="animate-spin" /> : "APLICAR"}
+                                        </Button>
+                                    </div>
+                                )}
 
                                 {/* Payment Method Selector */}
                                 <div className="flex gap-4 mb-6">
@@ -585,7 +687,7 @@ const Checkout = () => {
                                                 {isProcessingPayment ? <Loader2 className="animate-spin" /> : (
                                                     <span className="flex items-center gap-2">
                                                         <Lock className="w-4 h-4" />
-                                                        Pagar R$ 97,00
+                                                        Pagar R$ {productType === 'BOOST' ? '27,00' : '97,00'}
                                                     </span>
                                                 )}
                                             </Button>

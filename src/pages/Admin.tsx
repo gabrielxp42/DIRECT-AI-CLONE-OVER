@@ -129,6 +129,7 @@ export default function Admin() {
     const [editForm, setEditForm] = useState<Partial<AdminProfile>>({});
     const [userStats, setUserStats] = useState<{ pedidos: number, clientes: number } | null>(null);
     const [loadingStats, setLoadingStats] = useState(false);
+    const [evolutionStatus, setEvolutionStatus] = useState<'idle' | 'online' | 'error'>('idle');
 
     const fetchUserStats = async (userId: string) => {
         setLoadingStats(true);
@@ -201,10 +202,10 @@ export default function Admin() {
             const activeSubscribers = usersData.filter(u => u.subscription_status === 'active' && !u.is_gifted_plan).length;
 
             // Estimates MRR based on plans (hardcoded prices based on public.plans query)
-            // pro: 49.90, enterprise: 149.90
+            // pro: 97.00
             const mrrValue = usersData.reduce((acc, u) => {
                 if (u.subscription_status === 'active' && !u.is_gifted_plan) {
-                    return acc + (u.subscription_tier === 'enterprise' ? 149.90 : 49.90);
+                    return acc + 97.00;
                 }
                 return acc;
             }, 0);
@@ -225,10 +226,35 @@ export default function Admin() {
                 activeUsers30d
             });
 
+            // Auto-check Evolution API connection on admin load
+            handleCheckConnection(false);
+
         } catch (err: any) {
             toast.error('Erro ao buscar dados: ' + err.message);
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const handleCheckConnection = async (showToast = true) => {
+        if (showToast) toast.info("Testando conexão...");
+        try {
+            const { data, error } = await supabase.functions.invoke('whatsapp-proxy', {
+                body: { action: 'check-connection' }
+            });
+
+            if (error) throw error;
+
+            if (data?.status === 'ok') {
+                if (showToast) toast.success("Conexão com Evolution API Estabelecida!");
+                setEvolutionStatus('online');
+            } else {
+                setEvolutionStatus('error');
+            }
+        } catch (e: any) {
+            console.error(e);
+            setEvolutionStatus('error');
+            if (showToast) toast.error("Falha na conexão: " + e.message);
         }
     };
 
@@ -635,12 +661,12 @@ export default function Admin() {
                                 </div>
                                 {/* CONNECTION STATUS LED */}
                                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700">
-                                    <div className={`w-3 h-3 rounded-full ${stats.mrr === -1 ? 'bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]' :
-                                        stats.mrr === 1 ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' :
+                                    <div className={`w-3 h-3 rounded-full ${evolutionStatus === 'error' ? 'bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]' :
+                                        evolutionStatus === 'online' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' :
                                             'bg-zinc-400'
                                         }`} />
                                     <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                                        {stats.mrr === -1 ? 'FALHA DE CONEXÃO' : stats.mrr === 1 ? 'API ONLINE' : 'STATUS DESCONHECIDO'}
+                                        {evolutionStatus === 'error' ? 'FALHA DE CONEXÃO' : evolutionStatus === 'online' ? 'API ONLINE' : 'STATUS DESCONHECIDO'}
                                     </span>
                                 </div>
                             </div>
@@ -676,29 +702,7 @@ export default function Admin() {
                                 <Button
                                     variant="outline"
                                     className="rounded-2xl h-12 px-6 font-black uppercase tracking-widest border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                                    onClick={async () => {
-                                        toast.info("Testando conexão...");
-                                        try {
-                                            const { data, error } = await supabase.functions.invoke('whatsapp-proxy', {
-                                                body: { action: 'check-connection' }
-                                            });
-
-                                            if (error) throw error;
-
-                                            if (data?.status === 'ok') {
-                                                toast.success("Conexão com Evolution API Estabelecida!");
-                                                setStats(s => ({ ...s, mrr: 1 }));
-                                            } else {
-                                                const msg = data?.message || data?.error || "Resposta inválida da API";
-                                                const details = data?.details ? (typeof data.details === 'object' ? JSON.stringify(data.details) : data.details) : "";
-                                                throw new Error(`${msg} ${details}`);
-                                            }
-                                        } catch (e: any) {
-                                            console.error(e);
-                                            toast.error("Falha na conexão: " + e.message);
-                                            setStats(s => ({ ...s, mrr: -1 })); // Hack: using MRR field for status
-                                        }
-                                    }}
+                                    onClick={() => handleCheckConnection(true)}
                                 >
                                     <RefreshCw className="mr-2 h-4 w-4" /> Testar Conexão
                                 </Button>
@@ -762,7 +766,7 @@ export default function Admin() {
                                 <div className="p-8 rounded-[2rem] bg-white/5 border border-white/10">
                                     <h4 className="text-xs font-black uppercase tracking-[0.3em] text-zinc-500 mb-4">Ticket Médio Projetado</h4>
                                     <div className="flex items-end gap-3 text-white">
-                                        <span className="text-5xl font-black tracking-tighter italic leading-none">R$ 54,90</span>
+                                        <span className="text-5xl font-black tracking-tighter italic leading-none">R$ 97,00</span>
                                         <span className="text-xs font-bold text-zinc-500 mb-2 uppercase tracking-widest">por Assinante</span>
                                     </div>
                                 </div>
@@ -771,9 +775,9 @@ export default function Admin() {
                                     <h4 className="text-xs font-black uppercase tracking-widest text-zinc-500">Distribuição de Receita</h4>
                                     <div className="space-y-4">
                                         {[
-                                            { name: 'Plano Pro (R$ 49,90)', pct: 70, color: 'bg-primary' },
-                                            { name: 'Enterprise (R$ 149,90)', pct: 20, color: 'bg-blue-500' },
-                                            { name: 'Gifted/Promo (R$ 0,00)', pct: 10, color: 'bg-zinc-700' },
+                                            { name: 'Plano Pro (R$ 97,00)', pct: 85, color: 'bg-primary' },
+                                            { name: 'WhatsApp Plus (R$ 27,00)', pct: 10, color: 'bg-green-500' },
+                                            { name: 'Gifted/Promo (R$ 0,00)', pct: 5, color: 'bg-zinc-700' },
                                         ].map((item) => (
                                             <div key={item.name} className="space-y-2">
                                                 <div className="flex justify-between text-xs font-bold uppercase italic">
@@ -885,8 +889,7 @@ export default function Admin() {
                                     <SelectTrigger className="rounded-xl h-12 border-zinc-200"><SelectValue /></SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="free">Free/Trial</SelectItem>
-                                        <SelectItem value="pro">Pro (R$ 49.90)</SelectItem>
-                                        <SelectItem value="enterprise">Enterprise (R$ 149.90)</SelectItem>
+                                        <SelectItem value="pro">Pro (R$ 97,00)</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>

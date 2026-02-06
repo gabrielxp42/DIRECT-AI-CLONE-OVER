@@ -116,24 +116,44 @@ serve(async (req) => {
             console.log("Confirmed Payment Found. Checking validity...");
 
             // Lógica de Vencimento
-            const nextDueDate = new Date(activeSubscription.nextDueDate);
+            const nextDueDate = new Date(activeSubscription.nextDueDate || activeSubscription.dueDate);
             const today = new Date();
             // Adicionamos 3 dias de tolerância (Grace Period)
             const toleranceDate = new Date(nextDueDate);
             toleranceDate.setDate(toleranceDate.getDate() + 3);
 
-            const isExpired = today > toleranceDate && activeSubscription.status === 'OVERDUE';
+            const isExpired = today > toleranceDate && (activeSubscription.status === 'OVERDUE' || activeSubscription.status === 'EXPIRED');
+            const description = activeSubscription.description || "";
+            const isBoost = description.includes("Boost") || description.includes("Plus");
 
-            const updateData: any = {
-                subscription_status: isExpired ? 'expired' : 'active',
-                subscription_tier: 'pro',
-                // Salvamos metadados úteis para o Frontend avisar o usuário
-                last_payment_date: new Date().toISOString(),
-                next_due_date: activeSubscription.nextDueDate
-            };
+            let updateData: any = {};
+
+            if (isBoost) {
+                console.log("Detected WhatsApp Boost payment.");
+                updateData = {
+                    is_whatsapp_plus_active: !isExpired,
+                    // Também salvamos metadados
+                    last_boost_payment: new Date().toISOString()
+                };
+            } else {
+                console.log("Detected Pro Plan payment.");
+                updateData = {
+                    subscription_status: isExpired ? 'expired' : 'active',
+                    subscription_tier: 'pro',
+                    last_payment_date: new Date().toISOString(),
+                    next_due_date: activeSubscription.nextDueDate
+                };
+            }
 
             if (activeSubscription?.customer) updateData.asaas_customer_id = activeSubscription.customer;
-            if (subscriptionId || activeSubscription?.id) updateData.asaas_subscription_id = subscriptionId || activeSubscription?.id;
+            if (subscriptionId || activeSubscription?.id) {
+                if (isBoost) {
+                    // Se for boost, talvez queiramos um campo separado ou apenas logar
+                    // updateData.asaas_boost_subscription_id = ...
+                } else {
+                    updateData.asaas_subscription_id = subscriptionId || activeSubscription?.id;
+                }
+            }
 
             const { error: updateError } = await supabase
                 .from('profiles')
@@ -145,7 +165,7 @@ serve(async (req) => {
                 throw updateError;
             }
 
-            console.log(`=== SUCCESS: User Status: ${isExpired ? 'EXPIRED' : 'ACTIVE'} | Due: ${activeSubscription.nextDueDate} ===`);
+            console.log(`=== SUCCESS: ${isBoost ? 'BOOST' : 'PLAN'} Status: ${isExpired ? 'EXPIRED' : 'ACTIVE'} ===`);
 
             return new Response(
                 JSON.stringify({

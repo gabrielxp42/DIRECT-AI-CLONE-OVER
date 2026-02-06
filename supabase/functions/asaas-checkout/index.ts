@@ -17,15 +17,24 @@ serve(async (req) => {
 
     try {
         const payload = await req.json();
-        const { userId, email, name, paymentMethod, creditCard, creditCardHolderInfo } = payload;
+        const { userId, email, name, paymentMethod, creditCard, creditCardHolderInfo, productType } = payload;
 
         if (!userId || !email) {
             throw new Error("Missing userId or email");
         }
 
+        // --- PREÇOS E DESCRIÇÕES ---
+        let value = 97.00;
+        let description = "Plano Profissional DTF - Gabi AI";
+
+        if (productType === 'BOOST') {
+            value = 27.00;
+            description = "Boost WhatsApp Plus - Gabi AI";
+        }
+
         // --- SEGURANÇA: LOG FILTRADO ---
         // Nunca logar o payload completo se houver cartão
-        console.log(`Processando checkout para: ${email} | Método: ${paymentMethod || 'UNDEFINED'}`);
+        console.log(`Processando checkout para: ${email} | Produto: ${productType || 'PRO'} | Valor: ${value}`);
 
         const headers = {
             'Content-Type': 'application/json',
@@ -94,9 +103,9 @@ serve(async (req) => {
             customer: customerId,
             billingType: paymentMethod === 'CREDIT_CARD' ? 'CREDIT_CARD' : 'PIX',
             nextDueDate: new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0],
-            value: 97.00,
+            value: value,
             cycle: "MONTHLY",
-            description: "Plano Profissional DTF - Gabi AI",
+            description: description,
             updatePendingPayments: true,
             externalReference: userId
         };

@@ -12,6 +12,7 @@ export interface SubscriptionState {
     maxDailyUsage: number;
     canUseAI: boolean;
     canWriteData: boolean;
+    isWhatsAppPlusActive: boolean;
 }
 
 export const useSubscription = (): SubscriptionState => {
@@ -28,7 +29,8 @@ export const useSubscription = (): SubscriptionState => {
             dailyUsage: 0,
             maxDailyUsage: 20,
             canUseAI: false,
-            canWriteData: true // Optimistic during loading
+            canWriteData: true, // Optimistic during loading
+            isWhatsAppPlusActive: false
         };
     }
 
@@ -50,7 +52,8 @@ export const useSubscription = (): SubscriptionState => {
             dailyUsage: 0,
             maxDailyUsage: 20,
             canUseAI: false,
-            canWriteData: true // Optimistic for fallback
+            canWriteData: true, // Optimistic for fallback
+            isWhatsAppPlusActive: false
         };
     }
 
@@ -99,6 +102,7 @@ export const useSubscription = (): SubscriptionState => {
         dailyUsage: currentUsage,
         maxDailyUsage: MAX_DAILY_AI,
         canUseAI,
-        canWriteData
+        canWriteData,
+        isWhatsAppPlusActive: !!effectiveProfile.is_whatsapp_plus_active
     };
 };

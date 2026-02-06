@@ -9,9 +9,11 @@ import {
     Database,
     CheckCircle2,
     Clock,
-    Terminal
+    Terminal,
+    AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { cn } from '@/lib/utils';
 
 interface TrainingLog {
     id: string;
@@ -118,13 +120,22 @@ export function AITrainingLogs({ userId }: AITrainingLogsProps) {
                             key={log.id}
                             initial={{ opacity: 0, x: -20 }}
                             animate={{ opacity: 1, x: 0 }}
-                            className="bg-muted/30 border border-white/5 rounded-lg p-3 relative overflow-hidden group"
+                            className={cn(
+                                "border border-white/5 rounded-lg p-3 relative overflow-hidden group transition-colors",
+                                log.details?.is_error ? "bg-red-500/10 border-red-500/20" : "bg-muted/30"
+                            )}
                         >
                             <div className="flex items-start justify-between gap-3 relative z-10">
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 mb-1">
-                                        <Badge variant="outline" className="text-[10px] bg-primary/5 h-5 gap-1.5 flex items-center pr-2">
-                                            {getAgentIcon(log.agent_type)}
+                                        <Badge
+                                            variant="outline"
+                                            className={cn(
+                                                "text-[10px] h-5 gap-1.5 flex items-center pr-2",
+                                                log.details?.is_error ? "bg-red-500/20 text-red-500 border-red-500/30" : "bg-primary/5"
+                                            )}
+                                        >
+                                            {log.details?.is_error ? <AlertCircle className="w-3 h-3" /> : getAgentIcon(log.agent_type)}
                                             {getAgentLabel(log.agent_type)}
                                         </Badge>
                                         <span className="text-[10px] text-muted-foreground flex items-center gap-1 font-mono">
@@ -132,7 +143,10 @@ export function AITrainingLogs({ userId }: AITrainingLogsProps) {
                                             {new Date(log.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                                         </span>
                                     </div>
-                                    <p className="text-xs text-indigo-100 font-medium line-clamp-2">
+                                    <p className={cn(
+                                        "text-xs font-medium line-clamp-2",
+                                        log.details?.is_error ? "text-red-200" : "text-indigo-100"
+                                    )}>
                                         {log.details?.message || log.action}
                                     </p>
 
