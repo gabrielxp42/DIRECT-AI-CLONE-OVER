@@ -123,6 +123,24 @@ serve(async (req) => {
             ? `${merchant.company_address_street}, ${merchant.company_address_number}${merchant.company_address_city ? ` - ${merchant.company_address_city}` : ''}`
             : "";
 
+        // Lógica de entrega idêntica ao frontend
+        let entregaStr = "";
+        if (order.tipo_entrega === 'frete') {
+            if (order.valor_frete && Number(order.valor_frete) > 0) {
+                entregaStr += `FRETE: ${formatCurrency(order.valor_frete)}\n`;
+            }
+            if (order.transportadora) {
+                entregaStr += `TRANSPORTADORA: ${order.transportadora.toUpperCase()}\n`;
+            }
+            if (trackingCode || order.tracking_code) {
+                entregaStr += `RASTREIO: ${trackingCode || order.tracking_code}\n`;
+            }
+        } else if (order.tipo_entrega === 'retirada') {
+            entregaStr = "RETIRADA NO LOCAL";
+        }
+
+        const statusStr = statusToSend === 'pago' ? 'PAGO' : 'NÃO PAGO';
+
         const finalMessage = template
             .replace(/{{cliente}}/g, clientName)
             .replace(/{{order_number}}/g, (order.order_number || 0).toString())
@@ -136,7 +154,9 @@ serve(async (req) => {
             .replace(/{{endereco_empresa}}/g, companyAddress || "")
             .replace(/{{horario_empresa}}/g, merchant.company_business_hours || "08:00 às 18:00")
             .replace(/{{itens}}/g, itemsList || "Nenhum item")
-            .replace(/{{servicos}}/g, servicosStr);
+            .replace(/{{servicos}}/g, servicosStr)
+            .replace(/{{entrega_info}}/g, entregaStr)
+            .replace(/{{status}}/g, statusStr);
 
         console.log("[Gabi] Final message prepared, length:", finalMessage.length);
 

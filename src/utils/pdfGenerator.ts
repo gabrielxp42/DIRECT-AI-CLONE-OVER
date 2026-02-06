@@ -374,6 +374,10 @@ export const generateOrderPDF = async (
     if (pedido.tipo_entrega === 'frete' && pedido.transportadora) {
       summaryData.push(['Transportadora', pedido.transportadora]);
     }
+
+    if (pedido.tipo_entrega === 'frete' && pedido.tracking_code) {
+      summaryData.push(['Rastreio', pedido.tracking_code]);
+    }
   }
 
   summaryData.push(['Total Final', formatCurrency(finalTotalCalculated)]);

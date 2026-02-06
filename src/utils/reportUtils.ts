@@ -302,104 +302,93 @@ export const fetchReportData = async (
         const paidInRange = paidDate && paidDate >= periodStart && paidDate <= periodEnd;
 
         // Totals based on creation (Revenue logic matching Dashboard)
-        if (createdInRange) {
-            const status = order.status?.toLowerCase();
-            const isPaidStatus = ['pago', 'entregue'].includes(status);
-            const isAwaitingPickup = status === 'aguardando retirada';
-            let wasPaid = false;
+        // UM PEDIDO É CONSIDERADO PAGO SE:
+        // 1. Tem data de pagamento (pago_at) E não está cancelado
+        // O status visual (pago, entregue, aguardando retirada) não importa tanto quanto a existência da data de pagamento.
+        const isPaid = order.pago_at !== null && order.status !== 'cancelado';
 
-            if (isAwaitingPickup && order.pedido_status_history && Array.isArray(order.pedido_status_history)) {
-                wasPaid = order.pedido_status_history.some((h: any) =>
-                    h.status_novo?.toLowerCase() === 'pago' || h.status_anterior?.toLowerCase() === 'pago'
-                );
-            }
+        // 1. COMPONENT BREAKDOWN (DEMAND) - All Orders (Requested by user for backlog visibility)
+        if (order.pedido_items) {
+            order.pedido_items.forEach((item: any) => {
+                const tipoRaw = (item.tipo || 'dtf').toLowerCase().trim();
+                const tipo = tipoRaw === '' ? 'outro' : tipoRaw;
 
-            const isPaid = isPaidStatus || (isAwaitingPickup && wasPaid);
-
-            // 1. COMPONENT BREAKDOWN (DEMAND) - All Orders (Requested by user for backlog visibility)
-            if (order.pedido_items) {
-                order.pedido_items.forEach((item: any) => {
-                    const tipoRaw = (item.tipo || 'dtf').toLowerCase().trim();
-                    const tipo = tipoRaw === '' ? 'outro' : tipoRaw;
-
-                    totalsByType[tipo] = (totalsByType[tipo] || 0) + (Number(item.quantidade) || 0);
-                    revenueByType[tipo] = (revenueByType[tipo] || 0) + (Number(item.quantidade) * Number(item.preco_unitario || 0));
-                });
-            }
-
-            if (isPaid) {
-
-                // Cálculo robusto do faturamento "limpo" (sem frete)
-                const subtotal = (order.subtotal_produtos || 0) + (order.subtotal_servicos || 0);
-                const dPerc = subtotal * ((order.desconto_percentual || 0) / 100);
-                const faturamentoLimpo = Math.max(0, subtotal - (order.desconto_valor || 0) - dPerc);
-                totalRevenue += faturamentoLimpo;
-
-                totalCost += calculateOrderCost(order);
-
-                if (order.pedido_items) {
-                    order.pedido_items.forEach((item: any) => {
-                        const tipoRaw = (item.tipo || 'dtf').toLowerCase().trim();
-                        // Filter for Linear Meters (Roll only)
-                        const isRoll = ['dtf', 'vinil', 'adesivo'].some(t => tipoRaw.includes(t)) && !tipoRaw.includes('varejo');
-                        if (isRoll) {
-                            totalMeters += (Number(item.quantidade) || 0);
-                        }
-
-                        const productName = item.produtos?.nome || item.produto_nome || 'Produto não encontrado';
-                        const existingProd = productSales.get(productName) || { totalSold: 0, revenue: 0 };
-                        productSales.set(productName, {
-                            totalSold: existingProd.totalSold + item.quantidade,
-                            revenue: existingProd.revenue + (item.quantidade * item.preco_unitario)
-                        });
-                    });
-                }
-
-
-                // Customer Spending (only for PAID)
-                const customerName = order.clientes?.nome || 'Cliente Anônimo';
-                const existingCust = customerSpending.get(customerName) || { totalOrders: 0, totalSpent: 0 };
-                customerSpending.set(customerName, {
-                    totalOrders: existingCust.totalOrders + 1,
-                    totalSpent: existingCust.totalSpent + (order.valor_total || 0)
-                });
-            }
-        }
-
-
-        // Financial Report (status snapshot for orders in period)
-        if (createdInRange) {
-            const status = order.status || 'desconhecido';
-            const existingFin = financialStats.get(status) || { count: 0, value: 0, status };
-
-            // Valor para o Snapshot Financeiro (também sem frete por padrão nos relatórios)
-            const subtotal = (order.subtotal_produtos || 0) + (order.subtotal_servicos || 0);
-            const dPerc = subtotal * ((order.desconto_percentual || 0) / 100);
-            const valorTotalCalculado = Math.max(0, subtotal - (order.desconto_valor || 0) - dPerc);
-
-            financialStats.set(status, {
-                count: existingFin.count + 1,
-                value: existingFin.value + valorTotalCalculado,
-                status
+                totalsByType[tipo] = (totalsByType[tipo] || 0) + (Number(item.quantidade) || 0);
+                revenueByType[tipo] = (revenueByType[tipo] || 0) + (Number(item.quantidade) * Number(item.preco_unitario || 0));
             });
         }
 
-        // Services (for commission, we usually care about when they were paid IF we want to match Stripe)
-        // If the goal is reconciliation, we might want to include services from orders paid in range
-        if (paidInRange || createdInRange) {
-            if (order.pedido_servicos) {
-                order.pedido_servicos.forEach((servico: any) => {
-                    allServices.push({
-                        ...servico,
-                        pedido_id: order.id,
-                        cliente_nome: order.clientes?.nome || 'Cliente Anônimo',
-                        data_pedido: order.created_at,
-                        status_pedido: order.status,
-                        total_value: servico.quantidade * servico.valor_unitario,
-                        // Adicionar flag para sabermos se foi pago no período
-                        pago_no_periodo: paidInRange
+        if (isPaid) {
+
+            // Cálculo robusto do faturamento "limpo" (sem frete)
+            const subtotal = (order.subtotal_produtos || 0) + (order.subtotal_servicos || 0);
+            const dPerc = subtotal * ((order.desconto_percentual || 0) / 100);
+            const faturamentoLimpo = Math.max(0, subtotal - (order.desconto_valor || 0) - dPerc);
+            totalRevenue += faturamentoLimpo;
+
+            totalCost += calculateOrderCost(order);
+
+            if (order.pedido_items) {
+                order.pedido_items.forEach((item: any) => {
+                    const tipoRaw = (item.tipo || 'dtf').toLowerCase().trim();
+                    // Filter for Linear Meters (Roll only)
+                    const isRoll = ['dtf', 'vinil', 'adesivo'].some(t => tipoRaw.includes(t)) && !tipoRaw.includes('varejo');
+                    if (isRoll) {
+                        totalMeters += (Number(item.quantidade) || 0);
+                    }
+
+                    const productName = item.produtos?.nome || item.produto_nome || 'Produto não encontrado';
+                    const existingProd = productSales.get(productName) || { totalSold: 0, revenue: 0 };
+                    productSales.set(productName, {
+                        totalSold: existingProd.totalSold + item.quantidade,
+                        revenue: existingProd.revenue + (item.quantidade * item.preco_unitario)
                     });
                 });
+            }
+
+
+            // Customer Spending (only for PAID)
+            const customerName = order.clientes?.nome || 'Cliente Anônimo';
+            const existingCust = customerSpending.get(customerName) || { totalOrders: 0, totalSpent: 0 };
+            customerSpending.set(customerName, {
+                totalOrders: existingCust.totalOrders + 1,
+                totalSpent: existingCust.totalSpent + (order.valor_total || 0)
+            });
+
+            // Financial Report (status snapshot for orders in period)
+            if (createdInRange) {
+                const status = order.status || 'desconhecido';
+                const existingFin = financialStats.get(status) || { count: 0, value: 0, status };
+
+                // Valor para o Snapshot Financeiro (também sem frete por padrão nos relatórios)
+                const subtotal = (order.subtotal_produtos || 0) + (order.subtotal_servicos || 0);
+                const dPerc = subtotal * ((order.desconto_percentual || 0) / 100);
+                const valorTotalCalculado = Math.max(0, subtotal - (order.desconto_valor || 0) - dPerc);
+
+                financialStats.set(status, {
+                    count: existingFin.count + 1,
+                    value: existingFin.value + valorTotalCalculado,
+                    status
+                });
+            }
+
+            // Services (for commission, we usually care about when they were paid IF we want to match Stripe)
+            // If the goal is reconciliation, we might want to include services from orders paid in range
+            if (paidInRange || createdInRange) {
+                if (order.pedido_servicos) {
+                    order.pedido_servicos.forEach((servico: any) => {
+                        allServices.push({
+                            ...servico,
+                            pedido_id: order.id,
+                            cliente_nome: order.clientes?.nome || 'Cliente Anônimo',
+                            data_pedido: order.created_at,
+                            status_pedido: order.status,
+                            total_value: servico.quantidade * servico.valor_unitario,
+                            // Adicionar flag para sabermos se foi pago no período
+                            pago_no_periodo: paidInRange
+                        });
+                    });
+                }
             }
         }
     });
@@ -570,16 +559,7 @@ export const fetchReportData = async (
 
         // Somar metros apenas de pedidos PAGOS (consistência total)
         const productionOrders = ordersInBucket.filter((o: any) => {
-            const s = o.status?.toLowerCase();
-            const isPaidStatus = ['pago', 'entregue'].includes(s);
-            const isAwaitingPickup = s === 'aguardando retirada';
-            let wasPaid = false;
-            if (isAwaitingPickup && Array.isArray(o.pedido_status_history)) {
-                wasPaid = o.pedido_status_history.some((h: any) =>
-                    h.status_novo?.toLowerCase() === 'pago' || h.status_anterior?.toLowerCase() === 'pago'
-                );
-            }
-            return isPaidStatus || (isAwaitingPickup && wasPaid);
+            return o.pago_at !== null && o.status !== 'cancelado';
         });
 
         const met = Number(productionOrders.reduce((sum: number, o: any) => {
@@ -623,17 +603,16 @@ export const fetchReportData = async (
     const financialReport = {
         byStatus: Array.from(financialStats.values()).sort((a, b) => b.value - a.value),
         totalPaid: periodOrders.filter((o: any) => {
-            const s = o.status?.toLowerCase();
-            const isAwaiting = s === 'aguardando retirada';
-            const wasPaid = isAwaiting && Array.isArray(o.pedido_status_history) &&
-                o.pedido_status_history.some((h: any) => h.status_novo?.toLowerCase() === 'pago' || h.status_anterior?.toLowerCase() === 'pago');
-            return ['pago', 'entregue'].includes(s) || (isAwaiting && wasPaid);
+            const isPaid = o.pago_at !== null && o.status !== 'cancelado';
+            return isPaid;
         }).reduce((acc: number, o: any) => {
             const subtotal = (o.subtotal_produtos || 0) + (o.subtotal_servicos || 0);
             const dPerc = subtotal * ((o.desconto_percentual || 0) / 100);
             return acc + Math.max(0, subtotal - (o.desconto_valor || 0) - dPerc);
         }, 0),
-        totalPending: periodOrders.filter((o: any) => ['pendente', 'processando', 'aguardando retirada'].includes(o.status?.toLowerCase()) && !(['aguardando retirada'].includes(o.status?.toLowerCase()) && o.pedido_status_history?.some((h: any) => h.status_novo?.toLowerCase() === 'pago'))).reduce((acc: number, o: any) => {
+        totalPending: periodOrders.filter((o: any) =>
+            o.pago_at === null && o.status !== 'cancelado'
+        ).reduce((acc: number, o: any) => {
             const subtotal = (o.subtotal_produtos || 0) + (o.subtotal_servicos || 0);
             const dPerc = subtotal * ((o.desconto_percentual || 0) / 100);
             return acc + Math.max(0, subtotal - (o.desconto_valor || 0) - dPerc);

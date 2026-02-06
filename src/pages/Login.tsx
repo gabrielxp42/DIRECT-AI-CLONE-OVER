@@ -22,6 +22,7 @@ const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [canShowAutoFill, setCanShowAutoFill] = useState(false);
 
   // Logo and Name branding (fallback to cache for White Label persistence)
 
@@ -31,9 +32,14 @@ const Login = () => {
   const companyName = cachedName || "Direct AI";
 
   useEffect(() => {
-
     const useSession = sessionStorage.getItem('supabase-use-session-storage') === 'true';
     setRememberMe(!useSession);
+
+    // Delay auto-fill to prevent premature iOS prompts on cold starts
+    const timer = setTimeout(() => {
+      setCanShowAutoFill(true);
+    }, 500);
+    return () => clearTimeout(timer);
   }, []);
 
   const handleRememberMeChange = (checked: boolean | 'indeterminate') => {
@@ -154,12 +160,13 @@ const Login = () => {
               <div className="relative group">
                 <Mail className="absolute left-5 top-[1.1rem] h-5 w-5 text-zinc-500 group-focus-within:text-[#FFF200] transition-colors" />
                 <Input
-                  type="email"
+                  type={canShowAutoFill ? "email" : "text"}
+                  autoComplete={canShowAutoFill ? "email" : "off"}
                   placeholder="Seu e-mail"
                   className="pl-14 h-14 text-base bg-white/5 border-white/10 text-white placeholder:text-zinc-600 focus:bg-black/50 focus:border-[#FFF200]/50 focus:ring-4 focus:ring-[#FFF200]/10 transition-all rounded-2xl"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  required
+                  required={canShowAutoFill}
                 />
               </div>
 
@@ -167,12 +174,13 @@ const Login = () => {
                 <div className="relative group">
                   <Lock className="absolute left-5 top-[1.1rem] h-5 w-5 text-zinc-500 group-focus-within:text-[#FFF200] transition-colors" />
                   <Input
-                    type="password"
+                    type={canShowAutoFill ? "password" : "text"}
+                    autoComplete={canShowAutoFill ? (mode === 'signup' ? "new-password" : "current-password") : "off"}
                     placeholder="Sua senha"
                     className="pl-14 h-14 text-base bg-white/5 border-white/10 text-white placeholder:text-zinc-600 focus:bg-black/50 focus:border-[#FFF200]/50 focus:ring-4 focus:ring-[#FFF200]/10 transition-all rounded-2xl"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    required
+                    required={canShowAutoFill}
                   />
                 </div>
               )}

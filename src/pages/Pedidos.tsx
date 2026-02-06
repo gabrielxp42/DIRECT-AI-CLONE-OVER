@@ -143,7 +143,7 @@ const generateOrderSummary = (pedido: Pedido, template?: string) => {
       if (pedido.transportadora) {
         entregaStr += `TRANSPORTADORA: ${pedido.transportadora.toUpperCase()}\n`;
       }
-    } else {
+    } else if (pedido.tipo_entrega === 'retirada') {
       entregaStr = "RETIRADA NO LOCAL";
     }
 
@@ -679,7 +679,11 @@ const PedidosPage: React.FC = () => {
       };
 
       // Atualizar status do pedido e data de pagamento se necessário
-      const pago_at = newStatus === 'pago' ? new Date().toISOString() : (statusAnterior === 'pago' ? null : undefined);
+      // Lógica Persistente: Só define pago_at se for 'pago' ou 'entregue'. 
+      // Se for pendente ou cancelado, limpa. Se for qualquer outro (ex: aguardando retirada), mantém o valor atual.
+      const pago_at = (newStatus === 'pago' || newStatus === 'entregue')
+        ? new Date().toISOString()
+        : (['pendente', 'cancelado'].includes(newStatus) ? null : undefined);
 
       const updateUrl = `${SUPABASE_URL}/rest/v1/pedidos?id=eq.${id}`;
       const updateBody: any = { status: newStatus };

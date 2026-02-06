@@ -1211,7 +1211,37 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                                 name={`items.${index}.produto_nome`}
                                                 render={({ field: nameField }) => (
                                                   <FormItem className="md:col-span-6">
-                                                    <FormLabel>Produto</FormLabel>
+                                                    <FormLabel className="flex items-center gap-1.5">
+                                                      Produto
+                                                      <TooltipProvider>
+                                                        <Tooltip delayDuration={300}>
+                                                          <TooltipTrigger asChild>
+                                                            <button type="button" className="inline-flex items-center justify-center rounded-full p-0.5 hover:bg-white/10 transition-colors cursor-help">
+                                                              <Sparkles className="w-3 h-3 text-primary animate-pulse" />
+                                                            </button>
+                                                          </TooltipTrigger>
+                                                          <TooltipContent
+                                                            side="top"
+                                                            align="start"
+                                                            sideOffset={8}
+                                                            className="p-0 overflow-hidden rounded-2xl border border-white/10 bg-black/60 backdrop-blur-[40px] saturate-[200%] shadow-2xl animate-in fade-in zoom-in-95 data-[side=top]:slide-in-from-bottom-2"
+                                                          >
+                                                            <div className="flex items-center gap-3 px-3 py-2 min-h-[44px]">
+                                                              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/20 text-primary shrink-0">
+                                                                <Sparkles className="w-4 h-4" />
+                                                              </div>
+
+                                                              <div className="flex flex-col justify-center gap-0.5 max-w-[210px]">
+                                                                <span className="text-[11px] font-black uppercase tracking-tight text-white leading-none">Inteligência de Relatórios</span>
+                                                                <p className="text-[10px] text-zinc-300 leading-tight">
+                                                                  Separe <span className="text-primary font-bold">DTF, Vinil e Varejo</span> para ter resumos automáticos e profissionais do seu lucro.
+                                                                </p>
+                                                              </div>
+                                                            </div>
+                                                          </TooltipContent>
+                                                        </Tooltip>
+                                                      </TooltipProvider>
+                                                    </FormLabel>
                                                     <FormControl>
                                                       <div className="relative">
                                                         {/* Sub-subscription to ensure reactivity for the Input style */}
@@ -1291,97 +1321,128 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                                                   </PopoverContent>
                                                                 </Popover>
                                                                 <div className="absolute right-1.5 top-1/2 -translate-y-1/2 z-10">
-                                                                  <Select
-                                                                    value={(typeField.value || 'dtf').toLowerCase()}
-                                                                    onValueChange={(val) => {
-                                                                      hapticSelect();
-                                                                      typeField.onChange(val);
-                                                                    }}
-                                                                  >
-                                                                    <SelectTrigger
-                                                                      id={index === 0 ? "item-type-selector" : undefined}
-                                                                      className={cn(
-                                                                        "h-7 px-2 border shadow-sm select-none transition-all hover:bg-accent active:scale-95 flex items-center gap-1.5 w-auto min-w-[80px]",
-                                                                        (() => {
-                                                                          const isVinil = (typeField.value || 'dtf').toLowerCase() === 'vinil';
-                                                                          const isDTF = (typeField.value || 'dtf').toLowerCase() === 'dtf';
-                                                                          const color = currentType?.color;
-                                                                          if (color && color.includes('bg-') && color.includes('-100')) {
-                                                                            const base = color.split('-')[1];
-                                                                            return `text-${base}-500 bg-${base}-500/10 border-${base}-500/30`;
-                                                                          }
-                                                                          return color || (isVinil ? "text-orange-500 bg-orange-500/10 border-orange-500/30" : isDTF ? "text-blue-500 bg-blue-500/10 border-blue-500/30" : "text-primary bg-primary/10 border-primary/20");
-                                                                        })()
-                                                                      )}
-                                                                    >
-                                                                      <div className="flex items-center gap-1.5 overflow-hidden">
-                                                                        {(() => {
-                                                                          const IconComp = currentType?.icon && iconsMap[currentType.icon] ? iconsMap[currentType.icon] : (isVinil ? Scissors : isDTF ? Printer : Package);
-                                                                          return <IconComp className="w-3.5 h-3.5 flex-shrink-0" />;
-                                                                        })()}
-                                                                        <span className="text-[10px] font-bold uppercase tracking-tight truncate max-w-[50px]">
-                                                                          {currentType?.nome || typeField.value}
-                                                                        </span>
-                                                                      </div>
-                                                                    </SelectTrigger>
-                                                                    <SelectContent align="end" className="p-1 min-w-[140px]">
-                                                                      {uniqueTiposProducao.map((tipo) => {
-                                                                        const nomeLow = tipo.nome.toLowerCase();
-                                                                        const isVinil = nomeLow.includes('vinil');
-                                                                        const isDTF = nomeLow.includes('dtf');
-                                                                        const isVarejo = nomeLow.includes('varejo');
-
-                                                                        return (
-                                                                          <SelectItem
-                                                                            key={tipo.id}
-                                                                            value={nomeLow}
-                                                                            className={cn(
-                                                                              "rounded-md mb-0.5 last:mb-0 transition-all cursor-pointer",
-                                                                              isVinil && "hover:bg-orange-500/10 focus:bg-orange-500/10 text-orange-500",
-                                                                              isDTF && "hover:bg-blue-500/10 focus:bg-blue-500/10 text-blue-500",
-                                                                              isVarejo && "hover:bg-green-500/10 focus:bg-green-500/10 text-green-500",
-                                                                              !isVinil && !isDTF && !isVarejo && "hover:bg-primary/10 focus:bg-primary/10 text-primary"
-                                                                            )}
+                                                                  <TooltipProvider>
+                                                                    <Tooltip delayDuration={300}>
+                                                                      <TooltipTrigger asChild>
+                                                                        <div>
+                                                                          <Select
+                                                                            value={(typeField.value || 'dtf').toLowerCase()}
+                                                                            onValueChange={(val) => {
+                                                                              hapticSelect();
+                                                                              typeField.onChange(val);
+                                                                            }}
                                                                           >
-                                                                            <div className="flex items-center gap-2.5 py-0.5">
-                                                                              {(() => {
+                                                                            <SelectTrigger
+                                                                              id={index === 0 ? "item-type-selector" : undefined}
+                                                                              className={cn(
+                                                                                "h-7 px-2 border shadow-sm select-none transition-all hover:bg-accent active:scale-95 flex items-center gap-1.5 w-auto min-w-[80px]",
+                                                                                (() => {
+                                                                                  const typeVal = (typeField.value || 'dtf').toLowerCase();
+                                                                                  const isVinil = typeVal === 'vinil';
+                                                                                  const isDTF = typeVal === 'dtf';
+                                                                                  const color = currentType?.color;
+                                                                                  if (color && color.includes('bg-') && color.includes('-100')) {
+                                                                                    const base = color.split('-')[1];
+                                                                                    return `text-${base}-500 bg-${base}-500/10 border-${base}-500/30`;
+                                                                                  }
+                                                                                  return color || (isVinil ? "text-orange-500 bg-orange-500/10 border-orange-500/30" : isDTF ? "text-blue-500 bg-blue-500/10 border-blue-500/30" : "text-primary bg-primary/10 border-primary/20");
+                                                                                })()
+                                                                              )}
+                                                                            >
+                                                                              <div className="flex items-center gap-1.5 overflow-hidden">
+                                                                                {(() => {
+                                                                                  const typeVal = (typeField.value || 'dtf').toLowerCase();
+                                                                                  const isVinil = typeVal === 'vinil';
+                                                                                  const isDTF = typeVal === 'dtf';
+                                                                                  const IconComp = currentType?.icon && iconsMap[currentType.icon] ? iconsMap[currentType.icon] : (isVinil ? Scissors : isDTF ? Printer : Package);
+                                                                                  return <IconComp className="w-3.5 h-3.5 flex-shrink-0" />;
+                                                                                })()}
+                                                                                <span className="text-[10px] font-bold uppercase tracking-tight truncate max-w-[50px]">
+                                                                                  {currentType?.nome || typeField.value}
+                                                                                </span>
+                                                                              </div>
+                                                                            </SelectTrigger>
+                                                                            <SelectContent align="end" className="p-1 min-w-[140px]">
+                                                                              {uniqueTiposProducao.map((tipo) => {
                                                                                 const nomeLow = tipo.nome.toLowerCase();
                                                                                 const isVinil = nomeLow.includes('vinil');
                                                                                 const isDTF = nomeLow.includes('dtf');
                                                                                 const isVarejo = nomeLow.includes('varejo');
-                                                                                const color = tipo.color;
-
-                                                                                let finalColor = color || "";
-                                                                                if (color && color.includes('bg-') && color.includes('-100')) {
-                                                                                  const base = color.split('-')[1];
-                                                                                  finalColor = `bg-${base}-500/20 text-${base}-400`;
-                                                                                } else if (!color) {
-                                                                                  finalColor = isVinil ? "bg-orange-500/20 text-orange-400" : isDTF ? "bg-blue-500/20 text-blue-400" : isVarejo ? "bg-green-500/20 text-green-400" : "bg-primary/20 text-primary";
-                                                                                }
 
                                                                                 return (
-                                                                                  <div className={cn("p-1.5 rounded-md", finalColor)}>
-                                                                                    {(() => {
-                                                                                      const IconComp = tipo.icon && iconsMap[tipo.icon] ? iconsMap[tipo.icon] : (isVinil ? Scissors : isDTF ? Printer : Package);
-                                                                                      return <IconComp className="w-3.5 h-3.5" />;
-                                                                                    })()}
-                                                                                  </div>
+                                                                                  <SelectItem
+                                                                                    key={tipo.id}
+                                                                                    value={nomeLow}
+                                                                                    className={cn(
+                                                                                      "rounded-md mb-0.5 last:mb-0 transition-all cursor-pointer",
+                                                                                      isVinil && "hover:bg-orange-500/10 focus:bg-orange-500/10 text-orange-500",
+                                                                                      isDTF && "hover:bg-blue-500/10 focus:bg-blue-500/10 text-blue-500",
+                                                                                      isVarejo && "hover:bg-green-500/10 focus:bg-green-500/10 text-green-500",
+                                                                                      !isVinil && !isDTF && !isVarejo && "hover:bg-primary/10 focus:bg-primary/10 text-primary"
+                                                                                    )}
+                                                                                  >
+                                                                                    <div className="flex items-center gap-2.5 py-0.5">
+                                                                                      {(() => {
+                                                                                        const nomeLow = tipo.nome.toLowerCase();
+                                                                                        const isVinil = nomeLow.includes('vinil');
+                                                                                        const isDTF = nomeLow.includes('dtf');
+                                                                                        const isVarejo = nomeLow.includes('varejo');
+                                                                                        const color = tipo.color;
+
+                                                                                        let finalColor = color || "";
+                                                                                        if (color && color.includes('bg-') && color.includes('-100')) {
+                                                                                          const base = color.split('-')[1];
+                                                                                          finalColor = `bg-${base}-500/20 text-${base}-400`;
+                                                                                        } else if (!color) {
+                                                                                          finalColor = isVinil ? "bg-orange-500/20 text-orange-400" : isDTF ? "bg-blue-500/20 text-blue-400" : isVarejo ? "bg-green-500/20 text-green-400" : "bg-primary/20 text-primary";
+                                                                                        }
+
+                                                                                        return (
+                                                                                          <div className={cn("p-1.5 rounded-md", finalColor)}>
+                                                                                            {(() => {
+                                                                                              const IconComp = tipo.icon && iconsMap[tipo.icon] ? iconsMap[tipo.icon] : (isVinil ? Scissors : isDTF ? Printer : Package);
+                                                                                              return <IconComp className="w-3.5 h-3.5" />;
+                                                                                            })()}
+                                                                                          </div>
+                                                                                        );
+                                                                                      })()}
+                                                                                      <div className="flex flex-col">
+                                                                                        <span className="text-[11px] font-bold uppercase tracking-tight leading-none">
+                                                                                          {tipo.nome}
+                                                                                        </span>
+                                                                                        <span className="text-[9px] opacity-70 font-medium">
+                                                                                          {tipo.unidade_medida === 'metro' ? 'Cobrado por ML' : 'Cobrado por UND'}
+                                                                                        </span>
+                                                                                      </div>
+                                                                                    </div>
+                                                                                  </SelectItem>
                                                                                 );
-                                                                              })()}
-                                                                              <div className="flex flex-col">
-                                                                                <span className="text-[11px] font-bold uppercase tracking-tight leading-none">
-                                                                                  {tipo.nome}
-                                                                                </span>
-                                                                                <span className="text-[9px] opacity-70 font-medium">
-                                                                                  {tipo.unidade_medida === 'metro' ? 'Cobrado por ML' : 'Cobrado por UND'}
-                                                                                </span>
-                                                                              </div>
-                                                                            </div>
-                                                                          </SelectItem>
-                                                                        );
-                                                                      })}
-                                                                    </SelectContent>
-                                                                  </Select>
+                                                                              })}
+                                                                            </SelectContent>
+                                                                          </Select>
+                                                                        </div>
+                                                                      </TooltipTrigger>
+                                                                      <TooltipContent
+                                                                        side="top"
+                                                                        align="end"
+                                                                        sideOffset={8}
+                                                                        className="p-0 overflow-hidden rounded-2xl border border-white/10 bg-black/60 backdrop-blur-[40px] saturate-[200%] shadow-2xl animate-in fade-in zoom-in-95 data-[side=top]:slide-in-from-bottom-2"
+                                                                      >
+                                                                        <div className="flex items-center gap-3 px-3 py-2 min-h-[44px]">
+                                                                          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/20 text-primary shrink-0">
+                                                                            <Sparkles className="w-4 h-4" />
+                                                                          </div>
+
+                                                                          <div className="flex flex-col justify-center gap-0.5 max-w-[210px]">
+                                                                            <span className="text-[11px] font-black uppercase tracking-tight text-white leading-none">Inteligência de Relatórios</span>
+                                                                            <p className="text-[10px] text-zinc-300 leading-tight">
+                                                                              Separe <span className="text-primary font-bold">DTF, Vinil e Varejo</span> para ter resumos automáticos e profissionais do seu lucro.
+                                                                            </p>
+                                                                          </div>
+                                                                        </div>
+                                                                      </TooltipContent>
+                                                                    </Tooltip>
+                                                                  </TooltipProvider>
                                                                 </div>
                                                               </>
                                                             );

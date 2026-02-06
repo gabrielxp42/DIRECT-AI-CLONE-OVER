@@ -230,6 +230,7 @@ export const printThermalReceipt = (pedido: Pedido) => {
       return summaryHtml;
     })()}
       
+      ${pedido.tipo_entrega ? `
       <div style="margin-top: 10px; border-top: 1px dashed #ccc; padding-top: 5px; font-size: 11px;">
         <div class="line" style="text-align: right;">
           ENTREGA: <strong>${pedido.tipo_entrega === 'retirada' ? 'RETIRADA' : 'FRETE'}</strong>
@@ -238,10 +239,19 @@ export const printThermalReceipt = (pedido: Pedido) => {
         <div class="line" style="text-align: right;">
           TRANSPORTADORA: <strong>${pedido.transportadora.toUpperCase()}</strong>
         </div>` : ''}
+        ${pedido.tipo_entrega === 'frete' && pedido.tracking_code ? `
+        <div class="line" style="text-align: right;">
+          RASTREIO: <strong>${pedido.tracking_code}</strong>
+        </div>` : ''}
         <div class="line" style="text-align: right;">
           STATUS: <strong>${statusText}</strong>
         </div>
-      </div>
+      </div>` : `
+      <div style="margin-top: 10px; border-top: 1px dashed #ccc; padding-top: 5px; font-size: 11px;">
+        <div class="line" style="text-align: right;">
+          STATUS: <strong>${statusText}</strong>
+        </div>
+      </div>`}
 
       <div class="footer">
         <p>*** AGRADECEMOS A PREFERÊNCIA ***</p>

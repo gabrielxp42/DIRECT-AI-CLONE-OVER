@@ -154,7 +154,7 @@ const Layout = () => {
           <div className="h-safe-top pt-safe" />
 
           <div className="flex h-14 items-center gap-4 px-4 lg:h-[60px] lg:px-6">
-            <div className="flex items-center gap-2 font-semibold">
+            <Link to="/" className="flex items-center gap-2 font-semibold hover:opacity-80 transition-opacity">
               {companyProfile?.company_logo_url ? (
                 <img src={companyProfile.company_logo_url} alt="Company Logo" className="h-8 w-8 object-contain" />
               ) : (
@@ -163,7 +163,7 @@ const Layout = () => {
               <span className="tracking-tighter font-black italic">
                 {companyProfile?.company_name || 'DIRECT AI'}
               </span>
-            </div>
+            </Link>
 
 
             <div className="w-full flex-1" />
