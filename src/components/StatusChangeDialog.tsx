@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { CheckCircle, Banknote, Smartphone, CreditCard, Barcode, Building2, MessageCircle, Sparkles, Clock, MapPin, Truck, AlertCircle, XCircle, Send } from "lucide-react";
+import { CheckCircle, Banknote, Smartphone, CreditCard, Barcode, Building2, MessageCircle, Sparkles, Clock, MapPin, Truck, AlertCircle, XCircle, Send, Coins } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useSession } from "@/contexts/SessionProvider";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { OrderStatusBadge } from "./OrderStatusBadge";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface StatusChangeDialogProps {
   isOpen: boolean;
@@ -36,7 +37,7 @@ interface StatusChangeDialogProps {
   isLoading?: boolean;
   orderNumber?: number;
   initialTrackingCode?: string | null;
-  onStatusChange: (newStatus: string, observacao?: string, notifyClient?: boolean, trackingCode?: string) => void;
+  onStatusChange: (newStatus: string, observacao?: string, notifyClient?: boolean, trackingCode?: string, markAsPaid?: boolean) => void;
 }
 
 const orderStatuses = [
@@ -59,41 +60,60 @@ export const StatusChangeDialog = ({
   pagoAt,
   initialTrackingCode
 }: StatusChangeDialogProps) => {
-  // Helper to get stored preference
-  const getStoredPref = (status: string) => {
-    const stored = localStorage.getItem(`gabi_notify_pref_${status}`);
-    if (stored !== null) return stored === 'true';
-    // Default fallback: true for specific statuses
-    return ['aguardando retirada', 'enviado', 'pago'].includes(status);
-  };
-
   const [selectedStatus, setSelectedStatus] = useState(currentStatus);
   const [observacao, setObservacao] = useState("");
-  const [notifyClient, setNotifyClient] = useState(() => getStoredPref(currentStatus));
+  const [notifyClient, setNotifyClient] = useState(false);
   const [trackingCode, setTrackingCode] = useState(initialTrackingCode || "");
+  const [paymentDecision, setPaymentDecision] = useState<"paid" | "pending" | null>(null);
+  const [showError, setShowError] = useState(false);
+
   const { activeMethods } = usePaymentMethods();
 
-  // Sincronizar código de rastreio se o pedido já tiver um
   useEffect(() => {
     if (isOpen) {
       setTrackingCode(initialTrackingCode || "");
       setSelectedStatus(currentStatus);
-      setNotifyClient(getStoredPref(currentStatus));
+
+      // PEGAR PREFERÊNCIA DO DISPOSITIVO (Independente para cada usuário/aparelho)
+      const stored = localStorage.getItem(`gabi_notify_pref_${currentStatus}`);
+
+      // Se for a primeira vez no aparelho, padrão é TRUE (ligado).
+      // Se o usuário já mexeu, respeita o que ele deixou salvo (ON ou OFF) naquele dispositivo.
+      setNotifyClient(stored === null ? true : stored === 'true');
+
+      setPaymentDecision(null);
+      setObservacao("");
+      setShowError(false);
     }
   }, [isOpen, initialTrackingCode, currentStatus]);
 
+  const isAdvancedStatus = ['processando', 'aguardando retirada', 'enviado'].includes(selectedStatus);
+  const needsPaymentDecision = !pagoAt && isAdvancedStatus && selectedStatus !== currentStatus;
+
   const handleSubmit = () => {
-    if (selectedStatus !== currentStatus) {
-      onStatusChange(selectedStatus, observacao.trim() || undefined, notifyClient, trackingCode.trim() || undefined);
-      setObservacao("");
-      setTrackingCode("");
+    if (selectedStatus === currentStatus) {
+      onOpenChange(false);
+      return;
     }
+
+    if (needsPaymentDecision && paymentDecision === null) {
+      setShowError(true);
+      // Feedback visual: vibração/shake poderia ser adicionado aqui
+      return;
+    }
+
+    const markAsPaid = paymentDecision === 'paid';
+    onStatusChange(
+      selectedStatus,
+      observacao.trim() || undefined,
+      notifyClient,
+      trackingCode.trim() || undefined,
+      markAsPaid
+    );
     onOpenChange(false);
   };
 
   const handleCancel = () => {
-    setSelectedStatus(currentStatus);
-    setObservacao("");
     onOpenChange(false);
   };
 
@@ -106,16 +126,16 @@ export const StatusChangeDialog = ({
           <DialogTitle>Alterar Status do Pedido</DialogTitle>
           <DialogDescription>
             {orderNumber && `Pedido #${orderNumber} - `}
-            Altere o status e adicione uma observação opcional sobre a mudança.
+            Altere o status e confirme as informações de pagamento.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label>Status Atual</Label>
+            <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Status Atual</Label>
             <div className="flex items-center justify-between">
               <OrderStatusBadge status={currentStatus} />
-              {pagoAt && currentStatus === 'pago' && (
+              {pagoAt && (
                 <div className="flex items-center text-[10px] text-green-600 font-bold bg-green-50 px-2 py-1 rounded-md border border-green-100">
                   <CheckCircle className="h-3 w-3 mr-1" />
                   PAGO EM: {format(new Date(pagoAt), 'dd/MM/yy HH:mm', { locale: ptBR })}
@@ -125,13 +145,15 @@ export const StatusChangeDialog = ({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="new-status">Novo Status</Label>
+            <Label htmlFor="new-status" className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Novo Status</Label>
             <Select value={selectedStatus} onValueChange={(val) => {
               setSelectedStatus(val);
-              // Load preference for the new status
-              setNotifyClient(getStoredPref(val));
+              const stored = localStorage.getItem(`gabi_notify_pref_${val}`);
+              setNotifyClient(stored === 'true' || ['aguardando retirada', 'enviado', 'pago'].includes(val));
+              setPaymentDecision(null);
+              setShowError(false);
             }}>
-              <SelectTrigger>
+              <SelectTrigger className="h-11 font-medium">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -147,15 +169,86 @@ export const StatusChangeDialog = ({
             </Select>
           </div>
 
+          {/* FORCED PAYMENT DECISION BLOCK */}
+          {needsPaymentDecision && (
+            <motion.div
+              animate={showError ? { x: [-5, 5, -5, 5, 0], transition: { duration: 0.4 } } : {}}
+              className="animate-in zoom-in-95 fade-in duration-300"
+            >
+              <div className={cn(
+                "rounded-xl border-2 p-4 space-y-4 shadow-sm transition-all duration-300",
+                showError
+                  ? "border-red-500 bg-red-500/10 shadow-red-500/20"
+                  : "border-amber-500/50 bg-amber-500/5 shadow-amber-500/10"
+              )}>
+                <div className={cn(
+                  "flex items-center gap-2 transition-colors",
+                  showError ? "text-red-600 dark:text-red-400" : "text-amber-600 dark:text-amber-400"
+                )}>
+                  {showError ? <AlertCircle className="h-5 w-5 animate-pulse" /> : <Coins className="h-5 w-5" />}
+                  <h4 className="text-sm font-black uppercase tracking-tight">
+                    {showError ? "Ação Obrigatória!" : "Verificação de Pagamento"}
+                  </h4>
+                </div>
+
+                <p className={cn(
+                  "text-xs font-medium leading-relaxed transition-colors",
+                  showError ? "text-red-700 dark:text-red-300" : "text-muted-foreground"
+                )}>
+                  {showError
+                    ? "Você precisa informar se o pedido foi pago para prosseguir com a atualização financeira correta."
+                    : "Este pedido ainda não consta como pago. Já recebeu o valor do cliente?"}
+                </p>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <Button
+                    type="button"
+                    variant={paymentDecision === 'paid' ? 'default' : 'outline'}
+                    className={cn(
+                      "h-12 flex flex-col gap-0.5 transition-all text-[11px] font-bold uppercase border-2",
+                      paymentDecision === 'paid'
+                        ? "bg-green-600 hover:bg-green-700 border-green-700 shadow-md shadow-green-500/20"
+                        : (showError ? "border-red-200 dark:border-red-900/50" : "border-amber-200 dark:border-amber-900/50")
+                    )}
+                    onClick={() => {
+                      setPaymentDecision('paid');
+                      setShowError(false);
+                    }}
+                  >
+                    <Banknote className="h-4 w-4 mb-0.5" />
+                    Sim, foi pago
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={paymentDecision === 'pending' ? 'secondary' : 'outline'}
+                    className={cn(
+                      "h-12 flex flex-col gap-0.5 transition-all text-[11px] font-bold uppercase border-2",
+                      paymentDecision === 'pending'
+                        ? "bg-slate-200 dark:bg-slate-700 border-slate-300 dark:border-slate-600"
+                        : (showError ? "border-red-200 dark:border-red-900/50" : "border-amber-200 dark:border-amber-900/50")
+                    )}
+                    onClick={() => {
+                      setPaymentDecision('pending');
+                      setShowError(false);
+                    }}
+                  >
+                    <Clock className="h-4 w-4 mb-0.5" />
+                    Não, a cobrar
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
           {selectedStatus === 'enviado' && (
             <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
-              <Label htmlFor="tracking-code">Código de Rastreio</Label>
+              <Label htmlFor="tracking-code" className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Código de Rastreio</Label>
               <div className="relative">
                 <Truck className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="tracking-code"
                   placeholder="Insira o código de rastreio..."
-                  className="pl-10"
+                  className="pl-10 h-11"
                   value={trackingCode}
                   onChange={(e) => setTrackingCode(e.target.value)}
                 />
@@ -163,50 +256,33 @@ export const StatusChangeDialog = ({
             </div>
           )}
 
-          {/* Gabi AI Trigger for WhatsApp */}
+          {/* Gabi AI Trigger */}
           {['pago', 'aguardando retirada', 'enviado'].includes(selectedStatus) && (
             <div className="animate-in fade-in slide-in-from-top-2 duration-300 mt-4">
-              <div className="relative group rounded-xl p-[1px] bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] shadow-lg shadow-purple-500/10">
-                <div className="absolute inset-0 bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] opacity-20 blur-md rounded-xl" />
-                <div className="relative bg-slate-950/90 backdrop-blur-xl rounded-[10px] p-4 flex gap-4 items-start">
-
-                  {/* Gabi Avatar */}
-                  <div className="h-10 w-10 rounded-full bg-gradient-to-br from-[#FF6B6B] to-[#ffd93d] flex items-center justify-center shrink-0 shadow-lg shadow-orange-500/20">
+              <div className="relative group rounded-xl p-[1px] bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] shadow-lg">
+                <div className="relative bg-slate-950/90 backdrop-blur-xl rounded-[10px] p-4 flex gap-4 items-start border border-white/10">
+                  <div className="h-10 w-10 rounded-full bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center shrink-0">
                     <MessageCircle className="h-5 w-5 text-white" />
                   </div>
-
                   <div className="space-y-3 w-full">
-                    <div className="flex justify-between items-start">
-                      <div className="space-y-0.5">
-                        <div className="text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent flex items-center gap-1">
-                          Gabi AI Insight
-                          <span className="bg-white/10 px-1 py-0.5 rounded text-[7px] text-white/50 tracking-normal">WHATSAPP AGENT</span>
-                        </div>
-                        <p className="text-xs text-slate-300 leading-relaxed font-medium">
-                          {selectedStatus === 'pago' && "Confirmamos o pagamento! Quer que eu envie uma confirmação para o cliente? 😊"}
-                          {selectedStatus === 'aguardando retirada' && "Notei que o pedido está pronto! Quer que eu envie uma mensagem chamando o cliente? 🚀"}
-                          {selectedStatus === 'enviado' && "Pedido despachado! Quer que eu envie os detalhes e o rastreio para o cliente? 🚚"}
-                        </p>
-                      </div>
+                    <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                      Gabi AI Notifica
                     </div>
-
-                    {/* Action Area - Green for WhatsApp Context */}
-                    <div className="flex items-center gap-3 bg-emerald-500/10 p-2 rounded-lg border border-emerald-500/20 transition-colors hover:bg-emerald-500/20 cursor-pointer"
+                    <p className="text-xs text-slate-200 leading-tight">
+                      {selectedStatus === 'pago' && "Confirmamos o pagamento! Mandamos uma confirmação pro cliente? 😊"}
+                      {selectedStatus === 'aguardando retirada' && "O pedido ficou pronto! Quer avisar o cliente pra buscar? 🚀"}
+                      {selectedStatus === 'enviado' && "Já despachamos! Enviamos o rastreio pro cliente agora? 🚚"}
+                    </p>
+                    <div className="flex items-center gap-2 bg-emerald-500/10 p-2 rounded-lg border border-emerald-500/20 cursor-pointer"
                       onClick={() => {
                         const newValue = !notifyClient;
                         setNotifyClient(newValue);
-                        // Save preference for THIS specific status
                         localStorage.setItem(`gabi_notify_pref_${selectedStatus}`, String(newValue));
                       }}>
-                      <div className={`w-5 h-5 rounded flex items-center justify-center transition-all ${notifyClient ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.3)]' : 'bg-zinc-800 border border-zinc-700'}`}>
-                        {notifyClient && <CheckCircle size={12} className="text-white" />}
+                      <div className={`w-4 h-4 rounded-sm flex items-center justify-center ${notifyClient ? 'bg-emerald-500 text-white' : 'bg-slate-800 border-slate-700'}`}>
+                        {notifyClient && <CheckCircle size={10} />}
                       </div>
-                      <label className="text-xs font-bold text-emerald-400 cursor-pointer select-none flex-1 uppercase tracking-wide">
-                        Sim, Avisar Cliente Agora
-                      </label>
-                      <Badge className="text-[9px] bg-emerald-500 text-white border-none font-black px-1.5 uppercase shadow-sm">
-                        Beta
-                      </Badge>
+                      <span className="text-[10px] font-bold text-emerald-400 uppercase">Sim, Notificar via WhatsApp</span>
                     </div>
                   </div>
                 </div>
@@ -217,60 +293,26 @@ export const StatusChangeDialog = ({
           {isStatusChanged && (
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="observacao">Observação (opcional)</Label>
+                <Label htmlFor="observacao" className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Observação (opcional)</Label>
                 <Textarea
                   id="observacao"
-                  placeholder="Ex: Pago 50% do valor, Cliente retirou parcialmente, etc."
+                  placeholder="Ex: Pago 50% do valor, Pagou no Pix, etc."
                   value={observacao}
                   onChange={(e) => setObservacao(e.target.value)}
                   rows={2}
-                  maxLength={500}
                   className="resize-none"
                 />
               </div>
 
-              {/* Payment Method Shortcuts - Premium Design */}
-              <div className="rounded-xl border bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900/50 dark:to-slate-800/30 p-4 space-y-3">
+              {/* Payment Methods Section */}
+              <div className="rounded-xl border bg-slate-50 dark:bg-slate-900/40 p-3 space-y-3">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-bold text-foreground">💰 Forma de Pagamento</h4>
-                  <span className="text-[10px] text-muted-foreground bg-background/50 px-2 py-0.5 rounded-full">Toque para adicionar</span>
+                  <h4 className="text-[10px] font-black uppercase text-muted-foreground">💰 Forma de Pagamento</h4>
                 </div>
-
-                <div className="grid grid-cols-3 gap-3">
-                  {activeMethods.map((method) => {
+                <div className="grid grid-cols-3 gap-2">
+                  {activeMethods.slice(0, 6).map((method) => {
                     const iconMap: Record<string, any> = { Banknote, Smartphone, CreditCard, Barcode, Building2 };
                     const Icon = iconMap[method.icon] || Banknote;
-
-                    const colorMap: Record<string, { container: string, iconBg: string, textColor: string }> = {
-                      emerald: {
-                        container: 'from-emerald-500/20 to-emerald-600/10 border-emerald-500/40 hover:border-emerald-500 hover:shadow-emerald-500/20',
-                        iconBg: 'bg-emerald-500/20 group-hover:bg-emerald-500/30',
-                        textColor: 'text-emerald-600 dark:text-emerald-400'
-                      },
-                      cyan: {
-                        container: 'from-cyan-500/20 to-cyan-600/10 border-cyan-500/40 hover:border-cyan-500 hover:shadow-cyan-500/20',
-                        iconBg: 'bg-cyan-500/20 group-hover:bg-cyan-500/30',
-                        textColor: 'text-cyan-600 dark:text-cyan-400'
-                      },
-                      violet: {
-                        container: 'from-violet-500/20 to-violet-600/10 border-violet-500/40 hover:border-violet-500 hover:shadow-violet-500/20',
-                        iconBg: 'bg-violet-500/20 group-hover:bg-violet-500/30',
-                        textColor: 'text-violet-600 dark:text-violet-400'
-                      },
-                      orange: {
-                        container: 'from-orange-500/20 to-orange-600/10 border-orange-500/40 hover:border-orange-500 hover:shadow-orange-500/20',
-                        iconBg: 'bg-orange-500/20 group-hover:bg-orange-500/30',
-                        textColor: 'text-orange-600 dark:text-orange-400'
-                      },
-                      blue: {
-                        container: 'from-blue-500/20 to-blue-600/10 border-blue-500/40 hover:border-blue-500 hover:shadow-blue-500/20',
-                        iconBg: 'bg-blue-500/20 group-hover:bg-blue-500/30',
-                        textColor: 'text-blue-600 dark:text-blue-400'
-                      },
-                    };
-
-                    const styles = colorMap[method.color] || colorMap.emerald;
-
                     return (
                       <button
                         key={method.id}
@@ -278,67 +320,39 @@ export const StatusChangeDialog = ({
                         onClick={() => {
                           const separator = observacao.trim() ? ' | ' : '';
                           setObservacao(prev => prev.trim() + separator + method.label);
+                          if (needsPaymentDecision) {
+                            setPaymentDecision('paid');
+                            setShowError(false);
+                          }
                         }}
-                        className={cn(
-                          "group relative flex flex-col items-center justify-center gap-2 p-4 rounded-xl bg-gradient-to-br border-2 transition-all duration-200 active:scale-95 hover:shadow-lg",
-                          styles.container
-                        )}
+                        className="flex flex-col items-center gap-1 p-2 rounded-lg border-2 border-transparent bg-white dark:bg-slate-800 hover:border-primary/30 transition-all active:scale-95 shadow-sm"
                       >
-                        <div className={cn(
-                          "w-10 h-10 rounded-full flex items-center justify-center transition-colors",
-                          styles.iconBg
-                        )}>
-                          <Icon className={cn(
-                            "w-5 h-5",
-                            styles.textColor
-                          )} />
-                        </div>
-                        <span className={cn(
-                          "text-sm font-bold",
-                          styles.textColor
-                        )}>{method.label}</span>
+                        <Icon className="w-4 h-4 text-primary" />
+                        <span className="text-[9px] font-bold truncate w-full text-center uppercase">{method.label}</span>
                       </button>
                     );
                   })}
-
                 </div>
-
               </div>
-
-              <div className="text-[10px] text-muted-foreground text-right">
-                {observacao.length}/500 caracteres
-              </div>
-            </div>
-          )}
-
-
-
-          {isStatusChanged && (
-            <div className="bg-muted p-3 rounded-lg">
-              <div className="text-sm font-medium mb-1">Resumo da alteração:</div>
-              <div className="flex items-center gap-2 text-sm">
-                <OrderStatusBadge status={currentStatus} />
-                <span>→</span>
-                <OrderStatusBadge status={selectedStatus} />
-              </div>
-              {observacao.trim() && (
-                <div className="text-xs text-muted-foreground mt-2">
-                  <strong>Observação:</strong> {observacao.trim()}
-                </div>
-              )}
             </div>
           )}
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={handleCancel} disabled={isLoading}>
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button variant="ghost" onClick={handleCancel} disabled={isLoading} className="text-xs uppercase font-bold">
             Cancelar
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={!isStatusChanged || isLoading}
+            disabled={isLoading || (isStatusChanged && false)} // Deixando sempre clicável quando mudar
+            className={cn(
+              "h-11 px-8 rounded-xl font-bold uppercase tracking-wider text-xs transition-all",
+              isStatusChanged
+                ? "bg-primary hover:shadow-lg hover:shadow-primary/20 shadow-md"
+                : "opacity-50 pointer-events-none"
+            )}
           >
-            {isLoading ? "Alterando..." : "Alterar Status"}
+            {isLoading ? "Salvando..." : "Confirmar Alteração"}
           </Button>
         </DialogFooter>
       </DialogContent>

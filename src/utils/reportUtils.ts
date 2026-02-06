@@ -372,9 +372,8 @@ export const fetchReportData = async (
                 });
             }
 
-            // Services (for commission, we usually care about when they were paid IF we want to match Stripe)
-            // If the goal is reconciliation, we might want to include services from orders paid in range
-            if (paidInRange || createdInRange) {
+            // Services (Inclusão baseada em persistência de pagamento)
+            if (isPaid) {
                 if (order.pedido_servicos) {
                     order.pedido_servicos.forEach((servico: any) => {
                         allServices.push({
@@ -384,8 +383,8 @@ export const fetchReportData = async (
                             data_pedido: order.created_at,
                             status_pedido: order.status,
                             total_value: servico.quantidade * servico.valor_unitario,
-                            // Adicionar flag para sabermos se foi pago no período
-                            pago_no_periodo: paidInRange
+                            // Flag para consistência com o Dashboard
+                            pago_no_periodo: true
                         });
                     });
                 }

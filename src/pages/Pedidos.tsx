@@ -6,7 +6,7 @@ import { Cliente } from '@/types/cliente';
 import { Produto } from '@/types/produto';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Plus, Search, Filter, Eye, Edit, Trash2, Loader2, CalendarIcon, DollarSign, FileText, Scissors, History, MessageSquare, MoreHorizontal, User, Clock, CheckCircle, XCircle, Package, X, Printer, Ruler, PackageOpen, Wrench, Users, Activity, CheckSquare, ChevronDown, Sparkles, ScrollText, Calculator, Bike, Zap, Tag, Layers, PenTool, BadgeCheck, Palette, Info } from 'lucide-react';
+import { Plus, Search, Filter, Eye, Edit, Trash2, Loader2, CalendarIcon, DollarSign, FileText, Scissors, History, MessageSquare, MoreHorizontal, User, Clock, CheckCircle, XCircle, Package, X, Printer, Ruler, PackageOpen, Wrench, Users, Activity, CheckSquare, ChevronDown, Sparkles, ScrollText, Calculator, Bike, Zap, Tag, Layers, PenTool, BadgeCheck, Palette, Info, AlertCircle } from 'lucide-react';
 import { EmptyState } from '@/components/EmptyState';
 // Lazy loaded components definitions
 const PedidoForm = lazy(() => import('@/components/PedidoForm').then(m => ({ default: m.PedidoForm })));
@@ -667,7 +667,7 @@ const PedidosPage: React.FC = () => {
   // --- Mutações ---
 
   const updateStatusMutation = useMutation({
-    mutationFn: async ({ id, newStatus, observacao, statusAnterior, pedidoFull }: { id: string, newStatus: string, observacao?: string, statusAnterior: string, pedidoFull?: Pedido }) => {
+    mutationFn: async ({ id, newStatus, observacao, statusAnterior, pedidoFull, markAsPaid }: { id: string, newStatus: string, observacao?: string, statusAnterior: string, pedidoFull?: Pedido, markAsPaid?: boolean }) => {
       const validToken = await getValidToken();
       if (!validToken || !session) throw new Error("Sessão expirada. Por favor, recarregue a página.");
 
@@ -679,11 +679,17 @@ const PedidosPage: React.FC = () => {
       };
 
       // Atualizar status do pedido e data de pagamento se necessário
-      // Lógica Persistente: Só define pago_at se for 'pago' ou 'entregue'. 
-      // Se for pendente ou cancelado, limpa. Se for qualquer outro (ex: aguardando retirada), mantém o valor atual.
-      const pago_at = (newStatus === 'pago' || newStatus === 'entregue')
-        ? new Date().toISOString()
-        : (['pendente', 'cancelado'].includes(newStatus) ? null : undefined);
+      // Lógica Persistente e Flexível:
+      // 1. Se for 'pago', 'entregue' ou o usuário forçou 'markAsPaid' -> Define pago_at.
+      // 2. Se for 'pendente' ou 'cancelado' -> Limpa pago_at (o pedido deixou de ser válido financeiramente).
+      // 3. Caso contrário -> Mantém o que já estava (undefined no payload do PATCH não sobrescreve no Supabase).
+      let pago_at: string | null | undefined = undefined;
+
+      if (newStatus === 'pago' || newStatus === 'entregue' || markAsPaid) {
+        pago_at = new Date().toISOString();
+      } else if (['pendente', 'cancelado'].includes(newStatus)) {
+        pago_at = null;
+      }
 
       const updateUrl = `${SUPABASE_URL}/rest/v1/pedidos?id=eq.${id}`;
       const updateBody: any = { status: newStatus };
@@ -749,15 +755,16 @@ const PedidosPage: React.FC = () => {
     }
   });
 
-  const handleSubmitStatusChange = (newStatus: string, observacao?: string, notifyClient?: boolean, trackingCode?: string) => {
+  const handleSubmitStatusChange = (newStatus: string, observacao?: string, notifyClient?: boolean, trackingCode?: string, markAsPaid?: boolean) => {
     if (!statusChangePedido) return;
     updateStatusMutation.mutate({
       id: statusChangePedido.id,
       newStatus,
       observacao,
       statusAnterior: statusChangePedido.status,
-      pedidoFull: { ...statusChangePedido, tracking_code: trackingCode }
-    });
+      pedidoFull: { ...statusChangePedido, tracking_code: trackingCode },
+      markAsPaid
+    } as any);
 
     // Auto-Notify Client via Gabi AI (WhatsApp)
     if (notifyClient && ['pago', 'aguardando retirada', 'enviado'].includes(newStatus)) {
@@ -1484,11 +1491,18 @@ const PedidosPage: React.FC = () => {
                     <CalendarIcon className="h-4 w-4 mr-2 text-muted-foreground" />
                     <span>{format(new Date(pedido.created_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}</span>
                   </div>
-                  {pedido.pago_at && pedido.status === 'pago' && (
-                    <div className="flex items-center text-[10px] text-green-600 font-medium">
+                  {pedido.pago_at && (pedido.status === 'pago' || pedido.status === 'entregue' || pedido.status === 'aguardando retirada' || pedido.status === 'enviado') ? (
+                    <div className="flex items-center text-[10px] text-green-600 font-bold">
                       <CheckCircle className="h-3 w-3 mr-1.5" />
                       Pago em: {format(new Date(pedido.pago_at), 'dd/MM/yy HH:mm', { locale: ptBR })}
                     </div>
+                  ) : (
+                    pedido.status !== 'cancelado' && (
+                      <div className="flex items-center text-[10px] text-red-500 font-black uppercase tracking-wider animate-pulse">
+                        <AlertCircle className="h-3 w-3 mr-1.5" />
+                        Aguardando Pagamento
+                      </div>
+                    )
                   )}
                   <div className="flex items-center text-base font-medium text-gray-900 dark:text-gray-50">
                     <DollarSign className="h-4 w-4 mr-2 text-primary" />
