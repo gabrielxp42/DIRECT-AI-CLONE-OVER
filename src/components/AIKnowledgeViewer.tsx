@@ -29,6 +29,28 @@ export function AIKnowledgeViewer({ userId }: AIKnowledgeViewerProps) {
     useEffect(() => {
         if (userId) {
             fetchKnowledge();
+
+            // Realtime subscription for knowledge updates
+            const channel = supabase
+                .channel(`ai-knowledge-${userId}`)
+                .on(
+                    'postgres_changes',
+                    {
+                        event: '*',
+                        schema: 'public',
+                        table: 'ai_knowledge_base',
+                        filter: `user_id=eq.${userId}`
+                    },
+                    (payload) => {
+                        console.log('[AI Knowledge] Realtime update:', payload.eventType);
+                        fetchKnowledge(); // Refresh when new knowledge is extracted
+                    }
+                )
+                .subscribe();
+
+            return () => {
+                supabase.removeChannel(channel);
+            };
         }
     }, [userId]);
 

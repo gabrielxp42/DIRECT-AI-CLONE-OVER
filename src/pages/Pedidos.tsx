@@ -109,11 +109,14 @@ const generateOrderSummary = (pedido: Pedido, template?: string) => {
   if (template) {
     const clientName = pedido.clientes?.nome || "Cliente";
 
-    // Itens agora mostram o valor de cada item
+    // Itens agora mostram o valor unitário e o valor total de cada item
     const itemsList = pedido.pedido_items?.map((item: any) => {
+      const isLinear = item.tipo === 'dtf' || item.tipo === 'vinil';
+      const unitSingular = isLinear ? 'metro' : 'unid.';
       const itemTotal = Number(item.preco_unitario || 0) * Number(item.quantidade || 0);
       const totalStr = formatCurrency(itemTotal);
-      return `• ${item.quantidade}x ${item.produtos?.nome || item.produto_nome || "Item"} - ${totalStr}`;
+      const unitStr = formatCurrency(item.preco_unitario || 0);
+      return `• ${item.quantidade}x ${item.produtos?.nome || item.produto_nome || "Item"} (${unitStr}/${unitSingular}) - ${totalStr}`;
     }).join('\n') || "";
 
     const dateStr = formatDate(pedido.created_at);
@@ -160,7 +163,12 @@ const generateOrderSummary = (pedido: Pedido, template?: string) => {
       .replace(/{{order_number}}/g, (pedido.order_number || 0).toString())
       .replace(/{{data_criacao}}/g, dateStr)
       .replace(/{{tracking_code}}/g, pedido.tracking_code || "")
+      .replace(/{{tracking}}/g, pedido.tracking_code || "") // Alias amigável
       .replace(/{{total}}/g, formatCurrency(valorTotalCalculado))
+      .replace(/{{subtotal}}/g, formatCurrency(subtotal))
+      .replace(/{{frete_valor}}/g, formatCurrency(frete))
+      .replace(/{{desconto}}/g, formatCurrency(descontoValor + descontoPercentualCalculado))
+      .replace(/{{transportadora}}/g, pedido.transportadora || "")
       .replace(/{{itens}}/g, itemsList || "Nenhum item")
       .replace(/{{servicos}}/g, servicosStr)
       .replace(/{{entrega_info}}/g, entregaStr)
@@ -235,6 +243,9 @@ const generateOrderSummary = (pedido: Pedido, template?: string) => {
     }
     if (pedido.transportadora) {
       summary += `TRANSPORTADORA: ${pedido.transportadora.toUpperCase()}\n`;
+    }
+    if (pedido.tracking_code) {
+      summary += `RASTREIO: ${pedido.tracking_code}\n`;
     }
   } else if (pedido.tipo_entrega === 'retirada') {
     summary += `RETIRADA NO LOCAL\n`;
@@ -1789,6 +1800,7 @@ const PedidosPage: React.FC = () => {
             isLoading={updateStatusMutation.isPending}
             orderNumber={statusChangePedido.order_number}
             pagoAt={statusChangePedido.pago_at}
+            initialTrackingCode={statusChangePedido.tracking_code}
           />
         )}
 

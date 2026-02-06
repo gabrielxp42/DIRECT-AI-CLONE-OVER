@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { CheckCircle, Banknote, Smartphone, CreditCard, Barcode, Building2, MessageCircle, Sparkles, Clock, MapPin, Truck, AlertCircle, XCircle, Send } from "lucide-react";
@@ -35,6 +35,7 @@ interface StatusChangeDialogProps {
   pagoAt?: string | null;
   isLoading?: boolean;
   orderNumber?: number;
+  initialTrackingCode?: string | null;
   onStatusChange: (newStatus: string, observacao?: string, notifyClient?: boolean, trackingCode?: string) => void;
 }
 
@@ -55,7 +56,8 @@ export const StatusChangeDialog = ({
   onStatusChange,
   isLoading = false,
   orderNumber,
-  pagoAt
+  pagoAt,
+  initialTrackingCode
 }: StatusChangeDialogProps) => {
   // Helper to get stored preference
   const getStoredPref = (status: string) => {
@@ -68,9 +70,17 @@ export const StatusChangeDialog = ({
   const [selectedStatus, setSelectedStatus] = useState(currentStatus);
   const [observacao, setObservacao] = useState("");
   const [notifyClient, setNotifyClient] = useState(() => getStoredPref(currentStatus));
-  const [trackingCode, setTrackingCode] = useState("");
+  const [trackingCode, setTrackingCode] = useState(initialTrackingCode || "");
   const { activeMethods } = usePaymentMethods();
-  const { profile } = useSession();
+
+  // Sincronizar código de rastreio se o pedido já tiver um
+  useEffect(() => {
+    if (isOpen) {
+      setTrackingCode(initialTrackingCode || "");
+      setSelectedStatus(currentStatus);
+      setNotifyClient(getStoredPref(currentStatus));
+    }
+  }, [isOpen, initialTrackingCode, currentStatus]);
 
   const handleSubmit = () => {
     if (selectedStatus !== currentStatus) {

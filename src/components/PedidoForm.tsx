@@ -105,6 +105,7 @@ const formSchema = z.object({
   tipo_entrega: z.enum(['frete', 'retirada']).nullable().optional(),
   valor_frete: z.coerce.number().min(0).default(0),
   transportadora: z.string().optional().nullable(),
+  tracking_code: z.string().optional().nullable(),
   desconto_valor: z.coerce.number().min(0).optional(),
   desconto_percentual: z.coerce.number().min(0).max(100).optional(),
   created_at: z.date({
@@ -193,6 +194,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
       tipo_entrega: undefined,
       valor_frete: 0,
       transportadora: "",
+      tracking_code: "",
       desconto_valor: 0,
       desconto_percentual: 0,
       created_at: new Date(),
@@ -283,6 +285,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
           tipo_entrega: initialData.tipo_entrega || undefined,
           valor_frete: initialData.valor_frete || 0,
           transportadora: initialData.transportadora || "",
+          tracking_code: initialData.tracking_code || "",
           desconto_valor: initialData.desconto_valor || 0,
           desconto_percentual: initialData.desconto_percentual || 0,
           created_at: new Date(initialData.created_at),
@@ -337,6 +340,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
             tipo_entrega: undefined,
             valor_frete: 0,
             transportadora: "",
+            tracking_code: "",
             desconto_valor: 0,
             desconto_percentual: 0,
             created_at: new Date(),
@@ -428,6 +432,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
       tipo_entrega: data.tipo_entrega || null,
       valor_frete: data.tipo_entrega === 'frete' ? data.valor_frete : 0,
       transportadora: data.tipo_entrega === 'frete' ? data.transportadora : null,
+      tracking_code: data.tipo_entrega === 'frete' ? data.tracking_code : null,
       created_at: data.created_at.toISOString(),
       items: items.map((item, index) => {
         return {
@@ -1870,6 +1875,27 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                         )}
                       />
                     </div>
+
+                    <FormField
+                      control={form.control}
+                      name="tracking_code"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-orange-700 dark:text-orange-400 font-semibold mb-1 flex items-center gap-2">
+                            Código de Rastreio
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              value={field.value || ""}
+                              placeholder="Ex: BR123456789BR"
+                              className="h-9 border-orange-200 focus-visible:ring-orange-400 bg-background"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   </div>
                 )}
               </div>

@@ -110,6 +110,14 @@ Deno.serve(async (req: Request) => {
 
             console.log(`[Processor] Found ${messages.length} messages for user ${userId}. Starting Gemini analysis...`);
 
+            // Log: Start of analysis
+            await supabase.from('ai_training_logs').insert({
+                user_id: userId,
+                agent_type: 'extractor',
+                action: 'pattern_found',
+                details: { message: `Iniciando análise de lote com ${messages.length} mensagens.` }
+            });
+
             // Format conversation for Gemini
             const conversationText = messages.map(m =>
                 `[${m.created_at}] ${m.direction === 'sent' ? 'Empresa' : 'Cliente (' + (m.client_name || 'Desconhecido') + ')'}: ${m.message}`
@@ -134,6 +142,17 @@ Deno.serve(async (req: Request) => {
 
                     const { error: knError } = await supabase.from('ai_knowledge_base').insert(entries);
                     if (knError) console.error(`[Processor] Error saving knowledge for ${userId}:`, knError);
+
+                    // Log: Knowledge extracted
+                    await supabase.from('ai_training_logs').insert({
+                        user_id: userId,
+                        agent_type: 'synthesizer',
+                        action: 'knowledge_updated',
+                        details: {
+                            message: `Extraídos ${entries.length} novos padrões de conhecimento.`,
+                            types: entries.map((e: any) => e.knowledge_type)
+                        }
+                    });
                 }
 
                 // Calculate Metric Increments based on findings
@@ -177,6 +196,17 @@ Deno.serve(async (req: Request) => {
 
                 // Calculate new confidence (based on the updated metrics)
                 await supabase.rpc('calculate_confidence_score', { p_user_id: userId });
+
+                // Log: Training step completed
+                await supabase.from('ai_training_logs').insert({
+                    user_id: userId,
+                    agent_type: 'evaluator',
+                    action: 'rule_validated',
+                    details: {
+                        message: `Ciclo de treinamento concluído. Nova confiança: ${newSim}%`,
+                        metrics: { similarity: newSim, coverage: newCov, tone: newTone, product: newProd }
+                    }
+                });
 
                 // Mark messages as analyzed
                 const msgIds = messages.map(m => m.id);

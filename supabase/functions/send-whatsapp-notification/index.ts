@@ -88,9 +88,36 @@ serve(async (req) => {
 
         console.log("[Gabi] Template found, length:", template.length);
 
-        const itemsList = order.pedido_items?.map((item: any) =>
-            `• ${item.quantidade}x ${item.produtos?.nome || item.produto_nome || "Item"}`
-        ).join('\n') || "";
+        // Pre-formatar itens com valor unitário
+        const itemsList = order.pedido_items?.map((item: any) => {
+            const isLinear = item.tipo === 'dtf' || item.tipo === 'vinil';
+            const unitSingular = isLinear ? 'metro' : 'unid.';
+            const itemTotal = Number(item.preco_unitario || 0) * Number(item.quantidade || 0);
+            const unitStr = formatCurrency(item.preco_unitario || 0);
+            const totalStr = formatCurrency(itemTotal);
+            return `• ${item.quantidade}x ${item.produtos?.nome || item.produto_nome || "Item"} (${unitStr}/${unitSingular}) - ${totalStr}`;
+        }).join('\n') || "";
+
+        // Adicionar serviços se houver
+        let servicosStr = "";
+        const servicos = order.pedido_servicos || [];
+        if (servicos.length > 0) {
+            servicosStr += `\n*SERVIÇOS EXTRAS*\n`;
+            servicos.forEach((s: any) => {
+                const lineTotal = formatCurrency(Number(s.valor_unitario) * Number(s.quantidade));
+                servicosStr += `${s.nome} (${s.quantidade}x) - ${lineTotal}\n`;
+            });
+        }
+
+        // Recalcular Totais para consistência
+        const subtotalProdutos = Number(order.subtotal_produtos || 0);
+        const subtotalServicos = Number(order.subtotal_servicos || 0);
+        const subtotal = subtotalProdutos + subtotalServicos;
+        const frete = (order.tipo_entrega === 'frete' ? Number(order.valor_frete || 0) : 0);
+        const descontoValor = Number(order.desconto_valor || 0);
+        const descontoPercentual = Number(order.desconto_percentual || 0);
+        const descontoPercentualCalculado = subtotal * (descontoPercentual / 100);
+        const valorTotalCalculado = Math.max(0, subtotal + frete - descontoValor - descontoPercentualCalculado);
 
         const companyAddress = merchant.company_address_street
             ? `${merchant.company_address_street}, ${merchant.company_address_number}${merchant.company_address_city ? ` - ${merchant.company_address_city}` : ''}`
@@ -100,10 +127,16 @@ serve(async (req) => {
             .replace(/{{cliente}}/g, clientName)
             .replace(/{{order_number}}/g, (order.order_number || 0).toString())
             .replace(/{{tracking_code}}/g, trackingCode || order.tracking_code || "")
-            .replace(/{{total}}/g, formatCurrency(order.valor_total || 0))
+            .replace(/{{tracking}}/g, trackingCode || order.tracking_code || "")
+            .replace(/{{total}}/g, formatCurrency(valorTotalCalculado))
+            .replace(/{{subtotal}}/g, formatCurrency(subtotal))
+            .replace(/{{frete_valor}}/g, formatCurrency(frete))
+            .replace(/{{desconto}}/g, formatCurrency(descontoValor + descontoPercentualCalculado))
+            .replace(/{{transportadora}}/g, order.transportadora || "")
             .replace(/{{endereco_empresa}}/g, companyAddress || "")
             .replace(/{{horario_empresa}}/g, merchant.company_business_hours || "08:00 às 18:00")
-            .replace(/{{itens}}/g, itemsList || "Nenhum item");
+            .replace(/{{itens}}/g, itemsList || "Nenhum item")
+            .replace(/{{servicos}}/g, servicosStr);
 
         console.log("[Gabi] Final message prepared, length:", finalMessage.length);
 

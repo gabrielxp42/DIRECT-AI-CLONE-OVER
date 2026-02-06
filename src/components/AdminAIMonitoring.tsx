@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AIKnowledgeViewer } from './AIKnowledgeViewer';
+import { AITrainingLogs } from './AITrainingLogs';
 
 interface AgentTraining {
     id: string;
@@ -158,7 +159,15 @@ export function AdminAIMonitoring() {
             case 'ready':
                 return <Badge className="bg-green-500/10 text-green-500 border-green-500/20">✅ Pronto</Badge>;
             case 'learning':
-                return <Badge className="bg-blue-500/10 text-blue-500 border-blue-500/20">🧠 Aprendendo</Badge>;
+                return (
+                    <Badge className="bg-blue-500/10 text-blue-500 border-blue-500/20 animate-pulse flex items-center gap-1.5">
+                        <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+                        </span>
+                        Aprendendo
+                    </Badge>
+                );
             case 'paused':
                 return <Badge className="bg-yellow-500/10 text-yellow-500 border-yellow-500/20">⏸️ Pausado</Badge>;
             default:
@@ -167,11 +176,20 @@ export function AdminAIMonitoring() {
     };
 
     const getDaysAgo = (dateString: string) => {
+        if (!dateString) return 'Nunca';
         const date = new Date(dateString);
         const now = new Date();
         const diffTime = Math.abs(now.getTime() - date.getTime());
+        const diffMinutes = Math.floor(diffTime / (1000 * 60));
+
+        if (diffMinutes < 1) return 'Agora mesmo';
+        if (diffMinutes < 60) return `há ${diffMinutes} min`;
+
+        const diffHours = Math.floor(diffMinutes / 60);
+        if (diffHours < 24) return `há ${diffHours}h`;
+
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        return diffDays;
+        return `há ${diffDays} dias`;
     };
 
     if (isLoading) {
@@ -327,7 +345,7 @@ export function AdminAIMonitoring() {
 
                                     <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
                                         <span>
-                                            Última análise: há {getDaysAgo(agent.last_analysis_at || agent.started_at)} dias
+                                            Última análise: {getDaysAgo(agent.last_analysis_at || agent.started_at)}
                                         </span>
                                         <span>
                                             Custo: ${(agent.total_cost_usd || 0).toFixed(2)}
@@ -355,9 +373,10 @@ export function AdminAIMonitoring() {
 
                     {selectedAgent && (
                         <Tabs defaultValue="metrics" className="w-full">
-                            <TabsList className="grid w-full grid-cols-2">
-                                <TabsTrigger value="metrics">Métricas & Performance</TabsTrigger>
-                                <TabsTrigger value="knowledge">Conhecimento Apreendido</TabsTrigger>
+                            <TabsList className="grid w-full grid-cols-3">
+                                <TabsTrigger value="metrics">Métricas</TabsTrigger>
+                                <TabsTrigger value="knowledge">Conhecimento</TabsTrigger>
+                                <TabsTrigger value="activity">Atividade</TabsTrigger>
                             </TabsList>
 
                             <TabsContent value="metrics" className="space-y-4 pt-4">
@@ -432,11 +451,15 @@ export function AdminAIMonitoring() {
                             <TabsContent value="knowledge" className="pt-4">
                                 <AIKnowledgeViewer userId={selectedAgent.user_id} />
                             </TabsContent>
+
+                            <TabsContent value="activity" className="pt-4">
+                                <AITrainingLogs userId={selectedAgent.user_id} />
+                            </TabsContent>
                         </Tabs>
                     )}
                 </DialogContent>
             </Dialog>
-        </div>
+        </div >
     );
 }
 
