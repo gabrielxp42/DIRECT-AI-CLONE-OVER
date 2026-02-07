@@ -39,7 +39,8 @@ type Profile = {
   company_address_state?: string | null;
   company_address_zip?: string | null;
   company_business_hours?: string | null;
-  gabi_templates?: Record<string, string> | null;
+  next_billing_date?: string | null;
+  partner_code?: string | null;
 };
 
 

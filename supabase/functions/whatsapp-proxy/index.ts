@@ -45,6 +45,23 @@ Deno.serve(async (req: Request) => {
 
         if (adminError || !adminProfile) throw new Error("System WhatsApp API not configured");
 
+        // 3. Valida Plus Mode do usuário solicitante
+        const { data: userProfile } = await supabaseAdmin
+            .from('profiles')
+            .select('is_whatsapp_plus_active, is_admin, subscription_tier')
+            .eq('id', user.id)
+            .single();
+
+        const isPlusActive = userProfile?.is_whatsapp_plus_active || userProfile?.is_admin || userProfile?.subscription_tier === 'expert';
+
+        if (!isPlusActive && body.action !== 'status') {
+            return new Response(JSON.stringify({
+                error: true,
+                message: "WhatsApp Plus não está ativo no seu plano. Faça o upgrade para usar esta função.",
+                isPlusRequired: true
+            }), { status: 200, headers: corsHeaders });
+        }
+
         const EVOLUTION_URL = adminProfile.whatsapp_api_url.replace(/\/$/, ""); // Remove trailing slash
         const EVOLUTION_KEY = adminProfile.whatsapp_api_key;
 

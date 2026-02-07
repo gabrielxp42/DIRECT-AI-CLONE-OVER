@@ -38,6 +38,7 @@ import { toast } from "sonner";
 
 export default function Profile() {
     const { session, profile, isLoading } = useSession();
+    const navigate = useNavigate();
     const subscription = useSubscription();
     const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
 
@@ -270,7 +271,7 @@ export default function Profile() {
                                                 <div className="absolute inset-0 bg-emerald-500/5 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
                                                 <div className="relative z-10 flex items-center gap-3">
                                                     <MessageSquare className="w-5 h-5" />
-                                                    Ativar WhatsApp Plus Boost (R$ 27)
+                                                    Ativar WhatsApp Plus Boost (R$ 35)
                                                 </div>
                                             </Button>
                                         )}

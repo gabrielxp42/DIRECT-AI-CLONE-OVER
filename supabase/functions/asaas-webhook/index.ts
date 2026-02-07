@@ -1,16 +1,13 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const ASAAS_API_KEY = Deno.env.get("ASAAS_API_KEY");
 const ASAAS_WEBHOOK_SECRET = Deno.env.get("ASAAS_WEBHOOK_SECRET");
-const ASAAS_API_URL = Deno.env.get("ASAAS_API_URL") || "https://api.asaas.com/v3";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("MY_SERVICE_ROLE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
-const supabaseAdmin = createClient(
-    SUPABASE_URL,
-    SUPABASE_SERVICE_ROLE_KEY
-);
+const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -18,88 +15,91 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-    // Handle CORS preflight
     if (req.method === 'OPTIONS') {
         return new Response('ok', { headers: corsHeaders });
     }
 
-    console.log("=== ASAAS WEBHOOK RECEIVED ===");
-
     try {
-        // 1. Validar Webhook Token (Segurança Crítica)
         const asaasToken = req.headers.get('asaas-access-token');
         const productionToken = "Gabriel7511@";
 
         if (asaasToken !== productionToken && (ASAAS_WEBHOOK_SECRET && asaasToken !== ASAAS_WEBHOOK_SECRET)) {
-            console.error("Token de segurança inválido!");
             return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: corsHeaders });
         }
 
         const payload = await req.json();
         const { event, payment } = payload;
-        console.log("Event Type:", event);
-        console.log("Payment ID:", payment?.id);
-        console.log("External Reference:", payment?.externalReference);
 
-        // PAYMENT_CONFIRMED ou PAYMENT_RECEIVED para o primeiro pagamento
-        if (event === 'PAYMENT_CONFIRMED' || event === 'PAYMENT_RECEIVED') {
-            const externalReference = payment.externalReference || payload.subscription?.externalReference;
-            const customerId = payment.customer;
+        console.log(`ASAAS WEBHOOK: Event=${event} | PaymentId=${payment?.id}`);
 
-            console.log(`Processando pagamento para: ${payment.customerEmail || externalReference}`);
+        const isAuthEvent = event.startsWith('PIX_AUTOMATIC_RECURRING_AUTHORIZATION') || event.startsWith('PIX_AUTOMATIC_AUTHORIZATION');
+        const isPaymentEvent = event === 'PAYMENT_CONFIRMED' || event === 'PAYMENT_RECEIVED' || event === 'PIX_AUTOMATIC_RECURRING_PAYMENT_INSTRUCTION_CREATED';
+
+        if (isAuthEvent || isPaymentEvent) {
+            const asaasObject = isAuthEvent ? payload.pixAutomaticAuthorization : payment;
+            const externalReference = asaasObject?.externalReference || payload.subscription?.externalReference || payload.pixAutomaticAuthorization?.externalReference;
+            const customerId = asaasObject?.customer || payload.pixAutomaticAuthorization?.customer;
 
             if (externalReference) {
-                const { error: updateError } = await supabaseAdmin
-                    .from('profiles')
-                    .update({
-                        subscription_status: 'active',
-                        subscription_tier: 'pro',
-                        asaas_customer_id: customerId,
-                        asaas_subscription_id: payment.subscription || null,
-                        updated_at: new Date().toISOString(),
-                    })
-                    .eq('id', externalReference);
+                const updatePayload: any = {
+                    subscription_status: 'active',
+                    subscription_tier: 'pro',
+                    asaas_customer_id: customerId,
+                    updated_at: new Date().toISOString(),
+                };
 
-                if (updateError) {
-                    console.error("Erro ao atualizar profile por ID:", updateError);
-                } else {
-                    console.log("Profile atualizado com sucesso por ID");
+                // Detecção de Bundle/Boost pelo campo description
+                const desc = (asaasObject?.description || payment?.description || payload.subscription?.description || "").toUpperCase();
+                const isBundle = desc.includes("BOOST") || desc.includes("BUNDLE") || desc.includes("ELITE");
+
+                // SEGURO WHATSAPP PLUS: Busca o perfil atual para ver se já é parceiro
+                const { data: currentProfile } = await supabaseAdmin
+                    .from('profiles')
+                    .select('is_whatsapp_plus_active, is_whatsapp_plus_gifted')
+                    .eq('id', externalReference)
+                    .single();
+
+                if (isBundle || currentProfile?.is_whatsapp_plus_gifted || currentProfile?.is_whatsapp_plus_active) {
+                    updatePayload.is_whatsapp_plus_active = true;
+                    console.log(`WhatsApp Plus mantido/ativado para ${externalReference}. Bundle=${isBundle}, Partner=${!!currentProfile?.is_whatsapp_plus_gifted}`);
                 }
+
+                if (isAuthEvent) {
+                    updatePayload.asaas_subscription_id = asaasObject.id;
+                    if (asaasObject.nextDueDate) {
+                        updatePayload.next_billing_date = new Date(asaasObject.nextDueDate).toISOString();
+                    }
+                } else if (payment.subscription) {
+                    updatePayload.asaas_subscription_id = payment.subscription;
+                    if (payment.dueDate) {
+                        const nextDate = new Date(payment.dueDate);
+                        nextDate.setMonth(nextDate.getMonth() + 1);
+                        updatePayload.next_billing_date = nextDate.toISOString();
+                    }
+                }
+
+                await supabaseAdmin.from('profiles').update(updatePayload).eq('id', externalReference);
+                console.log(`Profile ${externalReference} ativado via ${event}`);
             }
         }
 
-        // SUBSCRIPTION_DELETED ou SUBSCRIPTION_INACTIVATED
-        if (event === 'SUBSCRIPTION_DELETED' || event === 'SUBSCRIPTION_INACTIVATED') {
-            const subscriptionId = payload.subscription?.id;
-            const externalReference = payload.subscription?.externalReference;
-
-            console.log(`Cancelando assinatura: ${subscriptionId} para: ${externalReference}`);
+        if (event === 'SUBSCRIPTION_DELETED' || event === 'SUBSCRIPTION_INACTIVATED' || event === 'PIX_AUTOMATIC_AUTHORIZATION_CANCELED' || event === 'PAYMENT_OVERDUE' || event === 'PAYMENT_REFUNDED') {
+            const obj = payload.subscription || payload.pixAutomaticAuthorization || payment;
+            const externalReference = obj?.externalReference;
 
             if (externalReference) {
-                const { error: deactivateError } = await supabaseAdmin
-                    .from('profiles')
-                    .update({
-                        subscription_status: 'expired',
-                        updated_at: new Date().toISOString(),
-                    })
-                    .eq('id', externalReference);
-
-                if (deactivateError) {
-                    console.error("Erro ao desativar profile:", deactivateError);
-                }
+                await supabaseAdmin.from('profiles').update({
+                    subscription_status: 'expired',
+                    updated_at: new Date().toISOString(),
+                }).eq('id', externalReference);
+                console.log(`Profile ${externalReference} desativado via ${event}`);
             }
         }
 
-        return new Response(JSON.stringify({ success: true }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            status: 200,
-        });
+        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders, status: 200 });
 
     } catch (err: any) {
         console.error("Webhook Error:", err.message);
-        return new Response(JSON.stringify({ error: err.message }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            status: 400,
-        });
+        return new Response(JSON.stringify({ error: err.message }), { headers: corsHeaders, status: 400 });
     }
 });

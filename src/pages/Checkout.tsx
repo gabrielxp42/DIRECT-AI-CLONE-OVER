@@ -90,7 +90,7 @@ const Checkout = () => {
     const [acceptedTerms, setAcceptedTerms] = useState(false);
 
     // Payment State
-    const [paymentMethod, setPaymentMethod] = useState<'PIX' | 'CREDIT_CARD'>('PIX');
+    const [paymentMethod, setPaymentMethod] = useState<'PIX' | 'CREDIT_CARD' | 'PIX_AUTOMATIC'>('PIX_AUTOMATIC');
     const [paymentData, setPaymentData] = useState<{ url?: string; pix?: { encodedImage: string; payload: string }; subscriptionId?: string } | null>(null);
     const [isProcessingPayment, setIsProcessingPayment] = useState(false);
     const [isVerifying, setIsVerifying] = useState(false);
@@ -110,7 +110,7 @@ const Checkout = () => {
     useEffect(() => {
         let intervalId: NodeJS.Timeout;
 
-        if (paymentMethod === 'PIX' && paymentData?.pix && !isSuccess) {
+        if (paymentMethod === 'PIX_AUTOMATIC' && paymentData?.pix && !isSuccess) {
             // Polling a cada 3 segundos
             intervalId = setInterval(async () => {
                 // Verificação silenciosa (sem toast de loading)
@@ -123,7 +123,10 @@ const Checkout = () => {
                             'Content-Type': 'application/json',
                             'Authorization': `Bearer ${session.access_token}`
                         },
-                        body: JSON.stringify({ subscriptionId: paymentData.subscriptionId })
+                        body: JSON.stringify({
+                            subscriptionId: paymentData.subscriptionId,
+                            authorizationId: (paymentData as any).authorizationId
+                        })
                     });
 
                     const data = await response.json();
@@ -206,6 +209,59 @@ const Checkout = () => {
         return val.length >= 3 ? `${val.substring(0, 2)}/${val.substring(2, 4)}` : val;
     };
 
+    const formatCPFCNPJ = (v: string) => {
+        const val = v.replace(/\D/g, '');
+        if (val.length <= 11) {
+            return val.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/g, '$1.$2.$3-$4').substring(0, 14);
+        }
+        return val.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/g, '$1.$2.$3/$4-$5').substring(0, 18);
+    };
+
+    const isValidCPF = (cpf: string) => {
+        if (!cpf) return false;
+        cpf = cpf.replace(/[^\d]+/g, '');
+        if (cpf.length !== 11 || !!cpf.match(/(\d)\1{10}/)) return false;
+        let add = 0;
+        for (let i = 0; i < 9; i++) add += parseInt(cpf.charAt(i)) * (10 - i);
+        let rev = 11 - (add % 11);
+        if (rev === 10 || rev === 11) rev = 0;
+        if (rev !== parseInt(cpf.charAt(9))) return false;
+        add = 0;
+        for (let i = 0; i < 10; i++) add += parseInt(cpf.charAt(i)) * (11 - i);
+        rev = 11 - (add % 11);
+        if (rev === 10 || rev === 11) rev = 0;
+        if (rev !== parseInt(cpf.charAt(10))) return false;
+        return true;
+    };
+
+    const isValidCNPJ = (cnpj: string) => {
+        if (!cnpj) return false;
+        cnpj = cnpj.replace(/[^\d]+/g, '');
+        if (cnpj.length !== 14 || !!cnpj.match(/(\d)\1{13}/)) return false;
+        let length = cnpj.length - 2;
+        let numbers = cnpj.substring(0, length);
+        let digits = cnpj.substring(length);
+        let sum = 0;
+        let pos = length - 7;
+        for (let i = length; i >= 1; i--) {
+            sum += parseInt(numbers.charAt(length - i)) * pos--;
+            if (pos < 2) pos = 9;
+        }
+        let result = sum % 11 < 2 ? 0 : 11 - (sum % 11);
+        if (result !== parseInt(digits.charAt(0))) return false;
+        length = length + 1;
+        numbers = cnpj.substring(0, length);
+        sum = 0;
+        pos = length - 7;
+        for (let i = length; i >= 1; i--) {
+            sum += parseInt(numbers.charAt(length - i)) * pos--;
+            if (pos < 2) pos = 9;
+        }
+        result = sum % 11 < 2 ? 0 : 11 - (sum % 11);
+        if (result !== parseInt(digits.charAt(1))) return false;
+        return true;
+    };
+
     const handleProcessPayment = async () => {
         if (!session?.user) return toast.error("Sessão expirada. Faça login novamente.");
 
@@ -215,9 +271,14 @@ const Checkout = () => {
             }
         }
 
+        const rawCpf = clientInfo.cpfCnpj.replace(/\D/g, '');
+        if (rawCpf.length < 11 || rawCpf.length > 14) {
+            return toast.error("O CPF ou CNPJ informado é inválido. Ele deve ter 11 ou 14 números.");
+        }
+
         try {
             setIsProcessingPayment(true);
-            const loadingMsg = paymentMethod === 'PIX' ? "Gerando QR Code Pix..." : "Processando transação segura...";
+            const loadingMsg = paymentMethod === 'PIX_AUTOMATIC' ? "Gerando QR Code Pix..." : "Processando transação segura...";
             toast.loading(loadingMsg, { id: 'checkout-loader' });
 
             const [expiryMonth, expiryYear] = cardData.expiry.split('/');
@@ -286,7 +347,10 @@ const Checkout = () => {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${session.access_token}`
                 },
-                body: JSON.stringify({ subscriptionId: paymentData?.subscriptionId })
+                body: JSON.stringify({
+                    subscriptionId: paymentData?.subscriptionId,
+                    authorizationId: (paymentData as any)?.authorizationId
+                })
             });
 
             const data = await response.json();
@@ -580,218 +644,217 @@ const Checkout = () => {
                                 )}
 
                                 {/* Payment Method Selector */}
-                                <div className="flex gap-4 mb-6">
-                                    <button onClick={() => setPaymentMethod('PIX')} className={cn("flex-1 p-4 rounded-xl border transition-all flex flex-col items-center gap-2", paymentMethod === 'PIX' ? "border-[#FFF200] bg-[#FFF200]/10" : "border-white/5 bg-white/5 hover:border-white/20")}>
-                                        <Zap className={cn("w-5 h-5", paymentMethod === 'PIX' ? "text-[#FFF200]" : "text-white/20")} />
-                                        <span className="text-[10px] font-black uppercase tracking-widest text-white">PIX</span>
+                                <div className="grid grid-cols-2 gap-3 mb-6">
+                                    <button
+                                        onClick={() => setPaymentMethod('PIX_AUTOMATIC')}
+                                        className={cn(
+                                            "p-4 rounded-xl border transition-all flex flex-col items-center gap-2 relative overflow-hidden",
+                                            paymentMethod === 'PIX_AUTOMATIC' ? "border-[#FFF200] bg-[#FFF200]/10" : "border-white/5 bg-white/5 hover:border-white/20"
+                                        )}
+                                    >
+                                        <div className="absolute top-0 right-0 bg-[#FFF200] text-black text-[7px] font-black px-1 rounded-bl-lg uppercase tracking-tighter">NOVO</div>
+                                        <Zap className={cn("w-5 h-5", paymentMethod === 'PIX_AUTOMATIC' ? "text-[#FFF200]" : "text-white/20")} />
+                                        <span className="text-[8px] font-black uppercase tracking-tighter text-white leading-tight">Pix<br />Automático</span>
                                     </button>
-                                    <button onClick={() => setPaymentMethod('CREDIT_CARD')} className={cn("flex-1 p-4 rounded-xl border transition-all flex flex-col items-center gap-2", paymentMethod === 'CREDIT_CARD' ? "border-[#FFF200] bg-[#FFF200]/10" : "border-white/5 bg-white/5 hover:border-white/20")}>
+
+                                    <button
+                                        onClick={() => setPaymentMethod('CREDIT_CARD')}
+                                        className={cn(
+                                            "p-4 rounded-xl border transition-all flex flex-col items-center gap-2",
+                                            paymentMethod === 'CREDIT_CARD' ? "border-[#FFF200] bg-[#FFF200]/10" : "border-white/5 bg-white/5 hover:border-white/20"
+                                        )}
+                                    >
                                         <CreditCardIcon className={cn("w-5 h-5", paymentMethod === 'CREDIT_CARD' ? "text-[#FFF200]" : "text-white/20")} />
-                                        <span className="text-[10px] font-black uppercase tracking-widest text-white">Cartão</span>
+                                        <span className="text-[8px] font-black uppercase tracking-tighter text-white">Cartão</span>
                                     </button>
                                 </div>
 
-                                <div className="flex-1">
-                                    {paymentMethod === 'PIX' ? (
-                                        <div className="flex flex-col items-center p-6 bg-white/5 rounded-2xl border border-white/10 text-center">
-                                            {!paymentData?.pix ? (
-                                                <div className="py-8 space-y-4">
-                                                    {isProcessingPayment ? (
-                                                        <>
-                                                            <div className="w-12 h-12 rounded-full border-2 border-[#FFF200] border-t-transparent animate-spin mx-auto" />
-                                                            <p className="text-xs text-white/50 uppercase font-bold">Gerando QR Code...</p>
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center mx-auto border border-white/10">
-                                                                <Zap className="w-6 h-6 text-[#FFF200]" />
+                                <div className="flex-1 min-h-[350px] flex flex-col justify-center">
+                                    {paymentData?.pix ? (
+                                        /* --- QR CODE DISPLAY (Shared for any Pix method) --- */
+                                        <div className="flex flex-col items-center p-6 bg-white/5 rounded-2xl border border-white/10 text-center animate-in fade-in zoom-in duration-500">
+                                            <div className="bg-white p-2 rounded-xl mx-auto w-48 h-48 flex items-center justify-center mb-4">
+                                                <img src={`data:image/png;base64,${paymentData.pix.encodedImage}`} alt="QR Pix" className="w-full h-full" />
+                                            </div>
+                                            <div className="space-y-1 mb-6">
+                                                <p className="text-xs text-white/40 uppercase font-black">Total a pagar</p>
+                                                <p className="text-3xl font-black italic text-[#FFF200] tracking-tighter">R$ {productType === 'BOOST_BUNDLE' ? '132,00' : '97,00'}</p>
+                                                <div className="h-4" />
+                                                <p className="text-xs text-[#FFF200] font-bold uppercase animate-pulse">Aguardando Pagamento...</p>
+                                                <p className="text-[10px] text-white/40">O sistema libera seu acesso automaticamente.</p>
+                                            </div>
+                                            <div className="flex gap-2 w-full">
+                                                <Button
+                                                    onClick={() => { navigator.clipboard.writeText(paymentData.pix?.payload || ""); toast.success("Copiado!"); }}
+                                                    className="flex-1 bg-white/10 hover:bg-white/20 text-white border border-white/10 h-11 text-xs uppercase font-bold"
+                                                >
+                                                    <Copy className="w-4 h-4 mr-2" /> Copiar Código
+                                                </Button>
+                                                <Button
+                                                    onClick={handleVerifyPayment}
+                                                    disabled={isVerifying}
+                                                    className="flex-1 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/20 h-11 text-xs uppercase font-bold"
+                                                >
+                                                    {isVerifying ? <Loader2 className="animate-spin w-4 h-4" /> : "Já paguei"}
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        /* --- PAYMENT FORMS (Card or Pix Setup) --- */
+                                        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                            {/* CREDIT CARD FIELDS */}
+                                            {paymentMethod === 'CREDIT_CARD' && (
+                                                <div className="space-y-4 animate-in slide-in-from-top-2 duration-300">
+                                                    {/* Virtual Card Preview */}
+                                                    <div className="relative bg-gradient-to-br from-zinc-800 via-zinc-900 to-black p-4 rounded-2xl border border-white/10 shadow-2xl overflow-hidden">
+                                                        <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-[#FFF200]/5 to-transparent rounded-full blur-2xl" />
+                                                        <div className="flex justify-between items-start mb-6">
+                                                            <div className="w-10 h-7 bg-primary rounded-md shadow-lg" />
+                                                            <div className="flex gap-1.5 opacity-60">
+                                                                <div className="w-8 h-5 bg-[url('https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/Visa_Inc._logo.svg/100px-Visa_Inc._logo.svg.png')] bg-contain bg-no-repeat bg-center" />
+                                                                <div className="w-8 h-5 bg-[url('https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Mastercard-logo.svg/100px-Mastercard-logo.svg.png')] bg-contain bg-no-repeat bg-center" />
                                                             </div>
-                                                            <p className="text-xs text-white/50 uppercase font-bold max-w-[200px] mx-auto">Informe seu CPF/CNPJ para gerar o PIX seguro</p>
+                                                        </div>
+                                                        <p className="font-mono text-lg text-white/80 tracking-[0.2em] mb-4">
+                                                            {cardData.number || '•••• •••• •••• ••••'}
+                                                        </p>
+                                                        <div className="flex justify-between text-xs">
+                                                            <div>
+                                                                <p className="text-white/30 text-[9px] uppercase">Titular</p>
+                                                                <p className="text-white/70 font-medium">{cardData.holderName || 'SEU NOME'}</p>
+                                                            </div>
+                                                            <div className="text-right">
+                                                                <p className="text-white/30 text-[9px] uppercase">Validade</p>
+                                                                <p className="text-white/70 font-medium">{cardData.expiry || 'MM/AA'}</p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
 
-                                                            <div className="w-full space-y-3 mt-4">
-                                                                <div className="relative">
-                                                                    <User className="absolute left-3 top-2.5 w-4 h-4 text-white/20" />
-                                                                    <Input
-                                                                        placeholder="CPF OU CNPJ (APENAS NÚMEROS)"
-                                                                        value={clientInfo.cpfCnpj}
-                                                                        onChange={e => setClientInfo({ ...clientInfo, cpfCnpj: e.target.value.replace(/\D/g, '') })}
-                                                                        className="bg-black/20 border-white/10 h-10 text-xs pl-10"
-                                                                        maxLength={14}
-                                                                    />
-                                                                </div>
-                                                                <Button
-                                                                    onClick={handleProcessPayment}
-                                                                    disabled={!clientInfo.cpfCnpj || clientInfo.cpfCnpj.length < 11 || isProcessingPayment}
-                                                                    className="w-full bg-[#FFF200] text-black font-bold h-10 text-xs uppercase shadow-[0_0_20px_rgba(255,242,0,0.2)] hover:bg-[#ffe600] transition-transform hover:scale-105"
-                                                                >
-                                                                    {isProcessingPayment ? <Loader2 className="animate-spin w-4 h-4" /> : "Gerar QR Code PIX"}
-                                                                </Button>
-                                                            </div>
-                                                        </>
-                                                    )}
-                                                </div>
-                                            ) : (
-                                                <div className="space-y-4 animate-in fade-in zoom-in">
-                                                    <div className="bg-white p-2 rounded-xl mx-auto w-48 h-48 flex items-center justify-center">
-                                                        <img src={`data:image/png;base64,${paymentData.pix.encodedImage}`} alt="QR Pix" className="w-full h-full" />
-                                                    </div>
-                                                    <div className="space-y-1">
-                                                        <p className="text-xs text-[#FFF200] font-bold uppercase animate-pulse">Aguardando Pagamento...</p>
-                                                        <p className="text-[10px] text-white/40">O sistema libera seu acesso automaticamente.</p>
-                                                    </div>
-                                                    <div className="flex gap-2 w-full">
-                                                        <Button onClick={() => { navigator.clipboard.writeText(paymentData.pix?.payload || ""); toast.success("Copiado!"); }} className="flex-1 bg-white/10 hover:bg-white/20 text-white border border-white/10">
-                                                            <Copy className="w-4 h-4 mr-2" /> Copiar Código
-                                                        </Button>
-                                                        <Button onClick={handleVerifyPayment} disabled={isVerifying} className="flex-1 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/20">
-                                                            {isVerifying ? <Loader2 className="animate-spin w-4 h-4" /> : "Já paguei"}
-                                                        </Button>
+                                                    {/* Card Form Inputs */}
+                                                    <div className="grid grid-cols-1 gap-3 p-4 bg-white/[0.02] rounded-2xl border border-white/5 shadow-inner">
+                                                        <div className="relative">
+                                                            <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+                                                            <Input
+                                                                placeholder="Nome como está no cartão"
+                                                                value={cardData.holderName}
+                                                                onChange={e => setCardData({ ...cardData, holderName: e.target.value.toUpperCase() })}
+                                                                className="pl-10 bg-black/40 border-white/10 h-11 text-xs text-white placeholder:text-white/30"
+                                                            />
+                                                        </div>
+                                                        <div className="relative">
+                                                            <CreditCardIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+                                                            <Input
+                                                                placeholder="Número do cartão"
+                                                                value={cardData.number}
+                                                                onChange={e => setCardData({ ...cardData, number: formatCardNumber(e.target.value) })}
+                                                                className="pl-10 bg-black/40 border-white/10 h-11 text-xs text-white placeholder:text-white/30 font-mono tracking-wider"
+                                                            />
+                                                            <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500/40" />
+                                                        </div>
+                                                        <div className="grid grid-cols-2 gap-3">
+                                                            <Input
+                                                                placeholder="MM/AA"
+                                                                value={cardData.expiry}
+                                                                onChange={e => setCardData({ ...cardData, expiry: formatExpiry(e.target.value) })}
+                                                                className="bg-black/40 border-white/10 h-11 text-xs text-white text-center"
+                                                            />
+                                                            <Input
+                                                                placeholder="CVV"
+                                                                maxLength={4}
+                                                                value={cardData.cvv}
+                                                                onChange={e => setCardData({ ...cardData, cvv: e.target.value.replace(/\D/g, '') })}
+                                                                className="bg-black/40 border-white/10 h-11 text-xs text-white text-center"
+                                                            />
+                                                        </div>
                                                     </div>
                                                 </div>
                                             )}
-                                        </div>
-                                    ) : (
-                                        <div className="space-y-4">
-                                            {/* Card Preview Mini */}
-                                            <div className="relative bg-gradient-to-br from-zinc-800 via-zinc-900 to-black p-4 rounded-2xl border border-white/10 shadow-2xl overflow-hidden">
-                                                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-[#FFF200]/5 to-transparent rounded-full blur-2xl" />
-                                                <div className="flex justify-between items-start mb-6">
-                                                    <div className="w-10 h-7 bg-primary rounded-md shadow-lg" />
-                                                    <div className="flex gap-1.5 opacity-60">
-                                                        <div className="w-8 h-5 bg-[url('https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/Visa_Inc._logo.svg/100px-Visa_Inc._logo.svg.png')] bg-contain bg-no-repeat bg-center" />
-                                                        <div className="w-8 h-5 bg-[url('https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Mastercard-logo.svg/100px-Mastercard-logo.svg.png')] bg-contain bg-no-repeat bg-center" />
-                                                    </div>
-                                                </div>
-                                                <p className="font-mono text-lg text-white/80 tracking-[0.2em] mb-4">
-                                                    {cardData.number || '•••• •••• •••• ••••'}
-                                                </p>
-                                                <div className="flex justify-between text-xs">
-                                                    <div>
-                                                        <p className="text-white/30 text-[9px] uppercase">Titular</p>
-                                                        <p className="text-white/70 font-medium">{cardData.holderName || 'SEU NOME'}</p>
-                                                    </div>
-                                                    <div className="text-right">
-                                                        <p className="text-white/30 text-[9px] uppercase">Validade</p>
-                                                        <p className="text-white/70 font-medium">{cardData.expiry || 'MM/AA'}</p>
-                                                    </div>
-                                                </div>
-                                            </div>
 
-                                            {/* Form Fields */}
-                                            <div className="space-y-3 p-4 bg-white/[0.02] rounded-2xl border border-white/5">
-                                                <div className="relative">
-                                                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
-                                                    <Input
-                                                        placeholder="Nome como está no cartão"
-                                                        value={cardData.holderName}
-                                                        onChange={e => setCardData({ ...cardData, holderName: e.target.value.toUpperCase() })}
-                                                        className="pl-10 bg-black/40 border-white/10 h-11 text-sm text-white placeholder:text-white/30 focus:border-[#FFF200]/50 focus:ring-1 focus:ring-[#FFF200]/20 transition-all"
-                                                    />
-                                                </div>
-                                                <div className="relative">
-                                                    <CreditCardIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
-                                                    <Input
-                                                        placeholder="Número do cartão"
-                                                        value={cardData.number}
-                                                        onChange={e => setCardData({ ...cardData, number: formatCardNumber(e.target.value) })}
-                                                        className="pl-10 bg-black/40 border-white/10 h-11 text-sm text-white placeholder:text-white/30 font-mono tracking-wider focus:border-[#FFF200]/50 focus:ring-1 focus:ring-[#FFF200]/20 transition-all"
-                                                    />
-                                                    <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500/60" />
-                                                </div>
-                                                <div className="grid grid-cols-2 gap-3">
-                                                    <div className="relative">
-                                                        <Input
-                                                            placeholder="MM/AA"
-                                                            value={cardData.expiry}
-                                                            onChange={e => setCardData({ ...cardData, expiry: formatExpiry(e.target.value) })}
-                                                            className="bg-black/40 border-white/10 h-11 text-sm text-white placeholder:text-white/30 text-center focus:border-[#FFF200]/50 focus:ring-1 focus:ring-[#FFF200]/20 transition-all"
-                                                        />
-                                                    </div>
-                                                    <div className="relative">
-                                                        <Input
-                                                            placeholder="CVV"
-                                                            maxLength={4}
-                                                            value={cardData.cvv}
-                                                            onChange={e => setCardData({ ...cardData, cvv: e.target.value.replace(/\D/g, '') })}
-                                                            className="bg-black/40 border-white/10 h-11 text-sm text-white placeholder:text-white/30 text-center focus:border-[#FFF200]/50 focus:ring-1 focus:ring-[#FFF200]/20 transition-all"
-                                                        />
-                                                        <Shield className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/20" />
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {/* Billing Info - Collapsible Look */}
-                                            <div className="space-y-3 p-4 bg-white/[0.02] rounded-2xl border border-white/5">
-                                                <div className="flex items-center gap-2 mb-2">
-                                                    <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                                                        <Check className="w-3 h-3 text-emerald-400" />
-                                                    </div>
-                                                    <span className="text-[10px] text-white/40 uppercase font-bold tracking-wider">Dados de Cobrança (Obrigatório)</span>
+                                            {/* BILLING INFO (Shared for Card and Pix Automatic) */}
+                                            <div className="space-y-3 p-4 bg-white/[0.02] rounded-2xl border border-white/5 shadow-inner">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                                                    <span className="text-[9px] text-white/40 uppercase font-black tracking-widest">Dados de Cobrança</span>
                                                 </div>
                                                 <Input
-                                                    placeholder="CPF ou CNPJ"
-                                                    value={clientInfo.cpfCnpj}
-                                                    onChange={e => setClientInfo({ ...clientInfo, cpfCnpj: e.target.value })}
-                                                    className="bg-black/40 border-white/10 h-10 text-sm text-white placeholder:text-white/30 focus:border-[#FFF200]/50 transition-all"
+                                                    placeholder="CPF ou CNPJ (obrigatório)"
+                                                    value={formatCPFCNPJ(clientInfo.cpfCnpj)}
+                                                    onChange={e => setClientInfo({ ...clientInfo, cpfCnpj: e.target.value.replace(/\D/g, '') })}
+                                                    className="bg-black/40 border-white/10 h-10 text-xs text-white placeholder:text-white/30 transition-all font-mono"
+                                                    maxLength={18}
                                                 />
-                                                <div className="grid grid-cols-5 gap-2">
-                                                    <Input
-                                                        placeholder="CEP"
-                                                        value={clientInfo.postalCode}
-                                                        onChange={e => setClientInfo({ ...clientInfo, postalCode: e.target.value })}
-                                                        className="col-span-3 bg-black/40 border-white/10 h-10 text-sm text-white placeholder:text-white/30 focus:border-[#FFF200]/50 transition-all"
-                                                    />
-                                                    <Input
-                                                        placeholder="Nº"
-                                                        value={clientInfo.addressNumber}
-                                                        onChange={e => setClientInfo({ ...clientInfo, addressNumber: e.target.value })}
-                                                        className="col-span-2 bg-black/40 border-white/10 h-10 text-sm text-white placeholder:text-white/30 focus:border-[#FFF200]/50 transition-all"
-                                                    />
-                                                </div>
+
+                                                {/* Address fields only for Credit Card */}
+                                                {paymentMethod === 'CREDIT_CARD' && (
+                                                    <div className="grid grid-cols-2 gap-2 animate-in slide-in-from-top-1 duration-300">
+                                                        <Input
+                                                            placeholder="CEP"
+                                                            value={clientInfo.postalCode}
+                                                            onChange={e => setClientInfo({ ...clientInfo, postalCode: e.target.value.replace(/\D/g, '') })}
+                                                            className="bg-black/40 border-white/10 h-10 text-xs text-white placeholder:text-white/30 font-mono"
+                                                            maxLength={8}
+                                                        />
+                                                        <Input
+                                                            placeholder="Nº ou Complemento"
+                                                            value={clientInfo.addressNumber}
+                                                            onChange={e => setClientInfo({ ...clientInfo, addressNumber: e.target.value })}
+                                                            className="bg-black/40 border-white/10 h-10 text-xs text-white placeholder:text-white/30"
+                                                        />
+                                                    </div>
+                                                )}
+
                                                 <Input
                                                     placeholder="WhatsApp para recibo"
                                                     value={clientInfo.phone}
-                                                    onChange={e => setClientInfo({ ...clientInfo, phone: e.target.value })}
-                                                    className="bg-black/40 border-white/10 h-10 text-sm text-white placeholder:text-white/30 focus:border-[#FFF200]/50 transition-all"
+                                                    onChange={e => setClientInfo({ ...clientInfo, phone: e.target.value.replace(/\D/g, '') })}
+                                                    className="bg-black/40 border-white/10 h-10 text-xs text-white placeholder:text-white/30 font-mono"
                                                 />
                                             </div>
 
-                                            {/* Submit Button */}
+                                            {/* MAIN ACTION BUTTON */}
                                             <Button
                                                 onClick={handleProcessPayment}
-                                                disabled={!clientInfo.cpfCnpj || clientInfo.cpfCnpj.length < 11 || isProcessingPayment}
-                                                className="w-full bg-gradient-to-r from-[#FFF200] to-[#FFD700] text-black font-black uppercase h-14 rounded-xl shadow-[0_10px_40px_-10px_rgba(255,242,0,0.4)] hover:shadow-[0_15px_50px_-10px_rgba(255,242,0,0.5)] hover:scale-[1.02] active:scale-[0.98] transition-all text-base tracking-wide"
+                                                disabled={
+                                                    !clientInfo.cpfCnpj ||
+                                                    (clientInfo.cpfCnpj.length !== 11 && clientInfo.cpfCnpj.length !== 14) ||
+                                                    isProcessingPayment
+                                                }
+                                                className="w-full bg-gradient-to-r from-[#FFF200] to-[#FFD700] text-black font-black uppercase h-14 rounded-xl shadow-[0_10px_40px_-10px_rgba(255,242,0,0.4)] hover:shadow-[0_15px_50px_-10px_rgba(255,242,0,0.5)] hover:scale-[1.02] active:scale-[0.98] transition-all text-xs tracking-widest"
                                             >
-                                                {isProcessingPayment ? <Loader2 className="animate-spin" /> : (
-                                                    <span className="flex items-center gap-2">
-                                                        <Lock className="w-4 h-4" />
-                                                        Pagar R$ {productType === 'BOOST_BUNDLE' ? '132,00' : '97,00'}
+                                                {isProcessingPayment ? <Loader2 className="animate-spin w-5 h-5 mx-auto" /> : (
+                                                    <span className="flex items-center justify-center gap-2">
+                                                        <Sparkles className="w-4 h-4 fill-current" />
+                                                        {`Pagar R$ ${productType === 'BOOST_BUNDLE' ? '132,00' : '97,00'}`}
                                                     </span>
                                                 )}
                                             </Button>
 
+                                            {paymentMethod === 'PIX_AUTOMATIC' && (
+                                                <div className="flex items-start gap-2 p-3 rounded-xl bg-blue-500/5 border border-blue-500/10 animate-in fade-in zoom-in duration-300">
+                                                    <AlertCircle className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+                                                    <div className="flex flex-col gap-1">
+                                                        <p className="text-[10px] text-white/60 leading-tight">
+                                                            Ao confirmar, você autoriza o <span className="text-white font-bold">Pix Automático</span>: pagamento imediato de R$ {productType === 'BOOST_BUNDLE' ? '132,00' : '97,00'} e recorrência mensal de R$ 97,00.
+                                                        </p>
+                                                        <p className="text-[9px] text-white/30 italic">Pode ser cancelado a qualquer momento no app do seu banco.</p>
+                                                    </div>
+                                                </div>
+                                            )}
+
                                             {/* Security Badges */}
-                                            <div className="flex items-center justify-center gap-4 pt-2">
-                                                <div className="flex items-center gap-1.5 text-emerald-500/70">
-                                                    <Shield className="w-3.5 h-3.5" />
-                                                    <span className="text-[9px] font-bold uppercase">SSL 256-bit</span>
-                                                </div>
-                                                <div className="w-px h-3 bg-white/10" />
-                                                <div className="flex items-center gap-1.5 text-white/40">
-                                                    <Lock className="w-3 h-3" />
-                                                    <span className="text-[9px] font-bold uppercase">Criptografado</span>
-                                                </div>
-                                                <div className="w-px h-3 bg-white/10" />
-                                                <div className="flex items-center gap-1.5 text-white/40">
-                                                    <Check className="w-3 h-3" />
-                                                    <span className="text-[9px] font-bold uppercase">PCI DSS</span>
-                                                </div>
+                                            <div className="flex items-center justify-center gap-4 text-[8px] font-black uppercase tracking-tighter opacity-30 select-none">
+                                                <div className="flex items-center gap-1"><Shield className="w-3 h-3" /> SSL 256-BIT</div>
+                                                <div className="w-px h-3 bg-white/20" />
+                                                <div className="flex items-center gap-1"><Lock className="w-3 h-3" /> Criptografado</div>
+                                                <div className="w-px h-3 bg-white/20" />
+                                                <div className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> PCI DSS</div>
                                             </div>
                                         </div>
                                     )}
                                 </div>
                             </motion.div>
                         )}
+
 
                         {step === 3 && (
                             <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="text-center py-10">
@@ -812,7 +875,7 @@ const Checkout = () => {
             </div>
 
             <p className="absolute bottom-4 text-[10px] text-white/10 font-bold tracking-[0.3em] uppercase">Direct AI • {APP_VERSION}</p>
-        </div>
+        </div >
     );
 };
 

@@ -19,54 +19,37 @@ serve(async (req) => {
     }
 
     console.log("=== VERIFY-SUBSCRIPTION STARTED ===");
-    console.log("ENV Check - SUPABASE_URL:", SUPABASE_URL ? "SET" : "MISSING");
-    console.log("ENV Check - SERVICE_ROLE_KEY:", SUPABASE_SERVICE_ROLE_KEY ? "SET" : "MISSING");
-    console.log("ENV Check - ASAAS_API_KEY:", ASAAS_API_KEY ? "SET" : "MISSING");
 
     try {
         // 1. Validar Auth Header
         const authHeader = req.headers.get('Authorization');
-        if (!authHeader) {
-            console.error("No Authorization header found");
-            throw new Error("Missing Authorization header");
-        }
+        if (!authHeader) throw new Error("Missing Authorization header");
 
         const token = authHeader.replace('Bearer ', '');
-        console.log("Token received (first 20 chars):", token.substring(0, 20) + "...");
-
-        // 2. Criar cliente Supabase e validar usuário
         const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
         const { data: { user }, error: authError } = await supabase.auth.getUser(token);
 
-        if (authError) {
-            console.error("Auth Error:", authError.message);
-            throw new Error("Auth failed: " + authError.message);
-        }
+        if (authError || !user) throw new Error("Auth failed or user not found");
 
-        if (!user) {
-            console.error("No user found for token");
-            throw new Error("User not found");
-        }
+        console.log("User authenticated:", user.id);
 
-        console.log("User authenticated:", user.id, user.email);
-
-        // 3. Parse body (pode ser vazio ou ter subscriptionId / paymentId)
+        // 2. Parse body
         let subscriptionId = null;
         let paymentId = null;
+        let authorizationId = null;
+
         try {
             const body = await req.text();
             if (body) {
                 const payload = JSON.parse(body);
                 subscriptionId = payload.subscriptionId;
                 paymentId = payload.paymentId;
+                authorizationId = payload.authorizationId;
             }
         } catch (parseError) {
-            console.log("No body or invalid JSON, proceeding with auto-search");
+            console.log("No body or invalid JSON");
         }
 
-        console.log("Searching for user:", user.id, "| SubID:", subscriptionId, "| PaymentID:", paymentId);
-
-        // 4. Buscar e Validar Pagamentos
         const headers = {
             'Content-Type': 'application/json',
             'access_token': ASAAS_API_KEY || ''
@@ -89,141 +72,118 @@ serve(async (req) => {
         }
 
         // CASE B: Subscription ID
-        else if (subscriptionId) {
+        if (!paymentConfirmed && subscriptionId) {
             console.log("Fetching payments for specific subscription:", subscriptionId);
-            // Buscamos os pagamentos vinculados a esta assinatura
             const response = await fetch(`${ASAAS_API_URL}/payments?subscription=${subscriptionId}`, { headers });
             const pData = await response.json();
 
             if (pData.data && pData.data.length > 0) {
-                // Verificamos se algum pagamento da assinatura foi RECEBIDO ou CONFIRMADO
                 const confirmedPayment = pData.data.find((p: any) =>
                     p.status === 'RECEIVED' || p.status === 'CONFIRMED'
                 );
 
                 if (confirmedPayment) {
                     paymentConfirmed = true;
-                    // Se for assinatura, o checkout-asaas já deve ter salvado o ID do cliente no Asaas
-                    // mas podemos pegar do pagamento se necessário.
+                    isBundlePayment = confirmedPayment.description?.includes("Boost") || confirmedPayment.description?.includes("Bundle");
                 }
-                console.log(`Payment Status for Sub ${subscriptionId}:`, paymentConfirmed ? "CONFIRMED" : "PENDING");
             }
-        } else {
-            // Fallback: Busca por externalReference (TENTATIVA 1: Payments - Bundles Recent)
-            console.log("Auto-search: Checking recent payments for user:", user.id);
+
+            const subResp = await fetch(`${ASAAS_API_URL}/subscriptions/${subscriptionId}`, { headers });
+            if (subResp.ok) activeSubscription = await subResp.json();
+        }
+
+        // CASE C: Authorization ID (Pix Automático)
+        if (!paymentConfirmed && authorizationId) {
+            console.log("Verifying Authorization ID:", authorizationId);
+            const authResponse = await fetch(`${ASAAS_API_URL}/pix/automatic/authorizations/${authorizationId}`, { headers });
+            const authData = await authResponse.json();
+
+            if (authData.status === 'ACTIVE' || authData.status === 'APPROVED') {
+                paymentConfirmed = true;
+                const pResp = await fetch(`${ASAAS_API_URL}/payments?customer=${authData.customer}&externalReference=${user.id}&limit=5`, { headers });
+                const pData = await pResp.json();
+                const confirmedP = pData.data?.find((p: any) => p.status === 'RECEIVED' || p.status === 'CONFIRMED');
+                if (confirmedP) {
+                    isBundlePayment = confirmedP.description?.includes("Boost") || confirmedP.description?.includes("Bundle");
+                }
+
+                activeSubscription = {
+                    id: authData.id,
+                    customer: authData.customer,
+                    status: authData.status,
+                    nextDueDate: authData.nextDueDate || authData.startDate
+                };
+            }
+        }
+
+        // Fallback: Busca por externalReference
+        if (!paymentConfirmed) {
             const payResponse = await fetch(`${ASAAS_API_URL}/payments?externalReference=${user.id}&limit=5`, { headers });
             const payData = await payResponse.json();
-
             const confirmedPay = payData.data?.find((p: any) => p.status === 'RECEIVED' || p.status === 'CONFIRMED');
+
             if (confirmedPay) {
                 paymentConfirmed = true;
                 isBundlePayment = confirmedPay.description?.includes("Boost") || confirmedPay.description?.includes("Bundle");
-                console.log("Auto-search Found CONFIRMED Payment:", confirmedPay.id);
             } else {
-                console.log("Auto-search: Checking subscriptions...");
-                // Fallback 2: Subscriptions
                 const subResponse = await fetch(`${ASAAS_API_URL}/subscriptions?externalReference=${user.id}&limit=5`, { headers });
                 const subData = await subResponse.json();
-                // Aqui a lógica ficaria mais complexa, idealmente confiamos no ID passado pelo front na maioria dos casos
-            }
-        }
-
-        if (data.data && data.data.length > 0) {
-            for (const sub of data.data) {
-                const pResp = await fetch(`${ASAAS_API_URL}/payments?subscription=${sub.id}`, { headers });
-                const pData = await pResp.json();
-                if (pData.data && pData.data.some((p: any) => p.status === 'RECEIVED' || p.status === 'CONFIRMED')) {
-                    paymentConfirmed = true;
-                    activeSubscription = sub;
-                    break;
+                if (subData.data && subData.data.length > 0) {
+                    for (const sub of subData.data) {
+                        const pResp = await fetch(`${ASAAS_API_URL}/payments?subscription=${sub.id}`, { headers });
+                        const pData = await pResp.json();
+                        if (pData.data && pData.data.some((p: any) => p.status === 'RECEIVED' || p.status === 'CONFIRMED')) {
+                            paymentConfirmed = true;
+                            activeSubscription = sub;
+                            break;
+                        }
+                    }
                 }
             }
         }
-    }
 
-        // 5. Atualizar Supabase com inteligência de validade
+        // 5. Atualizar Supabase
         if (paymentConfirmed) {
-        console.log("Confirmed Payment Found. Updating Status...");
+            let isExpired = false;
+            let nextDueDate = null;
 
-        let isExpired = false;
-        let nextDueDate = null;
+            if (activeSubscription) {
+                nextDueDate = activeSubscription.nextDueDate || activeSubscription.dueDate;
+                if (nextDueDate) {
+                    const today = new Date();
+                    const nextDate = new Date(nextDueDate);
+                    const toleranceDate = new Date(nextDate);
+                    toleranceDate.setDate(toleranceDate.getDate() + 3);
+                    isExpired = today > toleranceDate && (activeSubscription.status === 'OVERDUE' || activeSubscription.status === 'EXPIRED');
+                }
+            }
 
-        if (activeSubscription) {
-            nextDueDate = new Date(activeSubscription.nextDueDate || activeSubscription.dueDate);
-            const today = new Date();
-            const toleranceDate = new Date(nextDueDate);
-            toleranceDate.setDate(toleranceDate.getDate() + 3);
-            isExpired = today > toleranceDate && (activeSubscription.status === 'OVERDUE' || activeSubscription.status === 'EXPIRED');
-        }
-
-        let updateData: any = {};
-
-        if (isBundlePayment) {
-            console.log("Detected BUNDLE/BOOST Payment.");
-            // Bundle = Acesso Pro + WhatsApp Boost
-            updateData = {
-                subscription_status: 'active', // Ganha acesso imediato
-                subscription_tier: 'pro',
-                is_whatsapp_plus_active: true, // Ganha o boost vitalício
-                last_payment_date: new Date().toISOString(),
-                // next_due_date: nextDueDate // Talvez não tenhamos nextDueDate se for one-time, mas o sistema pode gerar assinatura depois
-            };
-        } else {
-            console.log("Detected Standard Pro Plan Payment.");
-            updateData = {
+            let updateData: any = {
                 subscription_status: isExpired ? 'expired' : 'active',
                 subscription_tier: 'pro',
-                is_whatsapp_plus_active: false, // Se pagou só o plano, não ganha boost (ou mantém o que tinha? Idealmente false se não tiver flag)
-                // Melhor não mexer no is_whatsapp_plus_active se for false, para não remover se ele comprou separado
-                // Mas como o bundle é "tudo", vamos assumir que se ele paga 97 ele quer renovar o pro.
                 last_payment_date: new Date().toISOString(),
-                next_due_date: activeSubscription?.nextDueDate
+                updated_at: new Date().toISOString()
             };
-        }
 
-        if (activeSubscription?.customer) updateData.asaas_customer_id = activeSubscription.customer;
-        if (subscriptionId) updateData.asaas_subscription_id = subscriptionId;
+            if (isBundlePayment) updateData.is_whatsapp_plus_active = true;
+            if (nextDueDate) updateData.next_due_date = nextDueDate;
+            if (activeSubscription?.customer) updateData.asaas_customer_id = activeSubscription.customer;
+            if (subscriptionId) updateData.asaas_subscription_id = subscriptionId;
+            if (authorizationId) updateData.asaas_subscription_id = authorizationId;
 
-        const { error: updateError } = await supabase
-            .from('profiles')
-            .update(updateData)
-            .eq('id', user.id);
+            await supabase.from('profiles').update(updateData).eq('id', user.id);
 
-        if (updateError) {
-            console.error("Supabase Update Error:", updateError.message);
-            throw updateError;
-        }
-
-        console.log(`=== SUCCESS: Status Updated to ACTIVE ===`);
-
-        return new Response(
-            JSON.stringify({
+            return new Response(JSON.stringify({
                 success: true,
-                status: 'ACTIVE',
-                subscriptionId: subscriptionId || activeSubscription?.id,
-                nextDueDate: activeSubscription?.nextDueDate
-            }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
-        );
+                status: updateData.subscription_status.toUpperCase(),
+                subscriptionId: subscriptionId || authorizationId || activeSubscription?.id,
+                nextDueDate: nextDueDate
+            }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
+        } else {
+            return new Response(JSON.stringify({ success: false, status: 'PENDING' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
+        }
+
+    } catch (err: any) {
+        return new Response(JSON.stringify({ error: err.message }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 });
     }
-} else {
-    // Caso não ache pagamento confirmado, marca como expired se tinha status active antes
-    console.log("No confirmed payment found.");
-
-    // Opcional: Se já tinha status active, podemos mudar para expired aqui se quisermos ser rigorosos,
-    // mas melhor deixar o 'expired' vir apenas se confirmamos que a assinatura existe e está OVERDUE.
-
-    return new Response(
-        JSON.stringify({ success: false, status: 'PENDING', message: "Pagamento ainda não confirmado ou inexistente." }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
-    );
-}
-
-} catch (err: any) {
-    console.error("=== VERIFY ERROR ===", err.message);
-    return new Response(
-        JSON.stringify({ error: err.message }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-    );
-}
 });

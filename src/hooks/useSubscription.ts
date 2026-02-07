@@ -76,8 +76,14 @@ export const useSubscription = (): SubscriptionState => {
     const trialEndsAt = isValidDate ? addDays(start, TRIAL_DURATION_DAYS) : addDays(new Date(), TRIAL_DURATION_DAYS);
     const today = new Date();
 
-    const daysUsed = isValidDate ? Math.max(0, differenceInDays(today, start)) : 0;
-    const daysRemaining = Math.max(0, TRIAL_DURATION_DAYS - daysUsed);
+    let daysRemaining = 0;
+    if (isActive && effectiveProfile.next_billing_date) {
+        const nextBilling = new Date(effectiveProfile.next_billing_date);
+        daysRemaining = Math.max(0, differenceInDays(nextBilling, today));
+    } else {
+        const daysUsed = isValidDate ? Math.max(0, differenceInDays(today, start)) : 0;
+        daysRemaining = Math.max(0, TRIAL_DURATION_DAYS - daysUsed);
+    }
 
     // Logic: It is expired if status says so OR if trial days ran out and not active
     const isExpired = isStatusExpired || (isTrial && daysRemaining <= 0);

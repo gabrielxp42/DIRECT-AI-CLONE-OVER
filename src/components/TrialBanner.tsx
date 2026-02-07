@@ -41,8 +41,32 @@ export const TrialBanner = () => {
         );
     }
 
-    // Active Trial State (Premium Yellow/Dark Theme)
-    // DISABLED: Usuário solicitou remover a barra de trial ("leave aside for now")
+    // Renewal Warning State (Yellow/Alert) - 10 days before expiry
+    if (isActive && daysRemaining <= 10 && daysRemaining > 0) {
+        return (
+            <>
+                <div className="relative z-50 bg-[#FFF200] text-black shadow-lg animate-in slide-in-from-top-full duration-500">
+                    <div className="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between gap-4 text-xs md:text-sm font-bold">
+                        <div className="flex items-center gap-2">
+                            <Clock className="w-4 h-4" />
+                            <span>Sua assinatura Elite Pro vence em {daysRemaining} {daysRemaining === 1 ? 'dia' : 'dias'}. Garanta sua renovação!</span>
+                        </div>
+                        <Button
+                            size="sm"
+                            variant="secondary"
+                            className="h-8 bg-black text-white hover:bg-black/80 font-black px-4"
+                            onClick={() => setShowModal(true)}
+                        >
+                            Verificar Pagamento
+                        </Button>
+                    </div>
+                </div>
+                <SubscriptionModal open={showModal} onOpenChange={setShowModal} />
+            </>
+        );
+    }
+
+    // Active Trial State
     return null;
 
     /* 

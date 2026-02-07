@@ -71,7 +71,13 @@ serve(async (req) => {
 
         console.log("[Gabi] Merchant:", merchant.company_name, "WhatsApp Status:", merchant.whatsapp_status);
 
-        console.log("[Gabi] WhatsApp Status:", merchant.whatsapp_status);
+        // --- TRAVA DE SEGURANÇA PLUS MODE ---
+        const isPlusActive = merchant.is_whatsapp_plus_active || merchant.is_admin || merchant.subscription_tier === 'expert';
+        if (!isPlusActive) {
+            console.log(`[Gabi] Merchant ${merchant.id} sem WhatsApp Plus ativo. Abortando envio.`);
+            return new Response(JSON.stringify({ skipped: true, reason: "Plus Mode not active" }), { headers: corsHeaders });
+        }
+
         if (!merchant.whatsapp_instance_id) {
             return new Response(JSON.stringify({ error: "Missing WhatsApp Instance ID" }), { status: 400, headers: corsHeaders });
         }
