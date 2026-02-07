@@ -101,7 +101,7 @@ const Checkout = () => {
         cvv: ''
     });
     const [clientInfo, setClientInfo] = useState({ cpfCnpj: '', postalCode: '', addressNumber: '', phone: '' });
-    const [productType, setProductType] = useState<'PRO' | 'BOOST'>('PRO');
+    const [productType, setProductType] = useState<'PRO' | 'BOOST_BUNDLE'>('PRO');
     const [partnerCode, setPartnerCode] = useState('');
     const [isApplyingCode, setIsApplyingCode] = useState(false);
     const [isBoostUnlocked, setIsBoostUnlocked] = useState(false);
@@ -146,6 +146,14 @@ const Checkout = () => {
     }, [paymentMethod, paymentData, isSuccess, session]);
 
     // --- AUTH LOGIC ---
+
+    // Detect if user is already logged in
+    useEffect(() => {
+        if (session?.user) {
+            setStep(2);
+        }
+    }, [session]);
+
     const handleRegister = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!acceptedTerms) return setError('Você precisa aceitar os Termos de Uso.');
@@ -324,7 +332,7 @@ const Checkout = () => {
 
             setIsBoostUnlocked(true);
             toast.success("Código de Parceiro Aplicado! WhatsApp Plus Desbloqueado ⚡");
-            if (productType === 'BOOST') setProductType('PRO'); // Volta para o pro se estava no boost
+            if (productType === 'BOOST_BUNDLE') setProductType('PRO'); // Volta para o pro se estava no boost
         } catch (err: any) {
             toast.error("Erro ao aplicar código: " + err.message);
         } finally {
@@ -366,7 +374,7 @@ const Checkout = () => {
                         <div className="flex items-baseline gap-3 mb-2">
                             <span className="text-white/30 text-lg line-through font-bold">R$ 147</span>
                             <span className="text-4xl font-black text-white italic tracking-tighter">
-                                R$ {productType === 'BOOST' ? '27' : '97'}
+                                R$ {productType === 'BOOST_BUNDLE' ? '132' : '97'}
                             </span>
                         </div>
                         <p className="text-xs font-bold text-emerald-400 uppercase tracking-widest bg-emerald-500/10 inline-block px-2 py-1 rounded">7 dias de garantia total</p>
@@ -435,48 +443,117 @@ const Checkout = () => {
                             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="h-full flex flex-col">
                                 <h2 className="text-2xl font-black italic text-white uppercase tracking-tighter mb-6 text-center">Finalizar Pagamento</h2>
 
-                                {/* Product Selection */}
-                                <div className="space-y-3 mb-6">
-                                    <div
-                                        onClick={() => !isBoostUnlocked && setProductType('PRO')}
-                                        className={cn(
-                                            "p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden",
-                                            productType === 'PRO' ? "border-[#FFF200] bg-[#FFF200]/10" : "border-white/5 bg-white/5 opacity-50"
-                                        )}
-                                    >
+
+                                {/* Product Selection - NOVO MODELO SIMPLIFICADO */}
+                                <div className="space-y-4 mb-6">
+                                    {/* CARTÃO DO PLANO PRINCIPAL - SEMPRE ATIVO */}
+                                    <div className="p-4 rounded-2xl border border-[#FFF200] bg-[#FFF200]/10 relative overflow-hidden">
                                         <div className="flex justify-between items-center relative z-10">
                                             <div className="flex items-center gap-3">
-                                                <Crown className={cn("w-5 h-5", productType === 'PRO' ? "text-[#FFF200]" : "text-white/20")} />
+                                                <div className="w-10 h-10 rounded-full bg-[#FFF200] flex items-center justify-center text-black">
+                                                    <Crown className="w-5 h-5" />
+                                                </div>
                                                 <div className="flex flex-col text-left">
-                                                    <span className="text-xs font-black uppercase text-white">Plano Profissional</span>
-                                                    <span className="text-[10px] text-white/50">Acesso completo ao painel</span>
+                                                    <span className="text-sm font-black uppercase text-white">Plano Elite PRO</span>
+                                                    <span className="text-[10px] text-white/50">Acesso total ao sistema</span>
                                                 </div>
                                             </div>
-                                            <span className="text-sm font-black text-white italic">R$ 97/mês</span>
+                                            <span className="text-sm font-black text-white italic">R$ 97,00<span className="text-[10px] font-normal not-italic text-white/50">/mês</span></span>
                                         </div>
                                     </div>
 
+                                    {/* MÓDULO WHATSAPP + GABI IA (REDESENHADO) */}
                                     <div
-                                        onClick={() => !isBoostUnlocked && setProductType('BOOST')}
+                                        onClick={() => !isBoostUnlocked && setProductType(productType === 'PRO' ? 'BOOST_BUNDLE' : 'PRO')}
                                         className={cn(
-                                            "p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden",
-                                            productType === 'BOOST' ? "border-emerald-500 bg-emerald-500/10" : "border-white/5 bg-white/5 opacity-50",
-                                            isBoostUnlocked && "border-primary/40 bg-primary/20 cursor-default opacity-100"
+                                            "group relative overflow-hidden rounded-2xl border transition-all cursor-pointer select-none",
+                                            (productType === 'BOOST_BUNDLE' || isBoostUnlocked)
+                                                ? "border-emerald-500 bg-emerald-950/20"
+                                                : "border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20"
                                         )}
                                     >
-                                        <div className="flex justify-between items-center relative z-10">
+                                        {/* Header do Card */}
+                                        <div className="p-4 flex justify-between items-start relative z-10 border-b border-white/5">
                                             <div className="flex items-center gap-3">
-                                                <Zap className={cn("w-5 h-5", productType === 'BOOST' || isBoostUnlocked ? "text-emerald-400" : "text-white/20")} />
-                                                <div className="flex flex-col text-left">
-                                                    <span className="text-xs font-black uppercase text-white">WhatsApp Plus Boost</span>
-                                                    <span className="text-[10px] text-white/50">{isBoostUnlocked ? "CORTESIA APLICADA" : "Motor de IA no seu WhatsApp"}</span>
+                                                <div
+                                                    className={cn(
+                                                        "w-6 h-6 rounded-md border flex items-center justify-center transition-all",
+                                                        (productType === 'BOOST_BUNDLE' || isBoostUnlocked)
+                                                            ? "bg-emerald-500 border-emerald-500"
+                                                            : "border-white/30 group-hover:border-white/50"
+                                                    )}
+                                                >
+                                                    {(productType === 'BOOST_BUNDLE' || isBoostUnlocked) && (
+                                                        <Check className="w-4 h-4 text-black" strokeWidth={3} />
+                                                    )}
+                                                </div>
+
+                                                <div>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-sm font-black uppercase text-white tracking-tight">Módulo WhatsApp + Gabi IA</span>
+                                                        <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-emerald-500 text-black uppercase tracking-widest animate-pulse">
+                                                            Oferta Única
+                                                        </span>
+                                                    </div>
                                                 </div>
                                             </div>
-                                            {isBoostUnlocked ? (
-                                                <CheckCircle2 size={18} className="text-emerald-400" />
-                                            ) : (
-                                                <span className="text-sm font-black text-white italic">R$ 27 (Taxa Única)</span>
-                                            )}
+
+                                            <div className="text-right">
+                                                {isBoostUnlocked ? (
+                                                    <span className="text-xs font-bold text-emerald-400">ATIVO</span>
+                                                ) : (
+                                                    <div className="flex flex-col items-end">
+                                                        <span className={cn("text-sm font-black italic", productType === 'BOOST_BUNDLE' ? "text-emerald-400" : "text-white/40")}>
+                                                            + R$ 35,00
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Lista de Benefícios (Accordion Style Aberto) */}
+                                        <div className="p-4 space-y-3 bg-black/20">
+                                            <p className="text-[10px] uppercase font-bold text-white/40 mb-2 tracking-widest">
+                                                O que a Gabi faz por você:
+                                            </p>
+
+                                            <div className="grid grid-cols-1 gap-3">
+                                                <div className="flex items-start gap-2">
+                                                    <div className="w-4 h-4 rounded bg-emerald-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                                                        <Bot className="w-2.5 h-2.5 text-emerald-400" />
+                                                    </div>
+                                                    <p className="text-[11px] text-white/70 leading-tight">
+                                                        <span className="text-white font-bold">Sua Funcionária Digital:</span> Você manda: "Gabi, cobra o Felipe". Ela vai lá e cobra na hora.
+                                                    </p>
+                                                </div>
+
+                                                <div className="flex items-start gap-2">
+                                                    <div className="w-4 h-4 rounded bg-blue-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                                                        <CheckCircle2 className="w-2.5 h-2.5 text-blue-400" />
+                                                    </div>
+                                                    <p className="text-[11px] text-white/70 leading-tight">
+                                                        <span className="text-white font-bold">Aviso de Entrega:</span> Acabou de produzir? Ela avisa o cliente automaticamente que tá pronto.
+                                                    </p>
+                                                </div>
+
+                                                <div className="flex items-start gap-2">
+                                                    <div className="w-4 h-4 rounded bg-yellow-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                                                        <Target className="w-2.5 h-2.5 text-yellow-400" />
+                                                    </div>
+                                                    <p className="text-[11px] text-white/70 leading-tight">
+                                                        <span className="text-white font-bold">Vendedor Automático:</span> Cliente sumiu? A Gabi chama ele de volta e fecha a venda sozinha.
+                                                    </p>
+                                                </div>
+
+                                                <div className="flex items-start gap-2">
+                                                    <div className="w-4 h-4 rounded bg-purple-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                                                        <Sparkles className="w-2.5 h-2.5 text-purple-400" />
+                                                    </div>
+                                                    <p className="text-[11px] text-white/70 leading-tight">
+                                                        <span className="text-white font-bold">Atendimento 24h:</span> Tira dúvidas de preços e prazos enquanto você descansa.
+                                                    </p>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -687,7 +764,7 @@ const Checkout = () => {
                                                 {isProcessingPayment ? <Loader2 className="animate-spin" /> : (
                                                     <span className="flex items-center gap-2">
                                                         <Lock className="w-4 h-4" />
-                                                        Pagar R$ {productType === 'BOOST' ? '27,00' : '97,00'}
+                                                        Pagar R$ {productType === 'BOOST_BUNDLE' ? '132,00' : '97,00'}
                                                     </span>
                                                 )}
                                             </Button>

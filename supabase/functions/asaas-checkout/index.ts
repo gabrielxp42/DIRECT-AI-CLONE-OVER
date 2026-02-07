@@ -99,67 +99,97 @@ serve(async (req) => {
         }
 
         // 2. Criar Assinatura
-        const subscriptionData: any = {
-            customer: customerId,
-            billingType: paymentMethod === 'CREDIT_CARD' ? 'CREDIT_CARD' : 'PIX',
-            nextDueDate: new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0],
-            value: value,
-            cycle: "MONTHLY",
-            description: description,
-            updatePendingPayments: true,
-            externalReference: userId
-        };
+        // 2. Lógica de Cobrança (Assinatura vs Pagamento Único)
+        let responseData: any = {};
+        const dueDate = new Date(Date.now()); // Vence hoje
+        const isoDate = dueDate.toISOString().split('T')[0];
 
-        if (paymentMethod === 'CREDIT_CARD' && creditCard) {
-            subscriptionData.creditCard = creditCard;
-            subscriptionData.creditCardHolderInfo = creditCardHolderInfo;
-        }
+        // Caso 1: Bundle (Pro + Boost) = R$ 132,00 (Cobrança Única "Setup Fee" + 1º Mês)
+        // O sistema depois deve criar a assinatura recorrente de R$ 97 via webhook ou job, ou o cliente assina mês que vem.
+        // Para simplificar, cobramos R$ 132 agora como Pagamento Único.
+        if (productType === 'BOOST_BUNDLE') {
+            value = 132.00;
+            description = "Plano Elite Pro + WhatsApp Boost (Acesso Imediato)";
 
-        const subResponse = await fetch(`${ASAAS_API_URL}/subscriptions`, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(subscriptionData)
-        });
+            const paymentBody = {
+                customer: customerId,
+                billingType: paymentMethod === 'CREDIT_CARD' ? 'CREDIT_CARD' : 'PIX',
+                dueDate: isoDate,
+                value: value,
+                description: description,
+                externalReference: userId,
+                ...(paymentMethod === 'CREDIT_CARD' && creditCard ? { creditCard, creditCardHolderInfo } : {})
+            };
 
-        const subResult = await subResponse.json();
-        if (!subResponse.ok) {
-            console.error("Erro Subscrição Asaas:", subResult.errors?.[0]?.description);
-            throw new Error(subResult.errors?.[0]?.description || "Erro ao processar assinatura");
-        }
-
-        // 3. Buscar PIX se necessário
-        let pixData = null;
-        if (paymentMethod === 'PIX' || !paymentMethod) {
-            const paymentsResponse = await fetch(`${ASAAS_API_URL}/payments?subscription=${subResult.id}`, {
-                method: 'GET',
-                headers
+            const payResponse = await fetch(`${ASAAS_API_URL}/payments`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(paymentBody)
             });
-            const paymentsData = await paymentsResponse.json();
-            const paymentId = paymentsData.data?.[0]?.id;
+            const payResult = await payResponse.json();
+            if (!payResponse.ok) throw new Error(payResult.errors?.[0]?.description || "Erro ao criar cobrança Bundle");
 
-            if (paymentId) {
-                const pixResponse = await fetch(`${ASAAS_API_URL}/payments/${paymentId}/pixQrCode`, {
-                    method: 'GET',
-                    headers
-                });
-                if (pixResponse.ok) {
-                    pixData = await pixResponse.json();
+            responseData = {
+                success: true,
+                paymentId: payResult.id, // Retornamos paymentId em vez de subscriptionId
+                status: payResult.status
+            };
+
+            // Se for PIX, já buscar o QR Code
+            if (paymentMethod === 'PIX') {
+                const pixResponse = await fetch(`${ASAAS_API_URL}/payments/${payResult.id}/pixQrCode`, { headers });
+                if (pixResponse.ok) responseData.pix = await pixResponse.json();
+            }
+        }
+        // Caso 2: Boost Only (Upgrade) = R$ 35,00 (Pagamento Único)
+        else if (productType === 'BOOST_ONLY') {
+            // ... Lógica similar ao Bundle, mas valor 35
+            // Implementar se necessário, por enquanto fcamos no bundle
+        }
+        // Caso 3: Padrão PRO = R$ 97,00 (Assinatura Mensal)
+        else {
+            const subscriptionData: any = {
+                customer: customerId,
+                billingType: paymentMethod === 'CREDIT_CARD' ? 'CREDIT_CARD' : 'PIX',
+                nextDueDate: new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0], // 3 dias pra pagar
+                value: 97.00,
+                cycle: "MONTHLY",
+                description: "Assinatura Plano PRO - Mensal",
+                updatePendingPayments: true,
+                externalReference: userId,
+                ...(paymentMethod === 'CREDIT_CARD' && creditCard ? { creditCard, creditCardHolderInfo } : {})
+            };
+
+            const subResponse = await fetch(`${ASAAS_API_URL}/subscriptions`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(subscriptionData)
+            });
+            const subResult = await subResponse.json();
+            if (!subResponse.ok) throw new Error(subResult.errors?.[0]?.description || "Erro ao criar assinatura");
+
+            responseData = {
+                success: true,
+                subscriptionId: subResult.id,
+                status: subResult.status
+            };
+
+            // Buscar PIX da primeira cobrança da assinatura
+            if (paymentMethod === 'PIX') {
+                const paymentsResponse = await fetch(`${ASAAS_API_URL}/payments?subscription=${subResult.id}`, { headers });
+                const paymentsData = await paymentsResponse.json();
+                const paymentId = paymentsData.data?.[0]?.id;
+                if (paymentId) {
+                    const pixResponse = await fetch(`${ASAAS_API_URL}/payments/${paymentId}/pixQrCode`, { headers });
+                    if (pixResponse.ok) responseData.pix = await pixResponse.json();
                 }
             }
         }
 
-        return new Response(
-            JSON.stringify({
-                success: true,
-                subscriptionId: subResult.id,
-                pix: pixData,
-                status: subResult.status
-            }),
-            {
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-                status: 200,
-            }
-        );
+        return new Response(JSON.stringify(responseData), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 200,
+        });
 
     } catch (err: any) {
         console.error(`Checkout Error: ${err.message}`);

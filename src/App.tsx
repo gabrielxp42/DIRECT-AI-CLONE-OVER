@@ -16,6 +16,7 @@ import { AntiScraper } from "./components/AntiScraper";
 import { PWAManager } from "./components/PWAManager";
 import { InstallPrompt } from "./components/InstallPrompt";
 import AdminRoute from "./components/AdminRoute";
+import SubscriptionGuard from "./components/SubscriptionGuard";
 
 // Lazy Load Pages
 const Index = lazy(() => import("./pages/Index"));
@@ -81,23 +82,25 @@ const App = () => (
                       <Route path="/privacy" element={<Legal />} />
                       <Route path="/checkout" element={<Checkout />} />
                       <Route element={<ProtectedRoute />}>
-                        <Route element={<Layout />}>
-                          <Route path="/" element={<Index />} />
-                          <Route path="/clientes" element={<Clientes />} />
-                          <Route path="/produtos" element={<Produtos />} />
-                          <Route path="/pedidos" element={<Pedidos />} />
-                          <Route path="/reports" element={<Reports />} />
-                          <Route path="/insumos" element={<Insumos />} />
-                          <Route path="/settings" element={<Settings />} />
-                          <Route path="/profile" element={<Profile />} />
-                          <Route path="/gabi" element={<GabiSettings />} />
+                        <Route element={<SubscriptionGuard />}>
+                          <Route element={<Layout />}>
+                            <Route path="/" element={<Index />} />
+                            <Route path="/clientes" element={<Clientes />} />
+                            <Route path="/produtos" element={<Produtos />} />
+                            <Route path="/pedidos" element={<Pedidos />} />
+                            <Route path="/reports" element={<Reports />} />
+                            <Route path="/insumos" element={<Insumos />} />
+                            <Route path="/settings" element={<Settings />} />
+                            <Route path="/profile" element={<Profile />} />
+                            <Route path="/gabi" element={<GabiSettings />} />
 
-                          <Route path="/admin" element={
-                            <AdminRoute>
-                              <Admin />
-                            </AdminRoute>
-                          } />
-                          <Route path="*" element={<NotFound />} />
+                            <Route path="/admin" element={
+                              <AdminRoute>
+                                <Admin />
+                              </AdminRoute>
+                            } />
+                            <Route path="*" element={<NotFound />} />
+                          </Route>
                         </Route>
                       </Route>
                     </Routes>
