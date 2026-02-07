@@ -315,20 +315,21 @@ const Checkout = () => {
         if (!partnerCode || !session?.user) return;
         setIsApplyingCode(true);
         try {
-            // Simplificando: Aqui faríamos uma chamada ao banco ou edge function para validar o código
-            // Para este MVP, vamos considerar qualquer código 'GABI27' ou vindo do admin como válido
-            // No futuro, isso deve bater numa tabela 'partner_codes'
-            const { data, error } = await supabase
-                .from('profiles')
-                .update({
-                    partner_code: partnerCode.toUpperCase(),
-                    is_whatsapp_plus_active: true,
-                    is_whatsapp_plus_gifted: true
-                })
-                .eq('id', session.user.id)
-                .select();
+            // Chamada segura para Edge Function (Anti-Hacker)
+            const response = await fetch('https://zdbjzrpgliqicwvncfpc.supabase.co/functions/v1/apply-partner-code', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`
+                },
+                body: JSON.stringify({ code: partnerCode })
+            });
 
-            if (error) throw error;
+            const data = await response.json();
+
+            if (!data.success) {
+                throw new Error(data.error);
+            }
 
             setIsBoostUnlocked(true);
             toast.success("Código de Parceiro Aplicado! WhatsApp Plus Desbloqueado ⚡");
