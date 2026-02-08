@@ -8,9 +8,18 @@ import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import {
     Loader2, Mail, Lock, ArrowRight, CheckCircle2, AlertCircle,
-    User, CreditCard as CreditCardIcon, Sparkles, Shield, Zap, Check,
-    Crown, TrendingUp, Printer, Users, Target, Bot, Clock, Copy
+    Ruler, DollarSign
 } from 'lucide-react';
+
+const WhatsAppLogo = ({ className }: { className?: string }) => (
+    <svg
+        viewBox="0 0 24 24"
+        className={className}
+        fill="currentColor"
+    >
+        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.445 0 .081 5.363.079 11.969c0 2.112.551 4.171 1.597 6.02L0 24l6.191-1.623c1.78.97 3.791 1.482 5.835 1.483h.005c6.612 0 11.976-5.363 11.979-11.969 0-3.202-1.246-6.212-3.51-8.473z" />
+    </svg>
+);
 import { toast } from 'sonner';
 import { APP_VERSION } from '@/utils/version';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -18,38 +27,38 @@ import { motion, AnimatePresence } from 'framer-motion';
 // --- DATA: Benefícios (Copiado de SubscriptionModal) ---
 const benefits = [
     {
-        icon: Bot,
-        badge: "✨ EXCLUSIVO",
+        icon: Ruler,
+        badge: "PARA DTF",
         badgeColor: "bg-[#FFF200] text-black border-[#FFF200]",
-        title: "Seu Gerente 24h",
-        description: "Pergunte sobre seu lucro. O Gabriel responde na hora.",
+        title: "Economia de Filme",
+        description: "Calculadora ultra-precisa que evita desperdício de material.",
         colSpan: "col-span-full md:col-span-1",
         isPrimary: true
     },
     {
-        icon: Target,
-        badge: "NOVO • IA",
-        badgeColor: "bg-red-500/20 text-red-400 border-red-500/30",
-        title: "Recupere Vendas",
-        description: "O Gabriel avisa quais clientes sumiram.",
+        icon: DollarSign,
+        badge: "LUCRO",
+        badgeColor: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+        title: "Lucro no Bolso",
+        description: "Acompanhe seu rendimento por metro rodado em tempo real.",
         colSpan: "col-span-full md:col-span-1",
         isPrimary: false
     },
     {
         icon: TrendingUp,
-        badge: "CLAREZA",
-        badgeColor: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+        badge: "GESTÃO",
+        badgeColor: "bg-blue-500/20 text-blue-400 border-blue-500/30",
         title: "Adeus Planilhas",
-        description: "Controle financeiro automático.",
+        description: "Gestão financeira automática desenhada para gráficas.",
         colSpan: "col-span-1",
         isPrimary: false
     },
     {
         icon: Printer,
-        badge: "PARA DTF",
+        badge: "ESTOQUE",
         badgeColor: "bg-purple-500/20 text-purple-400 border-purple-500/30",
         title: "Metros e Rolos",
-        description: "Controle de estoque real.",
+        description: "Controle de estoque real de filmes e insumos.",
         colSpan: "col-span-1",
         isPrimary: false
     },
@@ -418,31 +427,31 @@ const Checkout = () => {
             <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:100px_100px] opacity-20"></div>
 
             {/* Main Container - Split View */}
-            <div className="relative z-10 w-full max-w-6xl min-h-[600px] bg-black/40 backdrop-blur-xl border border-white/10 rounded-3xl shadow-2xl overflow-hidden flex flex-col md:flex-row">
+            <div className="relative z-10 w-full max-w-6xl min-h-[500px] bg-black/40 backdrop-blur-xl border border-white/10 rounded-3xl shadow-2xl overflow-hidden flex flex-col md:flex-row">
 
                 {/* LEFT COLUMN: Benefits & Persuasion */}
-                <div className="md:w-5/12 lg:w-4/12 bg-[#09090b] border-r border-white/5 p-8 flex flex-col relative overflow-hidden group/sidebar">
+                <div className="md:w-5/12 lg:w-4/12 bg-[#09090b] border-r border-white/5 p-6 flex flex-col relative overflow-hidden group/sidebar">
                     {/* Background Glow */}
                     <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-[#FFF200]/5 to-transparent pointer-events-none" />
 
-                    <div className="relative z-10 mb-8">
-                        <div className="inline-flex items-center gap-2 bg-[#FFF200]/10 border border-[#FFF200]/20 rounded-full px-3 py-1 mb-6">
+                    <div className="relative z-10 mb-6">
+                        <div className="inline-flex items-center gap-2 bg-[#FFF200]/10 border border-[#FFF200]/20 rounded-full px-3 py-1 mb-4">
                             <Crown className="w-3.5 h-3.5 text-[#FFF200]" />
                             <span className="text-[10px] font-bold text-[#FFF200] uppercase tracking-wider">Sistema Elite DTF</span>
                         </div>
 
-                        <h1 className="text-3xl lg:text-4xl font-black text-white italic uppercase leading-[0.9] tracking-tighter mb-4">
+                        <h1 className="text-2xl lg:text-3xl font-black text-white italic uppercase leading-[0.9] tracking-tighter mb-4">
                             PARE DE <br />
                             PERDER <br />
                             <span className="text-[#FFF200] drop-shadow-[0_0_15px_rgba(255,242,0,0.4)]">DINHEIRO</span>
                         </h1>
                         <div className="flex items-baseline gap-3 mb-2">
                             <span className="text-white/30 text-lg line-through font-bold">R$ 147</span>
-                            <span className="text-4xl font-black text-white italic tracking-tighter">
+                            <span className="text-3xl font-black text-white italic tracking-tighter">
                                 R$ {productType === 'BOOST_BUNDLE' ? '132' : '97'}
                             </span>
                         </div>
-                        <p className="text-xs font-bold text-emerald-400 uppercase tracking-widest bg-emerald-500/10 inline-block px-2 py-1 rounded">7 dias de garantia total</p>
+                        <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest bg-emerald-500/10 inline-block px-2 py-0.5 rounded">7 dias de garantia total</p>
                     </div>
 
                     {/* Benefits Grid (Compact) */}
@@ -555,6 +564,7 @@ const Checkout = () => {
 
                                                 <div>
                                                     <div className="flex items-center gap-2">
+                                                        <WhatsAppLogo className="w-4 h-4 text-emerald-500" />
                                                         <span className="text-sm font-black uppercase text-white tracking-tight">Módulo WhatsApp + Gabi IA</span>
                                                         <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-emerald-500 text-black uppercase tracking-widest animate-pulse">
                                                             Oferta Única
@@ -585,37 +595,37 @@ const Checkout = () => {
                                             <div className="grid grid-cols-1 gap-3">
                                                 <div className="flex items-start gap-2">
                                                     <div className="w-4 h-4 rounded bg-emerald-500/10 flex items-center justify-center shrink-0 mt-0.5">
-                                                        <Ruler className="w-2.5 h-2.5 text-emerald-400" />
+                                                        <Bot className="w-2.5 h-2.5 text-emerald-400" />
                                                     </div>
                                                     <p className="text-[11px] text-white/70 leading-tight">
-                                                        <span className="text-white font-bold">Economia de Filme:</span> Calculadora ultra-precisa que diz exatamente quanto usar. <span className="text-emerald-400">Zero desperdício.</span>
+                                                        <span className="text-white font-bold">Sua Funcionária Digital:</span> Você manda: "Gabi, cobra o Felipe". Ela vai lá e cobra na hora.
                                                     </p>
                                                 </div>
 
                                                 <div className="flex items-start gap-2">
                                                     <div className="w-4 h-4 rounded bg-blue-500/10 flex items-center justify-center shrink-0 mt-0.5">
-                                                        <DollarSign className="w-2.5 h-2.5 text-blue-400" />
+                                                        <CheckCircle2 className="w-2.5 h-2.5 text-blue-400" />
                                                     </div>
                                                     <p className="text-[11px] text-white/70 leading-tight">
-                                                        <span className="text-white font-bold">Lucro no Bolso:</span> Acompanhe seu lucro real e faturamento por metro rodado em tempo real.
+                                                        <span className="text-white font-bold">Aviso de Entrega:</span> Acabou de produzir? Ela avisa o cliente automaticamente que tá pronto.
+                                                    </p>
+                                                </div>
+
+                                                <div className="flex items-start gap-2">
+                                                    <div className="w-4 h-4 rounded bg-yellow-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                                                        <Target className="w-2.5 h-2.5 text-yellow-400" />
+                                                    </div>
+                                                    <p className="text-[11px] text-white/70 leading-tight">
+                                                        <span className="text-white font-bold">Vendedor Automático:</span> Cliente sumiu? A Gabi chama ele de volta e fecha a venda sozinha.
                                                     </p>
                                                 </div>
 
                                                 <div className="flex items-start gap-2">
                                                     <div className="w-4 h-4 rounded bg-purple-500/10 flex items-center justify-center shrink-0 mt-0.5">
-                                                        <Bot className="w-2.5 h-2.5 text-purple-400" />
+                                                        <Sparkles className="w-2.5 h-2.5 text-purple-400" />
                                                     </div>
                                                     <p className="text-[11px] text-white/70 leading-tight">
-                                                        <span className="text-white font-bold">Gabi IA (WhatsApp):</span> Sua assistente que cobra pagamentos e avisa quando o pedido está pronto.
-                                                    </p>
-                                                </div>
-
-                                                <div className="flex items-start gap-2">
-                                                    <div className="w-4 h-4 rounded bg-amber-500/10 flex items-center justify-center shrink-0 mt-0.5">
-                                                        <Zap className="w-2.5 h-2.5 text-amber-400" />
-                                                    </div>
-                                                    <p className="text-[11px] text-white/70 leading-tight">
-                                                        <span className="text-white font-bold">Agilidade no Balcão:</span> Gere pedidos, notas térmicas e PDFs de produção em segundos.
+                                                        <span className="text-white font-bold">Atendimento 24h:</span> Tira dúvidas de preços e prazos enquanto você descansa.
                                                     </p>
                                                 </div>
                                             </div>
