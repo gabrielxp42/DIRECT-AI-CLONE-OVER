@@ -585,37 +585,37 @@ const Checkout = () => {
                                             <div className="grid grid-cols-1 gap-3">
                                                 <div className="flex items-start gap-2">
                                                     <div className="w-4 h-4 rounded bg-emerald-500/10 flex items-center justify-center shrink-0 mt-0.5">
-                                                        <Bot className="w-2.5 h-2.5 text-emerald-400" />
+                                                        <Ruler className="w-2.5 h-2.5 text-emerald-400" />
                                                     </div>
                                                     <p className="text-[11px] text-white/70 leading-tight">
-                                                        <span className="text-white font-bold">Sua Funcionária Digital:</span> Você manda: "Gabi, cobra o Felipe". Ela vai lá e cobra na hora.
+                                                        <span className="text-white font-bold">Economia de Filme:</span> Calculadora ultra-precisa que diz exatamente quanto usar. <span className="text-emerald-400">Zero desperdício.</span>
                                                     </p>
                                                 </div>
 
                                                 <div className="flex items-start gap-2">
                                                     <div className="w-4 h-4 rounded bg-blue-500/10 flex items-center justify-center shrink-0 mt-0.5">
-                                                        <CheckCircle2 className="w-2.5 h-2.5 text-blue-400" />
+                                                        <DollarSign className="w-2.5 h-2.5 text-blue-400" />
                                                     </div>
                                                     <p className="text-[11px] text-white/70 leading-tight">
-                                                        <span className="text-white font-bold">Aviso de Entrega:</span> Acabou de produzir? Ela avisa o cliente automaticamente que tá pronto.
-                                                    </p>
-                                                </div>
-
-                                                <div className="flex items-start gap-2">
-                                                    <div className="w-4 h-4 rounded bg-yellow-500/10 flex items-center justify-center shrink-0 mt-0.5">
-                                                        <Target className="w-2.5 h-2.5 text-yellow-400" />
-                                                    </div>
-                                                    <p className="text-[11px] text-white/70 leading-tight">
-                                                        <span className="text-white font-bold">Vendedor Automático:</span> Cliente sumiu? A Gabi chama ele de volta e fecha a venda sozinha.
+                                                        <span className="text-white font-bold">Lucro no Bolso:</span> Acompanhe seu lucro real e faturamento por metro rodado em tempo real.
                                                     </p>
                                                 </div>
 
                                                 <div className="flex items-start gap-2">
                                                     <div className="w-4 h-4 rounded bg-purple-500/10 flex items-center justify-center shrink-0 mt-0.5">
-                                                        <Sparkles className="w-2.5 h-2.5 text-purple-400" />
+                                                        <Bot className="w-2.5 h-2.5 text-purple-400" />
                                                     </div>
                                                     <p className="text-[11px] text-white/70 leading-tight">
-                                                        <span className="text-white font-bold">Atendimento 24h:</span> Tira dúvidas de preços e prazos enquanto você descansa.
+                                                        <span className="text-white font-bold">Gabi IA (WhatsApp):</span> Sua assistente que cobra pagamentos e avisa quando o pedido está pronto.
+                                                    </p>
+                                                </div>
+
+                                                <div className="flex items-start gap-2">
+                                                    <div className="w-4 h-4 rounded bg-amber-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                                                        <Zap className="w-2.5 h-2.5 text-amber-400" />
+                                                    </div>
+                                                    <p className="text-[11px] text-white/70 leading-tight">
+                                                        <span className="text-white font-bold">Agilidade no Balcão:</span> Gere pedidos, notas térmicas e PDFs de produção em segundos.
                                                     </p>
                                                 </div>
                                             </div>
