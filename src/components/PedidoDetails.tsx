@@ -485,7 +485,7 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
               <span>{format(new Date(pedido.created_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}</span>
             </div>
             {getStatusBadge(pedido.status)}
-            {pedido.pago_at && pedido.status === 'pago' && (
+            {pedido.pago_at && pedido.status !== 'cancelado' && (
               <div className="flex items-center text-sm text-green-600 font-medium bg-green-50 dark:bg-green-900/20 px-3 py-1 rounded-full border border-green-200 dark:border-green-800">
                 <CheckCircle className="h-4 w-4 mr-2" />
                 Pago em: {format(new Date(pedido.pago_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}

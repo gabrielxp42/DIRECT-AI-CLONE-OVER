@@ -1499,10 +1499,10 @@ const PedidosPage: React.FC = () => {
                     <CalendarIcon className="h-4 w-4 mr-2 text-muted-foreground" />
                     <span>{format(new Date(pedido.created_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}</span>
                   </div>
-                  {pedido.pago_at && (pedido.status === 'pago' || pedido.status === 'entregue' || pedido.status === 'aguardando retirada' || pedido.status === 'enviado') ? (
+                  {pedido.pago_at && pedido.status !== 'cancelado' ? (
                     <div className="flex items-center text-[10px] text-green-600 font-bold">
                       <CheckCircle className="h-3 w-3 mr-1.5" />
-                      Pago em: {format(new Date(pedido.pago_at), 'dd/MM/yy HH:mm', { locale: ptBR })}
+                      Pago em: {format(new Date(pedido.pago_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
                     </div>
                   ) : (
                     pedido.status !== 'cancelado' && (

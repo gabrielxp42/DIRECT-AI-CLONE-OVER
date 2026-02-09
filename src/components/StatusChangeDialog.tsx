@@ -138,7 +138,7 @@ export const StatusChangeDialog = ({
               {pagoAt && (
                 <div className="flex items-center text-[10px] text-green-600 font-bold bg-green-50 px-2 py-1 rounded-md border border-green-100">
                   <CheckCircle className="h-3 w-3 mr-1" />
-                  PAGO EM: {format(new Date(pagoAt), 'dd/MM/yy HH:mm', { locale: ptBR })}
+                  PAGO EM: {format(new Date(pagoAt), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
                 </div>
               )}
             </div>
