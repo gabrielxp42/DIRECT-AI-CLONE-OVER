@@ -66,6 +66,7 @@ export const WhatsAppButton: React.FC<WhatsAppButtonProps> = ({
     };
 
     const handleDirectSend = async (phoneToUse?: string) => {
+        if (isLoading) return;
         setIsLoading(true);
         try {
             const phoneNumber = (phoneToUse || phone).replace(/\D/g, '');

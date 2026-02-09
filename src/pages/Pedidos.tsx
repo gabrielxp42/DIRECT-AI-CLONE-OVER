@@ -265,7 +265,12 @@ const PedidosPage: React.FC = () => {
   const { canWriteData } = useSubscription();
   const { canSendDirectly: isPlusMode } = useIsPlusMode();
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-  const [whatsAppDialog, setWhatsAppDialog] = useState<{ open: boolean; pedido: Pedido | null; summary: string }>({ open: false, pedido: null, summary: '' });
+  const [whatsAppDialog, setWhatsAppDialog] = useState<{ open: boolean; loading: boolean; pedido: Pedido | null; summary: string }>({
+    open: false,
+    loading: false,
+    pedido: null,
+    summary: ''
+  });
   const { isTourOpen, currentStep, steps, startTour, nextStep, prevStep, closeTour, shouldAutoStart } = useTour(PEDIDOS_TOUR, 'pedidos');
   const { companyProfile } = useCompanyProfile();
 
@@ -483,7 +488,7 @@ const PedidosPage: React.FC = () => {
 
     if (isPlusMode) {
       // PLUS MODE: Abrir dialog para envio direto (mesmo se sem telefone, o dialog permite buscar)
-      setWhatsAppDialog({ open: true, pedido, summary });
+      setWhatsAppDialog({ open: true, loading: false, pedido, summary });
     } else {
       // NORMAL MODE: Abrir link wa.me
       const encodedText = encodeURIComponent(summary);
@@ -495,7 +500,9 @@ const PedidosPage: React.FC = () => {
   };
 
   const handleConfirmWhatsAppSend = async (data: { phone?: string; attachPdf?: boolean; includeText?: boolean } = {}) => {
-    if (!whatsAppDialog.pedido) return;
+    if (!whatsAppDialog.pedido || whatsAppDialog.loading) return;
+
+    setWhatsAppDialog(prev => ({ ...prev, loading: true }));
 
     try {
       const phone = (data.phone || whatsAppDialog.pedido.clientes?.telefone || '').replace(/\D/g, '');
@@ -569,7 +576,7 @@ const PedidosPage: React.FC = () => {
         showSuccess("Resumo de texto enviado!");
       }
 
-      setWhatsAppDialog({ open: false, pedido: null, summary: '' });
+      setWhatsAppDialog({ open: false, loading: false, pedido: null, summary: '' });
     } catch (err: any) {
       console.error('Erro no envio direto:', err);
 
@@ -594,7 +601,7 @@ const PedidosPage: React.FC = () => {
 
           if (!textError && textResult?.success) {
             showSuccess(`Texto enviado! PDF não suportado pelo servidor.`);
-            setWhatsAppDialog({ open: false, pedido: null, summary: '' });
+            setWhatsAppDialog({ open: false, loading: false, pedido: null, summary: '' });
             return;
           }
         } catch (textErr) {
@@ -614,7 +621,7 @@ const PedidosPage: React.FC = () => {
           : `https://wa.me/?text=${encodedText}`;
         window.open(url, '_blank');
       }
-      setWhatsAppDialog({ open: false, pedido: null, summary: '' });
+      setWhatsAppDialog({ open: false, loading: false, pedido: null, summary: '' });
     }
   };
 
@@ -820,6 +827,7 @@ const PedidosPage: React.FC = () => {
         }
       }
 
+      // 3. Excluir itens e serviços relacionados
       // 3. Excluir itens e serviços relacionados
       const deleteRelated = async (table: string) => {
         try {
@@ -1875,12 +1883,12 @@ const PedidosPage: React.FC = () => {
       {/* WhatsApp Plus Mode Dialog */}
       <WhatsAppActionDialog
         isOpen={whatsAppDialog.open}
-        onOpenChange={(open) => !open && setWhatsAppDialog({ open: false, pedido: null, summary: '' })}
+        onOpenChange={(open) => !open && setWhatsAppDialog({ open: false, loading: false, pedido: null, summary: '' })}
         customerName={whatsAppDialog.pedido?.clientes?.nome || 'Cliente'}
         phone={whatsAppDialog.pedido?.clientes?.telefone || ''}
         messagePreview={whatsAppDialog.summary}
+        isLoading={whatsAppDialog.loading}
         onConfirm={handleConfirmWhatsAppSend}
-        isLoading={isGlobalLoading}
       />
     </div>
   );

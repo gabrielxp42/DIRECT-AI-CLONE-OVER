@@ -63,7 +63,7 @@ export const AIMessagesWidget: React.FC = () => {
     };
 
     const handleConfirmActionMain = async (editedMessage?: string) => {
-        if (!selectedAction) return;
+        if (!selectedAction || isActionLoading) return;
         setIsActionLoading(true);
         const currentMessage = editedMessage || selectedAction.message;
 

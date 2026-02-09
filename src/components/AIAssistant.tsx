@@ -481,6 +481,7 @@ export const AIAssistant = () => {
                                               )}
                                               disabled={isLoading}
                                               onClick={async () => {
+                                                if (isLoading) return;
                                                 if (result.data.canSendDirectly && result.data.cleanPhone) {
                                                   setIsLoading(true);
                                                   setLoadingStatus("Gabi está enviando...");

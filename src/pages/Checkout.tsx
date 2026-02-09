@@ -8,6 +8,8 @@ import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import {
     Loader2, Mail, Lock, ArrowRight, CheckCircle2, AlertCircle,
+    User, CreditCard as CreditCardIcon, Sparkles, Shield, Zap, Check,
+    Crown, TrendingUp, Printer, Users, Target, Bot, Clock, Copy,
     Ruler, DollarSign
 } from 'lucide-react';
 
@@ -85,6 +87,7 @@ const benefits = [
 const Checkout = () => {
     const navigate = useNavigate();
     const { session, supabase } = useSession();
+    const paymentFormRef = React.useRef<HTMLDivElement>(null);
 
     // Step: 1 = Registro/Login, 2 = Pagamento, 3 = Sucesso
     const [step, setStep] = useState(1);
@@ -427,7 +430,12 @@ const Checkout = () => {
             <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:100px_100px] opacity-20"></div>
 
             {/* Main Container - Split View */}
-            <div className="relative z-10 w-full max-w-6xl min-h-[500px] bg-black/40 backdrop-blur-xl border border-white/10 rounded-3xl shadow-2xl overflow-hidden flex flex-col md:flex-row">
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8 }}
+                className="relative z-10 w-full max-w-6xl min-h-[500px] bg-black/40 backdrop-blur-2xl border border-white/10 rounded-3xl shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col md:flex-row shadow-2xl"
+            >
 
                 {/* LEFT COLUMN: Benefits & Persuasion */}
                 <div className="md:w-5/12 lg:w-4/12 bg-[#09090b] border-r border-white/5 p-6 flex flex-col relative overflow-hidden group/sidebar">
@@ -443,33 +451,69 @@ const Checkout = () => {
                         <h1 className="text-2xl lg:text-3xl font-black text-white italic uppercase leading-[0.9] tracking-tighter mb-4">
                             PARE DE <br />
                             PERDER <br />
-                            <span className="text-[#FFF200] drop-shadow-[0_0_15px_rgba(255,242,0,0.4)]">DINHEIRO</span>
+                            <span className="text-[#FFF200] drop-shadow-[0_0_15px_rgba(255,242,0,0.6)]">DINHEIRO</span>
                         </h1>
                         <div className="flex items-baseline gap-3 mb-2">
                             <span className="text-white/30 text-lg line-through font-bold">R$ 147</span>
-                            <span className="text-3xl font-black text-white italic tracking-tighter">
-                                R$ {productType === 'BOOST_BUNDLE' ? '132' : '97'}
-                            </span>
+                            <div className="relative group/price">
+                                <div className="absolute -inset-2 bg-[#FFF200]/20 blur-xl rounded-full opacity-0 group-hover/price:opacity-100 transition-opacity" />
+                                <span className="text-4xl font-black text-white italic tracking-tighter relative z-10">
+                                    R$ {productType === 'BOOST_BUNDLE' ? '132' : '97'}
+                                </span>
+                            </div>
                         </div>
-                        <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest bg-emerald-500/10 inline-block px-2 py-0.5 rounded">7 dias de garantia total</p>
+                        <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest bg-emerald-500/10 inline-block px-2 py-0.5 rounded border border-emerald-500/20">7 dias de garantia total</p>
                     </div>
 
                     {/* Benefits Grid (Compact) */}
-                    <div className="flex-1 space-y-3 relative z-10 overflow-y-auto no-scrollbar pr-2">
-                        {benefits.filter(b => b.isPrimary || !b.isPrimary).slice(0, 4).map((b, i) => (
-                            <div key={i} className={cn(
-                                "flex items-start gap-3 p-3 rounded-xl border transition-all",
-                                b.isPrimary ? "bg-[#FFF200]/10 border-[#FFF200]/20" : "bg-white/5 border-white/5"
-                            )}>
-                                <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shrink-0", b.isPrimary ? "bg-[#FFF200] text-black" : "bg-white/10 text-white/50")}>
-                                    <b.icon className="w-4 h-4" />
+                    <div className="flex-1 space-y-2 relative z-10 overflow-y-auto no-scrollbar pr-2">
+                        {benefits.slice(0, 4).map((b, i) => (
+                            <motion.div
+                                key={i}
+                                initial={{ opacity: 0, x: -20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ delay: i * 0.1 }}
+                                className={cn(
+                                    "flex items-start gap-2.5 p-2.5 rounded-xl border transition-all duration-300",
+                                    b.isPrimary ? "bg-[#FFF200]/10 border-[#FFF200]/30 shadow-[0_0_15px_rgba(255,242,0,0.05)]" : "bg-white/5 border-white/5"
+                                )}
+                            >
+                                <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center shrink-0", b.isPrimary ? "bg-[#FFF200] text-black" : "bg-white/10 text-white/70")}>
+                                    <b.icon className="w-3.5 h-3.5" />
                                 </div>
                                 <div>
-                                    <h4 className={cn("text-xs font-black uppercase italic", b.isPrimary ? "text-white" : "text-white/80")}>{b.title}</h4>
-                                    <p className="text-[10px] text-white/50 leading-tight mt-0.5">{b.description}</p>
+                                    <h4 className={cn("text-[10px] font-black uppercase italic tracking-tight", b.isPrimary ? "text-white" : "text-white/80")}>{b.title}</h4>
+                                    <p className="text-[9px] text-white/40 leading-tight mt-0.5 font-medium">{b.description}</p>
                                 </div>
-                            </div>
+                            </motion.div>
                         ))}
+
+                        {/* WHATSAPP PACK PREVIEW (Left Column Persuasion) */}
+                        <AnimatePresence>
+                            {(productType === 'BOOST_BUNDLE' || isBoostUnlocked) && (
+                                <motion.div
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: 'auto' }}
+                                    exit={{ opacity: 0, height: 0 }}
+                                    className="pt-2 border-t border-emerald-500/20"
+                                >
+                                    <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 space-y-2">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <WhatsAppLogo className="w-3.5 h-3.5 text-emerald-400" />
+                                            <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">WhatsApp Plus Ativado</span>
+                                        </div>
+                                        <div className="flex items-start gap-2">
+                                            <Bot className="w-3 h-3 text-white/40 mt-0.5" />
+                                            <p className="text-[9px] text-white/60 leading-tight font-medium">Gabi IA treinada para vender e cobrar sozinha.</p>
+                                        </div>
+                                        <div className="flex items-start gap-2">
+                                            <Target className="w-3 h-3 text-white/40 mt-0.5" />
+                                            <p className="text-[9px] text-white/60 leading-tight font-medium">Recuperação de carrinhos abandonados.</p>
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                     </div>
                 </div>
 
@@ -515,171 +559,161 @@ const Checkout = () => {
 
                         {step === 2 && (
                             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="h-full flex flex-col">
-                                <h2 className="text-2xl font-black italic text-white uppercase tracking-tighter mb-6 text-center">Finalizar Pagamento</h2>
+                                <h2 className="text-xl font-black italic text-white uppercase tracking-tighter mb-4 text-center">Finalizar Pagamento</h2>
 
 
-                                {/* Product Selection - NOVO MODELO SIMPLIFICADO */}
-                                <div className="space-y-4 mb-6">
-                                    {/* CARTÃO DO PLANO PRINCIPAL - SEMPRE ATIVO */}
-                                    <div className="p-4 rounded-2xl border border-[#FFF200] bg-[#FFF200]/10 relative overflow-hidden">
-                                        <div className="flex justify-between items-center relative z-10">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 rounded-full bg-[#FFF200] flex items-center justify-center text-black">
-                                                    <Crown className="w-5 h-5" />
-                                                </div>
-                                                <div className="flex flex-col text-left">
-                                                    <span className="text-sm font-black uppercase text-white">Plano Elite PRO</span>
-                                                    <span className="text-[10px] text-white/50">Acesso total ao sistema</span>
-                                                </div>
+                                {/* Seleção de Produtos - Premium Side-by-Side */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                                    {/* PLANO PRINCIPAL */}
+                                    <div className="p-4 rounded-2xl border border-[#FFF200] bg-[#FFF200]/10 flex flex-col justify-between group/plan shadow-[0_0_20px_rgba(255,242,0,0.1)]">
+                                        <div>
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <Crown className="w-4 h-4 text-[#FFF200]" />
+                                                <p className="text-[11px] font-black text-white uppercase tracking-wider">Assinatura Elite PRO</p>
                                             </div>
-                                            <span className="text-sm font-black text-white italic">R$ 97,00<span className="text-[10px] font-normal not-italic text-white/50">/mês</span></span>
+                                            <p className="text-[9px] text-white/40 uppercase font-black tracking-tight mb-2">Sistema Completo</p>
+                                        </div>
+                                        <div className="flex items-baseline gap-1">
+                                            <span className="text-xl font-black text-white italic">R$ 97</span>
+                                            <span className="text-[9px] text-[#FFF200] font-black uppercase tracking-tighter">/ Mensal</span>
                                         </div>
                                     </div>
 
-                                    {/* MÓDULO WHATSAPP + GABI IA (REDESENHADO) */}
+                                    {/* DIRECT WHATSAPP PLUS (VENDEDOR CABULOSO) */}
                                     <div
                                         onClick={() => !isBoostUnlocked && setProductType(productType === 'PRO' ? 'BOOST_BUNDLE' : 'PRO')}
                                         className={cn(
-                                            "group relative overflow-hidden rounded-2xl border transition-all cursor-pointer select-none",
+                                            "relative overflow-hidden p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between group/wa",
                                             (productType === 'BOOST_BUNDLE' || isBoostUnlocked)
-                                                ? "border-emerald-500 bg-emerald-950/20"
-                                                : "border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20"
+                                                ? "border-emerald-500 bg-emerald-500/10 shadow-[0_0_20px_rgba(16,185,129,0.2)]"
+                                                : "border-white/10 bg-white/5 hover:border-white/20"
                                         )}
                                     >
-                                        {/* Header do Card */}
-                                        <div className="p-4 flex justify-between items-start relative z-10 border-b border-white/5">
-                                            <div className="flex items-center gap-3">
-                                                <div
-                                                    className={cn(
-                                                        "w-6 h-6 rounded-md border flex items-center justify-center transition-all",
-                                                        (productType === 'BOOST_BUNDLE' || isBoostUnlocked)
-                                                            ? "bg-emerald-500 border-emerald-500"
-                                                            : "border-white/30 group-hover:border-white/50"
-                                                    )}
-                                                >
-                                                    {(productType === 'BOOST_BUNDLE' || isBoostUnlocked) && (
-                                                        <Check className="w-4 h-4 text-black" strokeWidth={3} />
-                                                    )}
-                                                </div>
-
-                                                <div>
-                                                    <div className="flex items-center gap-2">
-                                                        <WhatsAppLogo className="w-4 h-4 text-emerald-500" />
-                                                        <span className="text-sm font-black uppercase text-white tracking-tight">Módulo WhatsApp + Gabi IA</span>
-                                                        <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-emerald-500 text-black uppercase tracking-widest animate-pulse">
-                                                            Oferta Única
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <div className="text-right">
-                                                {isBoostUnlocked ? (
-                                                    <span className="text-xs font-bold text-emerald-400">ATIVO</span>
-                                                ) : (
-                                                    <div className="flex flex-col items-end">
-                                                        <span className={cn("text-sm font-black italic", productType === 'BOOST_BUNDLE' ? "text-emerald-400" : "text-white/40")}>
-                                                            + R$ 35,00
-                                                        </span>
-                                                    </div>
-                                                )}
-                                            </div>
+                                        <div className="absolute top-0 right-0 bg-emerald-500 text-black text-[7px] font-black px-2 py-0.5 rounded-bl-lg uppercase tracking-widest animate-pulse">
+                                            Pague uma vez
                                         </div>
 
-                                        {/* Lista de Benefícios (Accordion Style Aberto) */}
-                                        <div className="p-4 space-y-3 bg-black/20">
-                                            <p className="text-[10px] uppercase font-bold text-white/40 mb-2 tracking-widest">
-                                                O que a Gabi faz por você:
-                                            </p>
+                                        <div>
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <WhatsAppLogo className={cn("w-4 h-4", (productType === 'BOOST_BUNDLE' || isBoostUnlocked) ? "text-emerald-500" : "text-white/20")} />
+                                                <p className="text-[11px] font-black text-white uppercase tracking-wider">Direct WhatsApp Plus</p>
+                                            </div>
+                                            <p className="text-[9px] text-emerald-400/60 uppercase font-black tracking-tight mb-2">Vendedor Automático + Gabi IA</p>
+                                        </div>
 
-                                            <div className="grid grid-cols-1 gap-3">
-                                                <div className="flex items-start gap-2">
-                                                    <div className="w-4 h-4 rounded bg-emerald-500/10 flex items-center justify-center shrink-0 mt-0.5">
-                                                        <Bot className="w-2.5 h-2.5 text-emerald-400" />
-                                                    </div>
-                                                    <p className="text-[11px] text-white/70 leading-tight">
-                                                        <span className="text-white font-bold">Sua Funcionária Digital:</span> Você manda: "Gabi, cobra o Felipe". Ela vai lá e cobra na hora.
-                                                    </p>
-                                                </div>
-
-                                                <div className="flex items-start gap-2">
-                                                    <div className="w-4 h-4 rounded bg-blue-500/10 flex items-center justify-center shrink-0 mt-0.5">
-                                                        <CheckCircle2 className="w-2.5 h-2.5 text-blue-400" />
-                                                    </div>
-                                                    <p className="text-[11px] text-white/70 leading-tight">
-                                                        <span className="text-white font-bold">Aviso de Entrega:</span> Acabou de produzir? Ela avisa o cliente automaticamente que tá pronto.
-                                                    </p>
-                                                </div>
-
-                                                <div className="flex items-start gap-2">
-                                                    <div className="w-4 h-4 rounded bg-yellow-500/10 flex items-center justify-center shrink-0 mt-0.5">
-                                                        <Target className="w-2.5 h-2.5 text-yellow-400" />
-                                                    </div>
-                                                    <p className="text-[11px] text-white/70 leading-tight">
-                                                        <span className="text-white font-bold">Vendedor Automático:</span> Cliente sumiu? A Gabi chama ele de volta e fecha a venda sozinha.
-                                                    </p>
-                                                </div>
-
-                                                <div className="flex items-start gap-2">
-                                                    <div className="w-4 h-4 rounded bg-purple-500/10 flex items-center justify-center shrink-0 mt-0.5">
-                                                        <Sparkles className="w-2.5 h-2.5 text-purple-400" />
-                                                    </div>
-                                                    <p className="text-[11px] text-white/70 leading-tight">
-                                                        <span className="text-white font-bold">Atendimento 24h:</span> Tira dúvidas de preços e prazos enquanto você descansa.
-                                                    </p>
-                                                </div>
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-baseline gap-1">
+                                                <span className={cn("text-xl font-black italic", (productType === 'BOOST_BUNDLE' || isBoostUnlocked) ? "text-emerald-400" : "text-white/20")}>+ R$ 35</span>
+                                                <span className="text-[9px] text-emerald-500 font-black uppercase tracking-tighter bg-emerald-500/10 px-1.5 py-0.5 rounded">Taxa Única</span>
+                                            </div>
+                                            <div className={cn(
+                                                "w-5 h-5 rounded-full border flex items-center justify-center transition-all",
+                                                (productType === 'BOOST_BUNDLE' || isBoostUnlocked) ? "bg-emerald-500 border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]" : "border-white/20"
+                                            )}>
+                                                {(productType === 'BOOST_BUNDLE' || isBoostUnlocked) && <Check className="w-3 h-3 text-black" strokeWidth={5} />}
                                             </div>
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* Partner/Unlock Code */}
+                                {/* Partner Code (Contextual - Logo abaixo dos planos) */}
                                 {!isBoostUnlocked && (
-                                    <div className="mb-6 p-1 bg-white/5 rounded-2xl border border-white/10 flex gap-2">
+                                    <div className="mb-4 flex gap-2">
                                         <Input
                                             placeholder="CÓDIGO DE PARCEIRO"
                                             value={partnerCode}
                                             onChange={e => setPartnerCode(e.target.value)}
-                                            className="bg-transparent border-0 h-10 text-[10px] font-black uppercase placeholder:text-white/20"
+                                            className="bg-white/5 border-white/10 h-8 text-[9px] uppercase font-black placeholder:text-white/20"
                                         />
                                         <Button
                                             onClick={handleApplyPartnerCode}
                                             disabled={!partnerCode || isApplyingCode}
                                             variant="secondary"
-                                            className="h-10 rounded-xl px-4 text-[10px] font-black uppercase tracking-widest bg-white/10 hover:bg-white/20 text-white"
+                                            className="h-8 px-3 text-[9px] font-black uppercase bg-white/10 hover:bg-white/20 text-white border-none"
                                         >
-                                            {isApplyingCode ? <Loader2 size={12} className="animate-spin" /> : "APLICAR"}
+                                            {isApplyingCode ? <Loader2 size={10} className="animate-spin" /> : "APLICAR"}
                                         </Button>
                                     </div>
                                 )}
 
-                                {/* Payment Method Selector */}
-                                <div className="grid grid-cols-2 gap-3 mb-6">
+
+                                {/* Benefícios Detalhados e Persuasivos (Restaurados no Estilo Premium) */}
+                                <AnimatePresence>
+                                    {(productType === 'BOOST_BUNDLE' || isBoostUnlocked) && (
+                                        <motion.div
+                                            initial={{ opacity: 0, y: -10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            exit={{ opacity: 0, y: -10 }}
+                                            className="grid grid-cols-1 gap-2 mb-4 p-3 bg-white/[0.02] border border-white/5 rounded-2xl"
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-7 h-7 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0 border border-emerald-500/20">
+                                                    <Bot className="w-3.5 h-3.5 text-emerald-400" />
+                                                </div>
+                                                <p className="text-[10px] text-white/80 leading-tight">
+                                                    <span className="text-emerald-400 font-black uppercase italic text-[8px] mr-1">Gabi IA 24h:</span>
+                                                    Ela cobra clientes e responde dúvidas no WhatsApp por você. Sem folga.
+                                                </p>
+                                            </div>
+
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-7 h-7 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0 border border-blue-500/20">
+                                                    <Zap className="w-3.5 h-3.5 text-blue-400" />
+                                                </div>
+                                                <p className="text-[10px] text-white/80 leading-tight">
+                                                    <span className="text-blue-400 font-black uppercase italic text-[8px] mr-1">Avisos Automáticos:</span>
+                                                    Um clique no sistema e seu cliente recebe: "Seu pedido está pronto!" no celular.
+                                                </p>
+                                            </div>
+
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-7 h-7 rounded-lg bg-yellow-500/10 flex items-center justify-center shrink-0 border border-yellow-500/20">
+                                                    <Target className="w-3.5 h-3.5 text-yellow-500" />
+                                                </div>
+                                                <p className="text-[10px] text-white/80 leading-tight">
+                                                    <span className="text-yellow-500 font-black uppercase italic text-[8px] mr-1">Recuperação Extra:</span>
+                                                    Resgata pedidos parados chamando o cliente de volta com ofertas automáticas.
+                                                </p>
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+
+                                {/* Payment Method Selector (Sempre Visível) */}
+                                <div className="grid grid-cols-2 gap-3 mb-4">
                                     <button
-                                        onClick={() => setPaymentMethod('PIX_AUTOMATIC')}
+                                        onClick={() => {
+                                            setPaymentMethod('PIX_AUTOMATIC');
+                                            requestAnimationFrame(() => paymentFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+                                        }}
                                         className={cn(
-                                            "p-4 rounded-xl border transition-all flex flex-col items-center gap-2 relative overflow-hidden",
-                                            paymentMethod === 'PIX_AUTOMATIC' ? "border-[#FFF200] bg-[#FFF200]/10" : "border-white/5 bg-white/5 hover:border-white/20"
+                                            "p-3 rounded-xl border transition-all flex flex-col items-center gap-1.5 relative group/paybtn",
+                                            paymentMethod === 'PIX_AUTOMATIC' ? "border-[#FFF200] bg-[#FFF200]/10 shadow-[0_0_15px_rgba(255,242,0,0.1)]" : "border-white/5 bg-white/5 hover:border-white/20"
                                         )}
                                     >
-                                        <div className="absolute top-0 right-0 bg-[#FFF200] text-black text-[7px] font-black px-1 rounded-bl-lg uppercase tracking-tighter">NOVO</div>
-                                        <Zap className={cn("w-5 h-5", paymentMethod === 'PIX_AUTOMATIC' ? "text-[#FFF200]" : "text-white/20")} />
-                                        <span className="text-[8px] font-black uppercase tracking-tighter text-white leading-tight">Pix<br />Automático</span>
+                                        <div className="absolute top-0 right-0 bg-[#FFF200] text-black text-[6px] font-black px-1 rounded-bl-lg uppercase">RECOMENDADO</div>
+                                        <Zap className={cn("w-4 h-4 transition-transform duration-300 group-hover/paybtn:scale-110", paymentMethod === 'PIX_AUTOMATIC' ? "text-[#FFF200]" : "text-white/20")} />
+                                        <span className="text-[9px] font-black uppercase text-white leading-none tracking-tighter">Pix Automático</span>
                                     </button>
 
                                     <button
-                                        onClick={() => setPaymentMethod('CREDIT_CARD')}
+                                        onClick={() => {
+                                            setPaymentMethod('CREDIT_CARD');
+                                            requestAnimationFrame(() => paymentFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+                                        }}
                                         className={cn(
-                                            "p-4 rounded-xl border transition-all flex flex-col items-center gap-2",
-                                            paymentMethod === 'CREDIT_CARD' ? "border-[#FFF200] bg-[#FFF200]/10" : "border-white/5 bg-white/5 hover:border-white/20"
+                                            "p-3 rounded-xl border transition-all flex flex-col items-center gap-1.5 group/paybtn",
+                                            paymentMethod === 'CREDIT_CARD' ? "border-[#FFF200] bg-[#FFF200]/10 shadow-[0_0_15px_rgba(255,242,0,0.1)]" : "border-white/5 bg-white/5 hover:border-white/20"
                                         )}
                                     >
-                                        <CreditCardIcon className={cn("w-5 h-5", paymentMethod === 'CREDIT_CARD' ? "text-[#FFF200]" : "text-white/20")} />
-                                        <span className="text-[8px] font-black uppercase tracking-tighter text-white">Cartão</span>
+                                        <CreditCardIcon className={cn("w-4 h-4 transition-transform duration-300 group-hover/paybtn:scale-110", paymentMethod === 'CREDIT_CARD' ? "text-[#FFF200]" : "text-white/20")} />
+                                        <span className="text-[9px] font-black uppercase text-white leading-none tracking-tighter">Cartão de Crédito</span>
                                     </button>
                                 </div>
 
-                                <div className="flex-1 min-h-[350px] flex flex-col justify-center">
+
+
+                                <div ref={paymentFormRef} className="flex-1 flex flex-col justify-start pt-4 scroll-mt-32">
                                     {paymentData?.pix ? (
                                         /* --- QR CODE DISPLAY (Shared for any Pix method) --- */
                                         <div className="flex flex-col items-center p-6 bg-white/5 rounded-2xl border border-white/10 text-center animate-in fade-in zoom-in duration-500">
@@ -782,9 +816,14 @@ const Checkout = () => {
 
                                             {/* BILLING INFO (Shared for Card and Pix Automatic) */}
                                             <div className="space-y-3 p-4 bg-white/[0.02] rounded-2xl border border-white/5 shadow-inner">
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                                                    <span className="text-[9px] text-white/40 uppercase font-black tracking-widest">Dados de Cobrança</span>
+                                                <div className="flex flex-col gap-1 mb-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                                                        <span className="text-[9px] text-white/40 uppercase font-black tracking-widest">Dados de Cobrança</span>
+                                                    </div>
+                                                    <p className="text-[10px] text-white/40 leading-tight">
+                                                        Necessário para emissão da nota fiscal e registro seguro do seu {paymentMethod === 'PIX_AUTOMATIC' ? 'Pix' : 'pagamento'}.
+                                                    </p>
                                                 </div>
                                                 <Input
                                                     placeholder="CPF ou CNPJ (obrigatório)"
@@ -880,12 +919,10 @@ const Checkout = () => {
                         )}
                     </div>
                 </div>
-
-                {/* Footer (Mobile only visible part if needed, handled by main layout container) */}
-            </div>
+            </motion.div>
 
             <p className="absolute bottom-4 text-[10px] text-white/10 font-bold tracking-[0.3em] uppercase">Direct AI • {APP_VERSION}</p>
-        </div >
+        </div>
     );
 };
 
