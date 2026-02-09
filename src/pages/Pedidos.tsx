@@ -84,7 +84,7 @@ const iconsMap: Record<string, any> = {
   Palette
 };
 
-const generateOrderSummary = (pedido: Pedido, template?: string) => {
+const generateOrderSummary = (pedido: Pedido, template?: string, pixKey?: string | null) => {
   const formatDate = (dateString: string) => {
     try {
       return format(new Date(dateString), "dd/MM - HH:mm", { locale: ptBR });
@@ -172,6 +172,7 @@ const generateOrderSummary = (pedido: Pedido, template?: string) => {
       .replace(/{{itens}}/g, itemsList || "Nenhum item")
       .replace(/{{servicos}}/g, servicosStr)
       .replace(/{{entrega_info}}/g, entregaStr)
+      .replace(/{{pix}}/g, pixKey || "")
       .replace(/{{status}}/g, statusStr);
 
     return finalMessage;
@@ -469,7 +470,7 @@ const PedidosPage: React.FC = () => {
   // --- Funções de Compartilhamento ---
   const handleCopySummary = (pedido: Pedido) => {
     const template = companyProfile?.gabi_templates?.['order_summary'];
-    const summary = generateOrderSummary(pedido, template);
+    const summary = generateOrderSummary(pedido, template, companyProfile?.company_pix_key);
     navigator.clipboard.writeText(summary).then(() => {
       showSuccess("Resumo copiado para a área de transferência!");
     }).catch(() => {
@@ -479,7 +480,7 @@ const PedidosPage: React.FC = () => {
 
   const handleShareWhatsApp = (pedido: Pedido) => {
     const template = companyProfile?.gabi_templates?.['order_summary'];
-    const summary = generateOrderSummary(pedido, template);
+    const summary = generateOrderSummary(pedido, template, companyProfile?.company_pix_key);
 
     // Tentar usar o telefone do cliente, se disponível
     let phone = pedido.clientes?.telefone || '';
@@ -499,7 +500,7 @@ const PedidosPage: React.FC = () => {
     }
   };
 
-  const handleConfirmWhatsAppSend = async (data: { phone?: string; attachPdf?: boolean; includeText?: boolean } = {}) => {
+  const handleConfirmWhatsAppSend = async (data: { phone?: string; attachPdf?: boolean; includeText?: boolean; includePix?: boolean } = {}) => {
     if (!whatsAppDialog.pedido || whatsAppDialog.loading) return;
 
     setWhatsAppDialog(prev => ({ ...prev, loading: true }));
@@ -566,7 +567,9 @@ const PedidosPage: React.FC = () => {
           body: {
             action: 'send-text',
             phone: formattedPhone,
-            message: whatsAppDialog.summary
+            message: data.includePix && companyProfile?.company_pix_key
+              ? `${whatsAppDialog.summary}\n\n💰 *DADOS PARA PAGAMENTO*\nChave Pix: ${companyProfile.company_pix_key}`
+              : whatsAppDialog.summary
           },
         });
 
@@ -595,7 +598,9 @@ const PedidosPage: React.FC = () => {
             body: {
               action: 'send-text',
               phone: formattedPhone,
-              message: whatsAppDialog.summary + '\n\n📎 (PDF disponível para download no sistema)'
+              message: (data.includePix && companyProfile?.company_pix_key
+                ? `${whatsAppDialog.summary}\n\n💰 *DADOS PARA PAGAMENTO*\nChave Pix: ${companyProfile.company_pix_key}`
+                : whatsAppDialog.summary) + '\n\n📎 (PDF disponível para download no sistema)'
             },
           });
 
@@ -1888,6 +1893,7 @@ const PedidosPage: React.FC = () => {
         phone={whatsAppDialog.pedido?.clientes?.telefone || ''}
         messagePreview={whatsAppDialog.summary}
         isLoading={whatsAppDialog.loading}
+        pixKey={companyProfile?.company_pix_key}
         onConfirm={handleConfirmWhatsAppSend}
       />
     </div>

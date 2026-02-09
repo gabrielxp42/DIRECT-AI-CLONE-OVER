@@ -15,13 +15,18 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { FileText, MessageSquare, Phone, Send } from "lucide-react";
 
+const PixIcon = ({ className }: { className?: string }) => (
+    <i className={cn("fa-brands fa-pix", className)}></i>
+);
+
 interface WhatsAppActionDialogProps {
     isOpen: boolean;
     onOpenChange: (open: boolean) => void;
     customerName: string;
     phone: string;
     messagePreview: string;
-    onConfirm: (data: { phone: string; attachPdf: boolean; includeText: boolean }) => void;
+    pixKey?: string | null;
+    onConfirm: (data: { phone: string; attachPdf: boolean; includeText: boolean; includePix: boolean }) => void;
     isLoading?: boolean;
 }
 
@@ -31,6 +36,7 @@ export const WhatsAppActionDialog = ({
     customerName,
     phone,
     messagePreview,
+    pixKey,
     onConfirm,
     isLoading = false
 }: WhatsAppActionDialogProps) => {
@@ -38,6 +44,7 @@ export const WhatsAppActionDialog = ({
     const [editablePhone, setEditablePhone] = useState(phone);
     const [attachPdf, setAttachPdf] = useState(true);
     const [includeText, setIncludeText] = useState(true);
+    const [includePix, setIncludePix] = useState(false);
 
     // Atualiza o telefone local quando a prop muda
     useEffect(() => {
@@ -48,7 +55,8 @@ export const WhatsAppActionDialog = ({
         onConfirm({
             phone: editablePhone,
             attachPdf,
-            includeText
+            includeText,
+            includePix
         });
     };
 
@@ -124,6 +132,26 @@ export const WhatsAppActionDialog = ({
                                 className="data-[state=checked]:bg-blue-500"
                             />
                         </div>
+
+                        {/* Toggle Pix */}
+                        {pixKey && (
+                            <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border border-border">
+                                <div className="space-y-1">
+                                    <div className="flex items-center gap-2 text-sm font-medium text-[#32BCAD]">
+                                        <PixIcon className="h-4 w-4" />
+                                        Incluir Chave Pix?
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">
+                                        Envia sua chave cadastrada: <span className="font-mono text-[10px] opacity-70">{pixKey}</span>
+                                    </p>
+                                </div>
+                                <Switch
+                                    checked={includePix}
+                                    onCheckedChange={setIncludePix}
+                                    className="data-[state=checked]:bg-[#32BCAD]"
+                                />
+                            </div>
+                        )}
                     </div>
 
                     {/* Preview da Mensagem */}
@@ -134,6 +162,7 @@ export const WhatsAppActionDialog = ({
                             </Label>
                             <div className="text-xs text-muted-foreground bg-muted/30 p-4 rounded-xl border border-border max-h-[120px] overflow-y-auto whitespace-pre-wrap font-mono">
                                 {messagePreview}
+                                {includePix && pixKey && `\n\n💰 *DADOS PARA PAGAMENTO*\nChave Pix: ${pixKey}`}
                             </div>
                         </div>
                     )}

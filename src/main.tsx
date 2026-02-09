@@ -1,6 +1,7 @@
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./globals.css";
+import "@fortawesome/fontawesome-free/css/all.min.css";
 
 // CRÍTICO: Forçar a remoção de quaisquer Service Workers ativos em desenvolvimento
 // para evitar que cache antigo interfira com as credenciais novas.

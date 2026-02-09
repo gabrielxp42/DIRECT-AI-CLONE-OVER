@@ -10,7 +10,7 @@ import {
     Loader2, Mail, Lock, ArrowRight, CheckCircle2, AlertCircle,
     User, CreditCard as CreditCardIcon, Sparkles, Shield, Zap, Check,
     Crown, TrendingUp, Printer, Users, Target, Bot, Clock, Copy,
-    Ruler, DollarSign
+    Ruler, DollarSign, LogIn
 } from 'lucide-react';
 
 const WhatsAppLogo = ({ className }: { className?: string }) => (
@@ -86,7 +86,7 @@ const benefits = [
 
 const Checkout = () => {
     const navigate = useNavigate();
-    const { session, supabase } = useSession();
+    const { session, supabase, profile } = useSession();
     const paymentFormRef = React.useRef<HTMLDivElement>(null);
 
     // Step: 1 = Registro/Login, 2 = Pagamento, 3 = Sucesso
@@ -164,10 +164,15 @@ const Checkout = () => {
 
     // Detect if user is already logged in
     useEffect(() => {
-        if (session?.user) {
-            setStep(2);
+        if (session?.user && profile) {
+            if (profile.subscription_status === 'active') {
+                navigate('/');
+                toast.success("Bem-vindo de volta! Sua assinatura está ativa. 🚀");
+            } else if (step === 1) {
+                setStep(2);
+            }
         }
-    }, [session]);
+    }, [session, profile, navigate, step]);
 
     const handleRegister = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -182,13 +187,14 @@ const Checkout = () => {
 
             // Auto-login fallback logic
             if (data.session) {
-                setStep(2); return;
+                return; // useEffect will handle redirection
             }
             const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
             if (signInError) {
                 setError('Conta criada! Verifique seu email e faça login.'); return;
             }
-            setStep(2);
+            // No immediate step set - wait for profile/session to sync in useEffect
+            // setStep(2);
         } catch (err: any) {
             let msg = err.message;
             if (msg.includes('already registered')) msg = 'E-mail já cadastrado. Faça login.';
@@ -206,7 +212,7 @@ const Checkout = () => {
         try {
             const { error } = await supabase.auth.signInWithPassword({ email, password });
             if (error) throw error;
-            setStep(2);
+            // setStep(2); // Redirect is now handled by useEffect after profile check
         } catch (err: any) {
             setError('E-mail ou senha incorretos.');
         } finally {
@@ -519,6 +525,27 @@ const Checkout = () => {
 
                 {/* RIGHT COLUMN: Action & Forms */}
                 <div className="flex-1 bg-black/20 p-6 md:p-10 flex flex-col justify-center relative">
+                    {/* Botão Superior Discreto: Login/Trocar Conta */}
+                    <div className="absolute top-6 right-8 z-50">
+                        <button
+                            onClick={async () => {
+                                if (session) {
+                                    await supabase.auth.signOut();
+                                    toast.info("Aguardando novo login...");
+                                }
+                                setIsLoginMode(true);
+                                setStep(1);
+                                setEmail('');
+                                setPassword('');
+                            }}
+                            className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-600 hover:text-[#FFF200] transition-all hover:scale-105 flex items-center gap-2 group/login"
+                        >
+                            <div className="w-5 h-5 rounded-full bg-white/5 flex items-center justify-center group-hover/login:bg-[#FFF200]/10 transition-colors">
+                                <LogIn className="w-2.5 h-2.5" />
+                            </div>
+                            {session ? 'Trocar Conta' : 'Fazer Login'}
+                        </button>
+                    </div>
 
                     {/* Stepper (Compact) */}
                     <div className="absolute top-6 left-0 w-full flex justify-center gap-2 pointer-events-none opacity-50">
