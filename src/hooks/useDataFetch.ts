@@ -55,7 +55,6 @@ export const useClientes = () => {
       return fetchClientes(accessToken, userId, organizationId);
     },
     enabled: isEnabled,
-    enabled: isEnabled,
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 };
@@ -82,7 +81,6 @@ export const useProdutos = () => {
       if (!accessToken || !userId) throw new Error("Authentication missing.");
       return fetchProdutos(accessToken, userId, organizationId);
     },
-    enabled: isEnabled,
     enabled: isEnabled,
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
@@ -205,7 +203,6 @@ export const usePaginatedPedidos = (
       return await fetchPedidos(supabase, userId, page, limit, filterStatus, filterDateRange, filterClientId, searchTerm, organizationId, accessToken);
     },
     enabled: !sessionLoading && !!userId && !!supabase,
-    enabled: !sessionLoading && !!userId && !!supabase,
     staleTime: 1000 * 60 * 1, // 1 minute (orders update frequently)
   });
 };
@@ -239,7 +236,6 @@ export const usePedidos = () => {
   return useQuery<Pedido[]>({
     queryKey: ["all-pedidos-unpaginated", organizationId || userId],
     queryFn: () => fetchAllPedidos(userId!),
-    enabled: !sessionLoading && !!userId && !!supabase,
     enabled: !sessionLoading && !!userId && !!supabase,
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
