@@ -104,7 +104,7 @@ const MagicMessageRotator = () => {
                 const { error } = await supabase
                     .from('profiles')
                     .update({
-                        subscription_tier: 'expert',
+                        subscription_tier: 'pro_max',
                         is_whatsapp_plus_gifted: true,
                         is_whatsapp_plus_active: true
                     })
@@ -181,7 +181,7 @@ export default function Settings() {
                 const { error } = await supabase
                     .from('profiles')
                     .update({
-                        subscription_tier: 'expert',
+                        subscription_tier: 'pro_max',
                         is_whatsapp_plus_gifted: true,
                         is_whatsapp_plus_active: true
                     })

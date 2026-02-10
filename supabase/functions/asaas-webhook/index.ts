@@ -43,14 +43,20 @@ serve(async (req) => {
             if (externalReference) {
                 const updatePayload: any = {
                     subscription_status: 'active',
-                    subscription_tier: 'pro',
                     asaas_customer_id: customerId,
                     updated_at: new Date().toISOString(),
                 };
 
-                // Detecção de Bundle/Boost pelo campo description
+                // Detecção de Bundle/Tier pelo campo description
                 const desc = (asaasObject?.description || payment?.description || payload.subscription?.description || "").toUpperCase();
-                const isBundle = desc.includes("BOOST") || desc.includes("BUNDLE") || desc.includes("ELITE");
+                const isProMax = desc.includes("PRO MAX") || desc.includes("BOOST") || desc.includes("BUNDLE");
+                const isElite = desc.includes("ELITE");
+
+                if (isProMax || isElite) {
+                    updatePayload.subscription_tier = 'pro_max';
+                } else {
+                    updatePayload.subscription_tier = 'pro';
+                }
 
                 // SEGURO WHATSAPP PLUS: Busca o perfil atual para ver se já é parceiro
                 const { data: currentProfile } = await supabaseAdmin
@@ -59,9 +65,9 @@ serve(async (req) => {
                     .eq('id', externalReference)
                     .single();
 
-                if (isBundle || currentProfile?.is_whatsapp_plus_gifted || currentProfile?.is_whatsapp_plus_active) {
+                if (isProMax || isElite || currentProfile?.is_whatsapp_plus_gifted || currentProfile?.is_whatsapp_plus_active) {
                     updatePayload.is_whatsapp_plus_active = true;
-                    console.log(`WhatsApp Plus mantido/ativado para ${externalReference}. Bundle=${isBundle}, Partner=${!!currentProfile?.is_whatsapp_plus_gifted}`);
+                    console.log(`WhatsApp Plus mantido/ativado para ${externalReference}. ProMax=${isProMax}, Partner=${!!currentProfile?.is_whatsapp_plus_gifted}`);
                 }
 
                 if (isAuthEvent) {
@@ -69,7 +75,7 @@ serve(async (req) => {
                     if (asaasObject.nextDueDate) {
                         updatePayload.next_billing_date = new Date(asaasObject.nextDueDate).toISOString();
                     }
-                } else if (payment.subscription) {
+                } else if (payment?.subscription) {
                     updatePayload.asaas_subscription_id = payment.subscription;
                     if (payment.dueDate) {
                         const nextDate = new Date(payment.dueDate);

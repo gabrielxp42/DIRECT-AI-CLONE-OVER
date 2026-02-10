@@ -10,10 +10,10 @@ export const SubscriptionAlert = () => {
     const navigate = useNavigate();
 
     const alertStatus = useMemo(() => {
-        if (!profile?.next_due_date || profile.subscription_status !== 'active') return null;
+        if (!profile?.next_billing_date || profile.subscription_status !== 'active') return null;
 
         const today = new Date();
-        const dueDate = new Date(profile.next_due_date);
+        const dueDate = new Date(profile.next_billing_date);
         const diffTime = dueDate.getTime() - today.getTime();
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
@@ -58,7 +58,7 @@ export const SubscriptionAlert = () => {
                         size="sm"
                         variant="ghost"
                         className={`hover:bg-black/10 h-7 text-xs px-3 ${alertStatus.textColor === 'text-white' ? 'text-white' : 'text-black'}`}
-                        onClick={() => navigate('/settings')} // Indo para settings ou modal
+                        onClick={() => navigate('/profile')} // Link correto para o perfil
                     >
                         <span>Renovar Agora</span>
                         <ArrowRight className="w-3 h-3 ml-1" />

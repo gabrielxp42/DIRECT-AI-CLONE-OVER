@@ -180,11 +180,15 @@ export default function Profile() {
                                                 <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Status da Assinatura</span>
                                             </div>
                                             <h3 className="text-4xl md:text-7xl font-black italic uppercase tracking-tighter text-white">
-                                                {subscription.isActive ? "Direct AI PRO" : "Plano Gratuito"}
+                                                {subscription.isActive
+                                                    ? (profile?.subscription_tier === 'pro_max' ? "Elite PRO MAX" : "Elite PRO")
+                                                    : "Plano Gratuito"}
                                             </h3>
                                             <p className="text-white/40 text-sm md:text-lg font-bold italic leading-tight">
                                                 {subscription.isActive
-                                                    ? "Seu potencial está liberto. Criatividade em nível máximo."
+                                                    ? (profile?.subscription_tier === 'pro_max'
+                                                        ? "Acesso Total. Gabriel e WhatsApp Plus liberados."
+                                                        : "Acesso Profissional. Potência e precisão garantidas.")
                                                     : "Evolua agora e domine o poder total da nossa inteligência."}
                                             </p>
                                         </div>
@@ -193,7 +197,7 @@ export default function Profile() {
                                             <div className={`h-24 w-24 md:h-32 md:w-32 rounded-[2rem] border-2 flex items-center justify-center transition-all ${subscription.isActive ? 'border-primary bg-primary/10 shadow-[0_0_30px_rgba(255,242,0,0.2)] text-primary' : 'border-white/10 bg-white/5 text-white/10'}`}>
                                                 <Zap className={`w-12 h-12 md:w-16 md:h-16 ${subscription.isActive ? 'fill-primary' : ''}`} />
                                             </div>
-                                            {subscription.isWhatsAppPlusActive && (
+                                            {(subscription.isWhatsAppPlusActive || profile?.subscription_tier === 'pro_max') && (
                                                 <Badge className="bg-emerald-500 text-white border-0 font-black italic uppercase tracking-tighter py-1 px-3 rounded-full shadow-[0_0_15px_rgba(16,185,129,0.3)]">
                                                     WhatsApp Plus Ativo
                                                 </Badge>
@@ -207,7 +211,7 @@ export default function Profile() {
                                             <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30 block mb-3">Expiração do Ciclo</span>
                                             <p className="text-xl md:text-2xl font-black tracking-tight text-white italic uppercase">
                                                 {subscription.isActive
-                                                    ? "ACESSO ILIMITADO"
+                                                    ? (profile?.next_billing_date ? formatDate(profile.next_billing_date) : "RENOVAÇÃO AUTOMÁTICA")
                                                     : formatDate(subscription.trialEndsAt?.toISOString() || "")}
                                             </p>
                                         </div>
@@ -262,16 +266,16 @@ export default function Profile() {
                                             </Button>
                                         )}
 
-                                        {!subscription.isWhatsAppPlusActive && (
+                                        {subscription.isActive && profile?.subscription_tier === 'pro' && (
                                             <Button
                                                 onClick={() => navigate('/checkout')}
                                                 variant="outline"
-                                                className="w-full h-18 border-emerald-500/50 hover:bg-emerald-500/10 text-emerald-400 font-bold uppercase tracking-wider text-sm rounded-[2rem] gap-3 group relative overflow-hidden"
+                                                className="w-full h-18 border-[#FFF200]/50 hover:bg-[#FFF200]/10 text-[#FFF200] font-bold uppercase tracking-wider text-sm rounded-[2rem] gap-3 group relative overflow-hidden"
                                             >
-                                                <div className="absolute inset-0 bg-emerald-500/5 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
+                                                <div className="absolute inset-0 bg-[#FFF200]/5 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
                                                 <div className="relative z-10 flex items-center gap-3">
-                                                    <MessageSquare className="w-5 h-5" />
-                                                    Ativar WhatsApp Plus Boost (R$ 35)
+                                                    <Sparkles className="w-5 h-5 text-primary" />
+                                                    Fazer Upgrade para ELITE PRO MAX
                                                 </div>
                                             </Button>
                                         )}

@@ -113,7 +113,7 @@ const Checkout = () => {
         cvv: ''
     });
     const [clientInfo, setClientInfo] = useState({ cpfCnpj: '', postalCode: '', addressNumber: '', phone: '' });
-    const [productType, setProductType] = useState<'PRO' | 'BOOST_BUNDLE'>('PRO');
+    const [productType, setProductType] = useState<'PRO' | 'PRO_MAX'>('PRO');
     const [partnerCode, setPartnerCode] = useState('');
     const [isApplyingCode, setIsApplyingCode] = useState(false);
     const [isBoostUnlocked, setIsBoostUnlocked] = useState(false);
@@ -160,6 +160,21 @@ const Checkout = () => {
         };
     }, [paymentMethod, paymentData, isSuccess, session]);
 
+    // Detect URL parameter for partner code (Affiliate links)
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const code = params.get('code');
+        if (code) {
+            // Visualize discount immediately (will be verified on step 2)
+            setIsBoostUnlocked(true);
+            setPartnerCode(code.toUpperCase());
+            // Small delay to ensure toast is visible after page load
+            setTimeout(() => {
+                toast.success("Cupom de Afiliado Detectado! 🚀");
+            }, 1000);
+        }
+    }, []);
+
     // --- AUTH LOGIC ---
 
     // Detect if user is already logged in
@@ -170,9 +185,19 @@ const Checkout = () => {
                 toast.success("Bem-vindo de volta! Sua assinatura está ativa. 🚀");
             } else if (step === 1) {
                 setStep(2);
+                // If we have a partner code from URL, auto-apply it once logged in
+                if (partnerCode && !profile.partner_code) {
+                    handleApplyPartnerCode();
+                }
+            }
+
+            // AUTO-APPLY Partner Code from Profile (Visual feedback)
+            if (profile.partner_code) {
+                setIsBoostUnlocked(true);
+                if (!partnerCode) setPartnerCode(profile.partner_code);
             }
         }
-    }, [session, profile, navigate, step]);
+    }, [session, profile, navigate, step, partnerCode]);
 
     const handleRegister = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -414,8 +439,7 @@ const Checkout = () => {
             }
 
             setIsBoostUnlocked(true);
-            toast.success("Código de Parceiro Aplicado! WhatsApp Plus Desbloqueado ⚡");
-            if (productType === 'BOOST_BUNDLE') setProductType('PRO'); // Volta para o pro se estava no boost
+            toast.success("Cupom Aplicado! 15% de Desconto Ativado 🚀");
         } catch (err: any) {
             toast.error("Erro ao aplicar código: " + err.message);
         } finally {
@@ -464,7 +488,7 @@ const Checkout = () => {
                             <div className="relative group/price">
                                 <div className="absolute -inset-2 bg-[#FFF200]/20 blur-xl rounded-full opacity-0 group-hover/price:opacity-100 transition-opacity" />
                                 <span className="text-4xl font-black text-white italic tracking-tighter relative z-10">
-                                    R$ {productType === 'BOOST_BUNDLE' ? '132' : '97'}
+                                    R$ {productType === 'PRO_MAX' ? '137' : '97'}
                                 </span>
                             </div>
                         </div>
@@ -496,7 +520,7 @@ const Checkout = () => {
 
                         {/* WHATSAPP PACK PREVIEW (Left Column Persuasion) */}
                         <AnimatePresence>
-                            {(productType === 'BOOST_BUNDLE' || isBoostUnlocked) && (
+                            {(productType === 'PRO_MAX' || isBoostUnlocked) && (
                                 <motion.div
                                     initial={{ opacity: 0, height: 0 }}
                                     animate={{ opacity: 1, height: 'auto' }}
@@ -506,7 +530,7 @@ const Checkout = () => {
                                     <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 space-y-2">
                                         <div className="flex items-center gap-2 mb-1">
                                             <WhatsAppLogo className="w-3.5 h-3.5 text-emerald-400" />
-                                            <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">WhatsApp Plus Ativado</span>
+                                            <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">WhatsApp Plus Incluso</span>
                                         </div>
                                         <div className="flex items-start gap-2">
                                             <Bot className="w-3 h-3 text-white/40 mt-0.5" />
@@ -591,53 +615,69 @@ const Checkout = () => {
 
                                 {/* Seleção de Produtos - Premium Side-by-Side */}
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-                                    {/* PLANO PRINCIPAL */}
-                                    <div className="p-4 rounded-2xl border border-[#FFF200] bg-[#FFF200]/10 flex flex-col justify-between group/plan shadow-[0_0_20px_rgba(255,242,0,0.1)]">
-                                        <div>
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <Crown className="w-4 h-4 text-[#FFF200]" />
-                                                <p className="text-[11px] font-black text-white uppercase tracking-wider">Assinatura Elite PRO</p>
+                                    {/* PLANO DIREC DTF PRO */}
+                                    <div
+                                        onClick={() => setProductType('PRO')}
+                                        className={cn(
+                                            "p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between group/plan",
+                                            productType === 'PRO' ? "border-[#FFF200] bg-[#FFF200]/10 shadow-[0_0_20px_rgba(255,242,0,0.1)]" : "border-white/10 bg-white/5 hover:border-white/20"
+                                        )}
+                                    >
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <Crown className={cn("w-4 h-4", productType === 'PRO' ? "text-[#FFF200]" : "text-white/20")} />
+                                                    <p className="text-[11px] font-black text-white uppercase tracking-wider">DIREC DTF PRO</p>
+                                                </div>
+                                                <p className="text-[9px] text-white/40 uppercase font-black tracking-tight mb-2">Sistema Gestor</p>
                                             </div>
-                                            <p className="text-[9px] text-white/40 uppercase font-black tracking-tight mb-2">Sistema Completo</p>
+                                            <div className={cn(
+                                                "w-4 h-4 rounded-full border flex items-center justify-center transition-all",
+                                                productType === 'PRO' ? "bg-[#FFF200] border-[#FFF200]" : "border-white/20"
+                                            )}>
+                                                {productType === 'PRO' && <Check className="w-2.5 h-2.5 text-black" strokeWidth={5} />}
+                                            </div>
                                         </div>
                                         <div className="flex items-baseline gap-1">
                                             <span className="text-xl font-black text-white italic">R$ 97</span>
-                                            <span className="text-[9px] text-[#FFF200] font-black uppercase tracking-tighter">/ Mensal</span>
+                                            <span className="text-[9px] text-[#FFF200] font-black uppercase tracking-tighter">/ Mês</span>
                                         </div>
                                     </div>
 
-                                    {/* DIRECT WHATSAPP PLUS (VENDEDOR CABULOSO) */}
+                                    {/* PLANO DIRECET DTF PRO MAX */}
                                     <div
-                                        onClick={() => !isBoostUnlocked && setProductType(productType === 'PRO' ? 'BOOST_BUNDLE' : 'PRO')}
+                                        onClick={() => setProductType('PRO_MAX')}
                                         className={cn(
                                             "relative overflow-hidden p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between group/wa",
-                                            (productType === 'BOOST_BUNDLE' || isBoostUnlocked)
+                                            (productType === 'PRO_MAX')
                                                 ? "border-emerald-500 bg-emerald-500/10 shadow-[0_0_20px_rgba(16,185,129,0.2)]"
                                                 : "border-white/10 bg-white/5 hover:border-white/20"
                                         )}
                                     >
-                                        <div className="absolute top-0 right-0 bg-emerald-500 text-black text-[7px] font-black px-2 py-0.5 rounded-bl-lg uppercase tracking-widest animate-pulse">
-                                            Pague uma vez
+                                        <div className="absolute top-0 right-0 bg-emerald-500 text-black text-[7px] font-black px-2 py-0.5 rounded-bl-lg uppercase tracking-widest">
+                                            Completo
                                         </div>
 
-                                        <div>
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <WhatsAppLogo className={cn("w-4 h-4", (productType === 'BOOST_BUNDLE' || isBoostUnlocked) ? "text-emerald-500" : "text-white/20")} />
-                                                <p className="text-[11px] font-black text-white uppercase tracking-wider">Direct WhatsApp Plus</p>
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <WhatsAppLogo className={cn("w-4 h-4", (productType === 'PRO_MAX') ? "text-emerald-500" : "text-white/20")} />
+                                                    <p className="text-[11px] font-black text-white uppercase tracking-wider">PRO MAX</p>
+                                                </div>
+                                                <p className="text-[9px] text-emerald-400/60 uppercase font-black tracking-tight mb-2">WhatsApp + Gabi IA</p>
                                             </div>
-                                            <p className="text-[9px] text-emerald-400/60 uppercase font-black tracking-tight mb-2">Vendedor Automático + Gabi IA</p>
+                                            <div className={cn(
+                                                "w-4 h-4 rounded-full border flex items-center justify-center transition-all",
+                                                (productType === 'PRO_MAX' || isBoostUnlocked) ? "bg-emerald-500 border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]" : "border-white/20"
+                                            )}>
+                                                {(productType === 'PRO_MAX' || isBoostUnlocked) && <Check className="w-2.5 h-2.5 text-black" strokeWidth={5} />}
+                                            </div>
                                         </div>
 
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-baseline gap-1">
-                                                <span className={cn("text-xl font-black italic", (productType === 'BOOST_BUNDLE' || isBoostUnlocked) ? "text-emerald-400" : "text-white/20")}>+ R$ 35</span>
-                                                <span className="text-[9px] text-emerald-500 font-black uppercase tracking-tighter bg-emerald-500/10 px-1.5 py-0.5 rounded">Taxa Única</span>
-                                            </div>
-                                            <div className={cn(
-                                                "w-5 h-5 rounded-full border flex items-center justify-center transition-all",
-                                                (productType === 'BOOST_BUNDLE' || isBoostUnlocked) ? "bg-emerald-500 border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]" : "border-white/20"
-                                            )}>
-                                                {(productType === 'BOOST_BUNDLE' || isBoostUnlocked) && <Check className="w-3 h-3 text-black" strokeWidth={5} />}
+                                                <span className={cn("text-xl font-black italic", (productType === 'PRO_MAX') ? "text-emerald-400" : "text-white/20")}>R$ 137</span>
+                                                <span className="text-[9px] text-emerald-500 font-black uppercase tracking-tighter bg-emerald-500/10 px-1.5 py-0.5 rounded">/ Mês</span>
                                             </div>
                                         </div>
                                     </div>
@@ -666,7 +706,7 @@ const Checkout = () => {
 
                                 {/* Benefícios Detalhados e Persuasivos (Restaurados no Estilo Premium) */}
                                 <AnimatePresence>
-                                    {(productType === 'BOOST_BUNDLE' || isBoostUnlocked) && (
+                                    {(productType === 'PRO_MAX' || isBoostUnlocked) && (
                                         <motion.div
                                             initial={{ opacity: 0, y: -10 }}
                                             animate={{ opacity: 1, y: 0 }}
@@ -749,7 +789,7 @@ const Checkout = () => {
                                             </div>
                                             <div className="space-y-1 mb-6">
                                                 <p className="text-xs text-white/40 uppercase font-black">Total a pagar</p>
-                                                <p className="text-3xl font-black italic text-[#FFF200] tracking-tighter">R$ {productType === 'BOOST_BUNDLE' ? '132,00' : '97,00'}</p>
+                                                <p className="text-3xl font-black italic text-[#FFF200] tracking-tighter">R$ {productType === 'PRO_MAX' ? '137,00' : '97,00'}</p>
                                                 <div className="h-4" />
                                                 <p className="text-xs text-[#FFF200] font-bold uppercase animate-pulse">Aguardando Pagamento...</p>
                                                 <p className="text-[10px] text-white/40">O sistema libera seu acesso automaticamente.</p>
@@ -900,7 +940,10 @@ const Checkout = () => {
                                                 {isProcessingPayment ? <Loader2 className="animate-spin w-5 h-5 mx-auto" /> : (
                                                     <span className="flex items-center justify-center gap-2">
                                                         <Sparkles className="w-4 h-4 fill-current" />
-                                                        {`Pagar R$ ${productType === 'BOOST_BUNDLE' ? '132,00' : '97,00'}`}
+                                                        {`Pagar R$ ${isBoostUnlocked
+                                                            ? (productType === 'PRO_MAX' ? '116,45' : '82,45')
+                                                            : (productType === 'PRO_MAX' ? '137,00' : '97,00')
+                                                            }`}
                                                     </span>
                                                 )}
                                             </Button>
@@ -910,7 +953,11 @@ const Checkout = () => {
                                                     <AlertCircle className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
                                                     <div className="flex flex-col gap-1">
                                                         <p className="text-[10px] text-white/60 leading-tight">
-                                                            Ao confirmar, você autoriza o <span className="text-white font-bold">Pix Automático</span>: pagamento imediato de R$ {productType === 'BOOST_BUNDLE' ? '132,00' : '97,00'} e recorrência mensal de R$ 97,00.
+                                                            Ao confirmar, você autoriza o <span className="text-white font-bold">Pix Automático</span>: pagamento imediato de R$ {
+                                                                isBoostUnlocked
+                                                                    ? (productType === 'PRO_MAX' ? '116,45' : '82,45')
+                                                                    : (productType === 'PRO_MAX' ? '137,00' : '97,00')
+                                                            } e recorrência mensal conforme o plano escolhido.
                                                         </p>
                                                         <p className="text-[9px] text-white/30 italic">Pode ser cancelado a qualquer momento no app do seu banco.</p>
                                                     </div>

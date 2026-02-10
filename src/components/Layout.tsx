@@ -20,8 +20,10 @@ import { SidebarShortcuts } from './SidebarShortcuts';
 import { useRealtimeSync } from '@/hooks/useRealtimeSync';
 import { SubscriptionAlert } from './SubscriptionAlert';
 import { useCompanyProfile } from '@/hooks/useCompanyProfile';
+import { useAuth } from '@/hooks/useAuth';
+import { TrendingUp } from 'lucide-react';
 
-const navItems = [
+const staticNavItems = [
   { href: '/', icon: Home, label: 'Dashboard' },
   { href: '/pedidos', icon: ShoppingCart, label: 'Pedidos' },
   { href: '/clientes', icon: Users, label: 'Clientes' },
@@ -42,6 +44,17 @@ const Layout = () => {
   useRealtimeSync();
 
   // Verificar se há insumos em estoque baixo (uso de <= para precisão)
+  const { companyProfile } = useCompanyProfile();
+  const { profile } = useAuth();
+
+  const navItems = React.useMemo(() => {
+    const items = [...staticNavItems];
+    if (profile?.is_affiliate) {
+      items.push({ href: '/affiliate', icon: TrendingUp, label: 'Afiliados' });
+    }
+    return items;
+  }, [profile]);
+
   const hasLowStock = React.useMemo(() => {
     return insumos?.some(i => (i.quantidade_atual || 0) <= (i.quantidade_minima || 0));
   }, [insumos]);
@@ -51,8 +64,6 @@ const Layout = () => {
 
   // Desativa o zoom para todas as páginas dentro do Layout por padrão
   useViewportZoom(false);
-
-  const { companyProfile } = useCompanyProfile();
 
   const sidebarWidth = isExpanded ? 'w-[280px]' : 'w-[64px]';
   const gridTemplate = isExpanded ? 'md:grid-cols-[280px_1fr]' : 'md:grid-cols-[64px_1fr]';

@@ -41,6 +41,11 @@ type Profile = {
   company_business_hours?: string | null;
   next_billing_date?: string | null;
   partner_code?: string | null;
+  is_affiliate?: boolean;
+  affiliate_code?: string | null;
+  commission_rate?: number | null;
+  affiliate_pix_key?: string | null;
+  affiliate_pix_key_type?: string | null;
 };
 
 

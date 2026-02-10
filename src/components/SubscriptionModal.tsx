@@ -92,10 +92,14 @@ export const SubscriptionModal = ({ open, onOpenChange }: SubscriptionModalProps
                     </div>
 
                     <div className="mt-8">
-                        <div className="flex items-baseline gap-3 mb-4">
-                            <span className="text-white/20 text-xl line-through font-bold">R$ 147</span>
-                            <span className="text-5xl font-black text-white italic tracking-tighter">R$ 97</span>
-                            <span className="text-white/40 font-bold text-sm">/mês</span>
+                        <div className="flex flex-col gap-1 mb-6">
+                            <span className="text-[10px] font-black text-[#FFF200] uppercase tracking-widest opacity-60">Planos a partir de</span>
+                            <div className="flex items-baseline gap-3">
+                                <span className="text-white/20 text-xl line-through font-bold">R$ 147</span>
+                                <span className="text-3xl md:text-5xl font-black text-white italic tracking-tighter">R$ 97</span>
+                                <span className="text-white/40 font-bold text-sm">/mês*</span>
+                            </div>
+                            <p className="text-[9px] text-white/40 font-medium">*Opção PRO MAX por R$ 137/mês.</p>
                         </div>
                         <Button
                             className="w-full h-14 text-base font-black bg-[#FFF200] text-black hover:bg-[#ffe600] rounded-xl uppercase gap-2 shadow-[0_20px_40px_-10px_rgba(255,242,0,0.3)]"

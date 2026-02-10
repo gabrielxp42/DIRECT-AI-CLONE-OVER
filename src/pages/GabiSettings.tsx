@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import {
     Bot, Sparkles, Save, Info, Smartphone, CheckCircle, Truck,
     User, Hash, DollarSign, MapPin, Building, Clock, List, ArrowRight,
-    MessageCircle, MapPinned, Layers
+    MessageCircle, Layers
 } from "lucide-react";
 import { showError, showSuccess } from "@/utils/toast";
 import { Badge } from "@/components/ui/badge";
@@ -560,7 +560,7 @@ STATUS: {{status}}
                     <CardHeader className="bg-muted/30 pb-4">
                         <div className="flex items-center gap-3">
                             <div className="p-2 rounded-xl bg-primary/10">
-                                <MapPinned className="h-5 w-5 text-primary" />
+                                <MapPin className="h-5 w-5 text-primary" />
                             </div>
                             <CardTitle className="text-lg font-black tracking-tight">Onde sua loja fica?</CardTitle>
                         </div>

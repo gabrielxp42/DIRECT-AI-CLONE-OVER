@@ -1,8 +1,10 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const ASAAS_API_KEY = Deno.env.get("ASAAS_API_KEY");
 const ASAAS_API_URL = Deno.env.get("ASAAS_API_URL") || "https://api.asaas.com/v3";
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -22,13 +24,54 @@ serve(async (req) => {
             throw new Error("Missing userId or email");
         }
 
-        // --- LÓGICA DE VALORES ---
-        const RECURRING_VALUE = 97.00;
-        const BOOST_VALUE = 35.00;
-        const totalFirstPayment = productType === 'BOOST_BUNDLE' ? (RECURRING_VALUE + BOOST_VALUE) : RECURRING_VALUE;
-        const setupFee = productType === 'BOOST_BUNDLE' ? BOOST_VALUE : 0;
+        // --- BUSCAR PERFIL PARA VERIFICAR CUPOM ---
+        const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+        const { data: profile } = await supabaseAdmin
+            .from('profiles')
+            .select('partner_code')
+            .eq('id', userId)
+            .single();
 
-        console.log(`Processando checkout: ${email} | Produto: ${productType} | Total Inicial: ${totalFirstPayment} | Recorrente: ${RECURRING_VALUE}`);
+        const validUniversalCodes = ['DTFAGUDOS'];
+        let hasDiscount = false;
+
+        if (profile?.partner_code) {
+            const normalizedCode = profile.partner_code.toUpperCase();
+            if (validUniversalCodes.includes(normalizedCode)) {
+                hasDiscount = true;
+            } else {
+                // Check if it's a valid internal affiliate
+                const { data: affiliate } = await supabaseAdmin
+                    .from('profiles')
+                    .select('id')
+                    .eq('affiliate_code', normalizedCode)
+                    .eq('is_affiliate', true)
+                    .single();
+
+                if (affiliate) {
+                    hasDiscount = true;
+                }
+            }
+        }
+
+        // --- LÓGICA DE VALORES ---
+        const PLAN_PRICES = {
+            'PRO': 97.00,
+            'PRO_MAX': 137.00
+        };
+
+        let selectedPrice = PLAN_PRICES[productType as keyof typeof PLAN_PRICES] || PLAN_PRICES['PRO'];
+
+        // Aplicar 15% de desconto se tiver cupom
+        if (hasDiscount) {
+            console.log(`Aplicando 15% de desconto para o código: ${profile?.partner_code}`);
+            selectedPrice = Number((selectedPrice * 0.85).toFixed(2));
+        }
+
+        const totalFirstPayment = selectedPrice;
+        const setupFee = 0; // Taxa única removida em favor de planos mensais
+
+        console.log(`Processando checkout: ${email} | Produto: ${productType} | Cupom: ${hasDiscount ? profile?.partner_code : 'Nenhum'} | Total Inicial: ${totalFirstPayment} | Recorrente: ${selectedPrice}`);
 
         const headers = {
             'Content-Type': 'application/json',
@@ -80,9 +123,9 @@ serve(async (req) => {
             customer: customerId,
             billingType: billingType,
             nextDueDate: isoDate,
-            value: RECURRING_VALUE,
+            value: selectedPrice,
             cycle: "MONTHLY",
-            description: productType === 'BOOST_BUNDLE' ? "Elite Pro + WhatsApp Boost" : "Plano Elite PRO",
+            description: productType === 'PRO_MAX' ? "Plano DTF PRO MAX" : "Plano DTF PRO",
             updatePendingPayments: true,
             externalReference: userId,
             ...(setupFee > 0 ? { setupFeeValue: setupFee } : {}),

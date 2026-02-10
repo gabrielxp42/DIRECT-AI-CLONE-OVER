@@ -1,11 +1,13 @@
 
 import { useSubscription } from '@/hooks/useSubscription';
+import { useSession } from '@/contexts/SessionProvider';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, Clock, Crown, Sparkles } from 'lucide-react';
 import { useState } from 'react';
 import { SubscriptionModal } from './SubscriptionModal';
 
 export const TrialBanner = () => {
+    const { profile } = useSession();
     const { isTrial, daysRemaining, isExpired, isActive } = useSubscription();
     const [showModal, setShowModal] = useState(false);
 
@@ -49,7 +51,7 @@ export const TrialBanner = () => {
                     <div className="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between gap-4 text-xs md:text-sm font-bold">
                         <div className="flex items-center gap-2">
                             <Clock className="w-4 h-4" />
-                            <span>Sua assinatura Elite Pro vence em {daysRemaining} {daysRemaining === 1 ? 'dia' : 'dias'}. Garanta sua renovação!</span>
+                            <span>Sua assinatura {(profile?.subscription_tier === 'pro_max' ? 'Elite Pro Max' : 'Elite Pro')} vence em {daysRemaining} {daysRemaining === 1 ? 'dia' : 'dias'}. Garanta sua renovação!</span>
                         </div>
                         <Button
                             size="sm"

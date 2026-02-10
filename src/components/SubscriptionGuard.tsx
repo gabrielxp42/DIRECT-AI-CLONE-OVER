@@ -20,13 +20,13 @@ const SubscriptionGuard = () => {
             try {
                 const { data: profile } = await supabase
                     .from('profiles')
-                    .select('subscription_status')
+                    .select('subscription_status, is_admin')
                     .eq('id', session.user.id)
                     .single();
 
-                // Permite Acesso se for 'active' ou 'trialing'
-                // Se for null, 'expired', 'canceled' -> Redireciona
-                if (profile?.subscription_status === 'active' || profile?.subscription_status === 'trialing') {
+                // Permite Acesso se for 'active' ou Administrador
+                // Se for null, 'trial', 'expired', 'canceled' -> Redireciona para o checkout
+                if (profile?.is_admin || profile?.subscription_status === 'active') {
                     setIsAuthorized(true);
                 } else {
                     setIsAuthorized(false);
