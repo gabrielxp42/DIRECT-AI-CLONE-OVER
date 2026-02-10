@@ -34,12 +34,6 @@ const Login = () => {
   useEffect(() => {
     const useSession = sessionStorage.getItem('supabase-use-session-storage') === 'true';
     setRememberMe(!useSession);
-
-    // Delay auto-fill to prevent premature iOS prompts on cold starts
-    const timer = setTimeout(() => {
-      setCanShowAutoFill(true);
-    }, 500);
-    return () => clearTimeout(timer);
   }, []);
 
   const handleRememberMeChange = (checked: boolean | 'indeterminate') => {
@@ -163,18 +157,18 @@ const Login = () => {
 
         {/* Glass Card */}
         <div className="backdrop-blur-xl bg-black/40 border border-white/10 rounded-3xl p-6 md:p-10 shadow-2xl animate-in fade-in zoom-in duration-500 ring-1 ring-white/5">
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-6" autoComplete="off" data-lpignore="true">
             <div className="space-y-4">
               <div className="relative group">
                 <Mail className="absolute left-5 top-[1.1rem] h-5 w-5 text-zinc-500 group-focus-within:text-[#FFF200] transition-colors" />
                 <Input
-                  type={canShowAutoFill ? "email" : "text"}
-                  autoComplete={canShowAutoFill ? "email" : "off"}
+                  type="email"
+                  autoComplete="email"
                   placeholder="Seu e-mail"
                   className="pl-14 h-14 text-base bg-white/5 border-white/10 text-white placeholder:text-zinc-600 focus:bg-black/50 focus:border-[#FFF200]/50 focus:ring-4 focus:ring-[#FFF200]/10 transition-all rounded-2xl"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  required={canShowAutoFill}
+                  required
                 />
               </div>
 
@@ -182,13 +176,13 @@ const Login = () => {
                 <div className="relative group">
                   <Lock className="absolute left-5 top-[1.1rem] h-5 w-5 text-zinc-500 group-focus-within:text-[#FFF200] transition-colors" />
                   <Input
-                    type={canShowAutoFill ? "password" : "text"}
-                    autoComplete={canShowAutoFill ? (mode === 'signup' ? "new-password" : "current-password") : "off"}
+                    type="password"
+                    autoComplete={mode === 'signup' ? "new-password" : "current-password"}
                     placeholder="Sua senha"
                     className="pl-14 h-14 text-base bg-white/5 border-white/10 text-white placeholder:text-zinc-600 focus:bg-black/50 focus:border-[#FFF200]/50 focus:ring-4 focus:ring-[#FFF200]/10 transition-all rounded-2xl"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    required={canShowAutoFill}
+                    required
                   />
                 </div>
               )}

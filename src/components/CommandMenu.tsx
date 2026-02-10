@@ -56,7 +56,7 @@ export function CommandMenu() {
       {/* Texto flutuante removido conforme solicitado */}
 
       <CommandDialog open={open} onOpenChange={setOpen}>
-        <CommandInput placeholder="Digite um comando ou busque..." />
+        <CommandInput placeholder="Digite um comando ou busque..." autoComplete="off" />
         <CommandList>
           <CommandEmpty>Nenhum resultado encontrado.</CommandEmpty>
 

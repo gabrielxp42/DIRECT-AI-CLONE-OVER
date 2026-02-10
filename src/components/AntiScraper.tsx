@@ -35,15 +35,30 @@ export const AntiScraper = () => {
             </p>
 
             {/* 
-        CSS HONEYPOT 
-        Classes falsas para confundir bots que buscam por padrões como "login-form", "checkout-btn"
-      */}
-            <div className="admin-login-bypass-field" id="root-access-key"></div>
-            <button className="super-admin-download-all-data" onClick={() => { }}>Download Database</button>
-            <form action="/fake-endpoint-trap" method="POST" className="user-credentials-form">
-                <input type="text" name="honeypot_username" autoComplete="off" />
-                <input type="password" name="honeypot_password" autoComplete="off" />
-            </form>
+                CSS HONEYPOT (STEALTH VERSION)
+                Using type="text" with password-like styling to confuse bots 
+                WITHOUT triggering iOS Credential Manager (which only reacts to type="password").
+            */}
+            <div
+                className="user-credentials-form-v2"
+                style={{ opacity: 0.001, pointerEvents: 'none' }}
+            >
+                <input
+                    type="email"
+                    name="root_login_email"
+                    id="root-login-email"
+                    autoComplete="off"
+                    tabIndex={-1}
+                />
+                <input
+                    type="text"
+                    name="root_login_pass"
+                    id="root-login-pass"
+                    autoComplete="off"
+                    tabIndex={-1}
+                    style={{ WebkitTextSecurity: 'disc' } as any}
+                />
+            </div>
         </div>
     );
 };
