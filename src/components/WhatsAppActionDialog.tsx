@@ -62,12 +62,14 @@ export const WhatsAppActionDialog = ({
 
     return (
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
-            <DialogContent className={cn(
-                "bg-background text-foreground border-border shadow-2xl p-0 gap-0 overflow-hidden flex flex-col",
-                isMobile
-                    ? "w-full max-w-full rounded-t-[2rem] rounded-b-none fixed bottom-0 max-h-[90vh]"
-                    : "max-w-md rounded-2xl max-h-[85vh]"
-            )}>
+            <DialogContent
+                onOpenAutoFocus={(e) => e.preventDefault()}
+                className={cn(
+                    "bg-background text-foreground border-border shadow-2xl p-0 gap-0 overflow-hidden flex flex-col",
+                    isMobile
+                        ? "w-full max-w-full rounded-t-[2rem] rounded-b-none fixed bottom-0 max-h-[90vh]"
+                        : "max-w-md rounded-2xl max-h-[85vh]"
+                )}>
                 {/* Header Visual */}
                 <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 p-6 border-b border-border/50">
                     <DialogHeader>

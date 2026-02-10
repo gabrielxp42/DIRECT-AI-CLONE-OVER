@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 
 const Login = () => {
-  const { session, supabase } = useSession();
+  const { session, supabase, isLoading } = useSession();
   const [rememberMe, setRememberMe] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -119,6 +119,14 @@ const Login = () => {
       setResending(false);
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[100dvh] w-full bg-[#020817] items-center justify-center">
+        <Loader2 className="h-10 w-10 animate-spin text-[#FFF200]" />
+      </div>
+    );
+  }
 
   if (session) {
     return <Navigate to="/" replace />
