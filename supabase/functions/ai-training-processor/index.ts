@@ -174,11 +174,11 @@ Deno.serve(async (req: Request) => {
                 const currentTone = currentTraining?.tone_consistency_score || 0;
                 const currentProd = currentTraining?.product_knowledge_score || 0;
 
-                // Updates (Logarithmic growth to 100 to simulate learning curve)
-                const newSim = Math.min(100, currentSim + (findings.length > 0 ? 5 : 0));
-                const newCov = Math.min(100, currentCov + (hasBusinessRule ? 5 : 2) + (hasClientProfile ? 3 : 0));
-                const newTone = Math.min(100, currentTone + (hasTone ? 10 : 1));
-                const newProd = Math.min(100, currentProd + (hasProduct ? 8 : 1));
+                // Updates (Logarithmic growth to 100 to simulate learning curve) - MORE AGGRESSIVE INCREMENTS
+                const newSim = Math.min(100, currentSim + (findings.length > 0 ? 12 : 1));
+                const newCov = Math.min(100, currentCov + (hasBusinessRule ? 15 : 5) + (hasClientProfile ? 8 : 0));
+                const newTone = Math.min(100, currentTone + (hasTone ? 18 : 3));
+                const newProd = Math.min(100, currentProd + (hasProduct ? 14 : 2));
 
                 // Update Training Record directly with all metrics
                 await supabase

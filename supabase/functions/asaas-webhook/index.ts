@@ -52,22 +52,22 @@ serve(async (req) => {
                 const isProMax = desc.includes("PRO MAX") || desc.includes("BOOST") || desc.includes("BUNDLE");
                 const isElite = desc.includes("ELITE");
 
-                if (isProMax || isElite) {
+                if (isElite) {
+                    updatePayload.subscription_tier = 'elite';
+                } else if (isProMax) {
                     updatePayload.subscription_tier = 'pro_max';
                 } else {
                     updatePayload.subscription_tier = 'pro';
                 }
 
-                // SEGURO WHATSAPP PLUS: Busca o perfil atual para ver se já é parceiro
-                const { data: currentProfile } = await supabaseAdmin
-                    .from('profiles')
-                    .select('is_whatsapp_plus_active, is_whatsapp_plus_gifted')
-                    .eq('id', externalReference)
-                    .single();
-
-                if (isProMax || isElite || currentProfile?.is_whatsapp_plus_gifted || currentProfile?.is_whatsapp_plus_active) {
+                // Regra Fev/2026: WhatsApp Plus é EXCLUSIVO de Pro Max e Elite.
+                // Códigos de parceiro dão desconto mas NÃO liberam esse recurso no plano Pro.
+                if (isProMax || isElite) {
                     updatePayload.is_whatsapp_plus_active = true;
-                    console.log(`WhatsApp Plus mantido/ativado para ${externalReference}. ProMax=${isProMax}, Partner=${!!currentProfile?.is_whatsapp_plus_gifted}`);
+                    console.log(`WhatsApp Plus ativado para ${externalReference} via Tier ${updatePayload.subscription_tier}`);
+                } else {
+                    updatePayload.is_whatsapp_plus_active = false;
+                    console.log(`WhatsApp Plus desativado para ${externalReference} (Plano PRO)`);
                 }
 
                 if (isAuthEvent) {

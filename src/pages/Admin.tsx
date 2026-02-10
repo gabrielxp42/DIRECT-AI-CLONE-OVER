@@ -61,7 +61,6 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { motion } from "framer-motion";
 import { AdminGeminiConfig } from "@/components/AdminGeminiConfig";
 import { AdminAIMonitoring } from "@/components/AdminAIMonitoring";
-import { Brain } from "lucide-react";
 
 type AdminProfile = {
     id: string;

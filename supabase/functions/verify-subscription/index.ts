@@ -158,14 +158,30 @@ serve(async (req) => {
                 }
             }
 
+            let tier = 'pro';
+            if (isBundlePayment || activeSubscription?.description?.includes("PRO MAX") || activeSubscription?.description?.includes("Bundle") || activeSubscription?.description?.includes("Boost")) {
+                tier = 'pro_max';
+            }
+            if (activeSubscription?.description?.includes("ELITE")) {
+                tier = 'elite';
+            }
+
             let updateData: any = {
                 subscription_status: isExpired ? 'expired' : 'active',
-                subscription_tier: 'pro',
+                subscription_tier: tier,
                 last_payment_date: new Date().toISOString(),
                 updated_at: new Date().toISOString()
             };
 
-            if (isBundlePayment) updateData.is_whatsapp_plus_active = true;
+            // Regra Fev/2026: WhatsApp Plus é EXCLUSIVO de Pro Max e Elite.
+            if (tier === 'pro_max' || tier === 'elite') {
+                updateData.is_whatsapp_plus_active = true;
+                console.log(`WhatsApp Plus validado para ${user.id} via Tier ${tier}`);
+            } else {
+                updateData.is_whatsapp_plus_active = false;
+                console.log(`WhatsApp Plus bloqueado para ${user.id} (Plano PRO)`);
+            }
+
             if (nextDueDate) updateData.next_due_date = nextDueDate;
             if (activeSubscription?.customer) updateData.asaas_customer_id = activeSubscription.customer;
             if (subscriptionId) updateData.asaas_subscription_id = subscriptionId;
@@ -177,6 +193,7 @@ serve(async (req) => {
                 success: true,
                 status: updateData.subscription_status.toUpperCase(),
                 subscriptionId: subscriptionId || authorizationId || activeSubscription?.id,
+                tier: tier,
                 nextDueDate: nextDueDate
             }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
         } else {

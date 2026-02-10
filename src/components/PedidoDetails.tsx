@@ -74,6 +74,7 @@ import { printThermalReceipt } from '@/utils/thermalPrinter';
 import { StatusChangeDialog } from '@/components/StatusChangeDialog';
 import { StatusHistoryDialog } from '@/components/StatusHistoryDialog';
 import { useCompanyProfile, getCompanyInfoForPDF } from '@/hooks/useCompanyProfile';
+import { generateOrderSummary } from '@/utils/orderSummary';
 
 interface PedidoDetailsProps {
   isOpen: boolean;
@@ -244,47 +245,12 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
   const handleWhatsAppShare = () => {
     if (!pedido) return;
 
-    const subtotal = (pedido.subtotal_produtos || 0) + (pedido.subtotal_servicos || 0);
-    const frete = pedido.tipo_entrega === 'frete' ? (pedido.valor_frete || 0) : 0;
-    const descontoPercentualCalculado = subtotal * ((pedido.desconto_percentual || 0) / 100);
-    const valorTotalCalculado = Math.max(0, subtotal + frete - (pedido.desconto_valor || 0) - descontoPercentualCalculado);
-
-    const clienteNome = pedido.clientes?.nome || getClienteNome(pedido.cliente_id);
-    const orderNum = pedido.order_number;
-    const total = formatCurrency(valorTotalCalculado);
-    const status = pedido.status.toUpperCase();
-
-    let message = `*RESUMO DO PEDIDO #${orderNum}*\n\n`;
-    message += `👤 *Cliente:* ${clienteNome}\n`;
-    message += `📊 *Status:* ${status}\n`;
-    message += `💰 *Total:* ${total}\n\n`;
-
-    if (pedido.pedido_items && pedido.pedido_items.length > 0) {
-      message += `📦 *ITENS:*\n`;
-      pedido.pedido_items.forEach(item => {
-        message += `- ${item.quantidade}x ${item.produto_nome || getProdutoNome(item.produto_id)} (${formatCurrency(item.preco_unitario)})\n`;
-      });
-      message += `\n`;
-    }
-
-    if (pedido.servicos && pedido.servicos.length > 0) {
-      message += `🛠️ *SERVIÇOS:*\n`;
-      pedido.servicos.forEach(s => {
-        message += `- ${s.quantidade}x ${s.nome} (${formatCurrency(s.valor_unitario)})\n`;
-      });
-      message += `\n`;
-    }
-
-    if (pedido.tipo_entrega) {
-      message += `🚚 *ENTREGA:* ${pedido.tipo_entrega === 'frete' ? 'Frete' : 'Retirada'}\n`;
-      if (pedido.tipo_entrega === 'frete') {
-        if (pedido.valor_frete) message += `💰 *Valor Frete:* ${formatCurrency(pedido.valor_frete)}\n`;
-        if (pedido.transportadora) message += `🏢 *Transportadora:* ${pedido.transportadora}\n`;
-      }
-      message += `\n`;
-    }
-
-    message += `🔗 _Enviado via Direct AI_`;
+    // Usar o utilitário unificado com template e chave PIX do perfil
+    const message = generateOrderSummary(
+      pedido,
+      companyProfile?.gabi_templates?.['resumo-padrao'],
+      companyProfile?.company_pix_key
+    );
 
     const encodedMessage = encodeURIComponent(message);
     const telephone = pedido.clientes?.telefone || '';
@@ -348,14 +314,17 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
       showSuccess("Status atualizado com sucesso!");
 
       // Atualizar o pedido localmente
-      setPedido({ ...pedido, status: newStatus as any, tracking_code: trackingCode || pedido.tracking_code });
+      setPedido(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          status: newStatus as any,
+          tracking_code: trackingCode || prev.tracking_code,
+          pago_at: newStatus === 'pago' ? new Date().toISOString() : (newStatus === 'pendente' ? null : prev.pago_at)
+        };
+      });
       // Recarregar histórico
-      fetchPedidoDetails();
-
-      // Atualizar o pedido localmente
-      setPedido({ ...pedido, status: newStatus as any, tracking_code: trackingCode || pedido.tracking_code });
-      // Recarregar histórico
-      fetchPedidoDetails();
+      await fetchPedidoDetails();
     } catch (error: any) {
       showError(`Erro ao atualizar status: ${error.message}`);
     }

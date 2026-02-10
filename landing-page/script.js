@@ -1,6 +1,45 @@
 
 // --- CALCULATOR SYSTEM ---
 
+// --- Affiliate Tracking Logic ---
+const AffiliateTracker = {
+    STORAGE_KEY: 'direct_ai_affiliate_code',
+
+    init() {
+        console.log("[Affiliate] Initializing tracker...");
+        this.captureFromUrl();
+        this.updateCheckoutLinks();
+    },
+
+    captureFromUrl() {
+        const params = new URLSearchParams(window.location.search);
+        const code = params.get('ref') || params.get('code');
+
+        if (code) {
+            console.log("[Affiliate] Code detected in URL:", code);
+            localStorage.setItem(this.STORAGE_KEY, code.toUpperCase());
+        }
+    },
+
+    getStoredCode() {
+        return localStorage.getItem(this.STORAGE_KEY);
+    },
+
+    updateCheckoutLinks() {
+        const code = this.getStoredCode();
+        if (!code) return;
+
+        console.log("[Affiliate] Applying stored code to links:", code);
+        const checkoutButtons = document.querySelectorAll('a[href*="/checkout"]');
+
+        checkoutButtons.forEach(btn => {
+            const url = new URL(btn.href);
+            url.searchParams.set('code', code);
+            btn.href = url.toString();
+        });
+    }
+};
+
 const Calculator = {
     mode: 'simple',
     rollWidth: 58,
@@ -529,6 +568,7 @@ const revealOnScroll = () => {
 window.addEventListener('scroll', revealOnScroll);
 window.addEventListener('load', () => {
     revealOnScroll();
+    AffiliateTracker.init();
     Calculator.init();
     if (window.lucide) lucide.createIcons();
 });

@@ -79,7 +79,8 @@ serve(async (req) => {
             .from('profiles')
             .update({
                 partner_code: normalizedCode
-                // is_whatsapp_plus_active e is_whatsapp_plus_gifted removidos - agora o código vale 15% de desconto no checkout
+                // A partir de Fev/2026, código de parceiro dá apenas 15% de desconto no checkout.
+                // WhatsApp Plus é exclusivo dos planos PRO MAX e ELITE.
             })
             .eq('id', user.id)
 

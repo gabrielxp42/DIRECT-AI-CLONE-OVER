@@ -62,7 +62,8 @@ export default function AffiliatePortal() {
     const [pixType, setPixType] = useState(profile?.affiliate_pix_key_type || '');
     const [pixKey, setPixKey] = useState(profile?.affiliate_pix_key || '');
 
-    const affiliateLink = `${window.location.origin}/checkout?code=${profile?.affiliate_code || ''}`;
+    const landingPageLink = `${window.location.origin}/?ref=${profile?.affiliate_code || ''}`;
+    const checkoutLink = `${window.location.origin}/checkout?code=${profile?.affiliate_code || ''}`;
 
     useEffect(() => {
         if (profile) {
@@ -145,9 +146,9 @@ export default function AffiliatePortal() {
         }
     };
 
-    const copyLink = () => {
-        navigator.clipboard.writeText(affiliateLink);
-        toast.success("Link de Indicação Copiado!");
+    const copyToClipboard = (text: string, label: string) => {
+        navigator.clipboard.writeText(text);
+        toast.success(`${label} Copiado!`);
     };
 
     const handleSavePix = async () => {
@@ -276,15 +277,31 @@ export default function AffiliatePortal() {
                         </div>
 
                         <div className="space-y-4">
-                            <div className="flex items-center gap-2 bg-white/5 p-4 rounded-3xl border border-white/10 backdrop-blur-xl group/link transition-all duration-300 hover:border-emerald-500/30">
+                            <div className="flex items-center gap-2 bg-emerald-500/5 p-4 rounded-3xl border border-emerald-500/20 backdrop-blur-xl group/link transition-all duration-300 hover:border-emerald-500/50 shadow-lg shadow-emerald-500/5">
                                 <div className="flex-1 overflow-hidden">
-                                    <p className="text-[10px] font-black uppercase text-zinc-500 tracking-widest mb-1">Link de Ativação</p>
-                                    <p className="text-zinc-300 font-bold truncate text-sm italic">{affiliateLink}</p>
+                                    <p className="text-[10px] font-black uppercase text-emerald-500 tracking-widest mb-1">Link Principal (Landing Page + Orçamentos)</p>
+                                    <p className="text-zinc-300 font-bold truncate text-sm italic">{landingPageLink}</p>
                                 </div>
                                 <Button
-                                    onClick={copyLink}
+                                    onClick={() => copyToClipboard(landingPageLink, "Link da Landing Page")}
                                     size="icon"
                                     className="rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black shadow-lg shadow-emerald-500/20 w-12 h-12 shrink-0"
+                                >
+                                    <Copy size={20} />
+                                </Button>
+                            </div>
+
+                            {/* Link Secundário: Checkout Direto */}
+                            <div className="flex items-center gap-2 bg-white/5 p-4 rounded-3xl border border-white/10 backdrop-blur-xl group/link transition-all duration-300 hover:border-white/20">
+                                <div className="flex-1 overflow-hidden">
+                                    <p className="text-[10px] font-black uppercase text-zinc-500 tracking-widest mb-1">Link Direto (Pular Landing Page)</p>
+                                    <p className="text-zinc-400 font-bold truncate text-sm italic">{checkoutLink}</p>
+                                </div>
+                                <Button
+                                    onClick={() => copyToClipboard(checkoutLink, "Link Direto")}
+                                    variant="outline"
+                                    size="icon"
+                                    className="rounded-2xl border-white/10 hover:bg-white/10 text-white w-12 h-12 shrink-0"
                                 >
                                     <Copy size={20} />
                                 </Button>
