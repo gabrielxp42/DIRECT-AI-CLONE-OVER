@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Direct AI Diagnostic Tool</title>
+    <style>
+        body {
+            font-family: monospace;
+            background: #020817;
+            color: #e2e8f0;
+            padding: 20px;
+        }
+
+        .log-entry {
+            margin: 5px 0;
+            border-bottom: 1px solid #1e293b;
+            padding: 5px;
+        }
+
+        .error {
+            color: #ef4444;
+            font-weight: bold;
+        }
+
+        .success {
+            color: #10b981;
+        }
+
+        .warning {
+            color: #f59e0b;
+        }
+
+        h1 {
+            color: #FFF200;
+        }
+
+        button {
+            background: #FFF200;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>🛠️ Ferramenta de Diagnóstico Direct AI</h1>
+    <div id="status">Iniciando diagnósticos...</div>
+    <div id="logs"></div>
+    <button onclick="runDiagnostics()">Rodar Novamente</button>
+    <button onclick="testSupabase()">Testar Conexão Supabase</button>
+
+    <!-- Supabase CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+
+    <script>
+        const logs = document.getElementById('logs');
+        const status = document.getElementById('status');
+
+        function log(msg, type = 'info') {
+            const el = document.createElement('div');
+            el.className = `log-entry ${type}`;
+            el.innerText = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            logs.appendChild(el);
+            console.log(msg);
+        }
+
+        window.onerror = function (msg, url, line, col, error) {
+            log(`CRITICAL ERROR: ${msg}\nUrl: ${url}\nLine: ${line}`, 'error');
+            return false;
+        };
+
+        async function runDiagnostics() {
+            logs.innerHTML = '';
+            log('Iniciando varredura...', 'info');
+
+            // 1. Check Browser
+            log(`User Agent: ${navigator.userAgent}`, 'info');
+            log(`Cookies Enabled: ${navigator.cookieEnabled}`, navigator.cookieEnabled ? 'success' : 'error');
+
+            // 2. Check Storage
+            try {
+                localStorage.setItem('test_diag', 'ok');
+                const val = localStorage.getItem('test_diag');
+                localStorage.removeItem('test_diag');
+                if (val === 'ok') log('LocalStorage: Funcionando', 'success');
+                else log('LocalStorage: Falha de Leitura', 'error');
+            } catch (e) {
+                log(`LocalStorage Error: ${e.message}`, 'error');
+            }
+
+            // 3. Check Scripts loaded
+            const scripts = document.getElementsByTagName('script');
+            log(`Scripts carregados: ${scripts.length}`, 'info');
+            for (let s of scripts) {
+                if (s.src) {
+                    if (s.src.includes('webpage_content_reporter')) {
+                        log(`⚠️ DETECTADO SCRIPT SUSPEITO: ${s.src}`, 'error');
+                    } else if (!s.src.includes('supabase')) {
+                        log(`Script: ${s.src}`, 'info');
+                    }
+                }
+            }
+
+            // 4. Check for 'export' error triggers
+            try {
+                const testModule = new Function('return "module test ok"');
+                testModule();
+                log('Function constructor: OK', 'success');
+            } catch (e) {
+                log(`Function constructor Error: ${e.message}`, 'error');
+            }
+        }
+
+        async function testSupabase() {
+            log('Testando conexão com Supabase...', 'warning');
+
+            // Credenciais públicas do projeto (copiadas do client.ts)
+            const SUPABASE_URL = "https://zdbjzrpgliqicwvncfpc.supabase.co";
+            const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpkYmp6cnBnbGlxaWN3dm5jZnBjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc2ODI3MzUsImV4cCI6MjA3MzI1ODczNX0.VOrT3YAVhCqkbSmV-POeb4sVTgmu756sivqT1_9vCr4";
+
+            try {
+                const { createClient } = window.supabase;
+                const client = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+                const start = performance.now();
+                const { data, error } = await client.from('profiles').select('count').limit(1);
+                const end = performance.now();
+
+                if (error) {
+                    log(`Erro Supabase: ${JSON.stringify(error)}`, 'error');
+                } else {
+                    log(`✅ Conexão Supabase OK! (${(end - start).toFixed(2)}ms)`, 'success');
+                    log('Banco de dados acessível e respondendo.', 'success');
+                }
+
+                // Check active session
+                const { data: { session } } = await client.auth.getSession();
+                if (session) {
+                    log(`Sessão Ativa para: ${session.user.email}`, 'success');
+                } else {
+                    log('Nenhuma sessão ativa encontrada (Usuário deslogado)', 'warning');
+                }
+
+            } catch (e) {
+                log(`Exceção Supabase: ${e.message}`, 'error');
+            }
+        }
+
+        // Auto-run
+        runDiagnostics();
+        // Delay supabase test slightly
+        setTimeout(testSupabase, 1000);
+    </script>
+</body>
+
+</html>

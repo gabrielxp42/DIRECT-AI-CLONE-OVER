@@ -581,11 +581,29 @@ console.log('🚀 Direct AI Landing Page Loaded Successfully.');
 document.addEventListener('DOMContentLoaded', () => {
     const wpSection = document.querySelector('.whatsapp-section');
     const wpDemoContainer = document.querySelector('.wp-demo-container');
+    const wpBtn = document.querySelector('.wp-btn-simulate');
+
+    function updateCursorTarget() {
+        if (!wpDemoContainer || !wpBtn) return;
+
+        const containerRect = wpDemoContainer.getBoundingClientRect();
+        const btnRect = wpBtn.getBoundingClientRect();
+
+        // Calculate center of the button relative to the container
+        const relativeX = (btnRect.left - containerRect.left) + (btnRect.width / 2);
+        const relativeY = (btnRect.top - containerRect.top) + (btnRect.height / 2);
+
+        // Set CSS variables for the animation keyframes
+        wpDemoContainer.style.setProperty('--target-x', `${relativeX}px`);
+        wpDemoContainer.style.setProperty('--target-y', `${relativeY}px`);
+    }
 
     if (wpSection && wpDemoContainer) {
         const observer = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
+                    // Update target position just before starting animation
+                    updateCursorTarget();
                     wpDemoContainer.classList.add('start-animation');
                     // Opcional: desconectar se quiser que anime apenas uma vez
                     // observer.unobserve(entry.target);
@@ -599,5 +617,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         observer.observe(wpSection);
+
+        // Update on resize to keep it accurate
+        window.addEventListener('resize', () => {
+            if (wpDemoContainer.classList.contains('start-animation')) {
+                updateCursorTarget();
+            }
+        });
     }
 });

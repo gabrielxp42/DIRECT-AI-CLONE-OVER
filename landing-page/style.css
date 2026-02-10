@@ -3576,8 +3576,8 @@ h1 {
     }
 
     35% {
-        left: 62%;
-        top: 38%;
+        left: var(--target-x, 62%);
+        top: var(--target-y, 38%);
         transform: scale(1);
     }
 
@@ -3591,8 +3591,8 @@ h1 {
 
     70% {
         opacity: 1;
-        left: 62%;
-        top: 38%;
+        left: var(--target-x, 62%);
+        top: var(--target-y, 38%);
     }
 
     85% {

@@ -440,8 +440,11 @@ const Insumos = () => {
                                 <CardContent>
                                     <div className="space-y-4">
                                         <div className="flex items-end justify-between">
-                                            <div className="text-3xl font-bold text-primary flex items-end gap-1">
-                                                {insumo.quantidade_atual}
+                                            <div
+                                                className="text-3xl font-bold text-primary flex items-end gap-1 cursor-help"
+                                                title={`Valor Exato: ${insumo.quantidade_atual}`}
+                                            >
+                                                {insumo.quantidade_atual.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}
                                                 <span className="text-sm font-normal text-muted-foreground mb-1">{insumo.unidade}</span>
                                             </div>
                                             <div className="text-right">

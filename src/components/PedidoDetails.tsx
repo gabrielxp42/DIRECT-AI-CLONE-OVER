@@ -617,9 +617,23 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
                 return (
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <div className="flex justify-between text-sm text-muted-foreground">
+                      {/* Breakdown de Produtos e Serviços */}
+                      {(pedido.subtotal_produtos || 0) > 0 && (
+                        <div className="flex justify-between text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1"><Package className="h-3 w-3" /> Produtos:</span>
+                          <span>{formatCurrency(pedido.subtotal_produtos || 0)}</span>
+                        </div>
+                      )}
+                      {(pedido.subtotal_servicos || 0) > 0 && (
+                        <div className="flex justify-between text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1"><Wrench className="h-3 w-3" /> Serviços:</span>
+                          <span>{formatCurrency(pedido.subtotal_servicos || 0)}</span>
+                        </div>
+                      )}
+
+                      <div className="flex justify-between text-sm font-medium text-foreground pt-2 border-t border-dashed">
                         <span>Subtotal:</span>
-                        <span className="font-medium">{formatCurrency(subtotal)}</span>
+                        <span>{formatCurrency(subtotal)}</span>
                       </div>
 
                       {frete > 0 && (

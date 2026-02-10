@@ -267,27 +267,27 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
         const itemsData = initialData.pedido_items ? initialData.pedido_items.map((item: any) => ({
           produto_id: item.produto_id,
           produto_nome: item.produto_nome,
-          quantidade: Number(item.quantidade),
-          preco_unitario: Number(item.preco_unitario),
+          quantidade: Number(item.quantidade) || 0,
+          preco_unitario: Number(item.preco_unitario) || 0,
           observacao: item.observacao || '',
           tipo: item.tipo || 'dtf'
         })) : [];
 
         const servicosData = initialData.servicos?.map((servico: any) => ({
           nome: servico.nome,
-          quantidade: servico.quantidade,
-          valor_unitario: servico.valor_unitario,
+          quantidade: Number(servico.quantidade) || 0,
+          valor_unitario: Number(servico.valor_unitario) || 0,
         })) || [];
 
         form.reset({
           cliente_id: initialData.cliente_id || "",
           observacoes: initialData.observacoes || "",
           tipo_entrega: initialData.tipo_entrega || undefined,
-          valor_frete: initialData.valor_frete || 0,
+          valor_frete: Number(initialData.valor_frete) || 0,
           transportadora: initialData.transportadora || "",
           tracking_code: initialData.tracking_code || "",
-          desconto_valor: initialData.desconto_valor || 0,
-          desconto_percentual: initialData.desconto_percentual || 0,
+          desconto_valor: Number(initialData.desconto_valor) || 0,
+          desconto_percentual: Number(initialData.desconto_percentual) || 0,
           created_at: new Date(initialData.created_at),
           items: itemsData,
           servicos: servicosData,
@@ -305,6 +305,27 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
         if (draft) {
           try {
             const parsedDraft = JSON.parse(draft);
+
+            // Sanitização do Rascunho para evitar NaN
+            if (parsedDraft.items && Array.isArray(parsedDraft.items)) {
+              parsedDraft.items = parsedDraft.items.map((item: any) => ({
+                ...item,
+                quantidade: Number(item.quantidade) || 0,
+                preco_unitario: Number(item.preco_unitario) || 0,
+              }));
+            }
+            if (parsedDraft.servicos && Array.isArray(parsedDraft.servicos)) {
+              parsedDraft.servicos = parsedDraft.servicos.map((s: any) => ({
+                ...s,
+                quantidade: Number(s.quantidade) || 0,
+                valor_unitario: Number(s.valor_unitario) || 0,
+              }));
+            }
+            parsedDraft.valor_frete = Number(parsedDraft.valor_frete) || 0;
+            parsedDraft.desconto_valor = Number(parsedDraft.desconto_valor) || 0;
+            parsedDraft.desconto_percentual = Number(parsedDraft.desconto_percentual) || 0;
+
+
             // Verificar se o rascunho é válido (tem items ou cliente)
             if (parsedDraft.items?.length > 0 || parsedDraft.cliente_id) {
               form.reset({
@@ -475,7 +496,28 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
     console.error("Erros de validação do formulário:", errors);
     showError("Por favor, corrija os erros no formulário antes de enviar.");
 
-    // --- Lógica de Scroll Automático ---
+    // --- Lógica de Scroll e Expansão Automática ---
+
+    // 1. Verificar erros em itens (array) e expandir o primeiro com erro
+    if (errors.items && Array.isArray(errors.items)) {
+      const firstErrorIndex = errors.items.findIndex((item: any) => item !== undefined && item !== null);
+      if (firstErrorIndex !== -1) {
+        const itemField = itemFields[firstErrorIndex];
+        // Expandir o item com erro
+        setAccordionItemValue(itemField.fieldId);
+
+        // Pequeno delay para permitir que o accordion abra antes de rolar
+        setTimeout(() => {
+          const itemElement = document.getElementById(`item-card-${firstErrorIndex}`);
+          if (itemElement) {
+            itemElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 100);
+        return; // Prioridade para itens, já tratamos o scroll
+      }
+    }
+
+    // 2. Lógica genérica para outros campos
     const firstError = Object.keys(errors).reduce((acc, key) => {
       if (acc) return acc;
       if (errors[key]) return key;
@@ -490,10 +532,13 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
       // Encontra o elemento DOM correspondente ao primeiro erro e rola até ele
       const element = document.querySelector(`[name="${firstError}"]`);
       if (element) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 100);
       } else {
         // Se for um erro de lista (ex: items), tenta rolar para o cabeçalho da seção
-        const sectionElement = document.getElementById('section-items');
+        const sectionId = `section-${firstError}`;
+        const sectionElement = document.getElementById(sectionId) || document.getElementById('section-items'); // Fallback comum
         if (sectionElement) {
           sectionElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
@@ -1084,6 +1129,9 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                 // Usar fieldId do useFieldArray como key estável
                                 const itemKey = field.fieldId;
 
+                                // Check error state for this specific item
+                                const hasError = !!form.formState.errors.items?.[index];
+
                                 // Precisamos pegar os valores atuais para exibir no card fechado, 
                                 // pois 'field' só tem os valores iniciais (defaultValue)
                                 const currentValues = form.getValues(`items.${index}`);
@@ -1097,7 +1145,11 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                   <SortableItem key={itemKey} id={itemKey}>
                                     <Card
                                       id={`item-card-${index}`}
-                                      className={`overflow-hidden transition-all duration-200 ${isOpen ? 'ring-2 ring-primary/20' : 'hover:border-primary/50'}`}
+                                      className={cn(
+                                        "overflow-hidden transition-all duration-200",
+                                        isOpen ? 'ring-2 ring-primary/20' : 'hover:border-primary/50',
+                                        hasError ? 'border-destructive ring-1 ring-destructive/50 bg-destructive/5' : ''
+                                      )}
                                     >
                                       {/* Cabeçalho clicável */}
                                       <div
@@ -1127,6 +1179,12 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                             <div className="font-medium text-sm flex items-center gap-2">
                                               <ChevronDown className={`h-4 w-4 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
                                               {produtoNome || <span className="text-muted-foreground italic">Novo Item #{tempDisplayNumber || (itemFields.length - index)}</span>}
+                                              {hasError && (
+                                                <span className="flex items-center text-xs text-destructive font-bold animate-pulse ml-2 bg-destructive/10 px-2 py-0.5 rounded-full border border-destructive/20">
+                                                  <Info className="h-3 w-3 mr-1" />
+                                                  Erro
+                                                </span>
+                                              )}
                                             </div>
                                             <div className="text-xs text-muted-foreground ml-6 mt-1 flex flex-wrap gap-x-4 gap-y-1">
                                               <span className="flex items-center gap-1">
@@ -1300,7 +1358,14 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                                                                   hapticSelect();
                                                                                   form.setValue(`items.${index}.produto_id`, produto.id);
                                                                                   form.setValue(`items.${index}.produto_nome`, produto.nome);
-                                                                                  form.setValue(`items.${index}.preco_unitario`, Number(produto.preco));
+
+                                                                                  // Sanitização de Preço: Garante que seja um número válido
+                                                                                  const rawPrice = produto.preco;
+                                                                                  const safePrice = (typeof rawPrice === 'number' && !isNaN(rawPrice))
+                                                                                    ? rawPrice
+                                                                                    : Number(rawPrice) || 0;
+
+                                                                                  form.setValue(`items.${index}.preco_unitario`, safePrice);
                                                                                   if (produto.tipo) {
                                                                                     form.setValue(`items.${index}.tipo`, produto.tipo.toLowerCase());
                                                                                   }

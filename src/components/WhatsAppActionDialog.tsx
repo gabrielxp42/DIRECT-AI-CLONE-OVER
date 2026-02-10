@@ -63,8 +63,10 @@ export const WhatsAppActionDialog = ({
     return (
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
             <DialogContent className={cn(
-                "bg-background text-foreground border-border shadow-2xl p-0 gap-0 overflow-hidden",
-                isMobile ? "w-full max-w-full h-auto fixed bottom-0 rounded-t-[2rem] rounded-b-none" : "max-w-md rounded-2xl"
+                "bg-background text-foreground border-border shadow-2xl p-0 gap-0 overflow-hidden flex flex-col",
+                isMobile
+                    ? "w-full max-w-full rounded-t-[2rem] rounded-b-none fixed bottom-0 max-h-[90vh]"
+                    : "max-w-md rounded-2xl max-h-[85vh]"
             )}>
                 {/* Header Visual */}
                 <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 p-6 border-b border-border/50">
@@ -79,7 +81,7 @@ export const WhatsAppActionDialog = ({
                     </DialogHeader>
                 </div>
 
-                <div className="p-6 space-y-5">
+                <div className="flex-1 overflow-y-auto p-6 space-y-5">
                     {/* Campo de Telefone */}
                     <div className="space-y-2">
                         <Label htmlFor="phone" className="text-muted-foreground flex items-center gap-2">
@@ -92,19 +94,20 @@ export const WhatsAppActionDialog = ({
                             onChange={(e) => setEditablePhone(e.target.value)}
                             className="bg-muted/50 border-input focus:border-green-500/50 h-11"
                             placeholder="5511999999999"
+                            inputMode="tel"
                         />
                     </div>
 
                     {/* Toggles */}
                     <div className="space-y-3">
                         {/* Toggle PDF */}
-                        <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border border-border">
-                            <div className="space-y-1">
+                        <div className="flex items-center justify-between p-3 rounded-xl bg-muted/30 border border-border">
+                            <div className="space-y-0.5">
                                 <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                                     <FileText className="h-4 w-4 text-amber-500" />
                                     Anexar Pedido em PDF?
                                 </div>
-                                <p className="text-xs text-muted-foreground">
+                                <p className="text-[10px] text-muted-foreground">
                                     Envia o arquivo PDF.
                                 </p>
                             </div>
@@ -116,15 +119,12 @@ export const WhatsAppActionDialog = ({
                         </div>
 
                         {/* Toggle Texto */}
-                        <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border border-border">
-                            <div className="space-y-1">
+                        <div className="flex items-center justify-between p-3 rounded-xl bg-muted/30 border border-border">
+                            <div className="space-y-0.5">
                                 <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                                     <MessageSquare className="h-4 w-4 text-blue-500" />
-                                    Incluir Resumo em Texto?
+                                    Resumo em Texto?
                                 </div>
-                                <p className="text-xs text-muted-foreground">
-                                    Envia o resumo do pedido como mensagem de texto.
-                                </p>
                             </div>
                             <Switch
                                 checked={includeText}
@@ -135,14 +135,14 @@ export const WhatsAppActionDialog = ({
 
                         {/* Toggle Pix */}
                         {pixKey && (
-                            <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border border-border">
-                                <div className="space-y-1">
+                            <div className="flex items-center justify-between p-3 rounded-xl bg-muted/30 border border-border">
+                                <div className="space-y-0.5">
                                     <div className="flex items-center gap-2 text-sm font-medium text-[#32BCAD]">
                                         <PixIcon className="h-4 w-4" />
-                                        Incluir Chave Pix?
+                                        Chave Pix?
                                     </div>
-                                    <p className="text-xs text-muted-foreground">
-                                        Envia sua chave cadastrada: <span className="font-mono text-[10px] opacity-70">{pixKey}</span>
+                                    <p className="text-[10px] text-muted-foreground truncate w-40">
+                                        {pixKey}
                                     </p>
                                 </div>
                                 <Switch
@@ -157,10 +157,10 @@ export const WhatsAppActionDialog = ({
                     {/* Preview da Mensagem */}
                     {includeText && (
                         <div className="space-y-2">
-                            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                            <Label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
                                 Prévia da Mensagem
                             </Label>
-                            <div className="text-xs text-muted-foreground bg-muted/30 p-4 rounded-xl border border-border max-h-[120px] overflow-y-auto whitespace-pre-wrap font-mono">
+                            <div className="text-xs text-muted-foreground bg-muted/30 p-3 rounded-xl border border-border max-h-[80px] overflow-y-auto whitespace-pre-wrap font-mono">
                                 {messagePreview}
                                 {includePix && pixKey && `\n\n💰 *DADOS PARA PAGAMENTO*\nChave Pix: ${pixKey}`}
                             </div>

@@ -8,6 +8,7 @@ interface CurrencyInputProps extends Omit<React.ComponentPropsWithoutRef<typeof 
 
 // Formata um número (ex: 700.00) para uma string de exibição (ex: "700,00")
 const formatNumberToDisplay = (num: number): string => {
+  if (isNaN(num) || num === null || num === undefined) return '0,00';
   return new Intl.NumberFormat('pt-BR', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
@@ -21,7 +22,7 @@ const formatRawDigitsToDisplay = (rawDigits: string): string => {
   // Remove zeros à esquerda, exceto se for apenas "0"
   const cleaned = rawDigits.replace(/^0+(?=\d)/, '');
   const num = parseInt(cleaned, 10);
-  if (isNaN(num)) return '';
+  if (isNaN(num)) return '0,00';
   return formatNumberToDisplay(num / 100);
 };
 
