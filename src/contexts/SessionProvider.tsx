@@ -84,13 +84,20 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
       });
 
       if (!response.ok) {
-        console.error('[SessionProvider] Error fetching profile:', response.status);
+        // Se for 406 ou similar, talvez o perfil não exista ainda, o que é OK
+        if (response.status !== 406) {
+          console.warn('[SessionProvider] Error fetching profile:', response.status);
+        }
         return null;
       }
 
       const data = await response.json();
       return (data && data.length > 0) ? (data[0] as Profile) : null;
-    } catch (error) {
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        console.warn('[SessionProvider] Profile fetch aborted (safe to ignore)');
+        return null;
+      }
       console.error('[SessionProvider] Exception in fetchProfileData:', error);
       return null;
     }

@@ -574,3 +574,30 @@ window.addEventListener('load', () => {
 });
 
 console.log('🚀 Direct AI Landing Page Loaded Successfully.');
+
+/* ==========================================
+   WhatsApp Animation Trigger (Scroll-Driven)
+   ========================================== */
+document.addEventListener('DOMContentLoaded', () => {
+    const wpSection = document.querySelector('.whatsapp-section');
+    const wpDemoContainer = document.querySelector('.wp-demo-container');
+
+    if (wpSection && wpDemoContainer) {
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    wpDemoContainer.classList.add('start-animation');
+                    // Opcional: desconectar se quiser que anime apenas uma vez
+                    // observer.unobserve(entry.target);
+                } else {
+                    // Remove a classe se sair da tela para reiniciar a animação quando voltar (loop de user experience)
+                    wpDemoContainer.classList.remove('start-animation');
+                }
+            });
+        }, {
+            threshold: 0.4 // Dispara quando 40% da seção estiver visível
+        });
+
+        observer.observe(wpSection);
+    }
+});

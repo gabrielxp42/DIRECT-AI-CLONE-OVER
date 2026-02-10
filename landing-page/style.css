@@ -1,4 +1,4 @@
-﻿/* DIRECT AI - LANDING PAGE STYLE SYSTEM */
+/* DIRECT AI - LANDING PAGE STYLE SYSTEM */
 :root {
     --primary: #FFF200;
     --primary-glow: rgba(255, 242, 0, 0.4);
@@ -1870,6 +1870,71 @@ h1 {
     margin-bottom: 0.2rem;
 }
 
+/* Checklist Simplificado e Ganho de Tempo */
+.feature-checklist-simple {
+    list-style: none;
+    margin: 2rem 0;
+}
+
+.feature-checklist-simple li {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    font-size: 1.05rem;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.feature-checklist-simple li i {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+}
+
+.icon-green {
+    color: #25D366;
+}
+
+.time-gain-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 1rem;
+    background: rgba(255, 242, 0, 0.08);
+    border: 1px solid rgba(255, 242, 0, 0.2);
+    padding: 0.8rem 1.5rem;
+    border-radius: 12px;
+    margin-bottom: 2.5rem;
+    transition: all 0.3s ease;
+}
+
+.time-gain-badge:hover {
+    background: rgba(255, 242, 0, 0.12);
+    border-color: rgba(255, 242, 0, 0.4);
+    transform: translateY(-2px);
+}
+
+.time-gain-icon {
+    background: #FFF200;
+    color: #000;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 15px rgba(255, 242, 0, 0.3);
+}
+
+.time-gain-badge span {
+    font-size: 1rem;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.time-gain-badge strong {
+    color: #FFF200;
+    font-weight: 700;
+}
+
 @media (max-width: 992px) {
     .calculator-grid {
         grid-template-columns: 1fr;
@@ -3184,5 +3249,721 @@ h1 {
 
     .calc-right {
         background: #000;
+    }
+}
+
+/* =============================================
+   WHATSAPP INTEGRATION SECTION
+   ============================================= */
+.whatsapp-section {
+    padding: 100px 0;
+    background: radial-gradient(ellipse at 70% 50%, rgba(37, 211, 102, 0.06) 0%, transparent 65%);
+    position: relative;
+    overflow: hidden;
+}
+
+.whatsapp-grid {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    gap: 5rem;
+    align-items: center;
+}
+
+.whatsapp-visual {
+    display: flex;
+    justify-content: center;
+}
+
+.whatsapp-content {
+    z-index: 2;
+}
+
+.whatsapp-accent {
+    color: #25D366;
+    text-shadow: 0 0 25px rgba(37, 211, 102, 0.4);
+}
+
+.bg-whatsapp {
+    background: rgba(37, 211, 102, 0.1) !important;
+    color: #25D366 !important;
+    border-color: rgba(37, 211, 102, 0.25) !important;
+}
+
+.wp-pulse {
+    background: #25D366 !important;
+    box-shadow: 0 0 10px #25D366 !important;
+}
+
+/* Demo Container */
+.wp-demo-container {
+    width: 100%;
+    max-width: 440px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    position: relative;
+    /* CRITICAL: anchor for the cursor */
+}
+
+.wp-demo-step {
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* STEP 1 - System Panel */
+.wp-step-system {
+    background: #0d0d0d;
+}
+
+.wp-system-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 14px;
+    background: rgba(255, 255, 255, 0.03);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.wp-sys-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+
+.wp-sys-dot.red {
+    background: #ff5f56;
+}
+
+.wp-sys-dot.yellow {
+    background: #ffbd2e;
+}
+
+.wp-sys-dot.green {
+    background: #27c93f;
+}
+
+.wp-sys-title {
+    font-size: 0.7rem;
+    color: rgba(255, 255, 255, 0.4);
+    margin-left: 8px;
+    font-weight: 600;
+}
+
+.wp-system-body {
+    padding: 16px 18px;
+}
+
+.wp-order-info {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 14px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.wp-order-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.wp-label {
+    font-size: 0.72rem;
+    color: rgba(255, 255, 255, 0.35);
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+.wp-value {
+    font-size: 0.82rem;
+    color: rgba(255, 255, 255, 0.85);
+    font-weight: 500;
+}
+
+.wp-price {
+    color: #25D366;
+    font-weight: 700;
+}
+
+.wp-status-change {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* CONNECTOR */
+.wp-demo-connector {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 6px 0;
+}
+
+.wp-connector-line {
+    width: 2px;
+    height: 16px;
+    background: linear-gradient(to bottom, rgba(37, 211, 102, 0.1), rgba(37, 211, 102, 0.4));
+}
+
+.wp-connector-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 16px;
+    background: rgba(37, 211, 102, 0.1);
+    border: 1px solid rgba(37, 211, 102, 0.25);
+    border-radius: 20px;
+}
+
+.wp-connector-icon {
+    width: 16px;
+    height: 16px;
+}
+
+.wp-connector-badge span {
+    font-size: 0.68rem;
+    color: #25D366;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* STEP 2 - WhatsApp Chat */
+.wp-step-chat {
+    background: #0b1410;
+    border-color: rgba(37, 211, 102, 0.15);
+}
+
+.wp-chat-header-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: rgba(37, 211, 102, 0.08);
+    border-bottom: 1px solid rgba(37, 211, 102, 0.1);
+}
+
+.wp-chat-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #25D366, #128C7E);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: #fff;
+}
+
+.wp-chat-contact strong {
+    font-size: 0.82rem;
+    color: #fff;
+    display: block;
+    line-height: 1;
+}
+
+.wp-chat-contact span {
+    font-size: 0.65rem;
+    color: #25D366;
+}
+
+.wp-chat-body-sim {
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 180px;
+}
+
+/* Chat Bubbles */
+.wp-bubble {
+    padding: 10px 14px;
+    border-radius: 12px;
+    max-width: 88%;
+}
+
+.wp-bubble-gabi {
+    background: rgba(37, 211, 102, 0.1);
+    border: 1px solid rgba(37, 211, 102, 0.15);
+    border-bottom-left-radius: 4px;
+    align-self: flex-start;
+}
+
+.wp-bubble-client {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom-right-radius: 4px;
+    align-self: flex-end;
+}
+
+.wp-bubble p {
+    font-size: 0.78rem;
+    line-height: 1.45;
+    color: rgba(255, 255, 255, 0.85);
+    margin: 0;
+}
+
+.wp-bubble-detail {
+    margin-top: 6px !important;
+    padding-top: 6px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    font-size: 0.72rem !important;
+    color: rgba(255, 255, 255, 0.55) !important;
+}
+
+.wp-bubble-time {
+    display: block;
+    text-align: right;
+    font-size: 0.58rem;
+    color: rgba(255, 255, 255, 0.25);
+    margin-top: 4px;
+}
+
+/* Feature List */
+.whatsapp-features {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.wp-feature-item {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+    padding: 1rem 1.2rem;
+    background: rgba(37, 211, 102, 0.04);
+    border: 1px solid rgba(37, 211, 102, 0.1);
+    border-radius: 14px;
+    transition: all 0.3s ease;
+}
+
+/* =============================================
+   DEMO ANIMATIONS (MOTION - Scroll Driven)
+   ============================================= */
+
+/* 0. Cursor Animation */
+.wp-cursor {
+    position: absolute;
+    top: 10%;
+    left: 110%;
+    z-index: 20;
+    opacity: 0;
+    pointer-events: none;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+    transform-origin: top left;
+}
+
+.start-animation .wp-cursor {
+    animation: cursorClickAction 4s forwards;
+}
+
+@keyframes cursorClickAction {
+    0% {
+        opacity: 0;
+        left: 105%;
+        top: 8%;
+    }
+
+    15% {
+        opacity: 1;
+        left: 90%;
+        top: 15%;
+    }
+
+    35% {
+        left: 62%;
+        top: 38%;
+        transform: scale(1);
+    }
+
+    45% {
+        transform: scale(0.75);
+    }
+
+    55% {
+        transform: scale(1);
+    }
+
+    70% {
+        opacity: 1;
+        left: 62%;
+        top: 38%;
+    }
+
+    85% {
+        opacity: 0;
+        left: 75%;
+        top: 45%;
+    }
+
+    100% {
+        opacity: 0;
+        left: 75%;
+        top: 45%;
+    }
+}
+
+/* 1. Status Panel Styling & Animation */
+.wp-current-status-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.wp-status-pill {
+    font-size: 0.75rem;
+    padding: 4px 10px;
+    border-radius: 4px;
+    background: rgba(255, 193, 7, 0.15);
+    color: #ffc107;
+    border: 1px solid rgba(255, 193, 7, 0.3);
+    font-weight: 600;
+    position: relative;
+    transition: all 0.3s;
+}
+
+/* Status Swap Animation via Pseudo-elements */
+.start-animation .wp-status-pill {
+    animation: pillBackgroundChange 10s forwards;
+    animation-delay: 1.8s;
+}
+
+.start-animation .wp-status-pill::after {
+    content: '✅ Pronto p/ Retirada';
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(37, 211, 102, 0.2);
+    color: #25D366;
+    border-radius: 4px;
+    opacity: 0;
+    animation: pillTextChange 10s forwards;
+    animation-delay: 1.8s;
+}
+
+@keyframes pillBackgroundChange {
+    0% {
+        border-color: rgba(255, 193, 7, 0.3);
+    }
+
+    5%,
+    100% {
+        border-color: #25D366;
+        background: transparent;
+        color: transparent;
+    }
+}
+
+@keyframes pillTextChange {
+    0% {
+        opacity: 0;
+    }
+
+    5%,
+    100% {
+        opacity: 1;
+    }
+}
+
+/* Action Button Styling */
+.wp-action-row {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 4px;
+}
+
+.wp-btn-simulate {
+    background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+    color: #fff;
+    border: none;
+    padding: 9px 18px;
+    border-radius: 8px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.3px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(37, 211, 102, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    position: relative;
+    overflow: hidden;
+    transform: scale(1);
+    transition: all 0.2s ease;
+    text-transform: uppercase;
+}
+
+.wp-btn-simulate::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    animation: btnShine 3s infinite;
+}
+
+@keyframes btnShine {
+    0% {
+        left: -100%;
+    }
+
+    50%,
+    100% {
+        left: 100%;
+    }
+}
+
+.start-animation .wp-btn-simulate {
+    animation: btnClickEffect 10s forwards;
+    animation-delay: 1.4s;
+    /* Sincronizado: cursor chega ~35% de 4s = 1.4s */
+}
+
+@keyframes btnClickEffect {
+
+    0%,
+    30% {
+        transform: scale(1);
+        filter: brightness(1);
+    }
+
+    35% {
+        transform: scale(0.95);
+        filter: brightness(0.8);
+    }
+
+    /* Clicked */
+    40% {
+        transform: scale(1);
+        filter: brightness(1);
+    }
+
+    45%,
+    100% {
+        transform: scale(1);
+        opacity: 0.5;
+        filter: grayscale(1);
+        cursor: default;
+    }
+
+    /* Disabled state */
+}
+
+/* 2. Connector & Chat (Timings adjusted for new flow) */
+/* Connector starts after status change (approx 2.5s) */
+.wp-connector-line {
+    position: relative;
+    overflow: hidden;
+}
+
+.start-animation .wp-connector-line::after {
+    content: '';
+    position: absolute;
+    top: -100%;
+    left: 0;
+    width: 100%;
+    height: 50%;
+    background: linear-gradient(to bottom, transparent, #25D366, transparent);
+    animation: dataFlow 10s forwards;
+    animation-delay: 2.5s;
+}
+
+@keyframes dataFlow {
+    0% {
+        top: -100%;
+        opacity: 0;
+    }
+
+    5% {
+        opacity: 1;
+    }
+
+    15%,
+    100% {
+        top: 200%;
+        opacity: 0;
+    }
+}
+
+.start-animation .wp-connector-badge {
+    animation: badgePulse 10s forwards;
+    animation-delay: 2.8s;
+}
+
+@keyframes badgePulse {
+    0% {
+        transform: scale(1);
+        box-shadow: none;
+        border-color: rgba(37, 211, 102, 0.25);
+    }
+
+    5% {
+        transform: scale(1.1);
+        box-shadow: 0 0 15px rgba(37, 211, 102, 0.4);
+        border-color: #25D366;
+        background: rgba(37, 211, 102, 0.2);
+    }
+
+    15%,
+    100% {
+        transform: scale(1);
+        box-shadow: none;
+        border-color: rgba(37, 211, 102, 0.25);
+    }
+}
+
+/* 3. Chat Bubbles Sequence */
+.wp-anim-1,
+.wp-anim-2,
+.wp-anim-3 {
+    opacity: 0;
+}
+
+.start-animation .wp-anim-1 {
+    animation: chatPop 10s forwards;
+    animation-delay: 4.0s;
+}
+
+.start-animation .wp-anim-2 {
+    animation: chatPop 10s forwards;
+    animation-delay: 6.0s;
+}
+
+.start-animation .wp-anim-3 {
+    animation: chatPop 10s forwards;
+    animation-delay: 8.0s;
+}
+
+@keyframes chatPop {
+    0% {
+        opacity: 0;
+        transform: translateY(10px) scale(0.95);
+    }
+
+    5%,
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Remover antigas classes não usadas se necessário, ou deixar como legado limpo */
+/* DEMO CONTAINER RESET - FADE OUT AT END (Optional: removed loop for linear storytelling) */
+/* Se quiser resetar, o JS remove a classe e adiciona de novo quando scrollar */
+.wp-demo-container {
+    animation: demoReset 10s infinite;
+}
+
+@keyframes demoReset {
+
+    0%,
+    95% {
+        opacity: 1;
+    }
+
+    98% {
+        opacity: 0;
+        transform: scale(0.98);
+    }
+
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.wp-feature-item:hover {
+    background: rgba(37, 211, 102, 0.08);
+    border-color: rgba(37, 211, 102, 0.25);
+    transform: translateX(5px);
+}
+
+.wp-feature-icon {
+    min-width: 36px;
+    height: 36px;
+    background: rgba(37, 211, 102, 0.15);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.wp-feature-icon i {
+    width: 18px;
+    height: 18px;
+    color: #25D366;
+}
+
+.wp-feature-item strong {
+    color: #fff;
+    font-size: 0.9rem;
+    display: block;
+    margin-bottom: 2px;
+}
+
+.wp-feature-item p {
+    font-size: 0.82rem;
+    color: rgba(255, 255, 255, 0.55);
+    line-height: 1.4;
+    margin: 0;
+}
+
+/* WhatsApp CTA Button */
+.btn-whatsapp {
+    background: rgba(37, 211, 102, 0.85);
+    background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.01) 50%, rgba(0, 0, 0, 0.05) 100%);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #000 !important;
+    box-shadow: 0 8px 32px rgba(37, 211, 102, 0.3);
+    font-weight: 900;
+}
+
+.btn-whatsapp:hover {
+    transform: translateY(-3px);
+    background: #25D366;
+    box-shadow: 0 12px 40px rgba(37, 211, 102, 0.5);
+}
+
+/* WhatsApp Section Responsive */
+@media (max-width: 992px) {
+    .whatsapp-section {
+        padding: 60px 0;
+    }
+
+    .whatsapp-grid {
+        grid-template-columns: 1fr;
+        gap: 3rem;
+        text-align: center;
+    }
+
+    .whatsapp-visual {
+        order: 2;
+    }
+
+    .whatsapp-content {
+        order: 1;
+    }
+
+    .wp-demo-container {
+        max-width: 360px;
+        margin: 0 auto;
+    }
+
+    .wp-feature-item {
+        text-align: left;
     }
 }

@@ -69,21 +69,39 @@
   <!-- Suprimir erros de extensões do Chrome (AdBlock, etc) -->
   <script>
     window.addEventListener('error', function (e) {
+      // Ignorar erros de AbortError e erros de scripts de terceiros/extensões
       if (e.message && (
         e.message.includes('message channel closed') ||
-        e.message.includes('asynchronous response')
+        e.message.includes('asynchronous response') ||
+        e.message.includes('AbortError') ||
+        e.message.includes('signal is aborted') ||
+        e.message.includes('webpage_content_reporter') // Ignorar erro específico relatado
       )) {
+        console.warn('⚠️ Erro suprimido (segurança/extensão):', e.message);
         e.preventDefault();
         e.stopPropagation();
+        return false;
+      }
+
+      // Se for SyntaxError em arquivo externo, tentar não quebrar o resto
+      if (e.error instanceof SyntaxError && e.filename && e.filename.includes('webpage_content_reporter')) {
+        console.warn('⚠️ SyntaxError suprimido em script externo:', e.message);
+        e.preventDefault();
         return false;
       }
     }, true);
 
     window.addEventListener('unhandledrejection', function (e) {
-      if (e.reason && e.reason.message && (
-        e.reason.message.includes('message channel closed') ||
-        e.reason.message.includes('asynchronous response')
+      if (e.reason && (
+        (e.reason.message && (
+          e.reason.message.includes('message channel closed') ||
+          e.reason.message.includes('asynchronous response') ||
+          e.reason.message.includes('AbortError') ||
+          e.reason.message.includes('signal is aborted')
+        )) ||
+        (e.reason.name === 'AbortError') // Catch AbortError objects directly
       )) {
+        // console.warn('⚠️ Promessa rejeitada suprimida:', e.reason);
         e.preventDefault();
         e.stopPropagation();
         return false;

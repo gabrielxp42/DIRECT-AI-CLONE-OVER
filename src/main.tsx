@@ -3,6 +3,22 @@ import App from "./App.tsx";
 import "./globals.css";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 
+// Log de inicialização para debug de produção
+console.log('🚀 [Main] Starting application...', {
+  env: import.meta.env.MODE,
+  version: import.meta.env.VITE_APP_VERSION
+});
+
+// Global error handlers for React context
+window.addEventListener('error', (event) => {
+  // Ignorar erros de extensão conhecidos
+  if (event.message?.includes('message channel closed') ||
+    event.message?.includes('webpage_content_reporter')) {
+    event.preventDefault();
+    return false;
+  }
+});
+
 // CRÍTICO: Forçar a remoção de quaisquer Service Workers ativos em desenvolvimento
 // para evitar que cache antigo interfira com as credenciais novas.
 if (import.meta.env.DEV && 'serviceWorker' in navigator) {
@@ -30,23 +46,13 @@ if (import.meta.env.DEV && 'serviceWorker' in navigator) {
   });
 }
 
-// Suprimir erro comum de extensões do navegador que não afeta a aplicação
-// Este erro ocorre quando extensões (bloqueadores de anúncios, DevTools, etc.)
-// tentam interceptar mensagens mas não conseguem responder a tempo
-window.addEventListener('error', (event) => {
-  if (event.message?.includes('message channel closed before a response was received')) {
-    event.preventDefault();
-    // Não logar este erro específico pois é causado por extensões do navegador
-    return false;
-  }
-});
-
-// Também capturar promessas rejeitadas não tratadas relacionadas a este erro
+// Também capturar promessas rejeitadas não tratadas relacionadas a estes erros
 window.addEventListener('unhandledrejection', (event) => {
-  if (event.reason?.message?.includes('message channel closed before a response was received') ||
-    event.reason?.message?.includes('asynchronous response')) {
+  if (event.reason?.message?.includes('message channel closed') ||
+    event.reason?.message?.includes('asynchronous response') ||
+    event.reason?.name === 'AbortError' || // Catch standard AbortError
+    event.reason?.message?.includes('AbortError')) {
     event.preventDefault();
-    // Não logar este erro específico pois é causado por extensões do navegador
     return false;
   }
 });
