@@ -75,6 +75,7 @@ import { StatusChangeDialog } from '@/components/StatusChangeDialog';
 import { StatusHistoryDialog } from '@/components/StatusHistoryDialog';
 import { useCompanyProfile, getCompanyInfoForPDF } from '@/hooks/useCompanyProfile';
 import { generateOrderSummary } from '@/utils/orderSummary';
+import { ShippingSection } from './ShippingSection';
 
 interface PedidoDetailsProps {
   isOpen: boolean;
@@ -711,6 +712,17 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
                 );
               })()}
 
+              <div className="mt-6">
+                <ShippingSection
+                  pedidoId={pedido.id}
+                  clientAddress={pedido.clientes?.endereco || ''}
+                  clientName={pedido.clientes?.nome || ''}
+                  orderNumber={pedido.order_number}
+                  valorTotal={pedido.valor_total}
+                  initialLabelId={pedido.shipping_label_id}
+                  initialStatus={pedido.shipping_label_status}
+                />
+              </div>
             </div>
           </div>
         </div>

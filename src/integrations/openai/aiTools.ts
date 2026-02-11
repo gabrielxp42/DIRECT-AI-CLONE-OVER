@@ -416,6 +416,41 @@ const reset_user_memory = async (args: { confirmation: string }) => {
   }
 };
 
+/**
+ * Função para obter as templates personalizadas da Gabi (Cérebro da Gabi).
+ * Útil para enviar mensagens de WhatsApp consistentes com a marca do cliente.
+ */
+const get_gabi_templates = async () => {
+  try {
+    const ctx = await getUserContext();
+    if (!ctx) throw new Error("Contexto não encontrado");
+
+    const token = await getValidToken();
+    if (!token) throw new Error("Token não disponível");
+
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/profiles?select=gabi_templates&id=eq.${ctx.user_id}&limit=1`, {
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) throw new Error(`Erro ao buscar templates: ${response.status}`);
+
+    const profiles = await response.json();
+    const templates = profiles[0]?.gabi_templates || {};
+
+    return {
+      success: true,
+      templates,
+      message: "✅ Templates recuperados com sucesso do seu 'Cérebro da Gabi'."
+    };
+  } catch (err: any) {
+    console.error("❌ [get_gabi_templates] Erro:", err);
+    return { error: true, message: `Não consegui acessar seus modelos de mensagem: ${err.message}` };
+  }
+};
+
 // Função para obter o ranking dos clientes
 export const get_top_clients = async (args: { top_n?: number }) => {
   const { top_n = 5 } = args;
@@ -583,6 +618,100 @@ export const get_total_meters_by_period = async (args: {
 
 // OpenAI Functions format
 export const openAIFunctions = [
+  {
+    name: "calculate_shipping",
+    description: "Calcula opções de frete disponíveis (valores e prazos) usando o Super Frete. Requer CEP de destino. Se o cliente não tiver endereço ou CEP cadastrado, PEÇA O CEP ao usuário antes de chamar esta função.",
+    parameters: {
+      type: "object",
+      properties: {
+        from: { type: "string", description: "CEP de origem (Ex: 01001-000)." },
+        to: { type: "string", description: "CEP de destino (Ex: 20040-002)." },
+        package: {
+          type: "object",
+          properties: {
+            weight: { type: "number", description: "Peso em kg." },
+            height: { type: "number", description: "Altura em cm." },
+            width: { type: "number", description: "Largura em cm." },
+            length: { type: "number", description: "Comprimento em cm." }
+          },
+          required: ["weight", "height", "width", "length"]
+        },
+        services: { type: "string", description: "Opcional: códigos dos serviços separados por vírgula (1:PAC, 2:SEDEX, 3:Jadlog, etc.). Padrão busca todos." }
+      },
+      required: ["from", "to", "package"]
+    }
+  },
+  {
+    name: "create_shipping_label",
+    description: "Cria uma etiqueta de frete no Super Frete (status 'aguardando pagamento'). Requer CEP de destino e serviço escolhido. Se o CEP estiver faltando no cadastro, peça ao usuário.",
+    parameters: {
+      type: "object",
+      properties: {
+        from: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            postal_code: { type: "string" },
+            address: { type: "string" },
+            number: { type: "string" },
+            district: { type: "string" },
+            city: { type: "string" },
+            state_abbr: { type: "string", description: "UF em maiúsculas (Ex: SP)." }
+          },
+          required: ["name", "postal_code", "address", "district", "city", "state_abbr"]
+        },
+        to: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            postal_code: { type: "string" },
+            address: { type: "string" },
+            number: { type: "string" },
+            district: { type: "string" },
+            city: { type: "string" },
+            state_abbr: { type: "string" },
+            email: { type: "string", description: "Opcional." }
+          },
+          required: ["name", "postal_code", "address", "district", "city", "state_abbr"]
+        },
+        service: { type: "number", description: "ID do serviço escolhido (1:PAC, 2:SEDEX, etc.)." },
+        package: {
+          type: "object",
+          properties: {
+            weight: { type: "number" },
+            height: { type: "number" },
+            width: { type: "number" },
+            length: { type: "number" }
+          },
+          required: ["weight", "height", "width", "length"]
+        },
+        orderNumber: { type: "number", description: "Número do pedido interno para referência." }
+      },
+      required: ["from", "to", "service", "package"]
+    }
+  },
+  {
+    name: "checkout_shipping_label",
+    description: "Realiza o pagamento e emissão de uma etiqueta do Super Frete usando o saldo da conta. Requer o ID da etiqueta gerado pelo 'create_shipping_label'.",
+    parameters: {
+      type: "object",
+      properties: {
+        labelId: { type: "string", description: "O ID da etiqueta retornada na criação." }
+      },
+      required: ["labelId"]
+    }
+  },
+  {
+    name: "get_shipping_label_link",
+    description: "Obtém o link (PDF) para impressão de uma ou mais etiquetas já emitidas (status released).",
+    parameters: {
+      type: "object",
+      properties: {
+        labelIds: { type: "array", items: { type: "string" }, description: "Lista de IDs das etiquetas." }
+      },
+      required: ["labelIds"]
+    }
+  },
   {
     name: "get_current_date",
     description: "Obtém a data e hora atual do sistema, sempre no fuso horário de Rio de Janeiro (America/Sao_Paulo). Use esta função quando precisar saber 'que dia é hoje', 'que mês estamos', ou quando o usuário mencionar períodos relativos como 'desse mês', 'desta semana', 'hoje', 'ontem', etc. O campo 'ranges.thisWorkWeek' retorna o intervalo de Terça a Sábado, que é a semana de trabalho da empresa.",
@@ -1001,6 +1130,15 @@ export const openAIFunctions = [
     }
   },
   {
+    name: "get_gabi_templates",
+    description: "Recupera os modelos de mensagem personalizados configurados no 'Cérebro da Gabi' (ex: modelos para pedido pago, pronto para retirada, enviado, resumo). Use esta ferramenta SEMPRE que precisar enviar uma mensagem de WhatsApp padrão para um cliente, para garantir que segue o tom de voz definido pelo usuário.",
+    parameters: {
+      type: "object",
+      properties: {},
+      required: []
+    }
+  },
+  {
     name: "reset_user_memory",
     description: "Apaga todo o histórico de aprendizado e preferências da Gabi sobre o usuário atual. EXIGE confirmação textual 'confirmar'.",
     parameters: {
@@ -1056,7 +1194,8 @@ const findOrderByNumber = async (orderNumber: number) => {
     const token = await getValidToken();
     if (!token) throw new Error("Token inválido");
 
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?select=id&order_number=eq.${orderNumber}&organization_id=${ctx.organization_id ? `eq.${ctx.organization_id}` : 'is.null'}&limit=1`, {
+    const orgFilter = ctx.organization_id ? `eq.${ctx.organization_id}` : `user_id=eq.${ctx.user_id}`;
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?select=id&order_number=eq.${orderNumber}&${orgFilter.includes('=') ? orgFilter : `organization_id=${orgFilter}`}&limit=1`, {
       method: 'GET',
       headers: {
         'apikey': SUPABASE_ANON_KEY,
@@ -1136,7 +1275,8 @@ const findClientWithMultipleStrategies = async (clientName: string) => {
     // Strategy 2: Direct ILIKE search with normalized name
     try {
       console.log('📍 [findClient] Tentativa 2: Busca ILIKE com nome normalizado');
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=id,nome,organization_id&nome=ilike.*${encodeURIComponent(normalizedClientName)}*&organization_id=${ctx.organization_id ? `eq.${ctx.organization_id}` : 'is.null'}&limit=10`, {
+      const orgFilter = ctx.organization_id ? `organization_id=eq.${ctx.organization_id}` : `user_id=eq.${ctx.user_id}`;
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=id,nome,organization_id&nome=ilike.*${encodeURIComponent(normalizedClientName)}*&${orgFilter}&limit=10`, {
         method: 'GET',
         headers: headers
       });
@@ -1155,7 +1295,8 @@ const findClientWithMultipleStrategies = async (clientName: string) => {
     // Strategy 3: Broad search and client-side filtering
     try {
       console.log(`📍 [findClient] Tentativa 3: Busca ampla e filtragem client-side`);
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=id,nome,organization_id&organization_id=${ctx.organization_id ? `eq.${ctx.organization_id}` : 'is.null'}&limit=100`, {
+      const orgFilter = ctx.organization_id ? `organization_id=eq.${ctx.organization_id}` : `user_id=eq.${ctx.user_id}`;
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=id,nome,organization_id&${orgFilter}&limit=100`, {
         method: 'GET',
         headers: headers
       });
@@ -1187,7 +1328,8 @@ const findClientWithMultipleStrategies = async (clientName: string) => {
       for (const part of uniqueParts) {
         try {
           console.log(`📍 [findClient] Tentativa por parte do nome: "${part}"`);
-          const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=id,nome,organization_id&nome=ilike.*${encodeURIComponent(part)}*&organization_id=${ctx.organization_id ? `eq.${ctx.organization_id}` : 'is.null'}&limit=10`, {
+          const orgFilter = ctx.organization_id ? `organization_id=eq.${ctx.organization_id}` : `user_id=eq.${ctx.user_id}`;
+          const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=id,nome,organization_id&nome=ilike.*${encodeURIComponent(part)}*&${orgFilter}&limit=10`, {
             method: 'GET',
             headers: headers
           });
@@ -1280,7 +1422,8 @@ const fetchCompleteOrderData = async (fullOrderId: string) => {
 
     const selectQuery = `*,clientes(id,nome,email,telefone,endereco),pedido_items(id,produto_nome,quantidade,preco_unitario,observacao,produtos(id,nome)),pedido_servicos(id,nome,quantidade,valor_unitario)`;
 
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?select=${selectQuery}&id=eq.${fullOrderId}&organization_id=${ctx.organization_id ? `eq.${ctx.organization_id}` : 'is.null'}`, {
+    const orgFilter = ctx.organization_id ? `organization_id=eq.${ctx.organization_id}` : `user_id=eq.${ctx.user_id}`;
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?select=${selectQuery}&id=eq.${fullOrderId}&${orgFilter}`, {
       method: 'GET',
       headers: {
         'apikey': SUPABASE_ANON_KEY,
@@ -1386,7 +1529,7 @@ export const list_orders = async (args: {
     if (ctx.organization_id) {
       queryParams.append('organization_id', `eq.${ctx.organization_id}`);
     } else {
-      queryParams.append('organization_id', 'is.null');
+      queryParams.append('user_id', `eq.${ctx.user_id}`);
     }
 
     if (startDate) {
@@ -1631,7 +1774,7 @@ export const list_services = async (args: {
     if (ctx.organization_id) {
       queryParams.append('pedidos.organization_id', `eq.${ctx.organization_id}`);
     } else {
-      queryParams.append('pedidos.organization_id', 'is.null');
+      queryParams.append('pedidos.user_id', `eq.${ctx.user_id}`);
     }
 
     if (startDate) {
@@ -1946,6 +2089,10 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
     return reset_user_memory(args);
   }
 
+  if (name === "get_gabi_templates") {
+    return get_gabi_templates();
+  }
+
   if (name === "get_total_meters_by_period") {
     return get_total_meters_by_period(args);
   }
@@ -2043,7 +2190,8 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       const token = await getValidToken();
       if (!token) throw new Error("Token inválido");
 
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?select=id,order_number,status,valor_total,total_metros,total_metros_dtf,total_metros_vinil,created_at,clientes(nome),pedido_servicos(nome,quantidade,valor_unitario)&cliente_id=eq.${clientId}&organization_id=${ctx.organization_id ? `eq.${ctx.organization_id}` : 'is.null'}&order=created_at.desc`, {
+      const orgFilter = ctx.organization_id ? `organization_id=eq.${ctx.organization_id}` : `user_id=eq.${ctx.user_id}`;
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?select=id,order_number,status,valor_total,total_metros,total_metros_dtf,total_metros_vinil,created_at,clientes(nome),pedido_servicos(nome,quantidade,valor_unitario)&cliente_id=eq.${clientId}&${orgFilter}&order=created_at.desc`, {
         method: 'GET',
         headers: {
           'apikey': SUPABASE_ANON_KEY,
@@ -2150,7 +2298,8 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       const token = await getValidToken();
       if (!token) throw new Error("Token inválido");
 
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=*&id=eq.${clientId}&organization_id=${ctx.organization_id ? `eq.${ctx.organization_id}` : 'is.null'}&limit=1`, {
+      const orgFilter = ctx.organization_id ? `organization_id=eq.${ctx.organization_id}` : `user_id=eq.${ctx.user_id}`;
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=*&id=eq.${clientId}&${orgFilter}&limit=1`, {
         method: 'GET',
         headers: {
           'apikey': SUPABASE_ANON_KEY,
@@ -2259,7 +2408,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       if (ctx.organization_id) {
         queryParams.append('organization_id', `eq.${ctx.organization_id}`);
       } else {
-        queryParams.append('organization_id', 'is.null');
+        queryParams.append('user_id', `eq.${ctx.user_id}`);
       }
 
       if (statuses && statuses.length > 0) {
@@ -2385,7 +2534,8 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       const ctx = await getUserContext();
       if (!ctx) throw new Error("Não foi possível validar o contexto do usuário.");
 
-      const responseStatus = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?select=status&id=eq.${fullOrderId}&organization_id=${ctx.organization_id ? `eq.${ctx.organization_id}` : 'is.null'}`, {
+      const orgFilter = ctx.organization_id ? `organization_id=eq.${ctx.organization_id}` : `user_id=eq.${ctx.user_id}`;
+      const responseStatus = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?select=status&id=eq.${fullOrderId}&${orgFilter}`, {
         method: 'GET',
         headers: { ...headers, 'Accept': 'application/vnd.pgrst.object+json' }
       });
@@ -2400,7 +2550,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       const statusAnterior = currentOrder?.status || 'desconhecido';
 
       // Update status
-      const responseUpdate = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?id=eq.${fullOrderId}&organization_id=${ctx.organization_id ? `eq.${ctx.organization_id}` : 'is.null'}`, {
+      const responseUpdate = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?id=eq.${fullOrderId}&${orgFilter}`, {
         method: 'PATCH',
         headers: headers,
         body: JSON.stringify({ status: newStatus })
@@ -2680,12 +2830,22 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       const queryParams = new URLSearchParams();
       queryParams.append('select', select);
 
-      // Aplicar filtros da organização
-      const orgFilter = ctx.organization_id ? `eq.${ctx.organization_id}` : 'is.null';
-      if (table === 'pedido_status_history') {
-        queryParams.append('pedidos!inner.organization_id', orgFilter);
+      // Aplicar filtros da organização ou usuário
+      if (ctx.organization_id) {
+        const orgFilter = `eq.${ctx.organization_id}`;
+        if (table === 'pedido_status_history') {
+          queryParams.append('pedidos!inner.organization_id', orgFilter);
+        } else {
+          queryParams.append('organization_id', orgFilter);
+        }
       } else {
-        queryParams.append('organization_id', orgFilter);
+        // FALLBACK: Isolamento por usuário
+        const userFilter = `eq.${ctx.user_id}`;
+        if (table === 'pedido_status_history') {
+          queryParams.append('pedidos!inner.user_id', userFilter);
+        } else {
+          queryParams.append('user_id', userFilter);
+        }
       }
 
       // Aplicar filtros dinâmicos
@@ -2727,6 +2887,139 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
     } catch (error: any) {
       console.error("❌ [query_database] Erro inesperado:", error);
       throw new Error(`Erro na consulta dinâmica: ${error.message}`);
+    }
+  }
+
+  if (name === "calculate_shipping") {
+    try {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/superfrete-proxy`, {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${await getValidToken()}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          action: 'calculate',
+          params: {
+            from: args.from,
+            to: args.to,
+            package: args.package,
+            services: args.services || "1,2,17,3,31",
+            options: { insurance_value: 0, use_insurance_value: false }
+          }
+        })
+      });
+
+      const result = await response.json();
+      if (result.error) return result;
+
+      // Formatar resposta para a Gabi
+      const options = (result as any[]).map((opt: any) => ({
+        name: opt.name,
+        price: opt.price,
+        discount: opt.discount,
+        delivery_time: opt.delivery_time,
+        id: opt.id
+      }));
+
+      return {
+        message: `📊 Opções de frete encontradas para ${args.to}:\n\n` +
+          options.map(o => `🚚 **${o.name}**: R$ ${o.price} (Prazo: ${o.delivery_time} dias)`).join('\n'),
+        options
+      };
+    } catch (e: any) {
+      return { error: true, message: `Erro ao calcular frete: ${e.message}` };
+    }
+  }
+
+  if (name === "create_shipping_label") {
+    try {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/superfrete-proxy`, {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${await getValidToken()}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          action: 'cart',
+          params: {
+            from: args.from,
+            to: args.to,
+            service: args.service,
+            volume: args.package,
+            options: { non_commercial: true } // Default to declaração de conteúdo
+          }
+        })
+      });
+
+      const result = await response.json();
+      if (result.error) return result;
+
+      // result.id é o ID da etiqueta no Super Frete
+      return {
+        message: `✅ Etiqueta #${result.id} gerada com sucesso e aguardando pagamento!\n\n💰 Valor: R$ ${result.price}\n🚀 Status: ${result.status}`,
+        labelId: result.id,
+        price: result.price
+      };
+    } catch (e: any) {
+      return { error: true, message: `Erro ao criar etiqueta: ${e.message}` };
+    }
+  }
+
+  if (name === "checkout_shipping_label") {
+    try {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/superfrete-proxy`, {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${await getValidToken()}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          action: 'checkout',
+          params: { id: args.labelId }
+        })
+      });
+
+      const result = await response.json();
+      if (result.error) return result;
+
+      return {
+        message: `🚚 Pagamento efetuado! A etiqueta agora está Liberada (Released) e pronta para impressão.`,
+        status: result.status,
+        labelId: args.labelId
+      };
+    } catch (e: any) {
+      return { error: true, message: `Erro ao emitir etiqueta: ${e.message}` };
+    }
+  }
+
+  if (name === "get_shipping_label_link") {
+    try {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/superfrete-proxy`, {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${await getValidToken()}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          action: 'tracking',
+          params: { orders: args.labelIds }
+        })
+      });
+
+      const result = await response.json();
+      if (result.error) return result;
+
+      return {
+        message: `📄 Link para impressão gerado: ${result.url}`,
+        url: result.url
+      };
+    } catch (e: any) {
+      return { error: true, message: `Erro ao obter link da etiqueta: ${e.message}` };
     }
   }
 

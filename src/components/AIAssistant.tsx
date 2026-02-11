@@ -21,6 +21,7 @@ import { AgentMemoryManager, type AgentMemory, type AgentInsight } from '@/utils
 import { generateReActSystemPrompt } from '@/utils/agentPrompts';
 import { useAIAssistant } from '@/contexts/AIAssistantProvider';
 import { LiveGabi } from './LiveGabi';
+import { LiveGabiGemini } from './LiveGabiGemini';
 
 export const AIAssistant = () => {
   const { isOpen, close: closeAssistant } = useAIAssistant();
@@ -334,7 +335,7 @@ export const AIAssistant = () => {
               <>
                 {isLive ? (
                   <div className="flex-1 flex flex-col justify-center backdrop-blur-40">
-                    <LiveGabi
+                    <LiveGabiGemini
                       onClose={() => setIsLive(false)}
                       onTranscript={(text, role) => {
                         if (role === 'assistant' || role === 'user') {

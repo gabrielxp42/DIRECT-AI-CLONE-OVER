@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { Home, ShoppingCart, Users, BarChart3, Package, MessageSquare, Layers, Sparkles, Image as ImageIcon, Bot } from 'lucide-react';
+import { Home, ShoppingCart, Users, BarChart3, Package, MessageSquare, Layers, Sparkles, Image as ImageIcon, Bot, Truck } from 'lucide-react';
 import { AIAssistant } from './AIAssistant';
 import { ThemeToggle } from './ThemeToggle';
 import { UserNav } from './UserNav';
@@ -29,6 +29,7 @@ const staticNavItems = [
   { href: '/clientes', icon: Users, label: 'Clientes' },
   { href: '/produtos', icon: Package, label: 'Produtos' },
   { href: '/insumos', icon: Layers, label: 'Insumos' },
+  { href: '/logistica', icon: Truck, label: 'Logística' },
   { href: '/reports', icon: BarChart3, label: 'Relatórios' },
   { href: '/gabi', icon: Bot, label: 'Gabi' },
 ];

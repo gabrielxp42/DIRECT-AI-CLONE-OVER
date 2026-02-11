@@ -53,6 +53,8 @@ export interface Pedido {
   valor_frete?: number;
   transportadora?: string | null;
   tracking_code?: string | null;
+  shipping_label_id?: string | null;
+  shipping_label_status?: string | null;
   created_at: string;
 
   pago_at: string | null;

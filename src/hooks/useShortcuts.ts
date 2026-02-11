@@ -10,7 +10,8 @@ import {
     Users,
     Package,
     QrCode,
-    ClipboardList
+    ClipboardList,
+    Truck
 } from "lucide-react";
 import React from "react";
 
@@ -23,6 +24,7 @@ export const SHORTCUT_DEFINITIONS: Record<string, any> = {
     new_produto: { label: 'Novo Produto', icon: Package },
     pix_generator: { label: 'Gerador de PIX', icon: QrCode },
     price_table: { label: 'Tabela de Preços', icon: ClipboardList },
+    logistics: { label: 'Logística', icon: Truck },
 };
 
 export const useShortcuts = (onOpenCalculator?: () => void) => {
@@ -62,6 +64,9 @@ export const useShortcuts = (onOpenCalculator?: () => void) => {
                 break;
             case 'price_table':
                 showSuccess("Tabela de Preços em breve!");
+                break;
+            case 'logistics':
+                navigate('/logistica');
                 break;
             default:
                 console.warn(`No action defined for shortcut: ${id}`);
