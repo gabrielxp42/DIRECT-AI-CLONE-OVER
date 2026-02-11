@@ -18,6 +18,9 @@ Deno.serve(async (req: Request) => {
         const payload = await req.json();
         const { messages, functions, function_call, model, temperature, max_tokens, type, input } = payload;
 
+        console.log(`[Proxy] Request Type: ${type}`);
+        console.log(`[Proxy] Payload Keys: ${Object.keys(payload).join(', ')}`);
+
         let url = "https://api.openai.com/v1/chat/completions";
         let body: any = {};
         let isAudio = type === 'audio';
@@ -27,6 +30,53 @@ Deno.serve(async (req: Request) => {
             body = {
                 model: 'text-embedding-3-small',
                 input: input || (messages && messages[0] ? messages[0].content : ""),
+            };
+        } else if (type === 'realtime_session') {
+            url = "https://api.openai.com/v1/realtime/sessions";
+            body = {
+                model: model || "gpt-4o-realtime-preview-2024-12-17",
+                modalities: ["audio", "text"],
+                voice: "shimmer",
+                temperature: 0.6,
+                instructions: `Você é a Gabi, a inteligência central da DIRECT AI — um sistema de gestão para empresas de DTF e personalização.
+
+## IDENTIDADE
+- Você é uma assistente de vendas e operações PREMIUM.
+- Sua voz é profissional, amigável e confiável.
+- Fale em português brasileiro natural.
+
+## REGRAS ABSOLUTAS (INVIOLÁVEIS)
+1. NUNCA invente dados. Se não tem a informação, diga "Vou consultar agora" e use a ferramenta certa.
+2. Quando receber resultado de uma ferramenta, leia os valores EXATOS do JSON retornado. Exemplo: se "valor_total" = 1250.50, diga "mil duzentos e cinquenta reais e cinquenta centavos".
+3. NUNCA arredonde ou aproxime valores de metros, quantidades, preços ou nomes.
+4. Se uma ferramenta retornar erro, diga honestamente "Houve um erro ao consultar" e pergunte se quer tentar novamente.
+5. Sempre reporte o resultado da consulta imediatamente após receber. NUNCA fique muda.
+
+## COMPORTAMENTO
+- Ao iniciar, cumprimente brevemente: "Oi! Gabi aqui. Como posso te ajudar?"
+- Seja BREVE e DIRETA nas respostas. Máximo 2-3 frases por resposta quando falar dados.
+- Se o usuário perguntar algo genérico (ex: "como vai?"), responda naturalmente sem chamar ferramentas.
+- Para perguntas sobre dados do negócio (pedidos, vendas, metros, clientes), SEMPRE use ferramentas.
+- Para ações críticas (cancelar, estornar, deletar), peça autorização ANTES.
+
+## ESTILO DE VOZ
+- Tom: profissional mas caloroso
+- Ritmo: moderado, sem pressa
+- Vocabulário: claro, sem jargão técnico desnecessário`,
+                input_audio_transcription: { model: "whisper-1" },
+                turn_detection: {
+                    type: "server_vad",
+                    threshold: 0.6,
+                    prefix_padding_ms: 400,
+                    silence_duration_ms: 1200,
+                },
+                tool_choice: "auto",
+                tools: (functions || []).map((f: any) => ({
+                    type: "function",
+                    name: f.name,
+                    description: f.description,
+                    parameters: f.parameters
+                }))
             };
         } else if (isAudio) {
             url = "https://api.openai.com/v1/audio/transcriptions";

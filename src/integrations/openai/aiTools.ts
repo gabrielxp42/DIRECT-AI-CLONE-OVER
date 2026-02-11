@@ -1222,7 +1222,7 @@ export const list_orders = async (args: {
     }
 
     const queryParams = new URLSearchParams();
-    queryParams.append('select', 'id,order_number,status,valor_total,total_metros,total_metros_dtf,total_metros_vinil,created_at,clientes(nome),pedido_status_history(*)');
+    queryParams.append('select', 'id,order_number,status,valor_total,total_metros,total_metros_dtf,total_metros_vinil,created_at,clientes(nome),pedido_servicos(nome,quantidade,valor_unitario),pedido_status_history(*)');
 
     if (startDate) {
       queryParams.append('created_at', `gte.${startDate}`);
@@ -1301,8 +1301,7 @@ export const list_orders = async (args: {
       return { message: `❌ Nenhum pedido encontrado ${periodDescription}.${totalCountMessage}` };
     }
 
-    // FIX 1: Casting para OrderWithClient[]
-    const formattedOrders = (orders as unknown as OrderWithClient[]).map((order, index) => ({
+    const formattedOrders = (orders as any[]).map((order, index) => ({
       index: index + 1,
       order_number: order.order_number,
       status: order.status,
@@ -1311,7 +1310,13 @@ export const list_orders = async (args: {
       total_metros_dtf: order.total_metros_dtf,
       total_metros_vinil: order.total_metros_vinil,
       created_at: new Date(order.created_at).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }),
-      cliente: order.clientes?.nome
+      cliente: order.clientes?.nome,
+      itens: (order.pedido_servicos || []).map((s: any) => ({
+        nome: s.nome,
+        quantidade: Number(s.quantidade),
+        valor_unitario: Number(s.valor_unitario),
+        valor_total: Number(s.quantidade) * Number(s.valor_unitario),
+      })),
     }));
 
     // FIX 2, 3: Casting para OrderWithClient[]
@@ -1714,7 +1719,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       const token = await getValidToken();
       if (!token) throw new Error("Token inválido");
 
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?select=id,order_number,status,valor_total,total_metros,total_metros_dtf,total_metros_vinil,created_at,clientes(nome)&cliente_id=eq.${clientId}&order=created_at.desc`, {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?select=id,order_number,status,valor_total,total_metros,total_metros_dtf,total_metros_vinil,created_at,clientes(nome),pedido_servicos(nome,quantidade,valor_unitario)&cliente_id=eq.${clientId}&order=created_at.desc`, {
         method: 'GET',
         headers: {
           'apikey': SUPABASE_ANON_KEY,
@@ -1739,7 +1744,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
 
       console.log(`✅ [get_client_orders] Encontrados ${orders.length} pedidos para ${targetClient.nome}`);
 
-      const formattedOrders = (orders as unknown as OrderWithClient[]).map((order, index) => ({
+      const formattedOrders = (orders as any[]).map((order, index) => ({
         index: index + 1,
         order_number: order.order_number,
         status: order.status,
@@ -1748,7 +1753,13 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
         total_metros_dtf: order.total_metros_dtf,
         total_metros_vinil: order.total_metros_vinil,
         created_at: new Date(order.created_at).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }),
-        cliente: order.clientes?.nome
+        cliente: order.clientes?.nome,
+        itens: (order.pedido_servicos || []).map((s: any) => ({
+          nome: s.nome,
+          quantidade: Number(s.quantidade),
+          valor_unitario: Number(s.valor_unitario),
+          valor_total: Number(s.quantidade) * Number(s.valor_unitario),
+        })),
       }));
 
       const totalValue = (orders as unknown as OrderWithClient[]).reduce((sum, order) => sum + order.valor_total, 0);

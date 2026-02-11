@@ -80,6 +80,41 @@ export class OpenAIClient {
     }
   }
 
+  async getRealtimeSession(functions?: any[]): Promise<{ client_secret: { value: string } }> {
+    const token = await getValidToken();
+
+    try {
+      const response = await fetch(this.proxyURL, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'apikey': SUPABASE_ANON_KEY,
+          'Content-Type': 'application/json',
+        },
+        mode: 'cors',
+        body: JSON.stringify({
+          type: 'realtime_session',
+          functions: functions,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.client_secret) {
+          return data;
+        }
+        throw new Error("Sessão Realtime não retornou segredo.");
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.error?.message || `Erro ${response.status}`;
+        throw new Error(`Erro ao buscar sessão: ${errorMessage}`);
+      }
+    } catch (error) {
+      logger.error('🚨 [OpenAIClient] Erro ao obter sessão Realtime:', error);
+      throw error;
+    }
+  }
+
   async transcribeAudio(audioBlob: Blob): Promise<string | null> {
     const token = await getValidToken();
 
