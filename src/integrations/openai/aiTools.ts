@@ -1010,6 +1010,38 @@ export const openAIFunctions = [
       },
       required: ["confirmation"]
     }
+  },
+  {
+    name: "query_database",
+    description: "Executa consultas seguras e flexíveis no banco de dados. Use para perguntas que exigem cruzamento de dados ou detalhes específicos que outras ferramentas não cobrem (ex: 'que horas o pedido X foi pago?', 'quais pedidos o cliente Y fez no ano passado?').\n\nTABELAS E CAMPOS CHAVE:\n- 'pedidos': order_number, status, valor_total, created_at, pago_at (data/hora do pagamento), total_metros. Relacionamento: clientes(nome).\n- 'clientes': nome, telefone, email, endereco, created_at.\n- 'pedido_status_history': pedido_id, status_novo, created_at (data da mudança), observacao. Relacionamento: pedidos!inner(order_number).\n- 'pedido_items': produto_nome, quantidade, preco_unitario, tipo (dtf/vinil).\n\nO filtro de organização é aplicado automaticamente para sua segurança.",
+    parameters: {
+      type: "object",
+      properties: {
+        table: {
+          type: "string",
+          enum: ["pedidos", "clientes", "pedido_items", "pedido_servicos", "pedido_status_history"],
+          description: "A tabela principal a ser consultada."
+        },
+        select: {
+          type: "string",
+          description: "Campos para retornar (ex: 'order_number, status, pago_at, clientes(nome)'). Use '*' para os campos básicos da tabela."
+        },
+        filters: {
+          type: "object",
+          description: "Filtros PostgREST (ex: {'order_number': 'eq.123', 'status': 'eq.pago'}). Use chaves como nome da coluna e valores com prefixo PostgREST (eq., ilike., etc.)."
+        },
+        order: {
+          type: "string",
+          description: "Ordenação (ex: 'created_at.desc')."
+        },
+        limit: {
+          type: "number",
+          description: "Limite de resultados (padrão 10).",
+          default: 10
+        }
+      },
+      required: ["table", "select"]
+    }
   }
 ];
 
@@ -2631,6 +2663,70 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
     } catch (error: any) {
       console.error("❌ Erro no cálculo de packing:", error);
       throw new Error(error.message || "Erro ao calcular aproveitamento DTF.");
+    }
+  }
+
+  if (name === "query_database") {
+    const { table, select, filters, order, limit = 10 } = args;
+    console.log(`🔍 [query_database] Consultando tabela "${table}"...`);
+
+    try {
+      const ctx = await getUserContext();
+      if (!ctx) throw new Error("Contexto de usuário não validado.");
+
+      const token = await getValidToken();
+      if (!token) throw new Error("Token inválido");
+
+      const queryParams = new URLSearchParams();
+      queryParams.append('select', select);
+
+      // Aplicar filtros da organização
+      const orgFilter = ctx.organization_id ? `eq.${ctx.organization_id}` : 'is.null';
+      if (table === 'pedido_status_history') {
+        queryParams.append('pedidos!inner.organization_id', orgFilter);
+      } else {
+        queryParams.append('organization_id', orgFilter);
+      }
+
+      // Aplicar filtros dinâmicos
+      if (filters && typeof filters === 'object') {
+        Object.entries(filters).forEach(([key, value]) => {
+          queryParams.append(key, String(value));
+        });
+      }
+
+      if (order) queryParams.append('order', order);
+      queryParams.append('limit', String(limit));
+
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${queryParams.toString()}`, {
+        method: 'GET',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`❌ [query_database] Erro: ${response.status}`, errorText);
+        throw new Error(`Erro ao consultar banco de dados: ${response.status}`);
+      }
+
+      const results = await response.json();
+
+      return {
+        table,
+        count: Array.isArray(results) ? results.length : 1,
+        results,
+        message: (Array.isArray(results) && results.length > 0)
+          ? `✅ Encontrei ${results.length} registro(s) na tabela ${table}.`
+          : `ℹ️ Nenhum registro encontrado na tabela ${table} com os filtros aplicados.`
+      };
+
+    } catch (error: any) {
+      console.error("❌ [query_database] Erro inesperado:", error);
+      throw new Error(`Erro na consulta dinâmica: ${error.message}`);
     }
   }
 
