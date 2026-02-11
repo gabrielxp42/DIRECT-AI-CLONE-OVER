@@ -92,7 +92,7 @@ const getUserContext = async (): Promise<UserContext | null> => {
     }
 
     const organizationId = profiles[0].organization_id;
-    console.log(`✅ [getUserContext] Contexto obtido: User=${userId}, Org=${organizationId}`);
+    console.log(`✅ [getUserContext] Contexto obtido: User=${userId}, Org=${organizationId || 'null (GLOBAL/ADMIN)'}`);
 
     return {
       user_id: userId,
@@ -1024,7 +1024,7 @@ const findOrderByNumber = async (orderNumber: number) => {
     const token = await getValidToken();
     if (!token) throw new Error("Token inválido");
 
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?select=id&order_number=eq.${orderNumber}&organization_id=eq.${ctx.organization_id}&limit=1`, {
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?select=id&order_number=eq.${orderNumber}&organization_id=${ctx.organization_id ? `eq.${ctx.organization_id}` : 'is.null'}&limit=1`, {
       method: 'GET',
       headers: {
         'apikey': SUPABASE_ANON_KEY,
@@ -1104,7 +1104,7 @@ const findClientWithMultipleStrategies = async (clientName: string) => {
     // Strategy 2: Direct ILIKE search with normalized name
     try {
       console.log('📍 [findClient] Tentativa 2: Busca ILIKE com nome normalizado');
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=id,nome,organization_id&nome=ilike.*${encodeURIComponent(normalizedClientName)}*&organization_id=eq.${ctx.organization_id}&limit=10`, {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=id,nome,organization_id&nome=ilike.*${encodeURIComponent(normalizedClientName)}*&organization_id=${ctx.organization_id ? `eq.${ctx.organization_id}` : 'is.null'}&limit=10`, {
         method: 'GET',
         headers: headers
       });
@@ -1123,7 +1123,7 @@ const findClientWithMultipleStrategies = async (clientName: string) => {
     // Strategy 3: Broad search and client-side filtering
     try {
       console.log(`📍 [findClient] Tentativa 3: Busca ampla e filtragem client-side`);
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=id,nome,organization_id&organization_id=eq.${ctx.organization_id}&limit=100`, {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=id,nome,organization_id&organization_id=${ctx.organization_id ? `eq.${ctx.organization_id}` : 'is.null'}&limit=100`, {
         method: 'GET',
         headers: headers
       });
@@ -1155,7 +1155,7 @@ const findClientWithMultipleStrategies = async (clientName: string) => {
       for (const part of uniqueParts) {
         try {
           console.log(`📍 [findClient] Tentativa por parte do nome: "${part}"`);
-          const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=id,nome,organization_id&nome=ilike.*${encodeURIComponent(part)}*&organization_id=eq.${ctx.organization_id}&limit=10`, {
+          const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=id,nome,organization_id&nome=ilike.*${encodeURIComponent(part)}*&organization_id=${ctx.organization_id ? `eq.${ctx.organization_id}` : 'is.null'}&limit=10`, {
             method: 'GET',
             headers: headers
           });
@@ -1248,7 +1248,7 @@ const fetchCompleteOrderData = async (fullOrderId: string) => {
 
     const selectQuery = `*,clientes(id,nome,email,telefone,endereco),pedido_items(id,produto_nome,quantidade,preco_unitario,observacao,produtos(id,nome)),pedido_servicos(id,nome,quantidade,valor_unitario)`;
 
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?select=${selectQuery}&id=eq.${fullOrderId}&organization_id=eq.${ctx.organization_id}`, {
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?select=${selectQuery}&id=eq.${fullOrderId}&organization_id=${ctx.organization_id ? `eq.${ctx.organization_id}` : 'is.null'}`, {
       method: 'GET',
       headers: {
         'apikey': SUPABASE_ANON_KEY,
@@ -1351,7 +1351,11 @@ export const list_orders = async (args: {
 
     const queryParams = new URLSearchParams();
     queryParams.append('select', 'id,order_number,status,valor_total,total_metros,total_metros_dtf,total_metros_vinil,created_at,clientes(nome),pedido_servicos(nome,quantidade,valor_unitario),pedido_status_history(*)');
-    queryParams.append('organization_id', `eq.${ctx.organization_id}`);
+    if (ctx.organization_id) {
+      queryParams.append('organization_id', `eq.${ctx.organization_id}`);
+    } else {
+      queryParams.append('organization_id', 'is.null');
+    }
 
     if (startDate) {
       queryParams.append('created_at', `gte.${startDate}`);
@@ -1592,7 +1596,11 @@ export const list_services = async (args: {
 
     const queryParams = new URLSearchParams();
     queryParams.append('select', 'id,nome,quantidade,valor_unitario,pedido_id,pedidos!inner(id,order_number,status,created_at,organization_id,clientes(nome))');
-    queryParams.append('pedidos.organization_id', `eq.${ctx.organization_id}`);
+    if (ctx.organization_id) {
+      queryParams.append('pedidos.organization_id', `eq.${ctx.organization_id}`);
+    } else {
+      queryParams.append('pedidos.organization_id', 'is.null');
+    }
 
     if (startDate) {
       queryParams.append('pedidos.created_at', `gte.${startDate}`);
@@ -2003,7 +2011,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       const token = await getValidToken();
       if (!token) throw new Error("Token inválido");
 
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?select=id,order_number,status,valor_total,total_metros,total_metros_dtf,total_metros_vinil,created_at,clientes(nome),pedido_servicos(nome,quantidade,valor_unitario)&cliente_id=eq.${clientId}&organization_id=eq.${ctx.organization_id}&order=created_at.desc`, {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?select=id,order_number,status,valor_total,total_metros,total_metros_dtf,total_metros_vinil,created_at,clientes(nome),pedido_servicos(nome,quantidade,valor_unitario)&cliente_id=eq.${clientId}&organization_id=${ctx.organization_id ? `eq.${ctx.organization_id}` : 'is.null'}&order=created_at.desc`, {
         method: 'GET',
         headers: {
           'apikey': SUPABASE_ANON_KEY,
@@ -2110,7 +2118,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       const token = await getValidToken();
       if (!token) throw new Error("Token inválido");
 
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=*&id=eq.${clientId}&organization_id=eq.${ctx.organization_id}&limit=1`, {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=*&id=eq.${clientId}&organization_id=${ctx.organization_id ? `eq.${ctx.organization_id}` : 'is.null'}&limit=1`, {
         method: 'GET',
         headers: {
           'apikey': SUPABASE_ANON_KEY,
@@ -2216,7 +2224,11 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
 
       const queryParams = new URLSearchParams();
       queryParams.append('select', 'id,order_number,status,valor_total,total_metros,total_metros_dtf,total_metros_vinil,created_at,clientes(nome)');
-      queryParams.append('organization_id', `eq.${ctx.organization_id}`);
+      if (ctx.organization_id) {
+        queryParams.append('organization_id', `eq.${ctx.organization_id}`);
+      } else {
+        queryParams.append('organization_id', 'is.null');
+      }
 
       if (statuses && statuses.length > 0) {
         const statusList = statuses.map(s => `"${s}"`).join(',');
@@ -2341,7 +2353,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       const ctx = await getUserContext();
       if (!ctx) throw new Error("Não foi possível validar o contexto do usuário.");
 
-      const responseStatus = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?select=status&id=eq.${fullOrderId}&organization_id=eq.${ctx.organization_id}`, {
+      const responseStatus = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?select=status&id=eq.${fullOrderId}&organization_id=${ctx.organization_id ? `eq.${ctx.organization_id}` : 'is.null'}`, {
         method: 'GET',
         headers: { ...headers, 'Accept': 'application/vnd.pgrst.object+json' }
       });
@@ -2356,7 +2368,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       const statusAnterior = currentOrder?.status || 'desconhecido';
 
       // Update status
-      const responseUpdate = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?id=eq.${fullOrderId}&organization_id=eq.${ctx.organization_id}`, {
+      const responseUpdate = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?id=eq.${fullOrderId}&organization_id=${ctx.organization_id ? `eq.${ctx.organization_id}` : 'is.null'}`, {
         method: 'PATCH',
         headers: headers,
         body: JSON.stringify({ status: newStatus })
