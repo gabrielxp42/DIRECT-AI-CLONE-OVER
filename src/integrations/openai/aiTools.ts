@@ -43,6 +43,67 @@ interface MetersReportResult {
   total_orders: number;
 }
 
+interface UserContext {
+  user_id: string;
+  organization_id: string;
+}
+
+// Helper para obter o contexto do usuário (ID e Organização) de forma segura
+const getUserContext = async (): Promise<UserContext | null> => {
+  try {
+    const token = await getValidToken();
+    if (!token) return null;
+
+    console.log("🔐 [getUserContext] Buscando contexto do usuário...");
+
+    // Obter dados do usuário autenticado no Auth
+    const userResponse = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!userResponse.ok) {
+      console.warn("⚠️ [getUserContext] Não foi possível obter o usuário no Auth.");
+      return null;
+    }
+
+    const userData = await userResponse.json();
+    const userId = userData.id;
+
+    // Buscar o organization_id no perfil do usuário
+    const profileResponse = await fetch(`${SUPABASE_URL}/rest/v1/profiles?select=organization_id&id=eq.${userId}&limit=1`, {
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!profileResponse.ok) {
+      console.warn("⚠️ [getUserContext] Não foi possível buscar o perfil do usuário.");
+      return null;
+    }
+
+    const profiles = await profileResponse.json();
+    if (!profiles || profiles.length === 0) {
+      console.warn("⚠️ [getUserContext] Perfil não encontrado para o usuário.");
+      return null;
+    }
+
+    const organizationId = profiles[0].organization_id;
+    console.log(`✅ [getUserContext] Contexto obtido: User=${userId}, Org=${organizationId}`);
+
+    return {
+      user_id: userId,
+      organization_id: organizationId
+    };
+  } catch (error) {
+    console.error("❌ [getUserContext] Erro fatal ao obter contexto:", error);
+    return null;
+  }
+};
+
 // Função para obter data e hora atual no fuso horário do Rio de Janeiro
 export const getCurrentDateTime = () => {
   const now = new Date();
@@ -361,6 +422,9 @@ export const get_top_clients = async (args: { top_n?: number }) => {
   const TIME_ZONE = 'America/Sao_Paulo';
 
   try {
+    const ctx = await getUserContext();
+    if (!ctx) throw new Error("Não foi possível validar o contexto do usuário.");
+
     const token = await getValidToken();
     if (!token) throw new Error("Token inválido");
 
@@ -371,7 +435,10 @@ export const get_top_clients = async (args: { top_n?: number }) => {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ top_n: top_n })
+      body: JSON.stringify({
+        top_n: top_n,
+        p_organization_id: ctx.organization_id // Adicionado filtro de organização
+      })
     });
 
     if (!response.ok) {
@@ -458,6 +525,9 @@ export const get_total_meters_by_period = async (args: {
   }
 
   try {
+    const ctx = await getUserContext();
+    if (!ctx) throw new Error("Não foi possível validar o contexto do usuário.");
+
     const token = await getValidToken();
     if (!token) throw new Error("Token inválido");
 
@@ -471,7 +541,8 @@ export const get_total_meters_by_period = async (args: {
       },
       body: JSON.stringify({
         p_start_date: startDate,
-        p_end_date: endDate
+        p_end_date: endDate,
+        p_organization_id: ctx.organization_id // Adicionado filtro de organização
       })
     });
 
@@ -547,6 +618,46 @@ export const openAIFunctions = [
         }
       },
       required: []
+    }
+  },
+  {
+    name: "create_order",
+    description: "Cria um novo pedido para um cliente identificado. EXIGE itens (produto_nome, quant, preco_unit), servicos e valor total. SEMPRE peça confirmação textual do usuário antes de criar de fato.",
+    parameters: {
+      type: "object",
+      properties: {
+        clientName: { type: "string", description: "Nome do cliente para o pedido." },
+        items: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              product_name: { type: "string" },
+              quantity: { type: "number" },
+              price_unit: { type: "number" },
+              observacao: { type: "string" }
+            },
+            required: ["product_name", "quantity", "price_unit"]
+          },
+          description: "Lista de produtos físicos ou itens do pedido."
+        },
+        servicos: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              nome: { type: "string" },
+              quantity: { type: "number" },
+              price_unit: { type: "number" }
+            },
+            required: ["nome", "quantity", "price_unit"]
+          },
+          description: "Lista de serviços (ex: Impressão DTF, Vinil, etc.)."
+        },
+        valor_total: { type: "number", description: "O valor total somado do pedido em reais." },
+        observacoes: { type: "string", description: "Observações gerais do pedido." }
+      },
+      required: ["clientName", "items", "servicos", "valor_total"]
     }
   },
   {
@@ -907,10 +1018,13 @@ const findOrderByNumber = async (orderNumber: number) => {
   console.log(`🔍 [findOrderByNumber] Buscando pedido #${orderNumber}...`);
 
   try {
+    const ctx = await getUserContext();
+    if (!ctx) throw new Error("Não foi possível validar o contexto do usuário.");
+
     const token = await getValidToken();
     if (!token) throw new Error("Token inválido");
 
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?select=id&order_number=eq.${orderNumber}&limit=1`, {
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?select=id&order_number=eq.${orderNumber}&organization_id=eq.${ctx.organization_id}&limit=1`, {
       method: 'GET',
       headers: {
         'apikey': SUPABASE_ANON_KEY,
@@ -931,7 +1045,7 @@ const findOrderByNumber = async (orderNumber: number) => {
       return data[0].id;
     }
 
-    console.log('❌ [findOrderByNumber] Busca direta não encontrou o pedido');
+    console.log('❌ [findOrderByNumber] Busca direta não encontrou o pedido para esta organização');
     return null;
   } catch (error) {
     console.log('❌ [findOrderByNumber] Erro na busca direta:', error);
@@ -947,6 +1061,9 @@ const findClientWithMultipleStrategies = async (clientName: string) => {
   const normalizedClientName = removeAccents(clientName.toLowerCase().trim());
 
   try {
+    const ctx = await getUserContext();
+    if (!ctx) throw new Error("Não foi possível validar o contexto do usuário.");
+
     const token = await getValidToken();
     if (!token) throw new Error("Token inválido");
 
@@ -964,15 +1081,20 @@ const findClientWithMultipleStrategies = async (clientName: string) => {
         headers: headers,
         body: JSON.stringify({
           partial_name: normalizedClientName,
-          similarity_threshold: 0.05
+          similarity_threshold: 0.05,
+          p_organization_id: ctx.organization_id // Assumindo que a RPC aceita este parâmetro ou filtra internamente
         })
       });
 
       if (response.ok) {
         const fuzzyClients = await response.json();
         if (fuzzyClients && fuzzyClients.length > 0) {
-          console.log(`✅ [findClient] Busca fuzzy encontrou ${fuzzyClients.length} cliente(s):`, fuzzyClients.map((c: any) => c.nome));
-          return fuzzyClients;
+          // Filtragem extra por precaução caso a RPC ignore o parâmetro
+          const orgClients = fuzzyClients.filter((c: any) => c.organization_id === ctx.organization_id || !c.organization_id);
+          if (orgClients.length > 0) {
+            console.log(`✅ [findClient] Busca fuzzy encontrou ${orgClients.length} cliente(s):`, orgClients.map((c: any) => c.nome));
+            return orgClients;
+          }
         }
       }
     } catch (error) {
@@ -982,7 +1104,7 @@ const findClientWithMultipleStrategies = async (clientName: string) => {
     // Strategy 2: Direct ILIKE search with normalized name
     try {
       console.log('📍 [findClient] Tentativa 2: Busca ILIKE com nome normalizado');
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=id,nome&nome=ilike.*${encodeURIComponent(normalizedClientName)}*&limit=10`, {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=id,nome,organization_id&nome=ilike.*${encodeURIComponent(normalizedClientName)}*&organization_id=eq.${ctx.organization_id}&limit=10`, {
         method: 'GET',
         headers: headers
       });
@@ -1001,7 +1123,7 @@ const findClientWithMultipleStrategies = async (clientName: string) => {
     // Strategy 3: Broad search and client-side filtering
     try {
       console.log(`📍 [findClient] Tentativa 3: Busca ampla e filtragem client-side`);
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=id,nome&limit=100`, {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=id,nome,organization_id&organization_id=eq.${ctx.organization_id}&limit=100`, {
         method: 'GET',
         headers: headers
       });
@@ -1033,7 +1155,7 @@ const findClientWithMultipleStrategies = async (clientName: string) => {
       for (const part of uniqueParts) {
         try {
           console.log(`📍 [findClient] Tentativa por parte do nome: "${part}"`);
-          const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=id,nome&nome=ilike.*${encodeURIComponent(part)}*&limit=10`, {
+          const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=id,nome,organization_id&nome=ilike.*${encodeURIComponent(part)}*&organization_id=eq.${ctx.organization_id}&limit=10`, {
             method: 'GET',
             headers: headers
           });
@@ -1118,12 +1240,15 @@ const fetchCompleteOrderData = async (fullOrderId: string) => {
   console.log(`📋 [fetchCompleteOrderData] Buscando dados completos do pedido: ${fullOrderId}`);
 
   try {
+    const ctx = await getUserContext();
+    if (!ctx) throw new Error("Contexto inválido");
+
     const token = await getValidToken();
     if (!token) throw new Error("Token inválido");
 
     const selectQuery = `*,clientes(id,nome,email,telefone,endereco),pedido_items(id,produto_nome,quantidade,preco_unitario,observacao,produtos(id,nome)),pedido_servicos(id,nome,quantidade,valor_unitario)`;
 
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?select=${selectQuery}&id=eq.${fullOrderId}`, {
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?select=${selectQuery}&id=eq.${fullOrderId}&organization_id=eq.${ctx.organization_id}`, {
       method: 'GET',
       headers: {
         'apikey': SUPABASE_ANON_KEY,
@@ -1214,7 +1339,10 @@ export const list_orders = async (args: {
   console.log(`📊 [list_orders] Datas finais para consulta:`, { startDate, endDate }); // Log final dates
 
   try {
-    console.log('🔄 [list_orders] Obtendo token...');
+    console.log('🔄 [list_orders] Obtendo token e contexto...');
+    const ctx = await getUserContext();
+    if (!ctx) throw new Error("Não foi possível validar o contexto do usuário.");
+
     const token = await getValidToken();
     console.log('✅ [list_orders] Token obtido:', token ? 'Sim' : 'Não');
     if (!token) {
@@ -1223,6 +1351,7 @@ export const list_orders = async (args: {
 
     const queryParams = new URLSearchParams();
     queryParams.append('select', 'id,order_number,status,valor_total,total_metros,total_metros_dtf,total_metros_vinil,created_at,clientes(nome),pedido_servicos(nome,quantidade,valor_unitario),pedido_status_history(*)');
+    queryParams.append('organization_id', `eq.${ctx.organization_id}`);
 
     if (startDate) {
       queryParams.append('created_at', `gte.${startDate}`);
@@ -1453,13 +1582,17 @@ export const list_services = async (args: {
   try {
     console.log('📍 [list_services] Tentativa 1: Tabela pedido_servicos com JOIN (via Fetch)');
 
+    const ctx = await getUserContext();
+    if (!ctx) throw new Error("Não foi possível validar o contexto do usuário.");
+
     const token = await getValidToken();
     if (!token) {
       throw new Error("Não foi possível obter um token de autenticação válido.");
     }
 
     const queryParams = new URLSearchParams();
-    queryParams.append('select', 'id,nome,quantidade,valor_unitario,pedido_id,pedidos!inner(id,order_number,status,created_at,clientes(nome))');
+    queryParams.append('select', 'id,nome,quantidade,valor_unitario,pedido_id,pedidos!inner(id,order_number,status,created_at,organization_id,clientes(nome))');
+    queryParams.append('pedidos.organization_id', `eq.${ctx.organization_id}`);
 
     if (startDate) {
       queryParams.append('pedidos.created_at', `gte.${startDate}`);
@@ -1580,6 +1713,150 @@ export const list_services = async (args: {
   }
 };
 
+// Helper to create a new order
+const create_order = async (args: {
+  clientName: string;
+  items: any[];
+  servicos: any[];
+  valor_total: number;
+  observacoes?: string;
+}) => {
+  const { clientName, items, servicos, valor_total, observacoes } = args;
+  console.log(`🆕 [create_order] Iniciando criação de pedido para: ${clientName}`);
+
+  try {
+    const ctx = await getUserContext();
+    if (!ctx) throw new Error("Não foi possível validar o contexto do usuário.");
+
+    const token = await getValidToken();
+    if (!token) throw new Error("Token inválido");
+
+    // 1. Encontrar o cliente (usando busca segura já existente)
+    const foundClients = await findClientWithMultipleStrategies(clientName);
+    if (!foundClients || foundClients.length === 0) {
+      throw new Error(`❌ Cliente "${clientName}" não encontrado. Não posso criar o pedido sem um cliente cadastrado.`);
+    }
+
+    // Se houver mais de um, pegamos o primeiro por simplicidade na criação direta,
+    // mas o assistente deve idealmente clarificar antes.
+    const client = foundClients[0];
+    const clientId = client.id;
+
+    const headers = {
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=representation'
+    };
+
+    // 2. Criar o pedido (Tabela pedidos)
+    const orderPayload = {
+      cliente_id: clientId,
+      organization_id: ctx.organization_id,
+      user_id: ctx.user_id,
+      valor_total: valor_total,
+      status: 'aguardando',
+      observacoes: observacoes || '',
+      total_metros: 0,
+      total_metros_dtf: 0,
+      total_metros_vinil: 0
+    };
+
+    console.log(`📍 [create_order] Inserindo pedido na tabela 'pedidos'...`);
+    const orderResponse = await fetch(`${SUPABASE_URL}/rest/v1/pedidos`, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify(orderPayload)
+    });
+
+    if (!orderResponse.ok) {
+      const errorText = await orderResponse.text();
+      throw new Error(`Erro ao criar pedido principal: ${errorText}`);
+    }
+
+    const newOrders = await orderResponse.json();
+    const newOrder = newOrders[0];
+    const orderId = newOrder.id;
+    const orderNumber = newOrder.order_number;
+
+    console.log(`✅ [create_order] Pedido #${orderNumber} criado (ID: ${orderId}). Inserindo itens e serviços...`);
+
+    // 3. Criar os itens (Tabela pedido_items)
+    if (items && items.length > 0) {
+      const itemsPayload = items.map((item: any) => ({
+        pedido_id: orderId,
+        produto_nome: item.product_name,
+        quantidade: item.quantity,
+        preco_unitario: item.price_unit,
+        observacao: item.observacao || ''
+      }));
+
+      const itemsResponse = await fetch(`${SUPABASE_URL}/rest/v1/pedido_items`, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify(itemsPayload)
+      });
+
+      if (!itemsResponse.ok) {
+        console.warn(`⚠️ ERRO ao inserir itens:`, await itemsResponse.text());
+      }
+    }
+
+    // 4. Criar os serviços (Tabela pedido_servicos)
+    if (servicos && servicos.length > 0) {
+      const servicesPayload = servicos.map((s: any) => ({
+        pedido_id: orderId,
+        nome: s.nome,
+        quantidade: s.quantity,
+        valor_unitario: s.price_unit
+      }));
+
+      const servicesResponse = await fetch(`${SUPABASE_URL}/rest/v1/pedido_servicos`, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify(servicesPayload)
+      });
+
+      if (!servicesResponse.ok) {
+        console.warn(`⚠️ ERRO ao inserir serviços:`, await servicesResponse.text());
+      }
+    }
+
+    // 5. Inserir histórico inicial
+    console.log(`📍 [create_order] Registrando histórico inicial...`);
+    await fetch(`${SUPABASE_URL}/rest/v1/pedido_status_history`, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        pedido_id: orderId,
+        status_anterior: null,
+        status_novo: 'aguardando',
+        observacao: 'Pedido criado via Gabi AI (Realtime)',
+        user_id: ctx.user_id
+      })
+    });
+
+    return {
+      success: true,
+      message: `✅ **Pedido #${orderNumber} criado com sucesso!**\n👤 Cliente: **${client.nome}**\n💰 Valor Total: **R$ ${valor_total.toFixed(2)}**\n\nO pedido já está no sistema com o status "aguardando". Quer que eu envie o link do pedido para o cliente por WhatsApp?`,
+      order: {
+        id: orderId,
+        order_number: orderNumber,
+        clientName: client.nome,
+        valor_total: valor_total
+      }
+    };
+
+  } catch (e: any) {
+    console.error(`❌ [create_order] Erro fatal:`, e);
+    return { error: true, message: `Houve um erro ao criar o pedido: ${e.message}` };
+  }
+};
+
 // Helper function to fetch complete order data for PDF generation (kept for completeness)
 // ... (fetchCompleteOrderData is defined above)
 
@@ -1603,6 +1880,10 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
 
   if (name === "perform_calculation") {
     return perform_calculation(args);
+  }
+
+  if (name === "create_order") {
+    return create_order(args);
   }
 
   if (name === "get_top_clients") {
@@ -1716,10 +1997,13 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
     const clientId = targetClient.id;
 
     try {
+      const ctx = await getUserContext();
+      if (!ctx) throw new Error("Não foi possível validar o contexto do usuário.");
+
       const token = await getValidToken();
       if (!token) throw new Error("Token inválido");
 
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?select=id,order_number,status,valor_total,total_metros,total_metros_dtf,total_metros_vinil,created_at,clientes(nome),pedido_servicos(nome,quantidade,valor_unitario)&cliente_id=eq.${clientId}&order=created_at.desc`, {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?select=id,order_number,status,valor_total,total_metros,total_metros_dtf,total_metros_vinil,created_at,clientes(nome),pedido_servicos(nome,quantidade,valor_unitario)&cliente_id=eq.${clientId}&organization_id=eq.${ctx.organization_id}&order=created_at.desc`, {
         method: 'GET',
         headers: {
           'apikey': SUPABASE_ANON_KEY,
@@ -1820,10 +2104,13 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
     const clientId = (foundClients as any[])[0].id;
 
     try {
+      const ctx = await getUserContext();
+      if (!ctx) throw new Error("Não foi possível validar o contexto do usuário.");
+
       const token = await getValidToken();
       if (!token) throw new Error("Token inválido");
 
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=*&id=eq.${clientId}&limit=1`, {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=*&id=eq.${clientId}&organization_id=eq.${ctx.organization_id}&limit=1`, {
         method: 'GET',
         headers: {
           'apikey': SUPABASE_ANON_KEY,
@@ -1921,11 +2208,15 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
     }
 
     try {
+      const ctx = await getUserContext();
+      if (!ctx) throw new Error("Não foi possível validar o contexto do usuário.");
+
       const token = await getValidToken();
       if (!token) throw new Error("Token inválido");
 
       const queryParams = new URLSearchParams();
       queryParams.append('select', 'id,order_number,status,valor_total,total_metros,total_metros_dtf,total_metros_vinil,created_at,clientes(nome)');
+      queryParams.append('organization_id', `eq.${ctx.organization_id}`);
 
       if (statuses && statuses.length > 0) {
         const statusList = statuses.map(s => `"${s}"`).join(',');
@@ -2047,7 +2338,10 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       };
 
       // Fetch current status to record in history
-      const responseStatus = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?select=status&id=eq.${fullOrderId}`, {
+      const ctx = await getUserContext();
+      if (!ctx) throw new Error("Não foi possível validar o contexto do usuário.");
+
+      const responseStatus = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?select=status&id=eq.${fullOrderId}&organization_id=eq.${ctx.organization_id}`, {
         method: 'GET',
         headers: { ...headers, 'Accept': 'application/vnd.pgrst.object+json' }
       });
@@ -2062,7 +2356,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       const statusAnterior = currentOrder?.status || 'desconhecido';
 
       // Update status
-      const responseUpdate = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?id=eq.${fullOrderId}`, {
+      const responseUpdate = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?id=eq.${fullOrderId}&organization_id=eq.${ctx.organization_id}`, {
         method: 'PATCH',
         headers: headers,
         body: JSON.stringify({ status: newStatus })
