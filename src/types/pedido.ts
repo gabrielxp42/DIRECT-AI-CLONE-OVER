@@ -55,6 +55,8 @@ export interface Pedido {
   tracking_code?: string | null;
   shipping_label_id?: string | null;
   shipping_label_status?: string | null;
+  shipping_cep?: string | null;
+  shipping_details?: any | null;
   created_at: string;
 
   pago_at: string | null;
@@ -98,6 +100,8 @@ export interface NewPedido {
   valor_frete?: number;
   transportadora?: string | null;
   tracking_code?: string | null;
+  shipping_cep?: string | null;
+  shipping_details?: any | null;
   items: NewPedidoItem[];
 
   servicos?: NewServico[];

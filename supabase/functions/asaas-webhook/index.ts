@@ -41,6 +41,37 @@ serve(async (req) => {
             const customerId = asaasObject?.customer || payload.pixAutomaticAuthorization?.customer;
 
             if (externalReference) {
+                // --- LÓGICA DE RECARGA DE CRÉDITOS ---
+                if (externalReference.startsWith('REFILL:')) {
+                    if (event === 'PAYMENT_CONFIRMED' || event === 'PAYMENT_RECEIVED') {
+                        const userId = externalReference.split(':')[1];
+                        const amount = payment?.value || 0;
+
+                        console.log(`RECARGA DETECTADA: User=${userId} | Valor=${amount} | Pagamento=${payment?.id}`);
+
+                        // Usar RPC para garantir Atomicidade e Idempotência (Trava de pagamento duplicado)
+                        const { data: rpcResult, error: rpcError } = await supabaseAdmin.rpc('process_wallet_recharge', {
+                            p_user_id: userId,
+                            p_amount: amount,
+                            p_asaas_payment_id: payment?.id,
+                            p_description: `Recarga via Asaas (Pagamento ${payment?.id})`
+                        });
+
+                        if (rpcError) {
+                            console.error(`Erro ao processar recarga via RPC: ${rpcError.message}`);
+                            throw rpcError;
+                        }
+
+                        if (rpcResult.success) {
+                            console.log(`Recarga concluída com sucesso para ${userId}. Novo saldo: ${rpcResult.new_balance}`);
+                        } else {
+                            console.log(`Recarga ignorada ou falhou: ${rpcResult.message} (${rpcResult.reason})`);
+                        }
+                    }
+                    return new Response(JSON.stringify({ success: true, type: 'refill' }), { headers: corsHeaders, status: 200 });
+                }
+
+                // --- LÓGICA DE ASSINATURA (FLUXO ORIGINAL) ---
                 const updatePayload: any = {
                     subscription_status: 'active',
                     asaas_customer_id: customerId,

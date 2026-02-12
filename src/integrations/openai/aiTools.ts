@@ -620,25 +620,25 @@ export const get_total_meters_by_period = async (args: {
 export const openAIFunctions = [
   {
     name: "calculate_shipping",
-    description: "Calcula opções de frete disponíveis (valores e prazos) usando o Super Frete. Requer CEP de destino. Se o cliente não tiver endereço ou CEP cadastrado, PEÇA O CEP ao usuário antes de chamar esta função.",
+    description: "Calcula opções de frete disponíveis (valores e prazos) usando o Super Frete. Requer APENAS o CEP de destino. O sistema usará automaticamente o CEP de origem da sua empresa e dimensões padrão de pacote (0.5kg), a menos que você especifique o contrário.",
     parameters: {
       type: "object",
       properties: {
-        from: { type: "string", description: "CEP de origem (Ex: 01001-000)." },
+        from: { type: "string", description: "CEP de origem opcional. Se omitido, usa o CEP da empresa cadastrado no perfil." },
         to: { type: "string", description: "CEP de destino (Ex: 20040-002)." },
         package: {
           type: "object",
           properties: {
-            weight: { type: "number", description: "Peso em kg." },
-            height: { type: "number", description: "Altura em cm." },
-            width: { type: "number", description: "Largura em cm." },
-            length: { type: "number", description: "Comprimento em cm." }
+            weight: { type: "number", description: "Peso em kg. Padrão: 0.5kg" },
+            height: { type: "number", description: "Altura em cm. Padrão: 2cm" },
+            width: { type: "number", description: "Largura em cm. Padrão: 11cm" },
+            length: { type: "number", description: "Comprimento em cm. Padrão: 16cm" }
           },
-          required: ["weight", "height", "width", "length"]
+          required: []
         },
-        services: { type: "string", description: "Opcional: códigos dos serviços separados por vírgula (1:PAC, 2:SEDEX, 3:Jadlog, etc.). Padrão busca todos." }
+        services: { type: "string", description: "Opcional: códigos dos serviços separados por vírgula (1:PAC, 2:SEDEX, 3:Jadlog, etc.). Padrão busca principais." }
       },
-      required: ["from", "to", "package"]
+      required: ["to"]
     }
   },
   {
@@ -1401,10 +1401,11 @@ const getCompanyInfo = async () => {
       email: profile.company_email || '',
       address_full: address_full || '',
       pix_key: profile.company_pix_key || '',
-      logo_url: profile.company_logo_url || '/logo.png'
+      logo_url: profile.company_logo_url || '/logo.png',
+      zip_code: profile.company_address_zip || ''
     };
   } catch (error) {
-    console.warn('⚠️ Erro ao buscar informações da empresa para PDF:', error);
+    console.warn('⚠️ Erro ao buscar informações da empresa:', error);
     return undefined;
   }
 };
@@ -2892,6 +2893,38 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
 
   if (name === "calculate_shipping") {
     try {
+      let fromZip = args.from;
+
+      // Se não enviou o CEP de origem, buscar do perfil da empresa
+      if (!fromZip) {
+        const companyInfo = await getCompanyInfo();
+        fromZip = companyInfo?.zip_code;
+        console.log(`🏠 [calculate_shipping] CEP de origem obtido do perfil: ${fromZip}`);
+      }
+
+      // Se ainda não tiver CEP de origem (perfil incompleto e não enviado no prompt), usar fallback ou avisar
+      if (!fromZip) {
+        return {
+          error: true,
+          message: "Não consegui identificar seu CEP de origem. Por favor, informe o CEP de origem ou complete seu perfil nas configurações."
+        };
+      }
+
+      // Defaults para o pacote seguindo a lógica do ShippingSection.tsx
+      const packageDefaults = {
+        weight: 0.5,
+        height: 2,
+        width: 11,
+        length: 16
+      };
+
+      const finalPackage = {
+        ...packageDefaults,
+        ...(args.package || {})
+      };
+
+      console.log(`🚢 [calculate_shipping] Calculando frete de ${fromZip} para ${args.to}`, finalPackage);
+
       const response = await fetch(`${SUPABASE_URL}/functions/v1/superfrete-proxy`, {
         method: 'POST',
         headers: {
@@ -2902,9 +2935,9 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
         body: JSON.stringify({
           action: 'calculate',
           params: {
-            from: args.from,
-            to: args.to,
-            package: args.package,
+            from: fromZip.replace(/\D/g, ''),
+            to: args.to.replace(/\D/g, ''),
+            package: finalPackage,
             services: args.services || "1,2,17,3,31",
             options: { insurance_value: 0, use_insurance_value: false }
           }
@@ -2914,21 +2947,27 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       const result = await response.json();
       if (result.error) return result;
 
-      // Formatar resposta para a Gabi
-      const options = (result as any[]).map((opt: any) => ({
-        name: opt.name,
-        price: opt.price,
-        discount: opt.discount,
-        delivery_time: opt.delivery_time,
-        id: opt.id
-      }));
+      // Se o resultado for um array de opções
+      if (Array.isArray(result)) {
+        const options = result.map((opt: any) => ({
+          name: opt.name,
+          price: opt.price,
+          discount: opt.discount,
+          delivery_time: opt.delivery_time,
+          id: opt.id
+        }));
 
-      return {
-        message: `📊 Opções de frete encontradas para ${args.to}:\n\n` +
-          options.map(o => `🚚 **${o.name}**: R$ ${o.price} (Prazo: ${o.delivery_time} dias)`).join('\n'),
-        options
-      };
+        return {
+          message: `📊 Opções de frete encontradas para o CEP **${args.to}**:\n\n` +
+            options.map(o => `🚚 **${o.name}**: R$ ${o.price} (Prazo: ${o.delivery_time} dias)`).join('\n') +
+            `\n\n💡 *Calculado com pacote padrão (0.5kg, 16x11x2cm). Qual dessas opções você prefere?*`,
+          options
+        };
+      }
+
+      return result;
     } catch (e: any) {
+      console.error(`❌ [calculate_shipping] Erro:`, e);
       return { error: true, message: `Erro ao calcular frete: ${e.message}` };
     }
   }

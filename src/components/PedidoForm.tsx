@@ -44,7 +44,7 @@ import { NewPedido, Pedido } from "@/types/pedido";
 import { Cliente } from "@/types/cliente";
 import { Produto } from "@/types/produto";
 import { useEffect, useState, useRef, useMemo, useCallback } from "react";
-import { Trash2, Plus, Search, Edit3, X, User, Package, Wrench, Save, Zap, CalendarIcon, Ruler, ChevronDown, Loader2, FileText, Copy, GripVertical, Sparkles, Printer, Scissors, Settings, Bike, Star, Info, Tag, Layers, PenTool, BadgeCheck, Palette } from "lucide-react";
+import { Trash2, Plus, Search, Edit3, X, User, Package, Wrench, Save, Zap, CalendarIcon, Ruler, ChevronDown, Loader2, FileText, Copy, GripVertical, Sparkles, Printer, Scissors, Settings, Bike, Star, Info, Tag, Layers, PenTool, BadgeCheck, Palette, Truck } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -97,6 +97,7 @@ import { TipoProducao } from "@/types/producao";
 import { useTour } from '@/hooks/useTour';
 import { NEW_ORDER_TOUR } from '@/utils/tours';
 import { TutorialGuide } from '@/components/TutorialGuide';
+import { FreightQuoteModal } from './FreightQuoteModal';
 
 
 const formSchema = z.object({
@@ -108,6 +109,8 @@ const formSchema = z.object({
   tracking_code: z.string().optional().nullable(),
   desconto_valor: z.coerce.number().min(0).optional(),
   desconto_percentual: z.coerce.number().min(0).max(100).optional(),
+  shipping_cep: z.string().optional().nullable(),
+  shipping_details: z.any().optional().nullable(),
   created_at: z.date({
     required_error: "A data do pedido é obrigatória.",
   }),
@@ -161,6 +164,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
   const saveTransportadora = useSaveTransportadora();
   const [transportadoraOpen, setTransportadoraOpen] = useState(false);
   const [transportadoraSearch, setTransportadoraSearch] = useState('');
+  const [isFreightModalOpen, setIsFreightModalOpen] = useState(false);
 
   const uniqueTiposProducao = useMemo(() => {
     if (!tiposProducao) return [];
@@ -833,7 +837,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
       valorTotal,
       totalMetros: totalMetros
     };
-  }, [itemFields, servicoFields, watchedDescontoValor, watchedDescontoPercentual, tiposProducao, form]);
+  }, [itemFields, servicoFields, watchedDescontoValor, watchedDescontoPercentual, watchedTipoEntrega, watchedValorFrete, tiposProducao, form]);
 
   const { valorTotal, totalMetros } = calculateTotal();
 
@@ -908,26 +912,42 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
       <Dialog open={isOpen} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-4xl w-[95vw] sm:w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader className="space-y-2 sm:space-y-3">
-            <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl">
+            <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl font-black italic tracking-tighter uppercase">
               <Package className="h-4 w-4 sm:h-5 sm:w-5 text-primary flex-shrink-0" />
               <span className="truncate">{isEditing ? "Editar Pedido" : "Criar Novo Pedido"}</span>
             </DialogTitle>
             <DialogDescription className="text-xs sm:text-sm flex items-center justify-between">
               <span>{isEditing ? "Atualize as informações do pedido." : "Preencha as informações do novo pedido."}</span>
-              {!isTourOpen && !isEditing && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    startTour();
-                  }}
-                  className="h-7 text-[10px] text-primary hover:bg-primary/10"
-                >
-                  <Sparkles className="mr-1 h-3 w-3" />
-                  Ver Tutorial
-                </Button>
-              )}
+              <div className="flex items-center gap-2">
+                {!isEditing && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setIsFreightModalOpen(true);
+                    }}
+                    className="h-7 text-[10px] uppercase font-black italic border-primary/20 hover:bg-primary/10 text-primary gap-1.5"
+                  >
+                    <Truck className="h-3 w-3" />
+                    Cotar Frete
+                  </Button>
+                )}
+                {!isTourOpen && !isEditing && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      startTour();
+                    }}
+                    className="h-7 text-[10px] text-zinc-500 hover:text-white"
+                  >
+                    <Sparkles className="mr-1 h-3 w-3" />
+                    Ver Tutorial
+                  </Button>
+                )}
+              </div>
             </DialogDescription>
           </DialogHeader>
           <Form {...form}>
@@ -2108,6 +2128,24 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
               />
             </form>
           </Form>
+
+          <FreightQuoteModal
+            open={isFreightModalOpen}
+            onOpenChange={setIsFreightModalOpen}
+            defaultCEP={clientes.find(c => c.id === form.getValues('cliente_id'))?.cep || ""}
+            onSelectQuote={(quote) => {
+              form.setValue('tipo_entrega', 'frete');
+              form.setValue('valor_frete', quote.price);
+              form.setValue('transportadora', quote.carrier);
+              form.setValue('shipping_cep', quote.destination_cep || null);
+              form.setValue('shipping_details', {
+                carrier: quote.carrier,
+                price: quote.price,
+                service_id: quote.service_id
+              });
+              toast.success(`Frete selecionado: ${quote.carrier} - R$ ${quote.price}`);
+            }}
+          />
 
           <TutorialGuide
             steps={steps}

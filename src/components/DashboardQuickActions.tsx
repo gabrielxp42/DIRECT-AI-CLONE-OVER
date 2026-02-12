@@ -1,5 +1,5 @@
 import React from 'react';
-import { PlusCircle, UserPlus, FileText, Layers } from "lucide-react";
+import { PlusCircle, UserPlus, FileText, Layers, Truck } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
 
@@ -32,12 +32,12 @@ export const DashboardQuickActions = () => {
             desc: "Estoque"
         },
         {
-            title: "Relatórios",
-            icon: FileText,
-            onClick: () => navigate('/reports'),
-            color: "text-orange-600",
-            bg: "bg-orange-50 hover:bg-orange-100",
-            desc: "Ver dados"
+            title: "Gerar Etiqueta (Frete)",
+            icon: Truck,
+            onClick: () => navigate('/logistica'),
+            color: "text-primary",
+            bg: "bg-primary/5 hover:bg-primary/10",
+            desc: "Logística e Envios"
         }
     ];
 

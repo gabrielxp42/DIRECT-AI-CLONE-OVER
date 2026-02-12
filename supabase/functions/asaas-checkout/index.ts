@@ -18,17 +18,32 @@ serve(async (req) => {
 
     try {
         const payload = await req.json();
-        const { userId, email, name, paymentMethod, creditCard, creditCardHolderInfo, productType } = payload;
+        const { userId, email, name, paymentMethod, creditCard, creditCardHolderInfo, productType, amount, cpfCnpj } = payload;
 
         if (!userId || !email) {
             throw new Error("Missing userId or email");
         }
 
-        // --- BUSCAR PERFIL PARA VERIFICAR CUPOM ---
+        // --- SEGURANÇA: VALIDAR JWT ---
+        const authHeader = req.headers.get('Authorization');
+        if (!authHeader) {
+            throw new Error("Missing Authorization header");
+        }
+        const token = authHeader.replace('Bearer ', '');
         const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+        const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+        if (authError || !user) {
+            throw new Error("Invalid or expired session");
+        }
+
+        if (user.id !== userId) {
+            console.error(`SECURITY VIOLATION attempt from ${user.id} to user ${userId}`);
+            throw new Error("Não autorizado: ID do usuário não corresponde ao token");
+        }
         const { data: profile } = await supabaseAdmin
             .from('profiles')
-            .select('partner_code')
+            .select('partner_code, cpf_cnpj')
             .eq('id', userId)
             .single();
 
@@ -60,10 +75,10 @@ serve(async (req) => {
             'PRO_MAX': 137.00
         };
 
-        let selectedPrice = PLAN_PRICES[productType as keyof typeof PLAN_PRICES] || PLAN_PRICES['PRO'];
+        let selectedPrice = amount || PLAN_PRICES[productType as keyof typeof PLAN_PRICES] || PLAN_PRICES['PRO'];
 
-        // Aplicar 15% de desconto se tiver cupom
-        if (hasDiscount) {
+        // Aplicar 15% de desconto se tiver cupom e não for recarga
+        if (hasDiscount && productType !== 'REFILL') {
             console.log(`Aplicando 15% de desconto para o código: ${profile?.partner_code}`);
             selectedPrice = Number((selectedPrice * 0.85).toFixed(2));
         }
@@ -71,22 +86,41 @@ serve(async (req) => {
         const totalFirstPayment = selectedPrice;
         const setupFee = 0; // Taxa única removida em favor de planos mensais
 
-        console.log(`Processando checkout: ${email} | Produto: ${productType} | Cupom: ${hasDiscount ? profile?.partner_code : 'Nenhum'} | Total Inicial: ${totalFirstPayment} | Recorrente: ${selectedPrice}`);
+        console.log(`Processando checkout: ${email} | Produto: ${productType} | Cupom: ${hasDiscount ? profile?.partner_code : 'Nenhum'} | Total Inicial: ${totalFirstPayment} | Recorrente: ${productType === 'REFILL' ? 'N/A' : selectedPrice}`);
 
         const headers = {
             'Content-Type': 'application/json',
             'access_token': ASAAS_API_KEY || ''
         };
 
+        // --- GESTÃO DE CPF/CNPJ ---
+        // Priorizar: 1. Enviado no payload (formulário), 2. Salvo no Perfil, 3. Info do Cartão
+        let finalCpf = cpfCnpj?.replace(/\D/g, '') ||
+            profile?.cpf_cnpj?.replace(/\D/g, '') ||
+            creditCardHolderInfo?.cpfCnpj?.replace(/\D/g, '');
+
+        if (!finalCpf && (paymentMethod === 'PIX' || paymentMethod === 'PIX_AUTOMATIC')) {
+            throw new Error("CPF/CNPJ é obrigatório para pagamentos via PIX");
+        }
+
+        // Se recebemos um CPF novo e o perfil não tinha, salvar
+        if (finalCpf && !profile?.cpf_cnpj) {
+            console.log(`Salvando CPF/CNPJ ${finalCpf} no perfil de ${userId}`);
+            await supabaseAdmin
+                .from('profiles')
+                .update({ cpf_cnpj: finalCpf })
+                .eq('id', userId);
+        }
+
+        const realCpf = finalCpf || '00000000000';
+        const realPhone = creditCardHolderInfo?.phone?.replace(/\D/g, '');
+        const realAddressNumber = creditCardHolderInfo?.addressNumber || '0';
+        const realPostalCode = creditCardHolderInfo?.postalCode?.replace(/\D/g, '') || '00000000';
+
         // 1. Buscar ou Criar Cliente
         let customerId = "";
         const customerSearchResponse = await fetch(`${ASAAS_API_URL}/customers?email=${email}`, { headers });
         const searchData = await customerSearchResponse.json();
-
-        const realCpf = creditCardHolderInfo?.cpfCnpj?.replace(/\D/g, '') || '00000000000';
-        const realPhone = creditCardHolderInfo?.phone?.replace(/\D/g, '');
-        const realAddressNumber = creditCardHolderInfo?.addressNumber || '0';
-        const realPostalCode = creditCardHolderInfo?.postalCode?.replace(/\D/g, '') || '00000000';
 
         if (searchData.data && searchData.data.length > 0) {
             customerId = searchData.data[0].id;
@@ -110,7 +144,7 @@ serve(async (req) => {
             customerId = newCustomerData.id;
         }
 
-        // 2. Implementar Cobrança (Assinatura - Aceita Cartão ou Pix Automático/Manual)
+        // 2. Implementar Cobrança
         let responseData: any = {};
         const isoDate = new Date().toISOString().split('T')[0];
 
@@ -119,50 +153,89 @@ serve(async (req) => {
         if (paymentMethod === 'CREDIT_CARD') billingType = 'CREDIT_CARD';
         if (paymentMethod === 'PIX' || paymentMethod === 'PIX_AUTOMATIC') billingType = 'PIX';
 
-        const subscriptionData: any = {
-            customer: customerId,
-            billingType: billingType,
-            nextDueDate: isoDate,
-            value: selectedPrice,
-            cycle: "MONTHLY",
-            description: productType === 'PRO_MAX' ? "Plano DTF PRO MAX" : "Plano DTF PRO",
-            updatePendingPayments: true,
-            externalReference: userId,
-            ...(setupFee > 0 ? { setupFeeValue: setupFee } : {}),
-            ...(paymentMethod === 'CREDIT_CARD' && creditCard ? { creditCard, creditCardHolderInfo } : {})
-        };
+        if (productType === 'REFILL') {
+            // Pagamento Avulso para Recarga
+            const paymentData: any = {
+                customer: customerId,
+                billingType: billingType,
+                value: selectedPrice,
+                dueDate: isoDate,
+                description: `Recarga de Créditos Logística - ${userId}`,
+                externalReference: `REFILL:${userId}`,
+                ...(paymentMethod === 'CREDIT_CARD' && creditCard ? { creditCard, creditCardHolderInfo } : {})
+            };
 
-        const subResponse = await fetch(`${ASAAS_API_URL}/subscriptions`, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(subscriptionData)
-        });
-        const subResult = await subResponse.json();
+            const payResponse = await fetch(`${ASAAS_API_URL}/payments`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(paymentData)
+            });
+            const payResult = await payResponse.json();
 
-        if (!subResponse.ok) {
-            throw new Error(subResult.errors?.[0]?.description || "Erro ao criar assinatura");
-        }
+            if (!payResponse.ok) {
+                throw new Error(payResult.errors?.[0]?.description || "Erro ao criar cobrança de recarga");
+            }
 
-        responseData = {
-            success: true,
-            subscriptionId: subResult.id,
-            status: subResult.status
-        };
+            responseData = {
+                success: true,
+                paymentId: payResult.id,
+                status: payResult.status,
+                invoiceUrl: payResult.invoiceUrl
+            };
 
-        // Se for PIX (Manual ou Automático), buscar o QR Code do primeiro pagamento
-        if (billingType === 'PIX') {
-            // Aguarda um pouco para o Asaas gerar a cobrança inicial
-            await new Promise(r => setTimeout(r, 1000));
-
-            const paymentsResponse = await fetch(`${ASAAS_API_URL}/payments?subscription=${subResult.id}`, { headers });
-            const paymentsData = await paymentsResponse.json();
-            const paymentId = paymentsData.data?.[0]?.id;
-
-            if (paymentId) {
-                const pixResponse = await fetch(`${ASAAS_API_URL}/payments/${paymentId}/pixQrCode`, { headers });
+            // Se for PIX, buscar o QR Code
+            if (billingType === 'PIX') {
+                const pixResponse = await fetch(`${ASAAS_API_URL}/payments/${payResult.id}/pixQrCode`, { headers });
                 if (pixResponse.ok) {
                     const pixData = await pixResponse.json();
                     responseData.pix = pixData;
+                }
+            }
+        } else {
+            // Assinatura (Fluxo normal)
+            const subscriptionData: any = {
+                customer: customerId,
+                billingType: billingType,
+                nextDueDate: isoDate,
+                value: selectedPrice,
+                cycle: "MONTHLY",
+                description: productType === 'PRO_MAX' ? "Plano DTF PRO MAX" : "Plano DTF PRO",
+                updatePendingPayments: true,
+                externalReference: userId,
+                ...(setupFee > 0 ? { setupFeeValue: setupFee } : {}),
+                ...(paymentMethod === 'CREDIT_CARD' && creditCard ? { creditCard, creditCardHolderInfo } : {})
+            };
+
+            const subResponse = await fetch(`${ASAAS_API_URL}/subscriptions`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(subscriptionData)
+            });
+            const subResult = await subResponse.json();
+
+            if (!subResponse.ok) {
+                throw new Error(subResult.errors?.[0]?.description || "Erro ao criar assinatura");
+            }
+
+            responseData = {
+                success: true,
+                subscriptionId: subResult.id,
+                status: subResult.status
+            };
+
+            // Se for PIX, buscar o QR Code do primeiro pagamento
+            if (billingType === 'PIX') {
+                await new Promise(r => setTimeout(r, 1000));
+                const paymentsResponse = await fetch(`${ASAAS_API_URL}/payments?subscription=${subResult.id}`, { headers });
+                const paymentsData = await paymentsResponse.json();
+                const paymentId = paymentsData.data?.[0]?.id;
+
+                if (paymentId) {
+                    const pixResponse = await fetch(`${ASAAS_API_URL}/payments/${paymentId}/pixQrCode`, { headers });
+                    if (pixResponse.ok) {
+                        const pixData = await pixResponse.json();
+                        responseData.pix = pixData;
+                    }
                 }
             }
         }

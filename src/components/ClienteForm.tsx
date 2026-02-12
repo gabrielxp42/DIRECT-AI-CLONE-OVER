@@ -22,6 +22,13 @@ import { Input } from "@/components/ui/input";
 import { Cliente, NewCliente } from "@/types/cliente";
 import { useEffect, useRef } from "react"; // Importar useRef
 import { CurrencyInput } from "./CurrencyInput"; // Importar CurrencyInput
+import { Info } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 const formSchema = z.object({
   nome: z.string().min(2, { message: "O nome deve ter pelo menos 2 caracteres." }),
@@ -31,6 +38,7 @@ const formSchema = z.object({
     return z.string().email().safeParse(val).success;
   }, { message: "Por favor, insira um email válido." }),
   endereco: z.string().optional().nullable(),
+  cep: z.string().optional().nullable(),
   valor_metro: z.union([
     z.number().min(0, { message: "O valor deve ser maior ou igual a zero." }),
     z.null(),
@@ -57,6 +65,7 @@ export const ClienteForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, init
       telefone: "",
       email: "",
       endereco: "",
+      cep: "",
       valor_metro: 0, // Definir um valor padrão numérico para o CurrencyInput
       status: "ativo",
     },
@@ -74,6 +83,7 @@ export const ClienteForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, init
           telefone: initialData.telefone || "",
           email: initialData.email || "",
           endereco: initialData.endereco || "",
+          cep: initialData.cep || "",
           valor_metro: initialData.valor_metro || 0, // Garantir valor numérico
           status: initialData.status || "ativo",
         });
@@ -86,6 +96,7 @@ export const ClienteForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, init
             telefone: "",
             email: "",
             endereco: "",
+            cep: "",
             valor_metro: 0, // Resetar para 0 para o CurrencyInput
             status: "ativo",
           });
@@ -101,6 +112,7 @@ export const ClienteForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, init
         telefone: "",
         email: "",
         endereco: "",
+        cep: "",
         valor_metro: 0,
         status: "ativo",
       });
@@ -114,10 +126,11 @@ export const ClienteForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, init
       telefone: data.telefone || null,
       email: data.email || null,
       endereco: data.endereco || null,
+      cep: data.cep || null,
       valor_metro: data.valor_metro === undefined || data.valor_metro === null || data.valor_metro === 0 ? null : Number(data.valor_metro),
       status: data.status || "ativo"
     };
-    
+
     console.log('Dados formatados para envio:', formattedData);
     onSubmit(formattedData, initialData?.id);
   };
@@ -166,11 +179,11 @@ export const ClienteForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, init
                 <FormItem>
                   <FormLabel>Email</FormLabel>
                   <FormControl>
-                    <Input 
+                    <Input
                       type="email"
-                      placeholder="cliente@email.com" 
-                      {...field} 
-                      value={field.value || ''} 
+                      placeholder="cliente@email.com"
+                      {...field}
+                      value={field.value || ''}
                     />
                   </FormControl>
                   <FormMessage />
@@ -190,23 +203,51 @@ export const ClienteForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, init
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="valor_metro"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Valor do Metro (R$)</FormLabel>
-                  <FormControl>
-                    <CurrencyInput 
-                      value={field.value || 0} // Passar 0 se for null/undefined
-                      onChange={field.onChange}
-                      placeholder="0,00" 
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="cep"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-2">
+                      CEP
+                      <TooltipProvider>
+                        <Tooltip delayDuration={300}>
+                          <TooltipTrigger asChild>
+                            <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-[200px] text-[10px]">
+                            O CEP é essencial para agilizar a cotação de frete e geração de etiquetas.
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </FormLabel>
+                    <FormControl>
+                      <Input placeholder="00000-000" {...field} value={field.value || ''} maxLength={9} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="valor_metro"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Valor do Metro (R$)</FormLabel>
+                    <FormControl>
+                      <CurrencyInput
+                        value={field.value || 0} // Passar 0 se for null/undefined
+                        onChange={field.onChange}
+                        placeholder="0,00"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancelar

@@ -38,6 +38,11 @@ interface StatusChangeDialogProps {
   orderNumber?: number;
   initialTrackingCode?: string | null;
   onStatusChange: (newStatus: string, observacao?: string, notifyClient?: boolean, trackingCode?: string, markAsPaid?: boolean) => void;
+  pedidoId?: string;
+  clientAddress?: string;
+  clientName?: string;
+  tipoEntrega?: string;
+  trackingCode?: string | null;
 }
 
 const orderStatuses = [
@@ -57,6 +62,11 @@ export const StatusChangeDialog = ({
   onStatusChange,
   isLoading = false,
   orderNumber,
+  pedidoId,
+  clientAddress,
+  clientName,
+  tipoEntrega,
+  trackingCode: currentTrackingCode,
   pagoAt,
   initialTrackingCode
 }: StatusChangeDialogProps) => {
@@ -110,6 +120,12 @@ export const StatusChangeDialog = ({
       trackingCode.trim() || undefined,
       markAsPaid
     );
+
+    // Se o pedido foi marcado como PAGO agora e é do tipo frete, convidar para gerar etiqueta
+    if (selectedStatus === 'pago' && tipoEntrega === 'frete' && !currentTrackingCode) {
+      // O PedidoDetails vai detectar o novo status via refetch ou estado local e mostrar o botão
+    }
+
     onOpenChange(false);
   };
 
@@ -269,9 +285,20 @@ export const StatusChangeDialog = ({
                       Gabi AI Notifica
                     </div>
                     <p className="text-xs text-slate-200 leading-tight">
-                      {selectedStatus === 'pago' && "Confirmamos o pagamento! Mandamos uma confirmação pro cliente? 😊"}
-                      {selectedStatus === 'aguardando retirada' && "O pedido ficou pronto! Quer avisar o cliente pra buscar? 🚀"}
-                      {selectedStatus === 'enviado' && "Já despachamos! Enviamos o rastreio pro cliente agora? 🚚"}
+                      {selectedStatus === 'pago' && tipoEntrega === 'frete' && !currentTrackingCode ? (
+                        <span className="flex flex-col gap-2">
+                          <span>Pagamento confirmado! Que tal já deixar a **etiqueta de envio** pronta? Economiza tempo! 🚚💨</span>
+                          <span className="text-[9px] text-amber-400 font-bold bg-amber-400/10 p-1.5 rounded-lg border border-amber-400/20 italic">
+                            * Após confirmar o status, um convite aparecerá nos detalhes do pedido.
+                          </span>
+                        </span>
+                      ) : (
+                        <>
+                          {selectedStatus === 'pago' && "Confirmamos o pagamento! Mandamos uma confirmação pro cliente? 😊"}
+                          {selectedStatus === 'aguardando retirada' && "O pedido ficou pronto! Quer avisar o cliente pra buscar? 🚀"}
+                          {selectedStatus === 'enviado' && "Já despachamos! Enviamos o rastreio pro cliente agora? 🚚"}
+                        </>
+                      )}
                     </p>
                     <div className="flex items-center gap-2 bg-emerald-500/10 p-2 rounded-lg border border-emerald-500/20 cursor-pointer"
                       onClick={() => {

@@ -76,6 +76,9 @@ import { StatusHistoryDialog } from '@/components/StatusHistoryDialog';
 import { useCompanyProfile, getCompanyInfoForPDF } from '@/hooks/useCompanyProfile';
 import { generateOrderSummary } from '@/utils/orderSummary';
 import { ShippingSection } from './ShippingSection';
+import { ShippingModal } from './ShippingModal';
+import { FreightQuoteModal } from './FreightQuoteModal';
+import { toast } from "sonner";
 
 interface PedidoDetailsProps {
   isOpen: boolean;
@@ -85,6 +88,7 @@ interface PedidoDetailsProps {
   produtos: Produto[];
   onEdit: (pedido: Pedido) => void;
   onDelete: (id: string) => void;
+  onShippingQuote?: (pedido: Pedido) => void;
 }
 
 export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
@@ -94,7 +98,8 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
   clientes,
   produtos,
   onEdit,
-  onDelete
+  onDelete,
+  onShippingQuote
 }) => {
   const { supabase, session, profile } = useSession();
   const { data: tiposProducao } = useTiposProducao();
@@ -103,6 +108,8 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
   const [loading, setLoading] = useState(true);
   const [isStatusChangeOpen, setIsStatusChangeOpen] = useState(false);
   const [isStatusHistoryOpen, setIsStatusHistoryOpen] = useState(false);
+  const [isShippingModalOpen, setIsShippingModalOpen] = useState(false);
+  const [isFreightModalOpen, setIsFreightModalOpen] = useState(false);
   const { companyProfile } = useCompanyProfile();
 
   const fetchPedidoDetails = async () => {
@@ -312,7 +319,17 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
         }
       }
 
-      showSuccess("Status atualizado com sucesso!");
+      if (newStatus === 'pago' && pedido.tipo_entrega === 'frete' && !pedido.tracking_code) {
+        toast.success("Pagamento confirmado!", {
+          description: "Deseja gerar a etiqueta de envio agora?",
+          action: {
+            label: "Gerar Etiqueta",
+            onClick: () => setIsShippingModalOpen(true)
+          }
+        });
+      } else {
+        showSuccess("Status atualizado com sucesso!");
+      }
 
       // Atualizar o pedido localmente
       setPedido(prev => {
@@ -712,16 +729,31 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
                 );
               })()}
 
-              <div className="mt-6">
-                <ShippingSection
-                  pedidoId={pedido.id}
-                  clientAddress={pedido.clientes?.endereco || ''}
-                  clientName={pedido.clientes?.nome || ''}
-                  orderNumber={pedido.order_number}
-                  valorTotal={pedido.valor_total}
-                  initialLabelId={pedido.shipping_label_id}
-                  initialStatus={pedido.shipping_label_status}
-                />
+              <div className="mt-4 pt-4 border-t border-dashed">
+                {pedido.tipo_entrega === 'frete' ? (
+                  <Button
+                    variant="default"
+                    className="w-full justify-center gap-2 bg-primary hover:bg-primary/90 text-black font-black uppercase text-xs h-11 rounded-xl shadow-lg shadow-primary/10 transition-all hover:scale-[1.02]"
+                    onClick={() => setIsShippingModalOpen(true)}
+                  >
+                    <Truck className="h-4 w-4" />
+                    {pedido.tracking_code ? "Acompanhar Entrega" : "📦 Gerar Etiqueta de Envio"}
+                  </Button>
+                ) : pedido.tipo_entrega === 'retirada' ? (
+                  <div className="bg-orange-50 dark:bg-orange-950/20 p-3 rounded-xl border border-orange-100 dark:border-orange-900/30 flex items-center justify-center gap-2">
+                    <Bike className="h-4 w-4 text-orange-600" />
+                    <span className="text-[10px] font-black uppercase text-orange-600 tracking-widest italic">Cliente irá retirar na loja</span>
+                  </div>
+                ) : (
+                  <Button
+                    variant="outline"
+                    className="w-full justify-center gap-2 border-primary/20 hover:bg-primary/5 font-black uppercase text-xs h-11 rounded-xl shadow-sm transition-all hover:scale-[1.02]"
+                    onClick={() => setIsFreightModalOpen(true)}
+                  >
+                    <Truck className="h-4 w-4 text-primary" />
+                    Cotar Frete (Logística)
+                  </Button>
+                )}
               </div>
             </div>
           </div>
@@ -735,6 +767,11 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
           currentStatus={pedido.status}
           onStatusChange={handleSubmitStatusChange}
           orderNumber={pedido.order_number}
+          pedidoId={pedido.id}
+          clientName={pedido.clientes?.nome}
+          clientAddress={pedido.clientes?.endereco}
+          tipoEntrega={pedido.tipo_entrega}
+          trackingCode={pedido.tracking_code}
           pagoAt={pedido.pago_at}
         />
       )}
@@ -749,6 +786,46 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
           />
         )
       }
+
+      {pedido && (
+        <ShippingModal
+          isOpen={isShippingModalOpen}
+          onOpenChange={setIsShippingModalOpen}
+          pedidoId={pedido.id}
+          clientId={pedido.cliente_id}
+          clientName={pedido.clientes?.nome}
+          clientAddress={pedido.clientes?.endereco}
+          orderNumber={pedido.order_number}
+          valorTotal={pedido.valor_total}
+          initialStatus={pedido.status}
+        />
+      )}
+
+      {pedido && (
+        <FreightQuoteModal
+          open={isFreightModalOpen}
+          onOpenChange={setIsFreightModalOpen}
+          defaultCEP={(pedido.clientes as any)?.cep || ""}
+          onSelectQuote={async (quote) => {
+            try {
+              const { error } = await supabase
+                .from('pedidos')
+                .update({
+                  tipo_entrega: 'frete',
+                  valor_frete: quote.price,
+                  transportadora: quote.carrier
+                })
+                .eq('id', pedido.id);
+
+              if (error) throw error;
+              toast.success("Cotação aplicada ao pedido!");
+              fetchPedidoDetails();
+            } catch (err: any) {
+              toast.error("Erro ao aplicar cotação: " + err.message);
+            }
+          }}
+        />
+      )}
     </Dialog >
   );
 };

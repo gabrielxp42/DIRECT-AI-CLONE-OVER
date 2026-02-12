@@ -4,6 +4,7 @@ export type Cliente = {
   telefone?: string | null;
   email?: string | null;
   endereco?: string | null;
+  cep?: string | null;
   valor_metro?: number | null;
   status: string;
   created_at: string;

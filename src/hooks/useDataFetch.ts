@@ -109,7 +109,7 @@ const fetchPedidos = async (
   // 1. Build Query using Supabase Client
   let query = supabase
     .from('pedidos')
-    .select('*,clientes(id,nome,telefone,email,endereco),pedido_items(*),pedido_servicos(*),pedido_status_history(*)', { count: 'exact' });
+    .select('*,clientes(id,nome,telefone,email,endereco,cep),pedido_items(*),pedido_servicos(*),pedido_status_history(*)', { count: 'exact' });
 
   // 2. Apply Organization/User Context
   if (organizationId) {

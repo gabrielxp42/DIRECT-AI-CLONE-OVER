@@ -6,7 +6,7 @@ import { Cliente } from '@/types/cliente';
 import { Produto } from '@/types/produto';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Plus, Search, Filter, Eye, Edit, Trash2, Loader2, CalendarIcon, DollarSign, FileText, Scissors, History, MessageSquare, MoreHorizontal, User, Clock, CheckCircle, XCircle, Package, X, Printer, Ruler, PackageOpen, Wrench, Users, Activity, CheckSquare, ChevronDown, Sparkles, ScrollText, Calculator, Bike, Zap, Tag, Layers, PenTool, BadgeCheck, Palette, Info, AlertCircle } from 'lucide-react';
+import { Plus, Search, Filter, Eye, Edit, Trash2, Loader2, CalendarIcon, DollarSign, FileText, Scissors, History, MessageSquare, MoreHorizontal, User, Clock, CheckCircle, XCircle, Package, X, Printer, Ruler, PackageOpen, Wrench, Users, Activity, CheckSquare, ChevronDown, Sparkles, ScrollText, Calculator, Bike, Zap, Tag, Layers, PenTool, BadgeCheck, Palette, Info, AlertCircle, Truck } from 'lucide-react';
 import { EmptyState } from '@/components/EmptyState';
 // Lazy loaded components definitions
 const PedidoForm = lazy(() => import('@/components/PedidoForm').then(m => ({ default: m.PedidoForm })));
@@ -66,6 +66,8 @@ import { Share2, Copy, Download, Image as ImageIcon } from 'lucide-react';
 import { logger } from '@/utils/logger';
 import { useIsPlusMode } from '@/hooks/useIsPlusMode';
 import { WhatsAppActionDialog } from '@/components/WhatsAppActionDialog';
+import { ShippingModal } from '@/components/ShippingModal';
+import { toast } from "sonner";
 
 const ITEMS_PER_PAGE_OPTIONS = [10, 20, 50, 100];
 
@@ -179,6 +181,7 @@ const PedidosPage: React.FC = () => {
   const [statusChangePedido, setStatusChangePedido] = useState<Pedido | null>(null);
   const [viewingStatusHistory, setViewingStatusHistory] = useState<Pedido | null>(null);
   const [pedidoToDelete, setPedidoToDelete] = useState<Pedido | null>(null);
+  const [shippingModal, setShippingModal] = useState<{ open: boolean, pedido: Pedido | null }>({ open: false, pedido: null });
 
   useEffect(() => {
     const hasViewed = localStorage.getItem('dtf_calculator_update_viewed_v2');
@@ -587,10 +590,22 @@ const PedidosPage: React.FC = () => {
         }
       }
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["pedidos"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
-      showSuccess("Status atualizado com sucesso!");
+
+      // Se o pedido foi marcado como pago e é frete, convidar para gerar etiqueta
+      if (variables.newStatus === 'pago' && variables.pedidoFull?.tipo_entrega === 'frete' && !variables.pedidoFull?.tracking_code) {
+        toast.success("Pagamento confirmado!", {
+          description: "Deseja gerar a etiqueta de envio agora?",
+          action: {
+            label: "Gerar Etiqueta",
+            onClick: () => setShippingModal({ open: true, pedido: variables.pedidoFull || null })
+          }
+        });
+      } else {
+        showSuccess("Status atualizado com sucesso!");
+      }
     },
     onError: (error: any) => {
       showError(`Erro ao atualizar status: ${error.message}`);
@@ -1456,7 +1471,22 @@ const PedidosPage: React.FC = () => {
                     </div>
                   )}
 
-                  <div id={index === 0 ? "order-card-actions" : undefined} className="flex justify-end gap-2 pt-3 border-t mt-3">
+                  <div id={index === 0 ? "order-card-actions" : undefined} className="flex justify-end items-center gap-2 pt-3 border-t mt-3">
+                    {pedido.tipo_entrega === 'frete' && pedido.status !== 'cancelado' && (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShippingModal({ open: true, pedido });
+                        }}
+                        className="h-8 bg-primary hover:bg-primary/90 text-primary-foreground transition-all gap-2 px-3 rounded-xl mr-auto flex items-center shadow-sm hover:shadow-md group"
+                      >
+                        <span className="text-[9px] font-black italic uppercase tracking-tight">GERAR ETIQUETA</span>
+                        <Truck className="h-4 w-4" />
+                      </Button>
+                    )}
+
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button
@@ -1569,6 +1599,10 @@ const PedidosPage: React.FC = () => {
                           <Eye className="h-4 w-4 mr-2" />
                           Ver Detalhes
                         </DropdownMenuItem>
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setShippingModal({ open: true, pedido }); }}>
+                          <Truck className="h-4 w-4 mr-2" />
+                          Cotar Frete (Logística)
+                        </DropdownMenuItem>
                         {pedido.status_history && pedido.status_history.length > 0 && (
                           <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleViewStatusHistory(pedido); }}>
                             <History className="h-4 w-4 mr-2" />
@@ -1648,7 +1682,8 @@ const PedidosPage: React.FC = () => {
             clientes={clientes || []}
             produtos={produtos || []}
             onEdit={handleEditPedido}
-            onDelete={deletePedidoMutation.mutate}
+            onDelete={(id) => deletePedidoMutation.mutate(id)}
+            onShippingQuote={(pedido) => setShippingModal({ open: true, pedido })}
           />
         )}
 
@@ -1726,6 +1761,23 @@ const PedidosPage: React.FC = () => {
         pixKey={companyProfile?.company_pix_key}
         onConfirm={handleConfirmWhatsAppSend}
       />
+
+      {/* Shipping Modal */}
+      {shippingModal.pedido && (
+        <ShippingModal
+          isOpen={shippingModal.open}
+          onOpenChange={(open) => setShippingModal({ open, pedido: open ? shippingModal.pedido : null })}
+          pedidoId={shippingModal.pedido.id}
+          clientId={shippingModal.pedido.cliente_id}
+          clientName={shippingModal.pedido.clientes?.nome}
+          clientAddress={shippingModal.pedido.clientes?.endereco}
+          orderNumber={shippingModal.pedido.order_number}
+          valorTotal={shippingModal.pedido.valor_total}
+          initialLabelId={shippingModal.pedido.shipping_label_id}
+          initialStatus={shippingModal.pedido.shipping_label_status}
+          shipping_cep={shippingModal.pedido.shipping_cep}
+        />
+      )}
     </div>
   );
 };

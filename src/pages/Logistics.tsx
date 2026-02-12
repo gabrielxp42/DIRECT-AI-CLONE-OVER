@@ -1,6 +1,7 @@
 import React from 'react';
 import { Truck } from 'lucide-react';
 import { ShippingSection } from '@/components/ShippingSection';
+import { LogisticsSettings } from '@/components/LogisticsSettings';
 
 const Logistics = () => {
     return (
@@ -8,54 +9,42 @@ const Logistics = () => {
             <div className="flex flex-col gap-1">
                 <h1 className="text-3xl font-black italic tracking-tighter uppercase text-primary flex items-center gap-3">
                     <Truck className="h-8 w-8" />
-                    Central de Logística
+                    Hub de Logística
                 </h1>
                 <p className="text-muted-foreground text-sm font-medium">
-                    Calcule fretes e gere etiquetas avulsas sem necessidade de um pedido formal.
+                    Gestão centralizada de fretes, carteira de envios e etiquetas avulsas.
                 </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 space-y-6">
                     <ShippingSection />
                 </div>
 
-                <div className="space-y-4">
+                <div className="space-y-6">
+                    <LogisticsSettings />
+
                     <div className="p-6 rounded-2xl border bg-card text-card-foreground shadow-sm">
-                        <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                            <Truck className="h-5 w-5 text-primary" />
-                            Como funciona o modo avulso?
+                        <h2 className="text-sm font-bold mb-4 flex items-center gap-2 uppercase tracking-wide">
+                            <Truck className="h-4 w-4 text-primary" />
+                            Como faturamos?
                         </h2>
-                        <ul className="space-y-3 text-sm text-muted-foreground">
+                        <ul className="space-y-3 text-[11px] text-muted-foreground">
                             <li className="flex gap-2">
                                 <span className="font-bold text-primary">1.</span>
                                 <div>
-                                    <p className="font-bold text-foreground">Sem Vínculo</p>
-                                    As etiquetas geradas aqui não são salvas em nenhum pedido do sistema.
+                                    <p className="font-bold text-foreground">Saldo Direct AI</p>
+                                    As etiquetas são debitadas do seu saldo interno na plataforma.
                                 </div>
                             </li>
                             <li className="flex gap-2">
                                 <span className="font-bold text-primary">2.</span>
                                 <div>
-                                    <p className="font-bold text-foreground">Dados Manuais</p>
-                                    Você deve preencher o nome e endereço do destinatário manualmente.
-                                </div>
-                            </li>
-                            <li className="flex gap-2">
-                                <span className="font-bold text-primary">3.</span>
-                                <div>
-                                    <p className="font-bold text-foreground">Pagamento</p>
-                                    O pagamento é feito utilizando o saldo da sua conta no Super Frete.
+                                    <p className="font-bold text-foreground">Taxa Zero</p>
+                                    Não cobramos taxas extras além do valor do frete (contrato Super Frete).
                                 </div>
                             </li>
                         </ul>
-                    </div>
-
-                    <div className="p-6 rounded-2xl bg-primary/5 border border-primary/20">
-                        <p className="text-xs font-bold text-primary uppercase tracking-widest mb-2">Dica Pro</p>
-                        <p className="text-sm text-primary/80">
-                            Use esta ferramenta para passar orçamentos rápidos para clientes no WhatsApp antes mesmo deles fecharem o pedido.
-                        </p>
                     </div>
                 </div>
             </div>
