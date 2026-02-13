@@ -2899,10 +2899,17 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       if (!fromZip) {
         const companyInfo = await getCompanyInfo();
         fromZip = companyInfo?.zip_code;
-        console.log(`🏠 [calculate_shipping] CEP de origem obtido do perfil: ${fromZip}`);
+
+        // FINAL FALLBACK: DIRECT AI DEFAULT (Rio de Janeiro)
+        if (!fromZip) {
+          fromZip = "22780-084"; // Curicica/RJ (Default base)
+          console.warn(`⚠️ [calculate_shipping] CEP de origem não encontrado. Usando fallback: ${fromZip}`);
+        } else {
+          console.log(`🏠 [calculate_shipping] CEP de origem obtido do perfil: ${fromZip}`);
+        }
       }
 
-      // Se ainda não tiver CEP de origem (perfil incompleto e não enviado no prompt), usar fallback ou avisar
+      // Se ainda não tiver CEP de origem (impossível agora com o fallback), avisar
       if (!fromZip) {
         return {
           error: true,
