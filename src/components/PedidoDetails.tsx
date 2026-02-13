@@ -797,7 +797,9 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
           clientAddress={pedido.clientes?.endereco}
           orderNumber={pedido.order_number}
           valorTotal={pedido.valor_total}
-          initialStatus={pedido.status}
+          initialLabelId={pedido.shipping_label_id || undefined}
+          initialStatus={pedido.shipping_label_status || undefined}
+          shipping_cep={pedido.shipping_cep || undefined}
         />
       )}
 

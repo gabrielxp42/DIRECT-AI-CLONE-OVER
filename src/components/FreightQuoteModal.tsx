@@ -80,13 +80,51 @@ export const FreightQuoteModal = ({ open, onOpenChange, onSelectQuote, defaultCE
             });
 
             const data = await response.json();
-            if (data.error) throw new Error(data.message || "Erro no cálculo");
+            if (data.error) {
+                console.log("SuperFrete API Error Data:", data);
+
+                // Verificação de erros específicos de validação
+                if (data.details && typeof data.details === 'object') {
+                    // @ts-ignore - knowing that details might have errors
+                    const errors = data.details.errors || {};
+
+                    if (errors["correios.destination_postcode"]) {
+                        throw new Error("CEP de destino inválido. Verifique o número digitado.");
+                    }
+
+                    if (errors["ms-freight-calculator.no_result"]) {
+                        throw new Error("Nenhum frete encontrado. Verifique se o CEP aceita SEDEX/PAC e dimensões.");
+                    }
+                }
+
+                let detailedMessage = data.message || "Erro no cálculo";
+
+                // Fallback: mostra JSON se não for um erro conhecido
+                if (data.details) {
+                    const extra = JSON.stringify(data.details);
+                    // Limita tamanho para não quebrar UI
+                    if (extra.length < 200) detailedMessage += ` (${extra})`;
+                }
+
+                throw new Error(detailedMessage);
+            }
 
             const sorted = Array.isArray(data) ? [...data].sort((a, b) => parseFloat(a.price) - parseFloat(b.price)) : [];
             setQuotes(sorted);
             if (sorted.length === 0) showError("Nenhuma opção de frete encontrada para este CEP.");
         } catch (error: any) {
-            showError(`Erro: ${error.message}`);
+            console.error(error);
+            let msg = error.message;
+
+            // Tratamento humanizado para erros conhecidos, mantendo detalhes técnicos se disponíveis
+            if (msg.includes("Ocorreu um ou mais erros")) {
+                msg = "Erro na validação do frete (CEP/Peso/Dimensões). " + msg;
+            } else if (msg.includes("not found")) {
+                msg = "CEP não encontrado.";
+            }
+
+            // Garante que o usuário veja o erro real se não for um dos acima
+            showError(`Erro: ${msg}`);
         } finally {
             setLoading(false);
         }

@@ -1,7 +1,9 @@
 import React from 'react';
-import { Truck } from 'lucide-react';
+import { Truck, Calculator, PackageCheck, History } from 'lucide-react';
 import { ShippingSection } from '@/components/ShippingSection';
 import { LogisticsSettings } from '@/components/LogisticsSettings';
+import { LogisticsOverview } from '@/components/LogisticsOverview';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const Logistics = () => {
     return (
@@ -16,38 +18,57 @@ const Logistics = () => {
                 </p>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 space-y-6">
-                    <ShippingSection />
-                </div>
+            <Tabs defaultValue="calculator" className="w-full space-y-6">
+                <TabsList className="bg-muted/50 p-1 rounded-xl h-11 border border-border">
+                    <TabsTrigger value="calculator" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-primary font-black italic uppercase tracking-tighter text-xs gap-2">
+                        <Calculator className="h-3.5 w-3.5" />
+                        Gerar Envios
+                    </TabsTrigger>
+                    <TabsTrigger value="labels" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-primary font-black italic uppercase tracking-tighter text-xs gap-2">
+                        <PackageCheck className="h-3.5 w-3.5" />
+                        Minhas Etiquetas
+                    </TabsTrigger>
+                </TabsList>
 
-                <div className="space-y-6">
-                    <LogisticsSettings />
+                <TabsContent value="calculator" className="space-y-6">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div className="lg:col-span-2 space-y-6">
+                            <ShippingSection />
+                        </div>
 
-                    <div className="p-6 rounded-2xl border bg-card text-card-foreground shadow-sm">
-                        <h2 className="text-sm font-bold mb-4 flex items-center gap-2 uppercase tracking-wide">
-                            <Truck className="h-4 w-4 text-primary" />
-                            Como faturamos?
-                        </h2>
-                        <ul className="space-y-3 text-[11px] text-muted-foreground">
-                            <li className="flex gap-2">
-                                <span className="font-bold text-primary">1.</span>
-                                <div>
-                                    <p className="font-bold text-foreground">Saldo Direct AI</p>
-                                    As etiquetas são debitadas do seu saldo interno na plataforma.
-                                </div>
-                            </li>
-                            <li className="flex gap-2">
-                                <span className="font-bold text-primary">2.</span>
-                                <div>
-                                    <p className="font-bold text-foreground">Taxa Zero</p>
-                                    Não cobramos taxas extras além do valor do frete (contrato Super Frete).
-                                </div>
-                            </li>
-                        </ul>
+                        <div className="space-y-6">
+                            <LogisticsSettings />
+
+                            <div className="p-6 rounded-2xl border bg-card text-card-foreground shadow-sm">
+                                <h2 className="text-sm font-bold mb-4 flex items-center gap-2 uppercase tracking-wide text-primary">
+                                    <Truck className="h-4 w-4" />
+                                    Como faturamos?
+                                </h2>
+                                <ul className="space-y-4 text-[11px] text-muted-foreground font-medium">
+                                    <li className="flex gap-3">
+                                        <div className="bg-primary/10 text-primary h-5 w-5 rounded flex items-center justify-center shrink-0 font-black">1</div>
+                                        <div>
+                                            <p className="font-bold text-foreground">Saldo Direct AI</p>
+                                            As etiquetas são debitadas do seu saldo interno na plataforma.
+                                        </div>
+                                    </li>
+                                    <li className="flex gap-3">
+                                        <div className="bg-primary/10 text-primary h-5 w-5 rounded flex items-center justify-center shrink-0 font-black">2</div>
+                                        <div>
+                                            <p className="font-bold text-foreground">Taxa Zero</p>
+                                            Não cobramos taxas extras além do valor do frete. Preço direto de tabela.
+                                        </div>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
                     </div>
-                </div>
-            </div>
+                </TabsContent>
+
+                <TabsContent value="labels" className="space-y-6">
+                    <LogisticsOverview />
+                </TabsContent>
+            </Tabs>
         </div>
     );
 };

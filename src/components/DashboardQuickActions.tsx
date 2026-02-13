@@ -35,8 +35,8 @@ export const DashboardQuickActions = () => {
             title: "Gerar Etiqueta (Frete)",
             icon: Truck,
             onClick: () => navigate('/logistica'),
-            color: "text-primary",
-            bg: "bg-primary/5 hover:bg-primary/10",
+            color: "text-orange-600",
+            bg: "bg-orange-50 hover:bg-orange-100",
             desc: "Logística e Envios"
         }
     ];

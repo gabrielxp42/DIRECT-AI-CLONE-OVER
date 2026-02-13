@@ -44,7 +44,7 @@ import { NewPedido, Pedido } from "@/types/pedido";
 import { Cliente } from "@/types/cliente";
 import { Produto } from "@/types/produto";
 import { useEffect, useState, useRef, useMemo, useCallback } from "react";
-import { Trash2, Plus, Search, Edit3, X, User, Package, Wrench, Save, Zap, CalendarIcon, Ruler, ChevronDown, Loader2, FileText, Copy, GripVertical, Sparkles, Printer, Scissors, Settings, Bike, Star, Info, Tag, Layers, PenTool, BadgeCheck, Palette, Truck } from "lucide-react";
+import { Trash2, Plus, Search, Edit3, X, User, Package, Wrench, Save, Zap, CalendarIcon, Ruler, ChevronDown, Loader2, FileText, Copy, GripVertical, Sparkles, Printer, Scissors, Settings, Bike, Star, Info, Tag, Layers, PenTool, BadgeCheck, Palette, Truck, Calculator } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -222,6 +222,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
   const isEditing = !!initialData;
   const hasInitializedRef = useRef(false);
   const isSubmitInProgress = useRef(false);
+  const lastAddedServiceRef = useRef<number>(0);
 
   useEffect(() => {
     if (isOpen && shouldAutoStart && !isEditing) {
@@ -458,6 +459,8 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
       valor_frete: data.tipo_entrega === 'frete' ? data.valor_frete : 0,
       transportadora: data.tipo_entrega === 'frete' ? data.transportadora : null,
       tracking_code: data.tipo_entrega === 'frete' ? data.tracking_code : null,
+      shipping_cep: data.shipping_cep || null,
+      shipping_details: data.shipping_details || null,
       created_at: data.created_at.toISOString(),
       items: items.map((item, index) => {
         return {
@@ -669,11 +672,8 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
 
     // Inserir no topo (índice 0)
     // Precisamos do método insert do useFieldArray. Vou atualizar a desestruturação no próximo passo ou assumir que vou corrigir.
-    // Por segurança, vou usar appendItem e depois mover se fosse crítico, mas vou usar insert na desestruturação.
-    // ESPERA: Vou alterar a desestruturação no chunk anterior para incluir insert? 
-    // Não consigo editar o chunk anterior dinamicamente. Vou usar appendItem por enquanto (final da lista) 
-    // ou melhor: vou usar items = [new, ...old] com reset? Não, isso mata o propósito.
-    // Vou usar appendItem (adiciona ao final) que é o padrão mais seguro. O usuário pediu "Adicionar ao INÍCIO" no código original?
+    // Por segurança, vou usar appendItem (final da lista) que é o padrão mais seguro.
+    // O usuário pediu "Adicionar ao INÍCIO" no código original?
     // Sim: const newItems = [newItem, ...currentItems];
     // Vou usar insert(0, item) na implementação. Vou assumir que vou adicionar insert na desestruturação.
 
@@ -779,6 +779,10 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
   };
 
   const addShortcutServico = (nome: string, valor: number) => {
+    const now = Date.now();
+    if (now - lastAddedServiceRef.current < 500) return; // Debounce de 500ms
+    lastAddedServiceRef.current = now;
+
     appendServico({ nome: nome, quantidade: 1, valor_unitario: valor });
     // NÃO expande automaticamente - o usuário pode expandir se quiser editar
     // setAccordionServiceValue(`servico-${newServiceIndex}`);
@@ -825,7 +829,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
     const totalMetros = itemFields.reduce((sum, _field, index) => {
       const item = form.getValues(`items.${index}`);
       if (!item || !item.tipo) return sum;
-      const tipoInfo = tiposProducao?.find(t => t?.nome?.toLowerCase() === item.tipo?.toLowerCase());
+      const tipoInfo = tiposProducao?.find(t => t.nome?.toLowerCase() === item.tipo?.toLowerCase());
       if (tipoInfo && tipoInfo.unidade_medida === 'unidade') return sum;
       return sum + Number(item.quantidade || 0);
     }, 0);
@@ -916,37 +920,39 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
               <Package className="h-4 w-4 sm:h-5 sm:w-5 text-primary flex-shrink-0" />
               <span className="truncate">{isEditing ? "Editar Pedido" : "Criar Novo Pedido"}</span>
             </DialogTitle>
-            <DialogDescription className="text-xs sm:text-sm flex items-center justify-between">
-              <span>{isEditing ? "Atualize as informações do pedido." : "Preencha as informações do novo pedido."}</span>
-              <div className="flex items-center gap-2">
-                {!isEditing && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setIsFreightModalOpen(true);
-                    }}
-                    className="h-7 text-[10px] uppercase font-black italic border-primary/20 hover:bg-primary/10 text-primary gap-1.5"
-                  >
-                    <Truck className="h-3 w-3" />
-                    Cotar Frete
-                  </Button>
-                )}
-                {!isTourOpen && !isEditing && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      startTour();
-                    }}
-                    className="h-7 text-[10px] text-zinc-500 hover:text-white"
-                  >
-                    <Sparkles className="mr-1 h-3 w-3" />
-                    Ver Tutorial
-                  </Button>
-                )}
+            <DialogDescription asChild>
+              <div className="text-xs sm:text-sm flex items-center justify-between font-medium text-muted-foreground">
+                <span>{isEditing ? "Atualize as informações do pedido." : "Preencha as informações do novo pedido."}</span>
+                <div className="flex items-center gap-2">
+                  {!isEditing && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setIsFreightModalOpen(true);
+                      }}
+                      className="h-7 text-[10px] uppercase font-black italic border-primary/20 hover:bg-primary/10 text-primary gap-1.5"
+                    >
+                      <Truck className="h-3 w-3" />
+                      Cotar Frete
+                    </Button>
+                  )}
+                  {!isTourOpen && !isEditing && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        startTour();
+                      }}
+                      className="h-7 text-[10px] text-zinc-500 hover:text-white"
+                    >
+                      <Sparkles className="mr-1 h-3 w-3" />
+                      Ver Tutorial
+                    </Button>
+                  )}
+                </div>
               </div>
             </DialogDescription>
           </DialogHeader>
@@ -1743,7 +1749,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                         const valorUnitario = currentValues?.valor_unitario || field.valor_unitario;
 
                         return (
-                          <Card key={index} className="overflow-hidden">
+                          <Card key={fieldId} className="overflow-hidden">
                             {/* Cabeçalho clicável */}
                             <div
                               className="flex items-center justify-between p-4 cursor-pointer hover:bg-accent/50 transition-colors"
@@ -1937,6 +1943,14 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
 
                 {watchedTipoEntrega === 'frete' && (
                   <div className="p-4 bg-orange-50/50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-800 rounded-lg animate-in fade-in slide-in-from-top-2 duration-300 my-4 space-y-4">
+                    <Button
+                      type="button"
+                      className="w-full h-12 bg-orange-500 hover:bg-orange-600 text-white font-black uppercase tracking-wide shadow-md transition-all active:scale-[0.98] text-base gap-2 mb-2"
+                      onClick={() => setIsFreightModalOpen(true)}
+                    >
+                      <Truck className="h-5 w-5 stroke-[2.5]" />
+                      CRIAR ETIQUETA DE ENVIO
+                    </Button>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <FormField
                         control={form.control}
@@ -2128,33 +2142,6 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
               />
             </form>
           </Form>
-
-          <FreightQuoteModal
-            open={isFreightModalOpen}
-            onOpenChange={setIsFreightModalOpen}
-            defaultCEP={clientes.find(c => c.id === form.getValues('cliente_id'))?.cep || ""}
-            onSelectQuote={(quote) => {
-              form.setValue('tipo_entrega', 'frete');
-              form.setValue('valor_frete', quote.price);
-              form.setValue('transportadora', quote.carrier);
-              form.setValue('shipping_cep', quote.destination_cep || null);
-              form.setValue('shipping_details', {
-                carrier: quote.carrier,
-                price: quote.price,
-                service_id: quote.service_id
-              });
-              toast.success(`Frete selecionado: ${quote.carrier} - R$ ${quote.price}`);
-            }}
-          />
-
-          <TutorialGuide
-            steps={steps}
-            isOpen={isTourOpen}
-            currentStep={currentStep}
-            onNext={nextStep}
-            onPrev={prevStep}
-            onClose={closeTour}
-          />
         </DialogContent>
       </Dialog >
 
@@ -2163,6 +2150,31 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
         onOpenChange={setIsQuickClientFormOpen}
         onSubmit={handleQuickClientSubmit}
         isSubmitting={isCreatingClient}
+      />
+      {/* Modal de Cotação de Frete */}
+      {isFreightModalOpen && (
+        <FreightQuoteModal
+          open={isFreightModalOpen}
+          onOpenChange={setIsFreightModalOpen}
+          defaultCEP={clientes.find(c => c.id === form.getValues('cliente_id'))?.endereco?.cep || ""}
+          onSelectQuote={(quote) => {
+            form.setValue('valor_frete', quote.price);
+            form.setValue('transportadora', quote?.carrier || "");
+
+            // Garantir que o tracking code não seja zerado se já tiver
+            // Mas não temos tracking code na cotação, só na etiqueta.
+
+            showSuccess(`Frete selecionado: ${quote.carrier} - R$ ${quote.price}`);
+          }}
+        />
+      )}
+      <TutorialGuide
+        steps={steps}
+        isOpen={isTourOpen}
+        currentStep={currentStep}
+        onNext={nextStep}
+        onPrev={prevStep}
+        onClose={closeTour}
       />
     </>
   );

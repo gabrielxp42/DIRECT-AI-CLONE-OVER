@@ -136,6 +136,11 @@ export const generateOrderSummary = (pedido: Pedido, template?: string, pixKey?:
     }
 
     const subtotalProdutos = Number(pedido.subtotal_produtos || 0);
+
+    if (pedido.tipo_entrega === 'frete' && pedido.tracking_code) {
+        summary += `📦 *CÓD. RASTREIO:* ${pedido.tracking_code}\n`;
+        summary += `${separator}\n\n`;
+    }
     const subtotalServicos = Number(pedido.subtotal_servicos || 0);
     const subtotal = subtotalProdutos + subtotalServicos;
     const frete = (pedido.tipo_entrega === 'frete' ? Number(pedido.valor_frete || 0) : 0);
@@ -152,9 +157,6 @@ export const generateOrderSummary = (pedido: Pedido, template?: string, pixKey?:
         }
         if (pedido.transportadora) {
             summary += `TRANSPORTADORA: ${pedido.transportadora.toUpperCase()}\n`;
-        }
-        if (pedido.tracking_code) {
-            summary += `RASTREIO: ${pedido.tracking_code}\n`;
         }
     } else if (pedido.tipo_entrega === 'retirada') {
         summary += `RETIRADA NO LOCAL\n`;

@@ -6,7 +6,7 @@ import { Cliente } from '@/types/cliente';
 import { Produto } from '@/types/produto';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Plus, Search, Filter, Eye, Edit, Trash2, Loader2, CalendarIcon, DollarSign, FileText, Scissors, History, MessageSquare, MoreHorizontal, User, Clock, CheckCircle, XCircle, Package, X, Printer, Ruler, PackageOpen, Wrench, Users, Activity, CheckSquare, ChevronDown, Sparkles, ScrollText, Calculator, Bike, Zap, Tag, Layers, PenTool, BadgeCheck, Palette, Info, AlertCircle, Truck } from 'lucide-react';
+import { Plus, Search, Filter, Eye, Edit, Trash2, Loader2, CalendarIcon, DollarSign, FileText, Scissors, History, MessageSquare, MoreHorizontal, User, Clock, CheckCircle, XCircle, Package, X, Printer, Ruler, PackageOpen, Wrench, Users, Activity, CheckSquare, ChevronDown, Sparkles, ScrollText, Calculator, Bike, Zap, Tag, Layers, PenTool, BadgeCheck, Palette, Info, AlertCircle, Truck, Copy, ExternalLink, Send } from 'lucide-react';
 import { EmptyState } from '@/components/EmptyState';
 // Lazy loaded components definitions
 const PedidoForm = lazy(() => import('@/components/PedidoForm').then(m => ({ default: m.PedidoForm })));
@@ -62,7 +62,7 @@ import { useCompanyProfile, getCompanyInfoForPDF } from '@/hooks/useCompanyProfi
 import { printThermalReceipt } from '@/utils/thermalPrinter';
 import { motion } from 'framer-motion';
 import { toPng, toBlob } from 'html-to-image';
-import { Share2, Copy, Download, Image as ImageIcon } from 'lucide-react';
+import { Share2, Download, Image as ImageIcon } from 'lucide-react';
 import { logger } from '@/utils/logger';
 import { useIsPlusMode } from '@/hooks/useIsPlusMode';
 import { WhatsAppActionDialog } from '@/components/WhatsAppActionDialog';
@@ -97,6 +97,12 @@ const PedidosPage: React.FC = () => {
   const { canWriteData } = useSubscription();
   const { canSendDirectly: isPlusMode } = useIsPlusMode();
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    showSuccess("Copiado com sucesso!");
+  };
+
   const [whatsAppDialog, setWhatsAppDialog] = useState<{ open: boolean; loading: boolean; pedido: Pedido | null; summary: string }>({
     open: false,
     loading: false,
@@ -273,6 +279,22 @@ const PedidosPage: React.FC = () => {
   // --- Funções de PDF ---
   const handleDownloadPDF = async (pedido: Pedido) => {
     try {
+      // Se tiver etiqueta liberada, tentar baixar ela primeiro
+      if (pedido.shipping_label_status === 'released') {
+        const { data, error } = await supabase
+          .from('shipping_labels')
+          .select('pdf_url')
+          .eq('pedido_id', pedido.id)
+          .maybeSingle();
+
+        if (data && data.pdf_url) {
+          window.open(data.pdf_url, '_blank');
+          showSuccess("Etiqueta aberta em nova aba!");
+          return;
+        }
+      }
+
+      // Fallback: Gerar PDF interno do pedido
       if ((!pedido.pedido_items || pedido.pedido_items.length === 0) && (!pedido.servicos || pedido.servicos.length === 0)) {
         showError("O pedido não possui itens ou serviços para gerar o PDF.");
         return;
@@ -1473,18 +1495,62 @@ const PedidosPage: React.FC = () => {
 
                   <div id={index === 0 ? "order-card-actions" : undefined} className="flex justify-end items-center gap-2 pt-3 border-t mt-3">
                     {pedido.tipo_entrega === 'frete' && pedido.status !== 'cancelado' && (
-                      <Button
-                        variant="default"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setShippingModal({ open: true, pedido });
-                        }}
-                        className="h-8 bg-primary hover:bg-primary/90 text-primary-foreground transition-all gap-2 px-3 rounded-xl mr-auto flex items-center shadow-sm hover:shadow-md group"
-                      >
-                        <span className="text-[9px] font-black italic uppercase tracking-tight">GERAR ETIQUETA</span>
-                        <Truck className="h-4 w-4" />
-                      </Button>
+                      pedido.shipping_label_status === 'released' ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 transition-all gap-2 px-3 rounded-xl mr-auto flex items-center shadow-sm hover:shadow-md group border-primary/50 text-primary hover:bg-primary/5"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <span className="text-[9px] font-black italic uppercase tracking-tight">ETIQUETA PRONTA</span>
+                              <Printer className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start">
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDownloadPDF(pedido); }}>
+                              <FileText className="mr-2 h-4 w-4" /> Baixar PDF da Etiqueta
+                            </DropdownMenuItem>
+
+                            {pedido.tracking_code && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={(e) => {
+                                  e.stopPropagation();
+                                  copyToClipboard(pedido.tracking_code!);
+                                }}>
+                                  <Copy className="mr-2 h-4 w-4" /> Copiar Rastreio ({pedido.tracking_code})
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={(e) => {
+                                  e.stopPropagation();
+                                  window.open(`https://rastreamento.correios.com.br/app/index.php?objeto=${pedido.tracking_code}`, '_blank');
+                                }}>
+                                  <ExternalLink className="mr-2 h-4 w-4" /> Rastrear Objeto
+                                </DropdownMenuItem>
+                              </>
+                            )}
+
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleShareWhatsApp(pedido); }}>
+                              <Send className="mr-2 h-4 w-4" /> Enviar Resumo no WhatsApp
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : (
+                        <Button
+                          variant="default" // Back to theme default
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShippingModal({ open: true, pedido });
+                          }}
+                          className="h-8 transition-all gap-2 px-3 rounded-xl mr-auto flex items-center shadow-sm hover:shadow-md group"
+                        >
+                          <span className="text-[9px] font-black italic uppercase tracking-tight">GERAR ETIQUETA</span>
+                          <Truck className="h-4 w-4" />
+                        </Button>
+                      )
                     )}
 
                     <Tooltip>

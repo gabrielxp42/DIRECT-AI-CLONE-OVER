@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Truck, Loader2, CreditCard, Download, PackageOpen, ExternalLink, ChevronDown, ChevronUp, Zap, Sparkles, MapPin, User, Search } from 'lucide-react';
+import { Truck, Loader2, CreditCard, Download, PackageOpen, ExternalLink, ChevronDown, ChevronUp, Zap, Sparkles, MapPin, User, Search, CheckCircle2, Copy } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/integrations/supabase/client';
@@ -26,6 +26,19 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+
+const BRAZILIAN_STATES = [
+    'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO',
+    'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI',
+    'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'
+];
 
 const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -74,6 +87,7 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
     const [labelId, setLabelId] = useState<string | undefined>(initialLabelId);
     const [status, setStatus] = useState<string | undefined>(initialStatus);
     const [labelUrl, setLabelUrl] = useState<string | null>(null);
+    const [trackingCode, setTrackingCode] = useState<string | null>(null);
     const [showAdvanced, setShowAdvanced] = useState(false);
 
     const [manualCEP, setManualCEP] = useState("");
@@ -83,6 +97,10 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
     const [manualDestDistrict, setManualDestDistrict] = useState("");
     const [manualDestCity, setManualDestCity] = useState("");
     const [manualDestState, setManualDestState] = useState("");
+    const [manualDestComplement, setManualDestComplement] = useState("");
+    const [addressAutoFilled, setAddressAutoFilled] = useState(false);
+    const [loadingCEP, setLoadingCEP] = useState(false);
+    const lastViaCEPLookup = useRef("");
     const [selectedClient, setSelectedClient] = useState<Cliente | null>(null);
     const [isClientPopoverOpen, setIsClientPopoverOpen] = useState(false);
     const { data: clientes } = useClientes();
@@ -93,12 +111,88 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
         length: 35
     });
 
+    useEffect(() => {
+        // Forçar atualização do saldo ao abrir o modal
+        refetch();
+
+        // Se já existe uma etiqueta vinculada, buscar os detalhes dela (como PDF e tracking)
+        const fetchExistingLabel = async () => {
+            if (initialLabelId) {
+                try {
+                    const token = await getValidToken();
+                    const response = await fetch(`${SUPABASE_URL}/rest/v1/shipping_labels?id=eq.${initialLabelId}&select=*`, {
+                        headers: {
+                            'apikey': SUPABASE_ANON_KEY,
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+                    const data = await response.json();
+                    if (data && data.length > 0) {
+                        const label = data[0];
+                        console.log("[ShippingSection] Etiqueta existente encontrada:", label);
+                        if (label.pdf_url) setLabelUrl(label.pdf_url);
+                        if (label.status) setStatus(label.status);
+                        if (label.tracking_code) setTrackingCode(label.tracking_code);
+                    }
+                } catch (err) {
+                    console.error("[ShippingSection] Erro ao buscar etiqueta existente:", err);
+                }
+            }
+        };
+
+        fetchExistingLabel();
+    }, [initialLabelId]);
+
     // Extrair CEP do endereço (Regex simples)
     const extractCEP = (address: string) => {
         if (!address) return "";
         const match = address.match(/\d{5}-?\d{3}/);
         return match ? match[0].replace('-', '') : "";
     };
+
+    // Auto-preenchimento de endereço via ViaCEP
+    const fetchAddressFromCEP = async (cep: string) => {
+        const cleanCEP = cep.replace(/\D/g, '');
+        if (cleanCEP.length !== 8 || lastViaCEPLookup.current === cleanCEP) return;
+        lastViaCEPLookup.current = cleanCEP;
+        setLoadingCEP(true);
+        try {
+            const response = await fetch(`https://viacep.com.br/ws/${cleanCEP}/json/`);
+            const data = await response.json();
+            if (!data.erro) {
+                console.log("[ShippingSection] ViaCEP retornou:", data);
+                if (data.logradouro) setManualDestAddress(data.logradouro);
+                if (data.bairro) setManualDestDistrict(data.bairro);
+                if (data.localidade) setManualDestCity(data.localidade);
+                if (data.uf && BRAZILIAN_STATES.includes(data.uf)) setManualDestState(data.uf);
+                if (data.complemento) setManualDestComplement(data.complemento);
+                setAddressAutoFilled(true);
+                // Foca no campo Número que é o que o user precisa digitar
+                setTimeout(() => {
+                    const numInput = document.getElementById('dest-number-input');
+                    if (numInput) numInput.focus();
+                }, 100);
+            } else {
+                console.log("[ShippingSection] CEP não encontrado no ViaCEP");
+                setAddressAutoFilled(false);
+            }
+        } catch (err) {
+            console.error("[ShippingSection] Erro ViaCEP:", err);
+            setAddressAutoFilled(false);
+        } finally {
+            setLoadingCEP(false);
+        }
+    };
+
+    // Trigger ViaCEP quando o CEP muda
+    useEffect(() => {
+        const cleanCEP = manualCEP.replace(/\D/g, '');
+        if (cleanCEP.length === 8) {
+            fetchAddressFromCEP(cleanCEP);
+        } else {
+            setAddressAutoFilled(false);
+        }
+    }, [manualCEP]);
 
     useEffect(() => {
         if (clientAddress && !manualCEP) {
@@ -241,7 +335,22 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
                 showSuccess(`${sorted.length} opções de frete encontradas.`);
             }
         } catch (error: any) {
-            showError(`Erro ao calcular frete: ${error.message}`);
+            console.error("[ShippingSection] Erro ao calcular frete:", error);
+            let msg = error.message || "Erro desconhecido";
+
+            // Tratamento amigável para CEP não encontrado/inválido
+            if (
+                msg.includes("not found") ||
+                msg.includes("não encontrado") ||
+                msg.includes("CEP de destino inválido") ||
+                msg.includes("404")
+            ) {
+                msg = "CEP de destino não encontrado ou inválido. Verifique se o número está correto.";
+            } else if (msg === "Ocorreu um ou mais erros.") {
+                msg = "Erro na validação do frete. Verifique o CEP, Peso (min 300g) e Dimensões ou se o serviço está disponível.";
+            }
+
+            showError(msg);
         } finally {
             setLoading(false);
         }
@@ -266,6 +375,9 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
             const payload = {
                 action: 'cart',
                 params: {
+                    recipient_name: manualDestName,
+                    service_name: selectedOption.name,
+                    pedido_id: pedidoId,
                     from: {
                         name: companyProfile?.company_name || "DIRECT AI",
                         postal_code: (companyProfile?.company_address_zip || "04571010").replace(/\D/g, ''),
@@ -390,26 +502,37 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
                     action: 'checkout',
                     params: {
                         id: labelId,
-                        price: parseFloat(selectedOption.price)
+                        price: parseFloat(selectedOption.price),
+                        pedido_id: pedidoId,
+                        recipient_name: manualDestName,
+                        service_name: selectedOption.name
                     }
                 })
             });
 
             const data = await response.json();
-            if (data.error) throw new Error(data.message);
+            if (data.error) {
+                const detailsStr = data.details ? (typeof data.details === 'object' ? JSON.stringify(data.details) : String(data.details)) : '';
+                throw new Error(`${data.message}${detailsStr ? ` (${detailsStr})` : ''}`);
+            }
 
-            setStatus(data.status);
+            // A API pode retornar um objeto ou um array com o link
+            const result = Array.isArray(data) ? data[0] : data;
+            const pdfUrl = result.pdf || result.url;
+
+            setStatus('released');
+            if (pdfUrl) {
+                setLabelUrl(pdfUrl);
+            }
 
             // Refresh balance after purchase
             refetch();
 
+            const trackingCode = data.tracking_code || data.tracking;
+
             // Atualizar pedido (apenas se existir)
             if (pedidoId) {
                 const { supabase } = await import('@/integrations/supabase/client');
-
-                // Buscar detalhes do tracking se disponíveis logo após checkout
-                // Em alguns casos o tracking só aparece no tracking-label
-                let trackingCode = data.tracking_code || data.tracking;
 
                 await supabase
                     .from('pedidos')
@@ -446,10 +569,23 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
                 }
             }
 
+            // CRITICAL FIX: Ensure PDF URL and Tracking are saved to shipping_labels
+            if (pdfUrl || trackingCode) {
+                const { supabase } = await import('@/integrations/supabase/client');
+                await supabase
+                    .from('shipping_labels')
+                    .update({
+                        pdf_url: pdfUrl,
+                        tracking_code: trackingCode,
+                        status: 'released'
+                    })
+                    .eq('id', labelId);
+            }
+
             showSuccess("Etiqueta emitida com sucesso!");
+            setLoading(false);
         } catch (error: any) {
             showError(`Erro ao emitir etiqueta: ${error.message}`);
-        } finally {
             setLoading(false);
         }
     };
@@ -476,8 +612,23 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
             const data = await response.json();
             if (data.error) throw new Error(data.message);
 
-            setLabelUrl(data.url);
-            window.open(data.url, '_blank');
+            const result = Array.isArray(data) ? data[0] : data;
+            const url = result.pdf || result.url;
+
+            if (!url) {
+                throw new Error("Aguardando geração do link do PDF pela SuperFrete...");
+            }
+
+            setLabelUrl(url);
+            window.open(url, '_blank');
+
+            // CRITICAL FIX: Persist the fresh PDF URL to the database
+            const { supabase } = await import('@/integrations/supabase/client');
+            await supabase
+                .from('shipping_labels')
+                .update({ pdf_url: url })
+                .eq('id', labelId);
+
         } catch (error: any) {
             showError(`Erro ao obter link: ${error.message}`);
         } finally {
@@ -498,7 +649,7 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
                     Logística "Bum" (Instantânea)
                     {status && (
                         <Badge variant="outline" className="ml-auto bg-white text-[10px] uppercase font-bold border-primary/20">
-                            {status === 'cart' ? 'Aguardando Pagamento' : status}
+                            {(status === 'cart' || status === 'pending') ? 'Aguardando Pagamento' : status}
                         </Badge>
                     )}
                 </CardTitle>
@@ -775,6 +926,7 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
                                         <div className="space-y-1">
                                             <Label className="text-[10px] uppercase font-bold text-muted-foreground">Nº</Label>
                                             <Input
+                                                id="dest-number-input"
                                                 placeholder="123"
                                                 value={manualDestNumber}
                                                 onChange={(e) => setManualDestNumber(e.target.value)}
@@ -782,6 +934,18 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
                                             />
                                         </div>
                                     </div>
+                                    {addressAutoFilled && (
+                                        <div className="flex items-center gap-1.5 text-[10px] text-emerald-400 font-bold animate-in fade-in duration-300">
+                                            <CheckCircle2 className="h-3 w-3" />
+                                            Endereço preenchido automaticamente via CEP
+                                        </div>
+                                    )}
+                                    {loadingCEP && (
+                                        <div className="flex items-center gap-1.5 text-[10px] text-primary font-bold animate-pulse">
+                                            <Loader2 className="h-3 w-3 animate-spin" />
+                                            Buscando endereço...
+                                        </div>
+                                    )}
                                     <div className="grid grid-cols-3 gap-2">
                                         <div className="space-y-1">
                                             <Label className="text-[10px] uppercase font-bold text-muted-foreground">Bairro</Label>
@@ -789,7 +953,7 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
                                                 placeholder="Bairro"
                                                 value={manualDestDistrict}
                                                 onChange={(e) => setManualDestDistrict(e.target.value)}
-                                                className="h-9 bg-background/50 border-primary/10"
+                                                className={cn("h-9 bg-background/50 border-primary/10", addressAutoFilled && manualDestDistrict && "border-emerald-500/30")}
                                             />
                                         </div>
                                         <div className="space-y-1">
@@ -798,18 +962,23 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
                                                 placeholder="Cidade"
                                                 value={manualDestCity}
                                                 onChange={(e) => setManualDestCity(e.target.value)}
-                                                className="h-9 bg-background/50 border-primary/10"
+                                                className={cn("h-9 bg-background/50 border-primary/10", addressAutoFilled && manualDestCity && "border-emerald-500/30")}
                                             />
                                         </div>
                                         <div className="space-y-1">
                                             <Label className="text-[10px] uppercase font-bold text-muted-foreground">UF</Label>
-                                            <Input
-                                                placeholder="SP"
-                                                maxLength={2}
-                                                value={manualDestState}
-                                                onChange={(e) => setManualDestState(e.target.value.toUpperCase())}
-                                                className="h-9 bg-background/50 border-primary/10"
-                                            />
+                                            <Select value={manualDestState} onValueChange={setManualDestState}>
+                                                <SelectTrigger className={cn("h-9 bg-background/50 border-primary/10 text-xs", addressAutoFilled && manualDestState && "border-emerald-500/30")}>
+                                                    <SelectValue placeholder="UF" />
+                                                </SelectTrigger>
+                                                <SelectContent className="max-h-[200px]">
+                                                    {BRAZILIAN_STATES.map((uf) => (
+                                                        <SelectItem key={uf} value={uf} className="text-xs font-bold">
+                                                            {uf}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
                                         </div>
                                     </div>
                                 </div>
@@ -829,52 +998,120 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
 
                 {/* Label Status / Emission Flow */}
                 {labelId && (
-                    <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
-                        <div className="p-4 bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl border-2 border-dashed border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
-                            <div>
-                                <p className="text-[10px] uppercase font-black text-muted-foreground mb-0.5">Etiqueta Reservada</p>
-                                <p className="text-lg font-mono font-bold text-primary">#{labelId}</p>
+                    <div className="space-y-4 animate-in fade-in slide-in-from-top-4 duration-500">
+                        {status === 'released' || status === 'printed' ? (
+                            <div className="space-y-4">
+                                <div className="p-6 bg-emerald-500/10 border-2 border-emerald-500/20 rounded-3xl relative overflow-hidden group">
+                                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
+                                        <CheckCircle2 className="h-16 w-16 text-emerald-500" />
+                                    </div>
+
+                                    <div className="relative z-10 flex flex-col gap-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="bg-emerald-500 p-2 rounded-xl shadow-lg shadow-emerald-500/20">
+                                                <Truck className="h-5 w-5 text-white" />
+                                            </div>
+                                            <div>
+                                                <h4 className="text-sm font-black uppercase text-emerald-700 tracking-tight">Etiqueta Emitida!</h4>
+                                                <p className="text-[10px] font-bold text-emerald-600/70 uppercase tracking-widest">Pronta para download e postagem</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 gap-2">
+                                            <div className="p-3 bg-white/60 rounded-xl border border-emerald-200/50 flex items-center justify-between">
+                                                <div className="flex flex-col">
+                                                    <span className="text-[9px] font-black text-emerald-600/60 uppercase">Código de Rastreio</span>
+                                                    <span className="text-sm font-mono font-black text-emerald-800">{trackingCode || 'AGUARDANDO...'}</span>
+                                                </div>
+                                                {trackingCode && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-7 w-7 text-emerald-600 hover:bg-emerald-100"
+                                                        onClick={() => {
+                                                            navigator.clipboard.writeText(trackingCode);
+                                                            showSuccess("Rastreio copiado!");
+                                                        }}
+                                                    >
+                                                        <Copy className="h-4 w-4" />
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex flex-col gap-2">
+                                    <Button
+                                        className="w-full h-14 bg-emerald-500 hover:bg-emerald-600 text-white font-black uppercase italic tracking-tighter rounded-2xl shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-3 border-none"
+                                        onClick={handleDownload}
+                                        disabled={loading}
+                                    >
+                                        {loading ? (
+                                            <Loader2 className="h-6 w-6 animate-spin" />
+                                        ) : (
+                                            <Download className="h-6 w-6" />
+                                        )}
+                                        {loading ? 'Obtendo link...' : 'Imprimir Etiqueta (PDF)'}
+                                    </Button>
+
+                                    {labelUrl && (
+                                        <Button
+                                            variant="outline"
+                                            className="w-full h-12 border-primary/20 text-primary font-bold rounded-2xl gap-2"
+                                            onClick={() => window.open(labelUrl, '_blank')}
+                                        >
+                                            <ExternalLink className="h-4 w-4" />
+                                            Re-abrir Visualização
+                                        </Button>
+                                    )}
+                                </div>
                             </div>
-                            <Truck className="h-8 w-8 text-zinc-300 animate-bounce" />
-                        </div>
+                        ) : (
+                            <>
+                                <div className="p-4 bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl border-2 border-dashed border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
+                                    <div>
+                                        <p className="text-[10px] uppercase font-black text-muted-foreground mb-0.5">Etiqueta Reservada</p>
+                                        <div className="flex items-center gap-2">
+                                            <p className="text-lg font-mono font-bold text-primary">#{labelId}</p>
+                                            {selectedOption && (
+                                                <Badge className="bg-primary/20 text-primary border-none text-[10px] font-black h-5">
+                                                    {formatCurrency(parseFloat(selectedOption.price))}
+                                                </Badge>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <Truck className="h-8 w-8 text-zinc-300 animate-bounce" />
+                                </div>
 
-                        {status === 'cart' && (
-                            <Button
-                                className="w-full h-12 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl shadow-lg shadow-green-200"
-                                onClick={handleCheckout}
-                                disabled={loading}
-                            >
-                                {loading ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <CreditCard className="h-5 w-5 mr-2" />}
-                                Pagar e Emitir Etiqueta
-                            </Button>
-                        )}
-
-                        {(status === 'released' || status === 'printed') && (
-                            <Button className="w-full h-12 rounded-xl font-bold" variant="secondary" onClick={handleDownload} disabled={loading}>
-                                {loading ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <Download className="h-5 w-5 mr-2" />}
-                                Imprimir Etiqueta (PDF)
-                            </Button>
-                        )}
-
-                        {labelUrl && (
-                            <a
-                                href={labelUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="flex items-center justify-center gap-2 py-2 text-xs font-bold text-primary hover:underline"
-                            >
-                                <ExternalLink className="h-4 w-4" /> Abrir PDF em nova aba
-                            </a>
+                                {(status === 'cart' || status === 'pending') && (
+                                    <Button
+                                        className="w-full h-14 bg-emerald-500 hover:bg-emerald-400 text-black font-black uppercase italic tracking-tighter rounded-2xl shadow-xl shadow-emerald-500/25 flex items-center justify-center gap-3 group transition-all duration-300 active:scale-[0.98] border-none"
+                                        onClick={handleCheckout}
+                                        disabled={loading}
+                                    >
+                                        {loading ? (
+                                            <Loader2 className="h-5 w-5 animate-spin" />
+                                        ) : (
+                                            <CreditCard className="h-5 w-5 group-hover:scale-110 transition-transform" />
+                                        )}
+                                        Pagar e Emitir Etiqueta
+                                    </Button>
+                                )}
+                            </>
                         )}
 
                         <Button
                             variant="ghost"
                             size="sm"
-                            className="w-full text-[10px] text-muted-foreground opacity-50 hover:opacity-100"
+                            className="w-full text-[10px] text-muted-foreground opacity-50 hover:opacity-100 mt-2"
                             onClick={() => {
                                 setLabelId(undefined);
                                 setOptions([]);
                                 setManualCEP("");
+                                setStatus(undefined);
+                                setTrackingCode(null);
+                                setLabelUrl(null);
                             }}
                         >
                             Voltar e Novo Frete

@@ -32,6 +32,7 @@ import { TutorialGuide } from "@/components/TutorialGuide";
 import { useTour } from "@/hooks/useTour";
 import { WELCOME_TOUR } from "@/utils/tours";
 import { Button } from "@/components/ui/button";
+import { ShippingFeatureModal } from "@/components/modals/ShippingFeatureModal";
 // import { MagicOnboarding } from "@/components/MagicOnboarding";
 
 const Index = () => {
@@ -49,11 +50,24 @@ const Index = () => {
   }, [shouldAutoStart, sessionLoading, startTour]);
 
   const [accordionValue, setAccordionValue] = useState<string>("");
+  const [showShippingFeature, setShowShippingFeature] = useState(false);
 
   useEffect(() => {
     const isMobile = window.innerWidth < 768;
     setAccordionValue(isMobile ? "" : "resumo");
+
+    // Check if user has seen the new shipping feature modal
+    const hasSeenFeature = localStorage.getItem('has_seen_shipping_feature_v3.4');
+    if (!hasSeenFeature) {
+      // Small delay to not conflict with other initializations
+      setTimeout(() => setShowShippingFeature(true), 1500);
+    }
   }, []);
+
+  const handleCloseShippingFeature = () => {
+    setShowShippingFeature(false);
+    localStorage.setItem('has_seen_shipping_feature_v3.4', 'true');
+  };
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -286,6 +300,11 @@ const Index = () => {
         )}
       </div>
 
+      <ShippingFeatureModal
+        isOpen={showShippingFeature}
+        onClose={handleCloseShippingFeature}
+      />
+
       <TutorialGuide
         steps={steps}
         isOpen={isTourOpen}
@@ -294,7 +313,7 @@ const Index = () => {
         onPrev={prevStep}
         onClose={closeTour}
       />
-    </div>
+    </div >
   );
 };
 
