@@ -87,9 +87,9 @@ export const StatusChangeDialog = ({
       // PEGAR PREFERÊNCIA DO DISPOSITIVO (Independente para cada usuário/aparelho)
       const stored = localStorage.getItem(`gabi_notify_pref_${currentStatus}`);
 
-      // Se for a primeira vez no aparelho, padrão é TRUE (ligado).
+      // Se for a primeira vez no aparelho, padrão é FALSE (desligado).
       // Se o usuário já mexeu, respeita o que ele deixou salvo (ON ou OFF) naquele dispositivo.
-      setNotifyClient(stored === null ? true : stored === 'true');
+      setNotifyClient(stored === 'true');
 
       setPaymentDecision(null);
       setObservacao("");
@@ -165,7 +165,7 @@ export const StatusChangeDialog = ({
             <Select value={selectedStatus} onValueChange={(val) => {
               setSelectedStatus(val);
               const stored = localStorage.getItem(`gabi_notify_pref_${val}`);
-              setNotifyClient(stored === 'true' || ['aguardando retirada', 'enviado', 'pago'].includes(val));
+              setNotifyClient(stored === 'true');
               setPaymentDecision(null);
               setShowError(false);
             }}>
