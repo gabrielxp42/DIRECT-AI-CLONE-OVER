@@ -117,99 +117,62 @@ export const AIAssistant = () => {
     setLoadingStatus("Gabi está pensando...");
 
     try {
-      const openai = await getOpenAIClient();
-
-      // Gerar system prompt dinâmico com ReAct e memórias
-      const systemPrompt = generateReActSystemPrompt(memories, insights);
-
-      const allMessages: ChatMessage[] = [
-        { role: 'system', content: systemPrompt },
-        ...messages,
-        userMessage
-      ];
-
-      // Usar sendMessage do nosso OpenAIClient (que trata o proxy e ReAct corretamente)
-      let response = await openai.sendMessage(allMessages, openAIFunctions);
-
-      // Loop de ReAct para lidar com chamadas de função
-      let iterations = 0;
-      const MAX_ITERATIONS = 5;
-
-      while (response.function_call && iterations < MAX_ITERATIONS) {
-        iterations++;
-        const functionName = response.function_call.name;
-        const functionArgs = response.function_call.arguments;
-
-        console.log(`🎬 [AIAssistant] Executando função: ${functionName}`, functionArgs);
-
-        // Atualizar status para o usuário saber o que está acontecendo
-        if (functionName.includes('order') || functionName.includes('service')) {
-          setLoadingStatus("Consultando o banco de pedidos...");
-        } else if (functionName.includes('client')) {
-          setLoadingStatus("Buscando informações do cliente...");
-        } else if (functionName.includes('calculate')) {
-          setLoadingStatus("Fazendo os cálculos para você...");
+      // Chamar o Cérebro Unificado via Edge Function
+      const { data, error: invokeError } = await supabase.functions.invoke('gabi-brain', {
+        body: {
+          message: content,
+          history: messages.slice(-10) // Limitar histórico para performance
         }
+      });
 
-        const functionResult = await callOpenAIFunction({ name: functionName, arguments: functionArgs });
+      if (invokeError) throw invokeError;
 
-        // EXCLUSIVO: Invalidação de queries em tempo real para Branding
-        if (functionName === 'update_branding') {
-          console.log("🎨 [AIAssistant] Branding alterado, invalidando queries...");
-          queryClient.invalidateQueries({ queryKey: ['companyProfile'] });
-        }
+      // Adicionar passos intermediários ao histórico para renderização de UI (Cards, Previews, etc)
+      if (data.intermediateSteps && data.intermediateSteps.length > 0) {
+        const intermediateMessages: ChatMessage[] = [];
 
-        setLoadingStatus("Gabi está finalizando a resposta...");
+        data.intermediateSteps.forEach((step: any) => {
+          // Mensagem do assistente chamando a função
+          intermediateMessages.push({
+            role: 'assistant',
+            content: null,
+            function_call: {
+              name: step.tool,
+              arguments: JSON.stringify(step.args)
+            }
+          });
 
-        const assistantFunctionCall: ChatMessage = {
-          role: 'assistant',
-          content: null,
-          function_call: {
-            name: functionName,
-            arguments: JSON.stringify(functionArgs)
+          // Resposta da função
+          intermediateMessages.push({
+            role: 'function',
+            name: step.tool,
+            content: JSON.stringify(step.result)
+          });
+
+          // Lógica especial de efeitos colaterais no frontend
+          if (step.tool === 'update_branding') {
+            queryClient.invalidateQueries({ queryKey: ['companyProfile'] });
           }
-        };
+        });
 
-        const functionResponse: ChatMessage = {
-          role: 'function',
-          name: functionName,
-          content: JSON.stringify(functionResult)
-        };
-
-        setMessages(prev => [...prev, assistantFunctionCall, functionResponse]);
-        allMessages.push(assistantFunctionCall, functionResponse);
-
-        response = await openai.sendMessage(allMessages, openAIFunctions);
+        setMessages(prev => [...prev, ...intermediateMessages]);
       }
 
-      if (response.content) {
+      // Adicionar resposta final
+      if (data.text) {
         setMessages(prev => [...prev, {
           role: 'assistant',
-          content: response.content || ''
+          content: data.text
         }]);
 
-        // Extrair sugestões dinâmicas da resposta (perguntas no final)
-        const suggestions = response.content.match(/([A-Z][^.!?]*\?)/g);
+        // Sugestões dinâmicas
+        const suggestions = data.text.match(/([A-Z][^.!?]*\?)/g);
         if (suggestions && suggestions.length > 0) {
-          // Pegar as últimas 3 perguntas como sugestões, limpando pontuação extra
-          const cleanSuggestions = suggestions.slice(-3).map(s => s.trim().replace(/^\?+|\?+$/g, '') + '?');
+          const cleanSuggestions = suggestions.slice(-3).map((s: string) => s.trim().replace(/^\?+|\?+$/g, '') + '?');
           setSuggestedActions(cleanSuggestions);
-        } else {
-          // Fallback para sugestões padrão se não houver perguntas
-          setSuggestedActions(["Novo pedido", "Resumo do dia", "Estoque baixo?", "Clientes inativos", "Criar cliente"]);
         }
-
-        // Extrair memórias de forma proativa se o gerenciador estiver pronto
-        if (memoryManager && typeof userMessage.content === 'string') {
-          memoryManager.extractMemoriesFromConversation(userMessage.content, response.content || '')
-            .catch(err => console.error('🧠 [AIAssistant] Erro ao extrair memórias:', err));
-        }
-      } else if (!response.function_call) {
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          content: "Desculpe, tive um problema ao processar. Poderia repetir? 😅"
-        }]);
       }
+
     } catch (error: any) {
       console.error("❌ [AIAssistant] Erro:", error);
       logAIError(error, "handleSendMessage");
@@ -218,6 +181,11 @@ export const AIAssistant = () => {
         description: error.message || "Tente novamente.",
         variant: "destructive"
       });
+
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: "Ops! Tive um problema de conexão com o meu cérebro. Pode tentar de novo? 🧠💨"
+      }]);
     } finally {
       setIsLoading(false);
     }

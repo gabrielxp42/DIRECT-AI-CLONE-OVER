@@ -65,19 +65,57 @@ Deno.serve(async (req: Request) => {
         const EVOLUTION_URL = adminProfile.whatsapp_api_url.replace(/\/$/, ""); // Remove trailing slash
         const EVOLUTION_KEY = adminProfile.whatsapp_api_key;
 
+        // Custom fetch wrapper with timeout
+        const fetchWithTimeout = async (resource: string, options: RequestInit = {}, timeout = 15000) => {
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), timeout);
+            try {
+                const response = await fetch(resource, {
+                    ...options,
+                    signal: controller.signal
+                });
+                return response;
+            } finally {
+                clearTimeout(id);
+            }
+        };
+
         let result;
 
         // 3. Handle Actions
         if (body.action === 'create') {
             const instanceId = body.instanceName || `user_${user.id.substring(0, 8)}`;
-            console.log(`Proxied Create Request for ${instanceId} (v2)`);
+            const forceReset = body.force === true;
+            console.log(`Proxied Create Request for ${instanceId} (v2) | Force: ${forceReset}`);
 
             try {
-                // Primeiro, verifica se já existe e qual o status
-                const checkResp = await fetch(`${EVOLUTION_URL}/instance/connectionState/${instanceId}`, {
-                    headers: { 'apikey': EVOLUTION_KEY }
-                });
-                const checkData = await checkResp.json();
+                // Se for forceReset, tenta deletar antes de criar
+                if (forceReset) {
+                    console.log(`[Proxy] Force reset requested for ${instanceId}. Deleting...`);
+                    try {
+                        await fetchWithTimeout(`${EVOLUTION_URL}/instance/logout/${instanceId}`, {
+                            method: 'DELETE',
+                            headers: { 'apikey': EVOLUTION_KEY }
+                        }, 5000).catch(() => { });
+                        await fetchWithTimeout(`${EVOLUTION_URL}/instance/delete/${instanceId}`, {
+                            method: 'DELETE',
+                            headers: { 'apikey': EVOLUTION_KEY }
+                        }, 5000).catch(() => { });
+                    } catch (e) {
+                        console.warn("[Proxy] Pre-creation delete failed (probably didn't exist):", e);
+                    }
+                }
+
+                // Primeiro, verifica se já existe e qual o status (se não for force)
+                let checkData: any = {};
+                if (!forceReset) {
+                    const checkResp = await fetchWithTimeout(`${EVOLUTION_URL}/instance/connectionState/${instanceId}`, {
+                        headers: { 'apikey': EVOLUTION_KEY }
+                    });
+                    if (checkResp.ok) {
+                        checkData = await checkResp.json();
+                    }
+                }
 
                 // Shared Webhook Configuration Logic
                 const configureWebhook = async () => {
@@ -85,7 +123,7 @@ Deno.serve(async (req: Request) => {
                         const WEBHOOK_URL = `${Deno.env.get('SUPABASE_URL')}/functions/v1/whatsapp-webhook`;
                         console.log(`[Proxy] Configuring Webhook for ${instanceId} -> ${WEBHOOK_URL}`);
 
-                        await fetch(`${EVOLUTION_URL}/webhook/set/${instanceId}`, {
+                        await fetchWithTimeout(`${EVOLUTION_URL}/webhook/set/${instanceId}`, {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -105,7 +143,7 @@ Deno.serve(async (req: Request) => {
                     }
                 };
 
-                if (checkData.instance?.state === 'open') {
+                if (!forceReset && checkData.instance?.state === 'open') {
                     // Instance exists and is open
                     // FORCE WEBHOOK CONFIGURATION (To update URL or Enable it)
                     await configureWebhook();
@@ -123,7 +161,7 @@ Deno.serve(async (req: Request) => {
                     result = { instance: { state: 'open' }, status: 'connected' };
                 } else {
                     // Create new instance
-                    const createResp = await fetch(`${EVOLUTION_URL}/instance/create`, {
+                    const createResp = await fetchWithTimeout(`${EVOLUTION_URL}/instance/create`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -140,9 +178,8 @@ Deno.serve(async (req: Request) => {
                     const createData = await createResp.json();
 
                     if (createResp.status === 403 || (createData.error && createData.error.includes("already exists"))) {
-                        // ....
-                        // Existing connection logic fallback
-                        const connectResp = await fetch(`${EVOLUTION_URL}/instance/connect/${instanceId}`, {
+                        // Fallback: Tentativa de conexão para instâncias existentes
+                        const connectResp = await fetchWithTimeout(`${EVOLUTION_URL}/instance/connect/${instanceId}`, {
                             headers: { 'apikey': EVOLUTION_KEY }
                         });
                         result = await connectResp.json();
@@ -221,7 +258,7 @@ Deno.serve(async (req: Request) => {
             console.log(`Checking status for instance: ${instanceId}`);
 
             try {
-                const resp = await fetch(`${EVOLUTION_URL}/instance/connectionState/${instanceId}`, {
+                const resp = await fetchWithTimeout(`${EVOLUTION_URL}/instance/connectionState/${instanceId}`, {
                     headers: { 'apikey': EVOLUTION_KEY }
                 });
 
@@ -254,14 +291,15 @@ Deno.serve(async (req: Request) => {
             if (profile?.whatsapp_instance_id) {
                 try {
                     // Na v2, logout e delete usam os mesmos endpoints
-                    await fetch(`${EVOLUTION_URL}/instance/logout/${profile.whatsapp_instance_id}`, {
+                    await fetchWithTimeout(`${EVOLUTION_URL}/instance/logout/${profile.whatsapp_instance_id}`, {
                         method: 'DELETE',
                         headers: { 'apikey': EVOLUTION_KEY }
-                    });
-                    await fetch(`${EVOLUTION_URL}/instance/delete/${profile.whatsapp_instance_id}`, {
+                    }, 5000).catch(() => { });
+
+                    await fetchWithTimeout(`${EVOLUTION_URL}/instance/delete/${profile.whatsapp_instance_id}`, {
                         method: 'DELETE',
                         headers: { 'apikey': EVOLUTION_KEY }
-                    });
+                    }, 5000).catch(() => { });
                 } catch (e) {
                     console.error("Delete failed:", e);
                 }
@@ -305,7 +343,7 @@ Deno.serve(async (req: Request) => {
                 const sendUrl = `${EVOLUTION_URL}/message/sendText/${senderProfile.whatsapp_instance_id}`;
                 console.log(`[Proxy] Sending text to ${cleanPhone} via ${senderProfile.whatsapp_instance_id}`);
 
-                const resp = await fetch(sendUrl, {
+                const resp = await fetchWithTimeout(sendUrl, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -414,7 +452,12 @@ Deno.serve(async (req: Request) => {
                 } else {
                     console.error("Evolution Send Media Error:", data);
                     // Retornar a mensagem de erro REAL da evolution para facilitar o debug no frontend
-                    const detailedError = data?.response?.message || data?.message || "Erro no envio de mídia";
+                    let detailedError = data?.response?.message || data?.message || "Erro no envio de mídia";
+
+                    if (detailedError.includes("Connection Closed") || detailedError.includes("not open")) {
+                        detailedError = "Sua conexão com o WhatsApp caiu. Por favor, vá em Configurações > Gabi Settings e leia o QR Code novamente para reconectar.";
+                    }
+
                     result = {
                         error: true,
                         message: `Evolution: ${detailedError}`,
@@ -430,7 +473,7 @@ Deno.serve(async (req: Request) => {
             console.log("Checking connection to Evolution API v2...");
             try {
                 // Na v2.x, o endpoint mais comum para listar todas as instâncias é /instance/fetchInstances
-                const resp = await fetch(`${EVOLUTION_URL}/instance/fetchInstances`, {
+                const resp = await fetchWithTimeout(`${EVOLUTION_URL}/instance/fetchInstances`, {
                     headers: { 'apikey': EVOLUTION_KEY }
                 });
 
@@ -472,7 +515,7 @@ Deno.serve(async (req: Request) => {
 
             console.log(`[Proxy] Sending payload to Evolution: ${JSON.stringify(payload)}`);
 
-            const resp = await fetch(`${EVOLUTION_URL}/webhook/set/${instanceId}`, {
+            const resp = await fetchWithTimeout(`${EVOLUTION_URL}/webhook/set/${instanceId}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

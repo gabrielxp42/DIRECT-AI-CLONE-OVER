@@ -66,7 +66,7 @@ export function WhatsAppConnection() {
         }
     };
 
-    const handleConnect = async () => {
+    const handleConnect = async (force = false) => {
         setLoading(true);
         setStatus('connecting');
         setQrCode(null);
@@ -75,7 +75,7 @@ export function WhatsAppConnection() {
             const instanceId = profile?.company_name?.toLowerCase().replace(/\s/g, '_') || `user_${profile?.id?.substring(0, 8)}`;
 
             const { data, error } = await supabase.functions.invoke('whatsapp-proxy', {
-                body: { action: 'create', instanceName: instanceId }
+                body: { action: 'create', instanceName: instanceId, force }
             });
 
             if (error) throw error;
@@ -339,7 +339,7 @@ export function WhatsAppConnection() {
                                         </div>
                                         <Button
                                             variant="ghost"
-                                            onClick={handleConnect}
+                                            onClick={() => handleConnect(true)}
                                             className="text-zinc-400 hover:text-white uppercase font-black text-[10px] tracking-widest"
                                         >
                                             Tive um problema, gerar novo QR Code
@@ -348,7 +348,7 @@ export function WhatsAppConnection() {
                                 ) : (
                                     <div className="w-full flex flex-col items-center py-8 space-y-4">
                                         <Button
-                                            onClick={handleConnect}
+                                            onClick={() => handleConnect(false)}
                                             disabled={loading || status === 'connecting'}
                                             className="w-full max-w-sm h-16 bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 font-black uppercase tracking-[0.2em] rounded-2xl hover:scale-[1.02] transition-all shadow-xl group/btn overflow-hidden relative"
                                         >
