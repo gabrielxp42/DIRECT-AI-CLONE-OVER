@@ -1,15 +1,57 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { supabase } from '@/integrations/supabase/client';
 
-const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+/**
+ * Obtém a chave do Gemini do perfil do usuário ou do ambiente VITE
+ */
+export const getGeminiApiKey = async () => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('gemini_api_key')
+        .eq('id', user.id)
+        .single();
 
-if (!apiKey) {
-  console.error("VITE_GEMINI_API_KEY is not set in environment variables.");
-}
+      if (!error && data?.gemini_api_key) {
+        return data.gemini_api_key;
+      }
+    }
+  } catch (err) {
+    console.warn("⚠️ [GeminiClient] Erro ao buscar chave no perfil, tentando VITE_GEMINI_API_KEY:", err);
+  }
 
-const genAI = new GoogleGenerativeAI(apiKey);
+  return import.meta.env.VITE_GEMINI_API_KEY;
+};
 
-export const getGenerativeModel = () => {
-  return genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+/**
+ * Inicializa o cliente Gemini de forma assíncrona
+ */
+export const getGeminiClient = async () => {
+  const key = await getGeminiApiKey();
+  if (!key) {
+    throw new Error("Gemini API Key não encontrada no perfil nem no ambiente.");
+  }
+  return new GoogleGenerativeAI(key);
+};
+
+export const getGenerativeModel = async (modelName = "gemini-1.5-flash") => {
+  try {
+    const genAI = await getGeminiClient();
+    return genAI.getGenerativeModel({
+      model: modelName,
+      generationConfig: {
+        temperature: 0.1,
+        topP: 0.95,
+        topK: 40,
+        maxOutputTokens: 2048,
+      }
+    });
+  } catch (error) {
+    console.error("❌ [GeminiClient] Erro ao carregar modelo:", error);
+    throw error;
+  }
 };
 
 export const getCurrentDateTime = () => {
@@ -24,7 +66,7 @@ export const getCurrentDateTime = () => {
     minute: '2-digit',
     hour12: false
   };
-  
+
   return {
     fullDate: now.toLocaleDateString('pt-BR', options),
     dayOfWeek: now.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', weekday: 'long' }),

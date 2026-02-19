@@ -555,19 +555,26 @@ const Calculator = {
     }
 };
 
-// Initial scroll reveals
+// Scroll reveals via IntersectionObserver (replaces scroll listener for performance)
 const revealElements = document.querySelectorAll('.feature-card, .hero-content, .hero-visual, .cta-card');
-const revealOnScroll = () => {
-    const triggerBottom = window.innerHeight * 0.8;
-    revealElements.forEach(el => {
-        const top = el.getBoundingClientRect().top;
-        if (top < triggerBottom) el.classList.add('reveal-active');
+const elementRevealObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+        if (entry.isIntersecting) {
+            entry.target.classList.add('reveal-active');
+            elementRevealObserver.unobserve(entry.target);
+        }
     });
-};
+}, { threshold: 0.15 });
 
-window.addEventListener('scroll', revealOnScroll);
+revealElements.forEach(el => elementRevealObserver.observe(el));
+
 window.addEventListener('load', () => {
-    revealOnScroll();
+    // Trigger initial reveals for elements already in viewport
+    revealElements.forEach(el => {
+        if (el.getBoundingClientRect().top < window.innerHeight) {
+            el.classList.add('reveal-active');
+        }
+    });
     AffiliateTracker.init();
     Calculator.init();
     if (window.lucide) lucide.createIcons();
@@ -602,27 +609,122 @@ document.addEventListener('DOMContentLoaded', () => {
         const observer = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
-                    // Update target position just before starting animation
                     updateCursorTarget();
                     wpDemoContainer.classList.add('start-animation');
-                    // Opcional: desconectar se quiser que anime apenas uma vez
-                    // observer.unobserve(entry.target);
-                } else {
-                    // Remove a classe se sair da tela para reiniciar a animação quando voltar (loop de user experience)
-                    wpDemoContainer.classList.remove('start-animation');
+                    observer.unobserve(entry.target); // Fire once — don't reset
                 }
             });
         }, {
-            threshold: 0.4 // Dispara quando 40% da seção estiver visível
+            threshold: 0.2 // Trigger earlier so fast scrollers still catch it
         });
 
         observer.observe(wpSection);
 
-        // Update on resize to keep it accurate
         window.addEventListener('resize', () => {
             if (wpDemoContainer.classList.contains('start-animation')) {
                 updateCursorTarget();
             }
         });
     }
+
+
+    // --- Shipping Animation Trigger ---
+    const shipSection = document.querySelector('.shipping-page-section');
+    const shipVisual = document.querySelector('.logistic-hub-card');
+    const shipBtn = document.querySelector('#shipBtnSim');
+    const isMobile = window.innerWidth <= 992;
+
+    function updateShipCursorTarget() {
+        if (!shipVisual || !shipBtn || isMobile) return;
+        const containerRect = shipVisual.getBoundingClientRect();
+        const btnRect = shipBtn.getBoundingClientRect();
+
+        const relativeX = (btnRect.left - containerRect.left) + (btnRect.width / 2);
+        const relativeY = (btnRect.top - containerRect.top) + (btnRect.height / 2);
+
+        shipVisual.style.setProperty('--ship-x', `${relativeX}px`);
+        shipVisual.style.setProperty('--ship-y', `${relativeY}px`);
+    }
+
+    if (shipSection && shipVisual) {
+        const shipObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    updateShipCursorTarget();
+                    shipVisual.classList.add('start-animation');
+                    shipObserver.unobserve(entry.target); // Fire once
+                }
+            });
+        }, { threshold: 0.2 });
+
+        shipObserver.observe(shipSection);
+
+        window.addEventListener('resize', () => {
+            if (shipVisual.classList.contains('start-animation')) {
+                updateShipCursorTarget();
+            }
+        });
+    }
+
+    // --- FAQ Accordion ---
+    const faqItems = document.querySelectorAll('.faq-item');
+    faqItems.forEach(item => {
+        item.addEventListener('click', () => {
+            const isActive = item.classList.contains('active');
+
+            // Close all items
+            faqItems.forEach(faq => faq.classList.remove('active'));
+
+            // If it wasn't active, open it
+            if (!isActive) {
+                item.classList.add('active');
+            }
+        });
+    });
+
+    // --- Scroll Reveal for Sections ---
+    const revealSections = document.querySelectorAll('.boss-experience-section, .testimonials-section, .faq-section');
+    const revealObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('revealed');
+            }
+        });
+    }, { threshold: 0.15 });
+
+    revealSections.forEach(sec => revealObserver.observe(sec));
+
+    // --- Boss Chat: Scroll-synced message reveal ---
+    const chatBubbles = document.querySelectorAll('#bossChatMessages .chat-bubble');
+    if (chatBubbles.length > 0) {
+        let bubbleIndex = 0;
+        const delays = [0, 1200, 1200, 1500, 2500]; // ms between each msg (Last one longer for reading time)
+
+        const bossChatContainer = document.querySelector('#bossChatMessages');
+        const bossChatObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting && bubbleIndex === 0) {
+                    revealBubblesSequentially();
+                    bossChatObserver.unobserve(entry.target);
+                }
+            });
+        }, { threshold: 0.3 });
+
+        if (bossChatContainer) {
+            bossChatObserver.observe(bossChatContainer);
+        }
+
+        function revealBubblesSequentially() {
+            if (bubbleIndex >= chatBubbles.length) return;
+
+            const bubble = chatBubbles[bubbleIndex];
+            bubble.style.animation = 'chatMsgIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards';
+            bubbleIndex++;
+
+            if (bubbleIndex < chatBubbles.length) {
+                setTimeout(revealBubblesSequentially, delays[bubbleIndex] || 1500);
+            }
+        }
+    }
 });
+

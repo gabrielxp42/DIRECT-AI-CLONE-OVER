@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { getOpenAIClient } from '@/integrations/openai/client';
-import { openAIFunctions, callOpenAIFunction } from '@/integrations/openai/aiTools';
+import { openAIFunctions } from '@/integrations/openai/aiTools';
+import { createGeminiLiveConnection, getGeminiTools, handleGeminiMessage } from '@/integrations/gemini/live-client';
+import { getCurrentDateTime } from '@/integrations/gemini/client';
 import { Bot, Mic, MicOff, Volume2, XCircle, AlertCircle, Loader2, Brain, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -14,8 +15,6 @@ interface LiveGabiProps {
 
 type ConnectionStatus = 'connecting' | 'active' | 'thinking' | 'error' | 'disconnected';
 
-const SENSITIVE_TOOLS = ['update_branding', 'reset_user_memory'];
-
 const GABI_INSTRUCTIONS = `Você é a Gabi, a inteligência central da DIRECT AI — um sistema de gestão para empresas de DTF e personalização.
 
 ## IDENTIDADE
@@ -25,329 +24,181 @@ const GABI_INSTRUCTIONS = `Você é a Gabi, a inteligência central da DIRECT AI
 
 ## REGRAS ABSOLUTAS (INVIOLÁVEIS)
 1. NUNCA invente dados. Se não tem a informação, diga "Vou consultar agora" e use a ferramenta certa.
-2. Quando receber resultado de uma ferramenta, leia os valores EXATOS do JSON retornado. Exemplo: se "valor_total" = 1250.50, diga "mil duzentos e cinquenta reais e cinquenta centavos".
+2. Quando receber resultado de uma ferramenta, leia os valores EXATOS do JSON retornado.
 3. NUNCA arredonde ou aproxime valores de metros, quantidades, preços ou nomes.
-4. Se uma ferramenta retornar erro, diga honestamente "Houve um erro ao consultar" e pergunte se quer tentar novamente.
-5. Sempre reporte o resultado da consulta imediatamente após receber. NUNCA fique muda.
-6. SÓ chame ferramentas que o usuário PEDIU. NUNCA faça chamadas extras por conta própria. Se o usuário perguntou sobre "último pedido", consulte APENAS isso. NÃO busque clientes ou dados que não foram solicitados.
+4. MEMÓRIA DA GABI: Ao consultar detalhes de um cliente (get_client_details), você terá acesso ao campo "observacoes". Este campo é a sua "Memória de Longo Prazo" sobre esse cliente. Use essa informação para personalizar o atendimento. Se o usuário disser algo importante sobre o cliente (ex: "ele prefere entrega por motoboy"), você DEVE usar a ferramenta 'update_client_details' para salvar isso na memória dele.
+5. SÓ chame ferramentas que o usuário PEDIU. NUNCA faça chamadas extras por conta própria.
 
 ## COMPORTAMENTO
 - Ao iniciar, cumprimente brevemente: "Oi! Gabi aqui. Como posso te ajudar?"
 - Seja BREVE e DIRETA nas respostas. Máximo 2-3 frases por resposta quando falar dados.
-- Quando o resultado incluir o campo "itens", SEMPRE mencione os itens do pedido (tipo de serviço, quantidade, e valor unitário).
-- Se o usuário perguntar algo genérico (ex: "como vai?"), responda naturalmente sem chamar ferramentas.
-- Para perguntas sobre dados do negócio (pedidos, vendas, metros, clientes), SEMPRE use ferramentas.
-- Para ações destrutivas (deletar dados, resetar memória), peça autorização ANTES.
-- Você TEM PERMISSÃO para atualizar status de pedidos diretamente. Se o usuário disser "o pedido da Camila tá pronto", altere o status sem pedir confirmação.
-- APÓS alterar o status de um pedido, SEMPRE sugira: "Quer que eu avise o cliente por WhatsApp também?" Se o usuário aceitar, use send_whatsapp_message.
+- WHATSAPP PROATIVO: Toda vez que você atualizar o status de um pedido (update_order_status), você DEVE sugerir enviar a atualização para o cliente. Antes de sugerir, verifique se o cliente tem um telefone válido (get_client_details). Se NÃO tiver, peça o número de forma gentil antes de oferecer o envio.
+- CONSULTORA DE FRETE (NOVO): Ao criar um pedido (create_order), se o cliente tiver um CEP cadastrado, você DEVE oferecer para calcular o frete usando 'calculate_shipping' e sugerir a melhor opção (PAC vs SEDEX).
+- APRENDIZADO CONTÍNUO (NOVO): Se durante um pedido o usuário der uma instrução que parece permanente (ex: "ele só recebe à tarde", "sempre quer refile"), após concluir a tarefa principal, pergunte: "Quer que eu salve essa preferência na memória permanente do cliente?" e use 'update_client_details' se ele confirmar.
 
 ## ESTILO DE VOZ
-- Tom: profissional mas caloroso
-- Ritmo: moderado, sem pressa
-- Vocabulário: claro, sem jargão técnico desnecessário`;
+- Tom: profissional mas caloroso, como uma gerente dedicada.
+- Ritmo: moderado, sem pressa.
+- Vocabulário: claro, focado no sucesso da gráfica.`;
 
 export const LiveGabi: React.FC<LiveGabiProps> = ({ onClose, onTranscript }) => {
     const [status, setStatus] = useState<ConnectionStatus>('connecting');
     const [isMuted, setIsMuted] = useState(false);
-    const [stagedTool, setStagedTool] = useState<{ id: string; name: string; args: any } | null>(null);
     const [activeTool, setActiveTool] = useState<string | null>(null);
 
-    const pcRef = useRef<RTCPeerConnection | null>(null);
-    const dcRef = useRef<RTCDataChannel | null>(null);
-    const audioElementRef = useRef<HTMLAudioElement | null>(null);
+    const wsRef = useRef<WebSocket | null>(null);
+    const audioContextRef = useRef<AudioContext | null>(null);
+    const processorRef = useRef<ScriptProcessorNode | null>(null);
     const streamRef = useRef<MediaStream | null>(null);
-    const stagedToolRef = useRef(stagedTool);
+    const audioQueueRef = useRef<ArrayBuffer[]>([]);
+    const isPlayingRef = useRef(false);
+
     const { toast } = useToast();
 
-    // Keep ref in sync with state (fixes stale closure issue)
-    useEffect(() => {
-        stagedToolRef.current = stagedTool;
-    }, [stagedTool]);
+    // Audio Playback
+    const playNextAudio = useCallback(async () => {
+        if (!audioQueueRef.current.length || !audioContextRef.current) {
+            isPlayingRef.current = false;
+            return;
+        }
 
-    const sendClientEvent = useCallback((event: any) => {
-        if (dcRef.current && dcRef.current.readyState === 'open') {
-            console.log(`📤 [LiveGabi] Sending: ${event.type}`);
-            dcRef.current.send(JSON.stringify(event));
-        } else {
-            console.warn(`⚠️ [LiveGabi] DC not open, cannot send: ${event.type}`);
+        if (isPlayingRef.current) return;
+        isPlayingRef.current = true;
+
+        const audioData = audioQueueRef.current.shift()!;
+
+        try {
+            // Convert PCM16 (Int16) to Float32
+            const int16Data = new Int16Array(audioData);
+            const float32Data = new Float32Array(int16Data.length);
+            for (let i = 0; i < int16Data.length; i++) {
+                float32Data[i] = int16Data[i] / 32768.0;
+            }
+
+            // Create AudioBuffer (Mono, 24kHz matches Gemini output)
+            const audioBuffer = audioContextRef.current.createBuffer(1, float32Data.length, 24000);
+            audioBuffer.copyToChannel(float32Data, 0);
+
+            const source = audioContextRef.current.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(audioContextRef.current.destination);
+            source.onended = () => {
+                isPlayingRef.current = false;
+                playNextAudio();
+            };
+            source.start();
+        } catch (err) {
+            console.error("❌ [LiveGabi] Erro no playback de áudio:", err);
+            isPlayingRef.current = false;
+            playNextAudio();
         }
     }, []);
 
-    const handleToolConfirm = useCallback(async () => {
-        const tool = stagedToolRef.current;
-        if (!tool) return;
-
-        setActiveTool(tool.name);
-        setStatus('thinking');
-
-        try {
-            console.log("🚀 [LiveGabi] Executando ferramenta AUTORIZADA:", tool.name);
-            const result = await callOpenAIFunction({ name: tool.name, arguments: tool.args });
-            const resultStr = JSON.stringify(result);
-            console.log(`✅ [LiveGabi] Tool Result (${tool.name}):`, resultStr.substring(0, 500));
-
-            sendClientEvent({
-                type: "conversation.item.create",
-                item: {
-                    type: "function_call_output",
-                    call_id: tool.id,
-                    output: resultStr,
-                },
-            });
-            sendClientEvent({ type: "response.create" });
-            setStagedTool(null);
-            toast({ title: "✅ Ação realizada", description: `${tool.name.replace(/_/g, ' ')} executado com sucesso.` });
-        } catch (err: any) {
-            console.error(`❌ [LiveGabi] Erro na ferramenta autorizada ${tool.name}:`, err);
-            sendClientEvent({
-                type: "conversation.item.create",
-                item: {
-                    type: "function_call_output",
-                    call_id: tool.id,
-                    output: JSON.stringify({ error: err.message || 'Erro desconhecido' }),
-                },
-            });
-            sendClientEvent({ type: "response.create" });
-            toast({ title: "Erro na execução", description: err.message, variant: "destructive" });
-            setStagedTool(null);
-        } finally {
-            setActiveTool(null);
-            setStatus('active');
-        }
-    }, [sendClientEvent, toast]);
+    const handleAudioData = useCallback((audioBuffer: ArrayBuffer) => {
+        audioQueueRef.current.push(audioBuffer);
+        playNextAudio();
+    }, [playNextAudio]);
 
     const startSession = async () => {
         try {
             setStatus('connecting');
-            const openai = getOpenAIClient();
 
-            // 1. Get ephemeral token
-            const { client_secret } = await openai.getRealtimeSession(openAIFunctions);
-            const EPHEMERAL_KEY = client_secret.value;
-            console.log("🔑 [LiveGabi] Token efêmero obtido.");
+            // 1. Initialize Audio Context for input/output
+            audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
 
-            // 2. Create RTCPeerConnection with ICE monitoring
-            const pc = new RTCPeerConnection();
-            pcRef.current = pc;
+            // 2. Prepare Setup Payload
+            const VOICE_ESSENTIAL_TOOLS = [
+                "get_current_date",
+                "get_top_clients",
+                "create_order",
+                "get_total_meters_by_period",
+                "get_client_orders",
+                "get_order_details",
+                "update_order_status",
+                "send_whatsapp_message",
+                "query_database",
+                "list_orders",
+                "get_client_details",
+                "update_client_details",
+                "calculate_dtf_packing"
+            ];
+            const filteredTools = openAIFunctions.filter(tool => VOICE_ESSENTIAL_TOOLS.includes(tool.name));
 
-            pc.oniceconnectionstatechange = () => {
-                console.log(`🌐 [LiveGabi] ICE State: ${pc.iceConnectionState}`);
-                if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
-                    setStatus('disconnected');
-                    toast({
-                        title: "Conexão perdida",
-                        description: "A conexão de voz foi interrompida. Tente reconectar.",
-                        variant: "destructive"
-                    });
-                }
-            };
-
-            // 3. Audio output
-            const audioEl = document.createElement("audio");
-            audioEl.autoplay = true;
-            audioElementRef.current = audioEl;
-            pc.ontrack = (e) => {
-                if (audioElementRef.current) {
-                    audioElementRef.current.srcObject = e.streams[0];
-                }
-            };
-
-            // 4. Capture user mic
-            const ms = await navigator.mediaDevices.getUserMedia({
-                audio: {
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true,
-                }
-            });
-            streamRef.current = ms;
-            pc.addTrack(ms.getTracks()[0]);
-
-            // 5. Data Channel
-            const dc = pc.createDataChannel("oai-events");
-            dcRef.current = dc;
-
-            dc.onopen = () => {
-                console.log("🟢 [LiveGabi] Data Channel aberto. Configurando sessão PREMIUM...");
-
-                // Session update with premium config
-                sendClientEvent({
-                    type: "session.update",
-                    session: {
-                        modalities: ["audio", "text"],
-                        voice: "shimmer",
-                        temperature: 0.6,
-                        instructions: GABI_INSTRUCTIONS,
-                        input_audio_transcription: { model: "whisper-1" },
-                        turn_detection: {
-                            type: "server_vad",
-                            threshold: 0.6,
-                            prefix_padding_ms: 400,
-                            silence_duration_ms: 1200,
-                        },
+            const setupPayload = {
+                setup: {
+                    model: "models/gemini-2.0-flash-exp",
+                    generation_config: {
+                        response_modalities: ["AUDIO"]
                     },
+                    tools: getGeminiTools(filteredTools),
+                    system_instruction: {
+                        role: "system",
+                        parts: [{ text: GABI_INSTRUCTIONS }]
+                    }
+                }
+            };
+
+            // 3. Setup Gemini WebSocket with Initial Payload
+            const ws = await createGeminiLiveConnection((data) => {
+                handleGeminiMessage(data, ws, {
+                    onTranscript: (text, role) => {
+                        onTranscript?.(text, role);
+                        if (role === 'assistant') setStatus('active');
+                    },
+                    onActiveToolChange: (tool) => {
+                        setActiveTool(tool);
+                        if (tool) setStatus('thinking');
+                        else setStatus('active');
+                    },
+                    onAudioData: handleAudioData,
+                    onSetupComplete: () => {
+                        setStatus('active');
+                        console.log("✅ [LiveGabi] Sessão Pronta e Ativa.");
+                    }
                 });
+            }, setupPayload);
+            wsRef.current = ws;
 
-                // Trigger greeting
-                sendClientEvent({
-                    type: "response.create",
-                    response: {
-                        modalities: ["audio", "text"],
-                        instructions: "Cumprimente o usuário brevemente. Diga algo como 'Oi! Gabi aqui, ao vivo. Como posso te ajudar?' Seja natural e breve."
+            // 3. Capture User Microphone and stream to Gemini
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            streamRef.current = stream;
+
+            const source = audioContextRef.current.createMediaStreamSource(stream);
+            const processor = audioContextRef.current.createScriptProcessor(4096, 1, 1);
+            processorRef.current = processor;
+
+            processor.onaudioprocess = (e) => {
+                if (ws.readyState === WebSocket.OPEN && !isMuted) {
+                    const inputData = e.inputBuffer.getChannelData(0);
+                    // Convert Float32 to Int16
+                    const pcmData = new Int16Array(inputData.length);
+                    for (let i = 0; i < inputData.length; i++) {
+                        const s = Math.max(-1, Math.min(1, inputData[i]));
+                        pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
                     }
-                });
-            };
 
-            dc.onmessage = async (e) => {
-                const event = JSON.parse(e.data);
+                    // Efficient Base64 encoding for the chunk
+                    let binary = '';
+                    const bytes = new Uint8Array(pcmData.buffer);
+                    const len = bytes.byteLength;
+                    for (let i = 0; i < len; i++) {
+                        binary += String.fromCharCode(bytes[i]);
+                    }
+                    const base64Audio = btoa(binary);
 
-                // --- TRANSCRIPT EVENTS ---
-                if (event.type === "conversation.item.input_audio_transcription.completed") {
-                    const text = event.transcript?.trim();
-                    if (text) {
-                        console.log(`🗣️ [User] ${text}`);
-                        onTranscript?.(text, 'user');
-
-                        // Verbal confirmation for staged tool
-                        const currentStaged = stagedToolRef.current;
-                        if (currentStaged) {
-                            const lower = text.toLowerCase();
-                            if (lower.includes("sim") || lower.includes("autorizo") || lower.includes("pode") || lower.includes("confirmo") || lower.includes("confirmar")) {
-                                await handleToolConfirm();
-                            } else if (lower.includes("não") || lower.includes("cancela") || lower.includes("negar")) {
-                                // Cancel staged tool
-                                sendClientEvent({
-                                    type: "conversation.item.create",
-                                    item: {
-                                        type: "function_call_output",
-                                        call_id: currentStaged.id,
-                                        output: JSON.stringify({ cancelled: true, message: "Ação cancelada pelo usuário." }),
-                                    },
-                                });
-                                sendClientEvent({ type: "response.create" });
-                                setStagedTool(null);
-                                toast({ title: "Ação cancelada", description: "A operação foi cancelada." });
-                            }
+                    ws.send(JSON.stringify({
+                        realtime_input: {
+                            media_chunks: [{
+                                mime_type: "audio/pcm",
+                                data: base64Audio
+                            }]
                         }
-                    }
-                }
-
-                if (event.type === "response.audio_transcript.done") {
-                    if (event.transcript) {
-                        console.log(`🤖 [Gabi] ${event.transcript}`);
-                        onTranscript?.(event.transcript, 'assistant');
-                    }
-                }
-
-                // --- STATUS EVENTS ---
-                if (event.type === "response.created") {
-                    // Gabi is starting to think/respond
-                    if (status !== 'thinking') setStatus('active');
-                }
-
-                if (event.type === "response.done") {
-                    setStatus('active');
-                    setActiveTool(null);
-                }
-
-                // --- ERROR EVENTS ---
-                if (event.type === "error") {
-                    console.error("❌ [LiveGabi] Server Error:", event.error);
-                    toast({
-                        title: "Erro do servidor",
-                        description: event.error?.message || "Erro desconhecido na sessão de voz.",
-                        variant: "destructive"
-                    });
-                }
-
-                // --- TOOL CALLING ---
-                if (event.type === "response.function_call_arguments.done") {
-                    const { call_id, name, arguments: argsJson } = event;
-                    console.log(`🔧 [LiveGabi] Tool Call: ${name}`, argsJson);
-
-                    let args: any;
-                    try {
-                        args = JSON.parse(argsJson);
-                    } catch (parseErr) {
-                        console.error("❌ [LiveGabi] Parse error:", parseErr);
-                        sendClientEvent({
-                            type: "conversation.item.create",
-                            item: { type: "function_call_output", call_id, output: JSON.stringify({ error: "Argumentos inválidos." }) },
-                        });
-                        sendClientEvent({ type: "response.create" });
-                        return;
-                    }
-
-                    if (SENSITIVE_TOOLS.includes(name)) {
-                        console.log("⚠️ [LiveGabi] AÇÃO SENSÍVEL:", name, args);
-                        setStagedTool({ id: call_id, name, args });
-                        // Model should already be configured to ask for confirmation
-                    } else {
-                        // Safe tool — execute immediately
-                        setActiveTool(name);
-                        setStatus('thinking');
-
-                        try {
-                            const result = await callOpenAIFunction({ name, arguments: args });
-                            const resultStr = JSON.stringify(result);
-
-                            // Log first 800 chars for debugging
-                            console.log(`✅ [LiveGabi] Result (${name}):`, resultStr.substring(0, 800));
-
-                            sendClientEvent({
-                                type: "conversation.item.create",
-                                item: { type: "function_call_output", call_id, output: resultStr },
-                            });
-                            sendClientEvent({ type: "response.create" });
-                        } catch (toolErr: any) {
-                            console.error(`❌ [LiveGabi] Tool Error (${name}):`, toolErr);
-                            const errorOutput = JSON.stringify({
-                                error: true,
-                                tool: name,
-                                message: toolErr.message || 'Erro desconhecido ao executar ferramenta',
-                            });
-                            sendClientEvent({
-                                type: "conversation.item.create",
-                                item: { type: "function_call_output", call_id, output: errorOutput },
-                            });
-                            sendClientEvent({ type: "response.create" });
-                        } finally {
-                            setActiveTool(null);
-                            // Status will be set to 'active' by response.done
-                        }
-                    }
+                    }));
                 }
             };
 
-            dc.onclose = () => {
-                console.log("🔴 [LiveGabi] Data Channel fechado.");
-                setStatus('disconnected');
-            };
-
-            // 6. WebRTC SDP Exchange
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-
-            const sdpResponse = await fetch(`https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17`, {
-                method: "POST",
-                body: offer.sdp,
-                headers: {
-                    Authorization: `Bearer ${EPHEMERAL_KEY}`,
-                    "Content-Type": "application/sdp",
-                },
-            });
-
-            if (!sdpResponse.ok) {
-                throw new Error(`SDP exchange failed: ${sdpResponse.status}`);
-            }
-
-            await pc.setRemoteDescription({
-                type: "answer",
-                sdp: await sdpResponse.text(),
-            });
-
-            setStatus('active');
-            console.log("✅ [LiveGabi] Sessão PREMIUM estabelecida com sucesso!");
+            source.connect(processor);
+            processor.connect(audioContextRef.current.destination);
 
         } catch (err: any) {
             console.error("❌ [LiveGabi] Erro fatal:", err);
@@ -364,22 +215,19 @@ export const LiveGabi: React.FC<LiveGabiProps> = ({ onClose, onTranscript }) => 
         startSession();
         return () => {
             console.log("🧹 [LiveGabi] Cleanup: fechando conexão...");
-            pcRef.current?.close();
+            wsRef.current?.close();
+            processorRef.current?.disconnect();
             streamRef.current?.getTracks().forEach(t => t.stop());
+            audioContextRef.current?.close();
         };
     }, []);
 
     const toggleMute = () => {
-        if (streamRef.current) {
-            const audioTrack = streamRef.current.getAudioTracks()[0];
-            audioTrack.enabled = !audioTrack.enabled;
-            setIsMuted(!audioTrack.enabled);
-        }
+        setIsMuted(!isMuted);
     };
 
     // --- STATUS LABEL ---
     const getStatusLabel = () => {
-        if (stagedTool) return '🔒 Aguardando autorização...';
         switch (status) {
             case 'active': return '🟢 Gabi está ouvindo...';
             case 'thinking': return activeTool ? `🧠 Consultando ${activeTool.replace(/_/g, ' ')}...` : '🧠 Processando...';
@@ -391,11 +239,10 @@ export const LiveGabi: React.FC<LiveGabiProps> = ({ onClose, onTranscript }) => 
     };
 
     const getStatusSubtitle = () => {
-        if (stagedTool) return `Confirme: ${stagedTool.name.replace(/_/g, ' ')}`;
         switch (status) {
             case 'active': return 'Fale naturalmente com a Gabi';
             case 'thinking': return 'Buscando dados reais do sistema...';
-            case 'connecting': return 'Estabelecendo conexão segura...';
+            case 'connecting': return 'Estabelecendo conexão segura com Gemini...';
             default: return '';
         }
     };
@@ -431,7 +278,7 @@ export const LiveGabi: React.FC<LiveGabiProps> = ({ onClose, onTranscript }) => 
 
                 {status === 'active' && (
                     <Badge className="absolute -top-2 -right-2 bg-red-500 animate-pulse border-none text-[10px] font-black">
-                        AO VIVO
+                        AO VIVO (GEMINI)
                     </Badge>
                 )}
                 {status === 'thinking' && (
@@ -450,50 +297,6 @@ export const LiveGabi: React.FC<LiveGabiProps> = ({ onClose, onTranscript }) => 
                     {getStatusSubtitle()}
                 </p>
             </div>
-
-            {/* Staged tool confirmation */}
-            {stagedTool && (
-                <div className="w-full max-w-[300px] p-4 bg-red-500/10 border border-red-500/30 rounded-2xl animate-in zoom-in duration-300">
-                    <div className="flex items-center gap-2 text-red-500 mb-3">
-                        <ShieldCheck className="w-5 h-5" />
-                        <span className="text-xs font-black uppercase tracking-widest">Confirmação Necessária</span>
-                    </div>
-                    <p className="text-sm text-zinc-300 mb-4">
-                        Gabi precisa de autorização para: <strong className="text-white">{stagedTool.name.replace(/_/g, ' ')}</strong>
-                    </p>
-                    <div className="flex gap-2">
-                        <Button
-                            variant="destructive"
-                            size="sm"
-                            className="flex-1 text-xs font-black uppercase h-9"
-                            onClick={handleToolConfirm}
-                        >
-                            ✅ Autorizar
-                        </Button>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="flex-1 text-xs font-black uppercase h-9 bg-white/5 border-white/10"
-                            onClick={() => {
-                                if (stagedTool) {
-                                    sendClientEvent({
-                                        type: "conversation.item.create",
-                                        item: {
-                                            type: "function_call_output",
-                                            call_id: stagedTool.id,
-                                            output: JSON.stringify({ cancelled: true, message: "Ação cancelada pelo usuário." }),
-                                        },
-                                    });
-                                    sendClientEvent({ type: "response.create" });
-                                }
-                                setStagedTool(null);
-                            }}
-                        >
-                            ❌ Cancelar
-                        </Button>
-                    </div>
-                </div>
-            )}
 
             {/* Controls */}
             <div className="flex items-center gap-4">

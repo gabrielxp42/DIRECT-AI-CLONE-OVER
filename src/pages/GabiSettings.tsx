@@ -8,8 +8,10 @@ import { Input } from "@/components/ui/input";
 import {
     Bot, Sparkles, Save, Info, Smartphone, CheckCircle, Truck,
     User, Hash, DollarSign, MapPin, Building, Clock, List, ArrowRight,
-    MessageCircle, Layers
+    MessageCircle, Layers, ShieldCheck, Activity, AlertTriangle, Bell
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { showError, showSuccess } from "@/utils/toast";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -410,6 +412,13 @@ const GabiSettings = () => {
         address_city: ""
     });
 
+    // Boss Config (Gabi Executiva)
+    const [bossConfig, setBossConfig] = useState({
+        group_id: "",
+        enabled: true,
+        alert_types: ['payment', 'inactivity', 'error'] as string[]
+    });
+
     // Default template for Order Summary if none exists
     const DEFAULT_SUMMARY_TEMPLATE = `*PEDIDO #{{order_number}}*
 {{data_criacao}}
@@ -445,6 +454,12 @@ STATUS: {{status}}
                 address_number: profile.company_address_number || "",
                 address_city: profile.company_address_city || ""
             });
+
+            setBossConfig({
+                group_id: profile.whatsapp_boss_group_id || "",
+                enabled: profile.whatsapp_boss_notifications_enabled ?? true,
+                alert_types: profile.whatsapp_boss_alert_types || ['payment', 'inactivity', 'error']
+            });
         }
     }, [profile]);
 
@@ -459,7 +474,10 @@ STATUS: {{status}}
                     company_business_hours: companyParams.business_hours,
                     company_address_street: companyParams.address_street,
                     company_address_number: companyParams.address_number,
-                    company_address_city: companyParams.address_city
+                    company_address_city: companyParams.address_city,
+                    whatsapp_boss_group_id: bossConfig.group_id,
+                    whatsapp_boss_notifications_enabled: bossConfig.enabled,
+                    whatsapp_boss_alert_types: bossConfig.alert_types
                 })
                 .eq("id", session.user.id);
 
@@ -469,6 +487,53 @@ STATUS: {{status}}
             showError(`Erro ao salvar: ${error.message}`);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleTestAlert = async () => {
+        if (!bossConfig.group_id) {
+            showError("Informe o ID do Grupo antes de testar!");
+            return;
+        }
+
+        try {
+            console.log("[Test] Sending mock insight to database...");
+            const { data, error } = await supabase
+                .from('agent_insights')
+                .insert({
+                    user_id: session?.user.id,
+                    insight_type: 'executive_alert',
+                    title: 'Teste Gabi Executiva 🎩',
+                    description: '🚀 *Teste de Conexão Gabi Executiva!*\n\nSe você recebeu isso, sua secretária particular já está pronta para te manter informado nos bastidores. 🎩✨',
+                    confidence: 1.0,
+                    is_active: true
+                })
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            showSuccess("Insight criado! Tentando disparo direto para garantir...");
+
+            // Tentativa de disparo direto via Edge Function para ignorar delay de trigger
+            const funcUrl = "https://zdbjzrpgliqicwvncfpc.supabase.co/functions/v1/gabi-executiva-agent";
+            await fetch(funcUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session?.access_token}`
+                },
+                body: JSON.stringify({
+                    type: 'INSERT',
+                    table: 'agent_insights',
+                    record: data
+                })
+            });
+
+            showSuccess("Alerta de teste processado! Verifique seu WhatsApp.");
+        } catch (error: any) {
+            console.error("Test Error:", error);
+            showError("Erro no teste: " + error.message);
         }
     };
 
@@ -638,6 +703,9 @@ STATUS: {{status}}
                     <TabsTrigger value="order_summary" className="rounded-2xl font-black gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-lg data-[state=active]:text-primary transition-all uppercase tracking-tighter">
                         <List className="h-4 w-4" /> Resumo
                     </TabsTrigger>
+                    <TabsTrigger value="gabi_executiva" className="rounded-2xl font-black gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-lg data-[state=active]:text-primary transition-all uppercase tracking-tighter">
+                        <ShieldCheck className="h-4 w-4" /> Executiva
+                    </TabsTrigger>
                 </TabsList>
 
                 <Card className="border-2 shadow-2xl rounded-[3rem] overflow-hidden">
@@ -700,6 +768,116 @@ STATUS: {{status}}
                                 onAIGenerate={handleGenerateAI}
                                 generatingAI={generatingAI["order_summary"] || false}
                             />
+                        </TabsContent>
+
+                        <TabsContent value="gabi_executiva">
+                            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                <div className="flex flex-col md:flex-row md:items-center gap-4 justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-3 rounded-2xl bg-primary/10">
+                                            <ShieldCheck className="h-6 w-6 text-primary" />
+                                        </div>
+                                        <div>
+                                            <h4 className="font-black text-xl tracking-tight">Gabi Executiva 🎩</h4>
+                                            <p className="text-sm text-muted-foreground">Sua assistente proativa que cuida dos bastidores.</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-3 bg-muted/50 px-4 py-2 rounded-2xl">
+                                        <Label htmlFor="gabi-enabled" className="text-xs font-bold">Monitoramento Ativo</Label>
+                                        <Switch
+                                            id="gabi-enabled"
+                                            checked={bossConfig.enabled}
+                                            onCheckedChange={(val) => setBossConfig(p => ({ ...p, enabled: val }))}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid md:grid-cols-2 gap-8">
+                                    <div className="space-y-6">
+                                        <div className="space-y-2">
+                                            <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Para quem enviar? (Grupo ou Número)</Label>
+                                            <div className="relative">
+                                                <Smartphone className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                                <Input
+                                                    placeholder="Ex: 12345678@g.us ou 551199999999"
+                                                    className="pl-11 h-14 rounded-2xl border-2"
+                                                    value={bossConfig.group_id}
+                                                    onChange={e => setBossConfig(p => ({ ...p, group_id: e.target.value }))}
+                                                />
+                                            </div>
+                                            <p className="text-[10px] text-muted-foreground ml-2 italic">
+                                                Dica: Crie um grupo apenas com você e a Gabi e pegue o ID dele nos logs ou me pergunte!
+                                            </p>
+                                        </div>
+
+                                        <div className="bg-zinc-50 dark:bg-zinc-900/40 p-6 rounded-[2rem] border-2 border-zinc-200 dark:border-zinc-800">
+                                            <h5 className="text-xs font-black uppercase tracking-widest text-zinc-500 mb-4 flex items-center gap-2">
+                                                <Bell className="h-4 w-4 text-primary" /> Tipos de Alertas
+                                            </h5>
+                                            <div className="grid gap-4">
+                                                {[
+                                                    { id: 'payment', label: 'Dinheiro no Bolso', desc: 'Notifica quando um cliente paga o pedido.', icon: DollarSign },
+                                                    { id: 'inactivity', label: 'Vendas Perdidas', desc: 'Notifica se alguém ficar sem resposta por mais de 2h.', icon: Clock },
+                                                    { id: 'error', label: 'Falhas Técnicas', desc: 'Te avisa se alguma integração (Stripe, WhatsApp) der erro.', icon: AlertTriangle },
+                                                    { id: 'sales', label: 'Resumo Diário', desc: 'Um pequeno dashboard do dia enviado à noite.', icon: Activity },
+                                                ].map(type => (
+                                                    <div key={type.id} className="flex items-start gap-4 p-3 rounded-xl hover:bg-background transition-colors cursor-pointer"
+                                                        onClick={() => {
+                                                            const exists = bossConfig.alert_types.includes(type.id);
+                                                            const newTypes = exists
+                                                                ? bossConfig.alert_types.filter(t => t !== type.id)
+                                                                : [...bossConfig.alert_types, type.id];
+                                                            setBossConfig(p => ({ ...p, alert_types: newTypes }));
+                                                        }}
+                                                    >
+                                                        <Checkbox
+                                                            checked={bossConfig.alert_types.includes(type.id)}
+                                                            className="mt-1"
+                                                        />
+                                                        <div className="flex-1 space-y-0.5">
+                                                            <div className="flex items-center gap-2">
+                                                                <type.icon className="h-3.5 w-3.5 text-primary" />
+                                                                <span className="text-sm font-bold">{type.label}</span>
+                                                            </div>
+                                                            <p className="text-[11px] text-muted-foreground">{type.desc}</p>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1 block">
+                                            Exemplo de Notificação
+                                        </Label>
+                                        <div className="bg-[#e5ddd5] dark:bg-[#0b141a] rounded-3xl p-4 h-[350px] shadow-inner relative overflow-hidden border-4 border-zinc-200 dark:border-zinc-800">
+                                            <div className="absolute top-0 left-0 right-0 h-12 bg-[#075e54] dark:bg-[#202c33] flex items-center px-4 gap-3 z-10">
+                                                <ShieldCheck className="h-6 w-6 text-white" />
+                                                <div className="text-xs font-bold text-white">Gabi Executiva 🎩</div>
+                                            </div>
+                                            <div className="mt-12 space-y-4 pt-4">
+                                                <div className="bg-white dark:bg-[#1f2c33] rounded-2xl rounded-tl-none p-4 shadow-sm max-w-[90%]">
+                                                    <p className="text-sm font-medium leading-relaxed">
+                                                        *Chefe, olha só!* 🚀<br /><br />
+                                                        O cliente *Gabriel* acaba de pagar o pedido *#1245*. <br />
+                                                        💰 O valor de *R$ 450,00* já caiu!<br /><br />
+                                                        _Deseja que eu envie a mensagem de agradecimento agora?_
+                                                    </p>
+                                                    <div className="text-[10px] text-muted-foreground text-right mt-1">20:39</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <Button
+                                            variant="outline"
+                                            className="w-full h-12 rounded-2xl border-2 font-black gap-2 hover:bg-primary hover:text-white transition-all"
+                                            onClick={handleTestAlert}
+                                        >
+                                            <Smartphone className="h-4 w-4" /> Testar Envio Agora
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
                         </TabsContent>
                     </CardContent>
                 </Card>

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Cliente } from '@/types/cliente';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { DollarSign, ShoppingCart, Calendar, Clock, Loader2, User, ArrowRight, Ruler } from 'lucide-react';
+import { DollarSign, ShoppingCart, Calendar, Clock, Loader2, User, ArrowRight, Ruler, Brain, Sparkles } from 'lucide-react';
 import { useClientMetrics } from '@/hooks/useClientMetrics';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -117,6 +117,22 @@ export const ClientDetailsCard: React.FC<ClientDetailsCardProps> = ({ cliente, o
                 </div>
               </Card>
             </div>
+
+            {/* Observações / Memória da Gabi */}
+            {cliente.observacoes && (
+              <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 space-y-2 relative overflow-hidden group">
+                <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+                  <Brain className="h-12 w-12 text-primary" />
+                </div>
+                <div className="flex items-center gap-2 text-primary">
+                  <Sparkles className="h-4 w-4" />
+                  <h3 className="text-sm font-bold uppercase tracking-wider">Memória da Gabi</h3>
+                </div>
+                <p className="text-sm text-foreground/80 italic leading-relaxed relative z-10">
+                  "{cliente.observacoes}"
+                </p>
+              </div>
+            )}
 
             <Separator />
 

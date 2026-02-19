@@ -829,13 +829,13 @@ export const openAIFunctions = [
   },
   {
     name: "get_client_details",
-    description: "Obtém os detalhes de um cliente específico, dado o nome do cliente. Usa busca inteligente que encontra clientes mesmo com nomes parciais ou pequenos erros de digitação.",
+    description: "Obtém os detalhes de um cliente específico, incluindo a 'Memória da Gabi' (observações/notas importantes sobre o cliente). Use sempre que quiser saber quem é o cliente ou o que já sabemos de especial sobre ele.",
     parameters: {
       type: "object",
       properties: {
         clientName: {
           type: "string",
-          description: "O nome completo ou parcial do cliente. A busca é inteligente e encontra clientes mesmo com nomes parciais ou pequenos erros de digitação."
+          description: "O nome completo ou parcial do cliente."
         }
       },
       required: ["clientName"]
@@ -995,6 +995,20 @@ export const openAIFunctions = [
     }
   },
   {
+    name: "update_client_details",
+    description: "Atualiza informações de um cliente, como telefone, email ou a 'Memória da Gabi' (observações). Use quando o usuário disser algo como 'lembre-se que esse cliente gosta de X' ou 'o novo telefone dele é Y'.",
+    parameters: {
+      type: "object",
+      properties: {
+        clientName: { type: "string", description: "Nome do cliente a ser atualizado." },
+        observacoes: { type: "string", description: "Novas observações ou notas para a memória da Gabi sobre este cliente." },
+        telefone: { type: "string", description: "Novo número de telefone." },
+        email: { type: "string", description: "Novo endereço de e-mail." }
+      },
+      required: ["clientName"]
+    }
+  },
+  {
     name: "update_order_status",
     description: "Atualiza o status de um pedido específico. O assistente pode usar esta ferramenta para marcar um pedido como pago, enviado, cancelado, etc. Se o NÚMERO do pedido for desconhecido, o assistente deve primeiro usar a ferramenta 'get_client_orders' para listar os pedidos do cliente e então pedir ao usuário para selecionar o pedido correto.",
     parameters: {
@@ -1151,7 +1165,7 @@ export const openAIFunctions = [
   },
   {
     name: "query_database",
-    description: "Executa consultas seguras e flexíveis no banco de dados. Use para perguntas que exigem cruzamento de dados ou detalhes específicos que outras ferramentas não cobrem (ex: 'que horas o pedido X foi pago?', 'quais pedidos o cliente Y fez no ano passado?').\n\nTABELAS E CAMPOS CHAVE:\n- 'pedidos': order_number, status, valor_total, created_at, pago_at (data/hora do pagamento), total_metros. Relacionamento: clientes(nome).\n- 'clientes': nome, telefone, email, endereco, created_at.\n- 'pedido_status_history': pedido_id, status_novo, created_at (data da mudança), observacao. Relacionamento: pedidos!inner(order_number).\n- 'pedido_items': produto_nome, quantidade, preco_unitario, tipo (dtf/vinil).\n\nO filtro de organização é aplicado automaticamente para sua segurança.",
+    description: "Busca flexível no banco (pedidos, clientes, histórico, itens). Use para dados cruzados ou específicos (ex: 'que horas o pedido X foi pago?'). Filtros de organização já inclusos.",
     parameters: {
       type: "object",
       properties: {
@@ -1226,10 +1240,14 @@ const findOrderByNumber = async (orderNumber: number) => {
 
 // Helper function to perform multiple search strategies for clients
 const findClientWithMultipleStrategies = async (clientName: string) => {
-  console.log(`🔍 [findClient] Buscando cliente: "${clientName}"`);
+  // Clean up common prefixes from voice or UI selections (e.g., "1° ", "2° ", "Cliente: ")
+  let cleanedName = clientName
+    .replace(/^(\d+[\d.]*[°ºa-z]?\s*)/i, '') // Remove "1° ", "1. ", "1º ", etc.
+    .replace(/^cliente:\s*/i, '')            // Remove "Cliente: "
+    .trim();
 
-  const originalName = clientName.trim();
-  const normalizedClientName = removeAccents(clientName.toLowerCase().trim());
+  const originalName = cleanedName;
+  const normalizedClientName = removeAccents(cleanedName.toLowerCase().trim());
 
   try {
     const ctx = await getUserContext();
@@ -1276,7 +1294,7 @@ const findClientWithMultipleStrategies = async (clientName: string) => {
     try {
       console.log('📍 [findClient] Tentativa 2: Busca ILIKE com nome normalizado');
       const orgFilter = ctx.organization_id ? `organization_id=eq.${ctx.organization_id}` : `user_id=eq.${ctx.user_id}`;
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=id,nome,organization_id&nome=ilike.*${encodeURIComponent(normalizedClientName)}*&${orgFilter}&limit=10`, {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=id,nome,organization_id,observacoes&nome=ilike.*${encodeURIComponent(normalizedClientName)}*&${orgFilter}&limit=10`, {
         method: 'GET',
         headers: headers
       });
@@ -1296,7 +1314,7 @@ const findClientWithMultipleStrategies = async (clientName: string) => {
     try {
       console.log(`📍 [findClient] Tentativa 3: Busca ampla e filtragem client-side`);
       const orgFilter = ctx.organization_id ? `organization_id=eq.${ctx.organization_id}` : `user_id=eq.${ctx.user_id}`;
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=id,nome,organization_id&${orgFilter}&limit=100`, {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=id,nome,organization_id,observacoes&${orgFilter}&limit=100`, {
         method: 'GET',
         headers: headers
       });
@@ -1329,7 +1347,7 @@ const findClientWithMultipleStrategies = async (clientName: string) => {
         try {
           console.log(`📍 [findClient] Tentativa por parte do nome: "${part}"`);
           const orgFilter = ctx.organization_id ? `organization_id=eq.${ctx.organization_id}` : `user_id=eq.${ctx.user_id}`;
-          const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=id,nome,organization_id&nome=ilike.*${encodeURIComponent(part)}*&${orgFilter}&limit=10`, {
+          const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=id,nome,organization_id,observacoes&nome=ilike.*${encodeURIComponent(part)}*&${orgFilter}&limit=10`, {
             method: 'GET',
             headers: headers
           });
@@ -2024,9 +2042,26 @@ const create_order = async (args: {
       })
     });
 
+    // 6. Preparar mensagem de sucesso com reforço da Memória e Dicas Proativas
+    let memoryAlert = "";
+    if (client.observacoes) {
+      memoryAlert = `\n\n🧠 **Lembrete da Memória:** "${client.observacoes}"`;
+    }
+
+    // Dicas Proativas (Opções 2 e 3)
+    let proactiveTips = "";
+    if (client.cep) {
+      proactiveTips += `\n📍 **Frete:** Notei que o cliente tem CEP (${client.cep}). Quer que eu calcule o frete?`;
+    }
+
+    // Se houver observações no pedido, sugere salvar na memória (Opção 3)
+    if (observacoes && observacoes.length > 10) {
+      proactiveTips += `\n🧠 **Memória:** A observação que você colocou parece importante. Quer que eu salve na memória permanente do cliente?`;
+    }
+
     return {
       success: true,
-      message: `✅ **Pedido #${orderNumber} criado com sucesso!**\n👤 Cliente: **${client.nome}**\n💰 Valor Total: **R$ ${valor_total.toFixed(2)}**\n\nO pedido já está no sistema com o status "aguardando". Quer que eu envie o link do pedido para o cliente por WhatsApp?`,
+      message: `✅ **Pedido #${orderNumber} criado com sucesso!**\n👤 Cliente: **${client.nome}**\n💰 Valor Total: **R$ ${valor_total.toFixed(2)}**${memoryAlert}${proactiveTips}\n\nO pedido já está no sistema como "aguardando". Deseja que eu envie o link para o cliente?`,
       order: {
         id: orderId,
         order_number: orderNumber,
@@ -2041,8 +2076,83 @@ const create_order = async (args: {
   }
 };
 
-// Helper function to fetch complete order data for PDF generation (kept for completeness)
-// ... (fetchCompleteOrderData is defined above)
+// Helper to update client details (like notes/memory)
+const update_client_details = async (args: {
+  clientName: string;
+  observacoes?: string;
+  telefone?: string;
+  email?: string;
+}) => {
+  const { clientName, observacoes, telefone, email } = args;
+  console.log(`📝 [update_client_details] Atualizando dados para: ${clientName}`);
+
+  try {
+    const ctx = await getUserContext();
+    if (!ctx) throw new Error("Não foi possível validar o contexto do usuário.");
+
+    const token = await getValidToken();
+    if (!token) throw new Error("Token inválido");
+
+    // 1. Encontrar o cliente
+    const foundClients = await findClientWithMultipleStrategies(clientName);
+    if (!foundClients || foundClients.length === 0) {
+      throw new Error(`❌ Cliente "${clientName}" não encontrado.`);
+    }
+
+    // Se houver múltiplos, tentar encontrar correspondência exata
+    let targetClient = foundClients[0];
+    const exactMatch = foundClients.find((c: any) => c.nome.trim().toLowerCase() === clientName.toLowerCase().trim());
+    if (exactMatch) targetClient = exactMatch;
+    else if (foundClients.length > 1) {
+      const clientNames = foundClients.map((c: any) => c.nome).join(', ');
+      return {
+        message: `🔍 Encontrei mais de um cliente parecido: **${clientNames}**. Qual deles você quer atualizar?`
+      };
+    }
+
+    const clientId = targetClient.id;
+
+    // 2. Preparar payload
+    const updates: any = {};
+    if (observacoes !== undefined) updates.observacoes = observacoes;
+    if (telefone !== undefined) updates.telefone = telefone;
+    if (email !== undefined) updates.email = email;
+
+    if (Object.keys(updates).length === 0) {
+      return { message: "ℹ️ Nenhuma informação nova foi fornecida para atualizar." };
+    }
+
+    // 3. Executar o PATCH
+    const orgFilter = ctx.organization_id ? `organization_id=eq.${ctx.organization_id}` : `user_id=eq.${ctx.user_id}`;
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?id=eq.${clientId}&${orgFilter}`, {
+      method: 'PATCH',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(updates)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Erro ao atualizar cliente: ${errorText}`);
+    }
+
+    return {
+      success: true,
+      message: `✅ Dados de **${targetClient.nome}** atualizados com sucesso!${observacoes ? `\n🧠 Nova memória: "${observacoes}"` : ''}`,
+      client: {
+        id: clientId,
+        nome: targetClient.nome,
+        ...updates
+      }
+    };
+  } catch (e: any) {
+    console.error(`❌ [update_client_details] Erro fatal:`, e);
+    return { error: true, message: `Houve um erro ao atualizar o cliente: ${e.message}` };
+  }
+};
 
 export const callOpenAIFunction = async (functionCall: { name: string; arguments: any }) => {
   console.log(`🎯 [callOpenAIFunction] INÍCIO - Função chamada:`, functionCall.name);
@@ -2096,6 +2206,10 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
 
   if (name === "get_total_meters_by_period") {
     return get_total_meters_by_period(args);
+  }
+
+  if (name === "update_client_details") {
+    return update_client_details(args);
   }
 
   if (name === "get_client_orders") {
@@ -2164,7 +2278,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
     // Caso contrário, informamos ao assistente os múltiplos nomes para ele pedir clarificação.
 
     let targetClient = foundClients[0];
-    const exactMatch = foundClients.find((c: any) => c.nome.toLowerCase() === clientName.toLowerCase().trim());
+    const exactMatch = foundClients.find((c: any) => c.nome.trim().toLowerCase() === clientName.toLowerCase().trim());
 
     if (exactMatch) {
       targetClient = exactMatch;
@@ -2192,6 +2306,9 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       if (!token) throw new Error("Token inválido");
 
       const orgFilter = ctx.organization_id ? `organization_id=eq.${ctx.organization_id}` : `user_id=eq.${ctx.user_id}`;
+      // Log for debugging
+      console.log(`📡 [get_client_orders] Fetching orders for client ID: ${clientId}`);
+
       const response = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?select=id,order_number,status,valor_total,total_metros,total_metros_dtf,total_metros_vinil,created_at,clientes(nome),pedido_servicos(nome,quantidade,valor_unitario)&cliente_id=eq.${clientId}&${orgFilter}&order=created_at.desc`, {
         method: 'GET',
         headers: {
@@ -2330,9 +2447,11 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
           nome: client.nome,
           email: client.email || 'Não informado',
           telefone: client.telefone || 'Não informado',
+          cep: client.cep || 'Não informado',
           endereco: client.endereco || 'Não informado',
           status: client.status,
-          valor_metro: client.valor_metro ? `R$ ${client.valor_metro.toFixed(2)}` : 'Não informado'
+          valor_metro: client.valor_metro ? `R$ ${client.valor_metro.toFixed(2)}` : 'Não informado',
+          observacoes: client.observacoes || 'Nenhuma nota especial registrada.'
         }
       };
     } catch (error: any) {

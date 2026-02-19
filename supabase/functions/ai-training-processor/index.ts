@@ -6,6 +6,49 @@ const corsHeaders = {
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// --- UTILS ---
+const TIME_ZONE = 'America/Sao_Paulo';
+
+function getCurrentDateTime() {
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat('pt-BR', {
+        timeZone: TIME_ZONE,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        weekday: 'long'
+    });
+
+    const parts = formatter.formatToParts(now);
+    const getPart = (type: string) => parts.find(p => p.type === type)?.value;
+
+    const day = getPart('day');
+    const month = getPart('month');
+    const year = getPart('year');
+    const hour = getPart('hour');
+    const minute = getPart('minute');
+    const weekday = getPart('weekday');
+
+    const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+    const monthName = monthNames[parseInt(month!) - 1];
+
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999).toISOString();
+
+    return {
+        fullDate: `${day}/${month}/${year}`,
+        time: `${hour}:${minute}`,
+        dayOfWeek: weekday,
+        current: { day, month, year, monthName },
+        ranges: {
+            thisMonth: { start: startOfMonth, end: endOfMonth }
+        }
+    };
+}
+
 Deno.serve(async (req: Request) => {
     // Handle CORS preflight
     if (req.method === 'OPTIONS') {
@@ -13,6 +56,8 @@ Deno.serve(async (req: Request) => {
     }
 
     try {
+        const dateInfo = getCurrentDateTime();
+
         // Initialize Supabase Admin Client
         const supabase = createClient(
             Deno.env.get('SUPABASE_URL') ?? '',
@@ -34,7 +79,7 @@ Deno.serve(async (req: Request) => {
         }
 
         const GEMINI_KEY = adminProfile.gemini_api_key;
-        const MODEL = adminProfile.gemini_training_model || 'gemini-2.0-flash-exp';
+        const MODEL = adminProfile.gemini_training_model || 'gemini-1.5-flash';
 
         // 2. Determine users to process
         const body = await req.json().catch(() => ({}));
@@ -103,134 +148,253 @@ Deno.serve(async (req: Request) => {
                 continue;
             }
 
-            if (!messages || messages.length === 0) {
-                console.log(`[Processor] No new messages for user ${userId}. Skipping.`);
-                continue; // Nothing to do for this user
+            if (messages && messages.length > 0) {
+                console.log(`[Processor] Found ${messages.length} messages for user ${userId}. Starting Gemini analysis...`);
+
+                // Log: Start of analysis
+                await supabase.from('ai_training_logs').insert({
+                    user_id: userId,
+                    agent_type: 'extractor',
+                    action: 'pattern_found',
+                    details: { message: `Iniciando análise de lote com ${messages.length} mensagens.` }
+                });
+
+                // Format conversation for Gemini
+                const conversationText = messages.map((m: any) =>
+                    `[${m.created_at}] ${m.direction === 'sent' ? 'Empresa' : 'Cliente (' + (m.client_name || 'Desconhecido') + ')'}: ${m.message}`
+                ).join('\n');
+
+                // Call Gemini
+                const analysisResult = await analyzeWithGemini(conversationText, GEMINI_KEY, MODEL);
+
+                if (analysisResult) {
+                    console.log(`[Processor] Gemini analysis successful for ${userId}. Extracted ${analysisResult.knowledge_entries?.length || 0} entries.`);
+
+                    // Save Knowledge
+                    if (analysisResult.knowledge_entries && analysisResult.knowledge_entries.length > 0) {
+                        const entries = analysisResult.knowledge_entries.map((entry: any) => ({
+                            user_id: userId,
+                            knowledge_type: entry.type,
+                            content: entry.content,
+                            confidence: entry.confidence || 0.8,
+                            source_count: 1,
+                            is_active: true
+                        }));
+
+                        const { error: knError } = await supabase.from('ai_knowledge_base').insert(entries);
+                        if (knError) console.error(`[Processor] Error saving knowledge for ${userId}:`, knError);
+
+                        // Log: Knowledge extracted
+                        await supabase.from('ai_training_logs').insert({
+                            user_id: userId,
+                            agent_type: 'synthesizer',
+                            action: 'knowledge_updated',
+                            details: {
+                                message: `Extraídos ${entries.length} novos padrões de conhecimento.`,
+                                types: entries.map((e: any) => e.knowledge_type)
+                            }
+                        });
+                    }
+
+                    // Calculate Metric Increments
+                    const findings = analysisResult.knowledge_entries || [];
+                    const hasTone = findings.some((f: any) => f.type === 'tone');
+                    const hasProduct = findings.some((f: any) => f.type === 'product');
+                    const hasBusinessRule = findings.some((f: any) => f.type === 'business_rule');
+                    const hasClientProfile = findings.some((f: any) => f.type === 'client_profile');
+
+                    const { data: currentTraining } = await supabase
+                        .from('ai_agent_training')
+                        .select('similarity_score, coverage_score, tone_consistency_score, product_knowledge_score')
+                        .eq('user_id', userId)
+                        .single();
+
+                    const currentSim = currentTraining?.similarity_score || 0;
+                    const currentCov = currentTraining?.coverage_score || 0;
+                    const currentTone = currentTraining?.tone_consistency_score || 0;
+                    const currentProd = currentTraining?.product_knowledge_score || 0;
+
+                    const newSim = Math.min(100, currentSim + (findings.length > 0 ? 12 : 1));
+                    const newCov = Math.min(100, currentCov + (hasBusinessRule ? 15 : 5) + (hasClientProfile ? 8 : 0));
+                    const newTone = Math.min(100, currentTone + (hasTone ? 18 : 3));
+                    const newProd = Math.min(100, currentProd + (hasProduct ? 14 : 2));
+
+                    await supabase
+                        .from('ai_agent_training')
+                        .update({
+                            conversations_analyzed: (trainingRecord.conversations_analyzed || 0) + 1,
+                            patterns_identified: (trainingRecord.patterns_identified || 0) + findings.length,
+                            last_analysis_at: new Date().toISOString(),
+                            similarity_score: newSim,
+                            coverage_score: newCov,
+                            tone_consistency_score: newTone,
+                            product_knowledge_score: newProd
+                        })
+                        .eq('user_id', userId);
+
+                    await supabase.rpc('calculate_confidence_score', { p_user_id: userId });
+
+                    // Mark messages as analyzed
+                    const msgIds = messages.map((m: any) => m.id);
+                    await supabase
+                        .from('whatsapp_messages')
+                        .update({ analyzed: true, analysis_result: analysisResult })
+                        .in('id', msgIds);
+                }
             }
 
-            console.log(`[Processor] Found ${messages.length} messages for user ${userId}. Starting Gemini analysis...`);
+            results.push({ userId, status: messages?.length > 0 ? 'success' : 'skipped_training' });
 
-            // Log: Start of analysis
-            await supabase.from('ai_training_logs').insert({
-                user_id: userId,
-                agent_type: 'extractor',
-                action: 'pattern_found',
-                details: { message: `Iniciando análise de lote com ${messages.length} mensagens.` }
-            });
+            // --- GABI ESTRATÉGICA: CONSOLIDATED ANALYSIS (THE "SECRETARY" PHASE) ---
+            try {
+                console.log(`[Processor] Checking if Strategic Secretary report is due for ${userId}...`);
 
-            // Format conversation for Gemini
-            const conversationText = messages.map(m =>
-                `[${m.created_at}] ${m.direction === 'sent' ? 'Empresa' : 'Cliente (' + (m.client_name || 'Desconhecido') + ')'}: ${m.message}`
-            ).join('\n');
-
-            // Call Gemini
-            const analysisResult = await analyzeWithGemini(conversationText, GEMINI_KEY, MODEL);
-
-            if (analysisResult) {
-                console.log(`[Processor] Gemini analysis successful for ${userId}. Extracted ${analysisResult.knowledge_entries?.length || 0} entries.`);
-
-                // Save Knowledge
-                if (analysisResult.knowledge_entries && analysisResult.knowledge_entries.length > 0) {
-                    const entries = analysisResult.knowledge_entries.map((entry: any) => ({
-                        user_id: userId,
-                        knowledge_type: entry.type,
-                        content: entry.content,
-                        confidence: entry.confidence || 0.8,
-                        source_count: 1,
-                        is_active: true
-                    }));
-
-                    const { error: knError } = await supabase.from('ai_knowledge_base').insert(entries);
-                    if (knError) console.error(`[Processor] Error saving knowledge for ${userId}:`, knError);
-
-                    // Log: Knowledge extracted
-                    await supabase.from('ai_training_logs').insert({
-                        user_id: userId,
-                        agent_type: 'synthesizer',
-                        action: 'knowledge_updated',
-                        details: {
-                            message: `Extraídos ${entries.length} novos padrões de conhecimento.`,
-                            types: entries.map((e: any) => e.knowledge_type)
-                        }
-                    });
-                }
-
-                // Calculate Metric Increments based on findings
-                const findings = analysisResult.knowledge_entries || [];
-                const hasTone = findings.some((f: any) => f.type === 'tone');
-                const hasProduct = findings.some((f: any) => f.type === 'product');
-                const hasBusinessRule = findings.some((f: any) => f.type === 'business_rule');
-                const hasClientProfile = findings.some((f: any) => f.type === 'client_profile');
-
-                // Get current values to increment
-                const { data: currentTraining } = await supabase
+                const { data: trainingStatus } = await supabase
                     .from('ai_agent_training')
-                    .select('similarity_score, coverage_score, tone_consistency_score, product_knowledge_score')
+                    .select('last_report_at')
                     .eq('user_id', userId)
                     .single();
 
-                const currentSim = currentTraining?.similarity_score || 0;
-                const currentCov = currentTraining?.coverage_score || 0;
-                const currentTone = currentTraining?.tone_consistency_score || 0;
-                const currentProd = currentTraining?.product_knowledge_score || 0;
+                const lastReport = trainingStatus?.last_report_at;
+                const isDue = forceUserId || !lastReport || (Date.now() - new Date(lastReport).getTime() > 4 * 60 * 60 * 1000);
 
-                // Updates (Logarithmic growth to 100 to simulate learning curve) - MORE AGGRESSIVE INCREMENTS
-                const newSim = Math.min(100, currentSim + (findings.length > 0 ? 12 : 1));
-                const newCov = Math.min(100, currentCov + (hasBusinessRule ? 15 : 5) + (hasClientProfile ? 8 : 0));
-                const newTone = Math.min(100, currentTone + (hasTone ? 18 : 3));
-                const newProd = Math.min(100, currentProd + (hasProduct ? 14 : 2));
+                if (isDue) {
+                    console.log(`[Processor] Strategic Secretary phase STARTED for ${userId}...`);
 
-                // Update Training Record directly with all metrics
-                await supabase
-                    .from('ai_agent_training')
-                    .update({
-                        conversations_analyzed: (trainingRecord.conversations_analyzed || 0) + 1,
-                        patterns_identified: (trainingRecord.patterns_identified || 0) + findings.length,
-                        last_analysis_at: new Date().toISOString(),
-                        similarity_score: newSim,
-                        coverage_score: newCov,
-                        tone_consistency_score: newTone,
-                        product_knowledge_score: newProd
-                    })
-                    .eq('user_id', userId);
+                    // Log: Secretary Phase Start
+                    await supabase.from('ai_training_logs').insert({
+                        user_id: userId,
+                        agent_type: 'synthesizer',
+                        action: 'secretary_phase_start',
+                        details: { message: "Iniciando compilação de relatório executivo proativo." }
+                    });
 
-                // Calculate new confidence (based on the updated metrics)
-                await supabase.rpc('calculate_confidence_score', { p_user_id: userId });
+                    // 1. WhatsApp Inactivity Check (Grouped by Client)
+                    const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+                    const { data: pendingMessages } = await supabase
+                        .from('whatsapp_messages')
+                        .select('client_name, phone, created_at, message')
+                        .eq('user_id', userId)
+                        .eq('direction', 'received')
+                        .eq('analyzed', false)
+                        .lt('created_at', sixHoursAgo);
 
-                // Log: Training step completed
-                await supabase.from('ai_training_logs').insert({
-                    user_id: userId,
-                    agent_type: 'evaluator',
-                    action: 'rule_validated',
-                    details: {
-                        message: `Ciclo de treinamento concluído. Nova confiança: ${newSim}%`,
-                        metrics: { similarity: newSim, coverage: newCov, tone: newTone, product: newProd }
+                    // Group by client name
+                    const groupedInactivity = pendingMessages?.reduce((acc: any, m: any) => {
+                        const key = m.client_name || m.phone;
+                        if (!acc[key]) acc[key] = [];
+                        acc[key].push(m);
+                        return acc;
+                    }, {}) || {};
+
+                    const inactivityDetails = Object.entries(groupedInactivity).map(([name, msgs]: [string, any]) =>
+                        `- ${name}: ${msgs.length} mensagens (última em ${new Date(msgs[msgs.length - 1].created_at).toLocaleString('pt-BR')})`
+                    ).join('\n');
+
+                    // 2. Unpaid Orders Check (> 24h)
+                    const { data: unpaidOrders } = await supabase
+                        .from('pedidos')
+                        .select('order_number, valor_total, created_at, clientes(nome)')
+                        .eq('user_id', userId)
+                        .in('status', ['pendente', 'aguardando_pagamento'])
+                        .lt('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+
+                    // 3. Monthly Metrics
+                    const { data: profile } = await supabase.from('profiles').select('organization_id').eq('id', userId).single();
+                    const { data: monthlyMetrics } = await supabase.rpc('get_total_meters_by_period', {
+                        p_start_date: dateInfo.ranges.thisMonth.start,
+                        p_end_date: dateInfo.ranges.thisMonth.end,
+                        p_organization_id: profile?.organization_id
+                    });
+
+                    // 4. Generate Strategic Note with Gemini
+                    const strategicContext = {
+                        pending_whatsapp: inactivityDetails,
+                        unpaid_orders: unpaidOrders || [],
+                        metrics: (monthlyMetrics && monthlyMetrics.length > 0) ? monthlyMetrics[0] : { total_meters: 0, total_orders: 0 },
+                        date: dateInfo.fullDate
+                    };
+
+                    // Log: Context prepared
+                    await supabase.from('ai_training_logs').insert({
+                        user_id: userId,
+                        agent_type: 'synthesizer',
+                        action: 'context_prepared',
+                        details: {
+                            inactivity_grouped: inactivityDetails,
+                            unpaid_count: strategicContext.unpaid_orders.length,
+                            metrics: strategicContext.metrics
+                        }
+                    });
+
+                    const executiveNote = await generateExecutiveNote(strategicContext, GEMINI_KEY, MODEL);
+
+                    // Log: Raw response for debugging
+                    await supabase.from('ai_training_logs').insert({
+                        user_id: userId,
+                        agent_type: 'synthesizer',
+                        action: 'raw_ai_response',
+                        details: { response: executiveNote }
+                    });
+
+                    const hasUnpaid = strategicContext.unpaid_orders.length > 0;
+                    const hasMessages = strategicContext.pending_whatsapp.length > 0;
+                    const shouldForce = hasUnpaid || hasMessages;
+
+                    if (executiveNote && (!executiveNote.includes("SKIP_ALERT") || shouldForce)) {
+                        let note = executiveNote;
+                        if (note.includes("SKIP_ALERT") && shouldForce) {
+                            note = "Gabi identificou pendências importantes: " +
+                                (hasUnpaid ? `${strategicContext.unpaid_orders.length} pedidos não pagos. ` : "") +
+                                (hasMessages ? "Clientes aguardando no WhatsApp." : "");
+                        }
+
+                        console.log(`[Processor] Executive note generated for ${userId}. Saving insight...`);
+                        await supabase.from('agent_insights').insert({
+                            user_id: userId,
+                            insight_type: 'executive_alert',
+                            title: 'Resumo da Secretária Gabi',
+                            description: note,
+                            confidence: 0.9,
+                            is_active: true
+                        });
+
+                        // Update last report timestamp
+                        await supabase.from('ai_agent_training')
+                            .update({ last_report_at: new Date().toISOString() })
+                            .eq('user_id', userId);
+
+                        await supabase.from('ai_training_logs').insert({
+                            user_id: userId,
+                            agent_type: 'synthesizer',
+                            action: 'insight_generated',
+                            details: { message: "Relatório executivo gerado e enviado para agent_insights." }
+                        });
+                    } else {
+                        console.log(`[Processor] Secretary skipped alert for ${userId} (Nothing critical).`);
+                        await supabase.from('ai_training_logs').insert({
+                            user_id: userId,
+                            agent_type: 'synthesizer',
+                            action: 'analysis_skipped',
+                            details: { message: "Análise concluída. Nada crítico identificado (SKIP_ALERT)." }
+                        });
                     }
-                });
-
-                // Mark messages as analyzed
-                const msgIds = messages.map(m => m.id);
-                await supabase
-                    .from('whatsapp_messages')
-                    .update({ analyzed: true, analysis_result: analysisResult })
-                    .in('id', msgIds);
-
-                results.push({ userId, status: 'success', insights: analysisResult.knowledge_entries?.length });
-            } else {
-                console.error(`[Processor] Gemini analysis failed for ${userId}. Recording log.`);
-
-                // Log: Analysis failed (API error or empty response)
+                } else {
+                    console.log(`[Processor] Strategic Report skipped (Not due yet for ${userId})`);
+                }
+            } catch (err: any) {
+                console.error(`[Processor] CRITICAL ERROR for user ${userId}:`, err);
                 await supabase.from('ai_training_logs').insert({
                     user_id: userId,
                     agent_type: 'evaluator',
                     action: 'analysis_failed',
                     details: {
-                        message: "Falha na análise da Gemini. Verifique se a API Key é válida ou se a cota foi atingida.",
+                        message: "Erro crítico no processamento do usuário.",
+                        error: err.message,
+                        stack: err.stack,
                         is_error: true
                     }
                 });
-
-                results.push({ userId, status: 'failed_analysis' });
             }
         }
 
@@ -247,16 +411,74 @@ Deno.serve(async (req: Request) => {
     }
 });
 
+// Helper: Strategic Secretary Intelligence
+async function generateExecutiveNote(ctx: any, apiKey: string, model: string) {
+    const prompt = `
+    ATUE COMO A GABI, UMA SECRETÁRIA EXECUTIVA DE ALTA PERFORMANCE.
+
+    ESTADO DA OPERAÇÃO:
+    - Data: ${ctx.date}
+    - WhatsApp Pendente:
+${ctx.pending_whatsapp || 'Nenhuma conversa pendente há mais de 6h.'}
+    - Pedidos Não Pagos (> 24h): ${ctx.unpaid_orders.length} pedidos. Valor total pendente: R$ ${ctx.unpaid_orders.reduce((acc: number, o: any) => acc + (o.valor_total || 0), 0).toFixed(2)}
+    - Produção do Mês: ${ctx.metrics.total_meters?.toFixed(2) || 0} metros em ${ctx.metrics.total_orders || 0} pedidos.
+
+    TAREFA:
+    Crie um relatório curto, proativo e estratégico (máximo 4-5 linhas).
+    Use o tom de voz da Gabi (educada, mas focada em lucro e eficiência).
+
+    REGRAS DE CRITICIDADE:
+    - Se houver QUALQUER pedido não pago há mais de 24h, gere o relatório. ISSO É OBRIGATÓRIO.
+    - Se houver clientes aguardando há mais de 6h, gere o relatório.
+    - O relatório deve destacar o valor total que a empresa tem para receber (Pedidos Não Pagos).
+
+    FORMATO:
+    - Use bullet points.
+    - Retorne "SKIP_ALERT" APENAS se: (Pedidos Não Pagos = 0) E (WhatsApp Pendente = 0). Caso contrário, gere a nota.
+    - No final, dê uma sugestão rápida de ação (ex: "Cobrar fulano", "Revisar as metas").
+    - Em pedidos, mencione o prejuízo potencial dos não pagos.
+    `;
+
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+    try {
+        const response = await fetch(geminiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }]
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            console.error(`[Gemini Executive Error] Status: ${response.status}`, errorData);
+
+            // EMERGENCY LOG: What went wrong with the API?
+            // Note: We need to recreate the supabase client or pass it. 
+            // For now, let's just use console.error which should show up in logs.
+            return `ERROR_API_${response.status}_${JSON.stringify(errorData)}`;
+        }
+        const data = await response.json();
+        return data.candidates?.[0]?.content?.parts?.[0]?.text;
+    } catch (e: any) {
+        console.error("[Processor] generateExecutiveNote Error:", e);
+        return `ERROR_CATCH_${e.message}`;
+    }
+}
+
 // Helper: Call Gemini API
 async function analyzeWithGemini(conversation: string, apiKey: string, model: string) {
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
     const prompt = `
     ATUE COMO UM ESPECIALISTA EM ANÁLISE DE ATENDIMENTO E EXTRAÇÃO DE CONHECIMENTO.
-    
+
     OBJETIVO: Analisar o trecho de conversa de WhatsApp abaixo e extrair padrões estruturados sobre como a EMPRESA atende, para treinar uma IA que a imite.
-    
+
     CONVERSA:
     ${conversation}
-    
+
     EXTRAIA E RETORNE APENAS UM JSON (SEM MARKDOWN) COM ESTE FORMATO:
     {
       "knowledge_entries": [
@@ -267,13 +489,13 @@ async function analyzeWithGemini(conversation: string, apiKey: string, model: st
         }
       ]
     }
-    
+
     DIRETRIZES DE EXTRAÇÃO:
     1. "business_rule": Regras de negócio explícitas (ex: "só aceitamos PIX", "entrega grátis acima de X").
     2. "tone": Estilo de escrita (ex: usa emojis? formal ou informal? saudações comuns?).
     3. "client_profile": Preferências ou dados do cliente se mencionados (nome do cliente, o que gosta).
     4. "product": Detalhes de produtos mencionados (preço, características).
-    
+
     SE NADA RELEVANTE FOR ENCONTRADO, RETORNE 'knowledge_entries': [].
     IGNORE MENSAGENS IRRELEVANTES (ex: "ok", "tá").
     `;

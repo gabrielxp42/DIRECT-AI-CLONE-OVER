@@ -6,6 +6,7 @@ export type Cliente = {
   endereco?: string | null;
   cep?: string | null;
   valor_metro?: number | null;
+  observacoes?: string | null;
   status: string;
   created_at: string;
 };

@@ -19,6 +19,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Cliente, NewCliente } from "@/types/cliente";
 import { useEffect, useRef } from "react"; // Importar useRef
 import { CurrencyInput } from "./CurrencyInput"; // Importar CurrencyInput
@@ -44,6 +45,7 @@ const formSchema = z.object({
     z.null(),
     z.undefined()
   ]).optional(),
+  observacoes: z.string().optional().nullable(),
   status: z.string().default('ativo'),
 });
 
@@ -67,6 +69,7 @@ export const ClienteForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, init
       endereco: "",
       cep: "",
       valor_metro: 0, // Definir um valor padrão numérico para o CurrencyInput
+      observacoes: "",
       status: "ativo",
     },
   });
@@ -85,6 +88,7 @@ export const ClienteForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, init
           endereco: initialData.endereco || "",
           cep: initialData.cep || "",
           valor_metro: initialData.valor_metro || 0, // Garantir valor numérico
+          observacoes: initialData.observacoes || "",
           status: initialData.status || "ativo",
         });
         isFirstOpenForNewRef.current = true; // Resetar para o próximo novo formulário
@@ -98,6 +102,7 @@ export const ClienteForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, init
             endereco: "",
             cep: "",
             valor_metro: 0, // Resetar para 0 para o CurrencyInput
+            observacoes: "",
             status: "ativo",
           });
           isFirstOpenForNewRef.current = false; // Marcar como inicializado para esta sessão de novo formulário
@@ -114,6 +119,7 @@ export const ClienteForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, init
         endereco: "",
         cep: "",
         valor_metro: 0,
+        observacoes: "",
         status: "ativo",
       });
     }
@@ -128,6 +134,7 @@ export const ClienteForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, init
       endereco: data.endereco || null,
       cep: data.cep || null,
       valor_metro: data.valor_metro === undefined || data.valor_metro === null || data.valor_metro === 0 ? null : Number(data.valor_metro),
+      observacoes: data.observacoes || null,
       status: data.status || "ativo"
     };
 
@@ -248,6 +255,38 @@ export const ClienteForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, init
                 )}
               />
             </div>
+
+            <FormField
+              control={form.control}
+              name="observacoes"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="flex items-center gap-2">
+                    Observações / "Memória"
+                    <TooltipProvider>
+                      <Tooltip delayDuration={300}>
+                        <TooltipTrigger asChild>
+                          <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-[200px] text-[10px]">
+                          Adicione preferências ou observações importantes sobre o cliente. Gabi usará isso para te ajudar!
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder="Ex: Não gosta da cor azul, prefere entrega rápida, já teve problema com X..."
+                      className="min-h-[100px] resize-none"
+                      {...field}
+                      value={field.value || ''}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancelar

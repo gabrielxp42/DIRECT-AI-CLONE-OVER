@@ -1,0 +1,17 @@
+{
+    "event": "messages.upsert",
+    "instance": "direct_dtf",
+    "data": {
+        "key": {
+            "remoteJid": "5521986243396@s.whatsapp.net",
+            "fromMe": false,
+            "id": "SIMULATED_TEST_12345"
+        },
+        "pushName": "Gabriel L",
+        "message": {
+            "conversation": "Ola Gabi, me conta uma piada."
+        },
+        "messageType": "conversation"
+    },
+    "sender": "5521986243396@s.whatsapp.net"
+}

@@ -67,10 +67,9 @@ Deno.serve(async (req: Request) => {
         console.log(`[Webhook] Processing ${eventType} for instance: ${instance}`);
 
         // Search for user profile linked to this instance
-        // IMPORTANT: We use limit(1) to avoid errors if multiple users use the same instance name
         const { data: profiles, error: profileError } = await supabaseAdmin
             .from('profiles')
-            .select('id, ai_auto_reply_enabled, whatsapp_instance_id')
+            .select('id, ai_auto_reply_enabled, whatsapp_instance_id, whatsapp_boss_group_id')
             .eq('whatsapp_instance_id', instance)
             .limit(1);
 
@@ -94,27 +93,33 @@ Deno.serve(async (req: Request) => {
 
         console.log(`[Webhook] Found profile: ${profile.id} for instance: ${instance}`);
 
-        // Log the success to webhook_logs for debug
-        try {
-            await supabaseAdmin.from('webhook_logs').insert({
-                payload: payload,
-                instance_id: instance,
-                event_type: eventType,
-                status: 'matched',
-                user_id: profile.id
-            });
-        } catch (err) {
-            console.error("Match logging error:", err);
-        }
-
         const msgData = data;
         const messageType = msgData.messageType || 'conversation';
         const fromMe = msgData.key?.fromMe;
         const remoteJid = msgData.key?.remoteJid;
         const pushName = msgData.pushName;
 
-        // Extract Text Content - be VERY robust here
+        // --- DETECT IF BOSS ---
+        let isBoss = false;
+        if (remoteJid && profile.whatsapp_boss_group_id) {
+            const cleanRemote = remoteJid.replace('@s.whatsapp.net', '').replace('@g.us', '');
+            const cleanBoss = profile.whatsapp_boss_group_id.replace('@s.whatsapp.net', '').replace('@g.us', '');
+
+            // Robust comparison: check if cleanRemote ends with cleanBoss or vice versa
+            // This handles cases like 5521... vs 21...
+            if (remoteJid === profile.whatsapp_boss_group_id ||
+                cleanRemote === cleanBoss ||
+                cleanRemote.endsWith(cleanBoss) ||
+                cleanBoss.endsWith(cleanRemote)) {
+                isBoss = true;
+                console.log(`[Webhook] 👑 BOSS DETECTED: ${remoteJid}`);
+            }
+        }
+
+        // --- 2. EXTRACT CONTENT (Text or Audio) ---
         let messageText = '';
+        let audioBase64 = payload.base64 || '';
+        let audioMimetype = 'audio/ogg'; // Default
         const messageObj = msgData.message;
 
         if (messageObj) {
@@ -126,38 +131,70 @@ Deno.serve(async (req: Request) => {
                 messageText = messageObj.imageMessage.caption;
             } else if (messageObj.videoMessage?.caption) {
                 messageText = messageObj.videoMessage.caption;
+            } else if (messageObj.audioMessage || messageType === 'audioMessage') {
+                console.log("[Webhook] Audio message detected");
+                // Evolution API has base64 at msgData.message.base64 or payload.base64
+                // OR it might be in msgData.message.audioMessage.base64
+                audioBase64 = audioBase64 || messageObj.base64 || messageObj.audioMessage?.base64;
+                audioMimetype = messageObj.audioMessage?.mimetype || 'audio/ogg';
+                messageText = ""; // Leave empty for generator to know it's PURE audio
             } else if (typeof messageObj === 'string') {
                 messageText = messageObj;
             }
         }
 
-        if (!messageText) {
-            return new Response(JSON.stringify({ status: 'ignored', reason: 'empty_text' }), {
+        // If no content and no audio, ignore
+        if (!messageText && !audioBase64) {
+            return new Response(JSON.stringify({ status: 'ignored', reason: 'empty_content' }), {
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             });
         }
 
-        // Insert into whatsapp_messages
-        const { error: insertError } = await supabaseAdmin
+        // --- 3. GET CONVERSATION HISTORY ---
+        let formattedHistory = '';
+        try {
+            const { data: history } = await supabaseAdmin
+                .from('whatsapp_messages')
+                .select('message, direction, client_name')
+                .eq('user_id', profile.id)
+                .eq('phone', remoteJid ? remoteJid.replace('@s.whatsapp.net', '').replace('@g.us', '') : 'unknown')
+                .order('created_at', { ascending: false })
+                .limit(10);
+
+            if (history && history.length > 0) {
+                formattedHistory = history
+                    .reverse()
+                    .map((m: any) => `${m.direction === 'sent' ? 'Gabi' : (m.client_name || 'Cliente')}: ${m.message}`)
+                    .join('\n');
+            }
+        } catch (err) {
+            console.error("[Webhook] History retrieval error:", err);
+        }
+
+        // --- 4. INSERT INTO DATABASE (Incoming Message) ---
+        const { data: insertedMsg, error: insertError } = await supabaseAdmin
             .from('whatsapp_messages')
             .insert({
                 user_id: profile.id,
                 phone: remoteJid ? remoteJid.split('@')[0] : 'unknown',
-                message: messageText,
+                message: messageText || (audioBase64 ? "[Mensagem de Voz]" : "[Mídia]"),
                 direction: fromMe ? 'sent' : 'received',
                 status: 'delivered',
                 client_name: pushName || null,
                 analyzed: false
-            });
+            })
+            .select('id')
+            .single();
 
         if (insertError) {
             console.error(`[Webhook] DB Insert Error: ${insertError.message}`);
-            throw insertError;
         }
 
-        // TRIGGER AI RESPONSE IF ENABLED
-        if (profile.ai_auto_reply_enabled && !fromMe && messageText && messageText.length < 500 && remoteJid) {
-            console.log(`[Webhook] Triggering AI Response for ${remoteJid}`);
+        // --- 5. TRIGGER AI RESPONSE IF ENABLED ---
+        const shouldReply = profile.ai_auto_reply_enabled || isBoss;
+
+        if (shouldReply && !fromMe && remoteJid) {
+            console.log(`[Webhook] Triggering AI Response. isBoss: ${isBoss}, hasAudio: ${!!audioBase64}`);
 
             const AI_FUNCTION_URL = `${Deno.env.get('SUPABASE_URL')}/functions/v1/ai-response-generator`;
 
@@ -170,9 +207,13 @@ Deno.serve(async (req: Request) => {
                 body: JSON.stringify({
                     user_id: profile.id,
                     message: messageText,
-                    customer_phone: remoteJid.split('@')[0],
+                    audio_base64: audioBase64,
+                    audio_mimetype: audioMimetype,
+                    db_message_id: insertedMsg?.id, // Passing ID to allow transcription update
+                    customer_phone: remoteJid ? remoteJid.replace('@s.whatsapp.net', '').replace('@g.us', '') : 'unknown',
                     customer_name: pushName || 'Cliente',
-                    previous_history: ''
+                    previous_history: formattedHistory,
+                    is_boss: isBoss
                 })
             })
                 .then(res => {

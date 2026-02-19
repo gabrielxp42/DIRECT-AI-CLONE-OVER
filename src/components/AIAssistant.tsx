@@ -204,12 +204,18 @@ export const AIAssistant = () => {
           memoryManager.extractMemoriesFromConversation(userMessage.content, response.content || '')
             .catch(err => console.error('🧠 [AIAssistant] Erro ao extrair memórias:', err));
         }
+      } else if (!response.function_call) {
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: "Desculpe, tive um problema ao processar. Poderia repetir? 😅"
+        }]);
       }
     } catch (error: any) {
-      logAIError(error, 'AIAssistant send message');
+      console.error("❌ [AIAssistant] Erro:", error);
+      logAIError(error, "handleSendMessage");
       toast({
         title: "Erro ao processar mensagem",
-        description: error.message || "Tente novamente em alguns segundos.",
+        description: error.message || "Tente novamente.",
         variant: "destructive"
       });
     } finally {

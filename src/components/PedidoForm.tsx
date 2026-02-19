@@ -44,7 +44,7 @@ import { NewPedido, Pedido } from "@/types/pedido";
 import { Cliente } from "@/types/cliente";
 import { Produto } from "@/types/produto";
 import { useEffect, useState, useRef, useMemo, useCallback } from "react";
-import { Trash2, Plus, Search, Edit3, X, User, Package, Wrench, Save, Zap, CalendarIcon, Ruler, ChevronDown, Loader2, FileText, Copy, GripVertical, Sparkles, Printer, Scissors, Settings, Bike, Star, Info, Tag, Layers, PenTool, BadgeCheck, Palette, Truck, Calculator } from "lucide-react";
+import { Trash2, Plus, Search, Edit3, X, User, Package, Wrench, Save, Zap, CalendarIcon, Ruler, ChevronDown, Loader2, FileText, Copy, GripVertical, Sparkles, Printer, Scissors, Settings, Bike, Star, Info, Tag, Layers, PenTool, BadgeCheck, Palette, Truck, Calculator, Brain } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -166,6 +166,30 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
   const [transportadoraSearch, setTransportadoraSearch] = useState('');
   const [isFreightModalOpen, setIsFreightModalOpen] = useState(false);
 
+  const form = useForm<PedidoFormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      cliente_id: "",
+      observacoes: "",
+      tipo_entrega: undefined,
+      valor_frete: 0,
+      transportadora: "",
+      tracking_code: "",
+      desconto_valor: 0,
+      desconto_percentual: 0,
+      created_at: new Date(),
+      items: [],
+      servicos: [],
+    },
+  });
+
+  const selectedClienteId = form.watch('cliente_id');
+
+  const selectedCliente = useMemo(() =>
+    clientes.find(c => c.id === selectedClienteId),
+    [clientes, selectedClienteId]
+  );
+
   const uniqueTiposProducao = useMemo(() => {
     if (!tiposProducao) return [];
     const seen = new Set();
@@ -189,23 +213,6 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
   // Snapshots para permitir cancelar alterações
   const [itemSnapshot, setItemSnapshot] = useState<any>(null);
   const [servicoSnapshot, setServicoSnapshot] = useState<any>(null);
-
-  const form = useForm<PedidoFormValues>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      cliente_id: "",
-      observacoes: "",
-      tipo_entrega: undefined,
-      valor_frete: 0,
-      transportadora: "",
-      tracking_code: "",
-      desconto_valor: 0,
-      desconto_percentual: 0,
-      created_at: new Date(),
-      items: [],
-      servicos: [],
-    },
-  });
 
   const { fields: itemFields, append: appendItem, remove: removeItemField, move: moveItemField, update: updateItem, replace: replaceItems, insert: insertItem } = useFieldArray({
     control: form.control,
@@ -1088,6 +1095,22 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                   />
                 </div>
               </div>
+
+              {/* Memória da Gabi - Exibição Proativa se houver observações */}
+              {selectedCliente?.observacoes && (
+                <div className="bg-primary/5 border border-primary/20 rounded-xl p-3 sm:p-4 space-y-2 relative overflow-hidden group animate-in fade-in slide-in-from-top-2 duration-500">
+                  <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+                    <Brain className="h-10 w-10 sm:h-12 sm:w-12 text-primary" />
+                  </div>
+                  <div className="flex items-center gap-2 text-primary">
+                    <Sparkles className="h-4 w-4 animate-pulse" />
+                    <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider">Memória da Gabi</h3>
+                  </div>
+                  <p className="text-xs sm:text-sm text-foreground/80 italic leading-relaxed relative z-10">
+                    "{selectedCliente.observacoes}"
+                  </p>
+                </div>
+              )}
 
               <FormField
                 control={form.control}

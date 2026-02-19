@@ -501,20 +501,19 @@ h1 {
 }
 
 .ai-brain-section {
-    padding: 90px 0 0 0;
-    /* Glue to bottom content */
+    padding: 160px 0 0 0;
     background: radial-gradient(circle at center, rgba(124, 58, 237, 0.1) 0%, transparent 70%);
     position: relative;
 }
 
 .ai-reveal {
     display: grid;
-    grid-template-columns: 1.1fr 1fr;
-    gap: 6rem;
+    grid-template-columns: 1fr 0.9fr;
+    gap: 12rem;
+    /* Much larger gap to prevent text overlap */
     align-items: flex-start;
     position: relative;
-    padding-bottom: 30px;
-    /* Minimum gap for maximum impact */
+    padding-bottom: 60px;
 }
 
 .ai-core-visual {
@@ -523,8 +522,18 @@ h1 {
     display: flex;
     justify-content: center;
     align-items: center;
-    height: 220px;
+    height: 400px;
+    /* More vertical space for bubbles */
     z-index: 10;
+}
+
+.gabi-orb-wrap {
+    position: relative;
+    width: 220px;
+    height: 220px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
 #gabiSmoke {
@@ -581,7 +590,8 @@ h1 {
     border: none;
     padding: 1rem 1.5rem;
     border-radius: 20px;
-    max-width: 280px;
+    max-width: 260px;
+    /* Slightly tighter */
     opacity: 0;
     transform: translateY(20px) scale(0.9);
     transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1);
@@ -621,64 +631,81 @@ h1 {
 }
 
 .bubble-left {
-    top: -40px;
-    left: -110px;
-    /* Brought in from -140 */
+    top: -80px;
+    right: calc(100% + 10px);
 }
 
 .bubble-right {
-    top: 20px;
-    right: -120px;
-    /* Brought in from -150 */
+    top: -20px;
+    left: calc(100% + 10px);
 }
 
 .bubble-left-bottom {
-    bottom: 30px;
-    left: -130px;
-    /* Brought in from -160 */
+    bottom: -40px;
+    right: calc(100% + 10px);
 }
 
 .bubble-right-bottom {
-    bottom: -40px;
-    right: -100px;
+    bottom: -100px;
+    left: calc(100% + 20px);
 }
 
 .bubble-extra-1 {
-    top: -80px;
-    right: -60px;
-    border-color: rgba(255, 77, 77, 0.4) !important;
+    top: -110px;
+    left: calc(100% - 40px);
+    /* Slightly overlapping top-right */
+    border: 1px solid rgba(239, 68, 68, 0.5) !important;
+    background: rgba(239, 68, 68, 0.1) !important;
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
+    animation: alertPulse 2s infinite ease-in-out;
+}
+
+@keyframes alertPulse {
+
+    0%,
+    100% {
+        transform: translateY(0) scale(1);
+        box-shadow: 0 0 10px rgba(239, 68, 68, 0.2);
+    }
+
+    50% {
+        transform: translateY(-5px) scale(1.02);
+        box-shadow: 0 0 25px rgba(239, 68, 68, 0.4);
+    }
 }
 
 .bubble-extra-2 {
-    bottom: -100px;
-    left: -100px;
+    bottom: -130px;
+    right: calc(100% - 20px);
+    /* Slightly overlapping bottom-left */
 }
 
 .bubble-extra-3 {
-    bottom: -150px;
-    right: -20px;
+    bottom: -180px;
+    left: 40%;
 }
 
-/* Response fix for clipping on smaller desktops */
-@media (max-width: 1300px) {
+/* Responsive adjustment for chat visibility */
+@media (max-width: 1400px) {
     .gabi-bubble {
-        max-width: 200px;
+        max-width: 220px;
+        font-size: 0.8rem;
     }
 
     .bubble-left {
-        left: -80px;
+        right: calc(100% + 15px);
     }
 
     .bubble-right {
-        right: -90px;
+        left: calc(100% + 15px);
     }
 
     .bubble-left-bottom {
-        left: -90px;
+        right: calc(100% + 10px);
     }
 
     .bubble-right-bottom {
-        right: -70px;
+        left: calc(100% + 20px);
     }
 }
 
@@ -759,7 +786,7 @@ h1 {
 }
 
 .vs-section {
-    padding: 90px 0;
+    padding: 160px 0;
     background: linear-gradient(180deg, rgba(2, 6, 23, 1) 0%, rgba(255, 77, 77, 0.05) 50%, rgba(2, 6, 23, 1) 100%);
 }
 
@@ -825,8 +852,7 @@ h1 {
 
 /* Interface Showcase */
 .interface-showcase {
-    padding: 0 0 90px 0;
-    /* Glued to Gabi section */
+    padding: 0 0 160px 0;
 }
 
 .grid-showcase {
@@ -887,7 +913,7 @@ h1 {
 
 /* Features Section */
 .features {
-    padding: 100px 0;
+    padding: 160px 0;
     background: rgba(0, 0, 0, 0.3);
 }
 
@@ -951,7 +977,7 @@ h1 {
 
 /* CTA Section */
 .cta-section {
-    padding: 120px 0;
+    padding: 180px 0;
 }
 
 .cta-card {
@@ -1647,6 +1673,9 @@ h1 {
     /* Espessura da borda */
     background: linear-gradient(135deg, #FBBF24 0%, #F472B6 50%, #EC4899 100%);
     -webkit-mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+    mask:
         linear-gradient(#fff 0 0) content-box,
         linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor;
@@ -2840,6 +2869,7 @@ h1 {
     font-weight: 800;
     background: linear-gradient(90deg, #fff, #ccc);
     -webkit-background-clip: text;
+    background-clip: text;
     -webkit-text-fill-color: transparent;
     display: flex;
     align-items: center;
@@ -3966,4 +3996,1134 @@ h1 {
     .wp-feature-item {
         text-align: left;
     }
+}
+
+/* ==========================================
+   N0VA SEÇÃO: LOGÍSTICA 5.0 (SHIPPING)
+   ========================================== */
+.shipping-page-section {
+    padding: 120px 0;
+    position: relative;
+    background: radial-gradient(circle at 10% 10%, rgba(37, 99, 235, 0.08) 0%, transparent 50%);
+}
+
+.shipping-grid {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    gap: 6rem;
+    align-items: center;
+}
+
+.bg-blue {
+    background: rgba(37, 99, 235, 0.1) !important;
+    color: #60a5fa !important;
+    border-color: rgba(37, 99, 235, 0.2) !important;
+}
+
+.shipping-features-v2 {
+    margin: 3rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+
+.ship-f-item {
+    display: flex;
+    gap: 1.5rem;
+    align-items: flex-start;
+}
+
+.ship-f-icon {
+    min-width: 50px;
+    height: 50px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--primary);
+}
+
+.ship-f-text strong {
+    font-size: 1.1rem;
+    color: #fff;
+    display: block;
+    margin-bottom: 0.3rem;
+}
+
+.ship-f-text p {
+    font-size: 0.95rem;
+    color: rgba(255, 255, 255, 0.6);
+    line-height: 1.5;
+}
+
+/* Logistic Hub Card */
+.logistic-hub-card {
+    width: 100%;
+    min-height: 400px;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    border-radius: 24px;
+    box-shadow: 0 40px 100px rgba(0, 0, 0, 0.4);
+}
+
+.hub-header {
+    padding: 1.2rem;
+    background: rgba(255, 255, 255, 0.03);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+}
+
+.hub-dots {
+    display: flex;
+    gap: 6px;
+}
+
+.hub-dots span {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.hub-search {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 100px;
+    padding: 0.3rem 1rem;
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.4);
+    flex: 1;
+}
+
+.hub-body {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    gap: 1.5rem;
+    padding: 1.5rem;
+}
+
+.hub-col {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.col-header {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    font-weight: 800;
+    color: rgba(255, 255, 255, 0.3);
+    letter-spacing: 1px;
+}
+
+.label-mini-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 0.8rem;
+    border-radius: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.label-mini-card.active {
+    background: rgba(37, 99, 235, 0.1);
+    border-color: rgba(37, 99, 235, 0.2);
+}
+
+.l-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.l-id {
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: var(--primary);
+}
+
+.l-client {
+    font-size: 0.8rem;
+    color: #fff;
+}
+
+.btn-ship-mini {
+    background: var(--primary);
+    border: none;
+    padding: 0.3rem 0.6rem;
+    border-radius: 6px;
+    font-size: 0.65rem;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+/* Logistic UI internal animations */
+.active-card {
+    transition: all 0.5s ease;
+}
+
+.start-animation .active-card {
+    animation: emitProcess 1.5s forwards 1.2s;
+    /* Atrasado para esperar o clique */
+}
+
+@keyframes emitProcess {
+    0% {
+        transform: scale(1);
+        background: rgba(37, 99, 235, 0.1);
+    }
+
+    30% {
+        transform: scale(1.05);
+        background: rgba(37, 99, 235, 0.3);
+    }
+
+    100% {
+        transform: scale(0.9);
+        opacity: 0;
+        pointer-events: none;
+        margin-top: -60px;
+    }
+}
+
+.btn-ship-mini-sim {
+    background: var(--primary);
+    color: #000;
+    padding: 0.3rem 0.6rem;
+    border-radius: 6px;
+    font-size: 0.65rem;
+    font-weight: 800;
+}
+
+.start-animation .btn-ship-mini-sim {
+    animation: btnShipClick 4s infinite 0.5s;
+}
+
+@keyframes btnShipClick {
+
+    0%,
+    30% {
+        transform: scale(1);
+        filter: brightness(1);
+    }
+
+    35% {
+        transform: scale(0.95);
+        filter: brightness(0.8);
+    }
+
+    40%,
+    100% {
+        transform: scale(1);
+        filter: brightness(1);
+    }
+}
+
+/* Ship Cursor */
+.ship-cursor {
+    position: absolute;
+    top: 50%;
+    left: 110%;
+    z-index: 50;
+    opacity: 0;
+    pointer-events: none;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+    transform-origin: top left;
+}
+
+.start-animation .ship-cursor {
+    animation: shippingCursorAction 4s forwards;
+}
+
+@keyframes shippingCursorAction {
+    0% {
+        opacity: 0;
+        left: 105%;
+        top: 50%;
+    }
+
+    15% {
+        opacity: 1;
+        left: 90%;
+        top: 40%;
+    }
+
+    35% {
+        left: var(--ship-x, 28%);
+        top: var(--ship-y, 45%);
+        transform: scale(1);
+    }
+
+    45% {
+        transform: scale(0.8);
+    }
+
+    55% {
+        transform: scale(1);
+    }
+
+    75% {
+        opacity: 1;
+    }
+
+    100% {
+        opacity: 0;
+        left: var(--ship-x, 28%);
+        top: var(--ship-y, 45%);
+    }
+}
+
+/* Success Check */
+.success-check {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    color: #10b981;
+    z-index: 10;
+}
+
+.success-check i {
+    width: 60px;
+    height: 60px;
+}
+
+.start-animation .success-check {
+    animation: scalePop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards 3s;
+}
+
+@keyframes scalePop {
+    to {
+        transform: translate(-50%, -50%) scale(1);
+    }
+}
+
+/* Gabi Tracking Notification */
+.gabi-tracking-notif {
+    background: rgba(37, 211, 102, 0.05);
+    border-radius: 12px;
+    padding: 0.8rem;
+    border: 1px solid rgba(37, 211, 102, 0.2);
+    opacity: 0;
+    transform: translateY(20px);
+}
+
+.start-animation .gabi-tracking-notif {
+    animation: wpBounce 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards 4s;
+}
+
+@keyframes wpBounce {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.g-t-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.7rem;
+    font-weight: 800;
+    color: #25D366;
+    margin-bottom: 0.3rem;
+    text-transform: uppercase;
+}
+
+.g-t-body {
+    font-size: 0.8rem;
+    color: #fff;
+    margin-bottom: 0.3rem;
+}
+
+.g-t-status {
+    font-size: 0.65rem;
+    color: rgba(255, 255, 255, 0.4);
+    font-weight: 700;
+}
+
+/* Gabi Quote Animation UI */
+.interaction-col {
+    display: flex;
+    flex-direction: column;
+    gap: 1.2rem;
+}
+
+.gabi-quote-box {
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 16px;
+    padding: 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    opacity: 0;
+    transform: translateY(10px);
+}
+
+.start-animation .gabi-quote-box {
+    animation: fadeInUp 0.5s forwards;
+}
+
+@keyframes fadeInUp {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.g-q-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #a78bfa;
+    margin-bottom: 0.5rem;
+}
+
+.g-q-header i {
+    width: 14px;
+    height: 14px;
+}
+
+.g-msg {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.5);
+    margin-bottom: 0.4rem;
+    padding-left: 0.5rem;
+    border-left: 2px solid rgba(255, 255, 255, 0.1);
+    opacity: 0;
+}
+
+.start-animation .g-msg {
+    animation: fadeIn 0.4s forwards 0.3s;
+}
+
+.g-reply {
+    background: rgba(124, 58, 237, 0.1);
+    padding: 0.6rem 0.8rem;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    opacity: 0;
+    transform: scale(0.9);
+}
+
+.start-animation .g-reply {
+    animation: scaleIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards 0.6s;
+}
+
+@keyframes fadeIn {
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes scaleIn {
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.g-badge {
+    background: #10b981;
+    color: #fff;
+    font-size: 0.6rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    font-weight: 800;
+}
+
+/* Label Preview Anim */
+.label-preview-anim {
+    flex: 1;
+    background: #fff;
+    border-radius: 16px;
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+    color: #000;
+    opacity: 0;
+    transform: scale(0.95);
+    min-height: 140px;
+}
+
+.start-animation .label-preview-anim {
+    animation: fadeInScale 0.6s forwards 2.2s;
+    /* Atrasado para fluidez */
+}
+
+@keyframes fadeInScale {
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.barcode {
+    font-family: monospace;
+    font-size: 2.2rem;
+    letter-spacing: -2px;
+    font-weight: 900;
+    margin-bottom: 0.5rem;
+}
+
+.label-text {
+    font-size: 0.65rem;
+    font-weight: 900;
+    letter-spacing: 2px;
+}
+
+.print-glow {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 10px;
+    background: linear-gradient(to bottom, rgba(37, 99, 235, 0.2), transparent);
+    opacity: 0;
+}
+
+.start-animation .print-glow {
+    animation: printSweep 1.5s infinite linear 2.5s;
+}
+
+@keyframes printSweep {
+    0% {
+        transform: translateY(-20px);
+        opacity: 0;
+    }
+
+    30% {
+        opacity: 1;
+    }
+
+    70% {
+        opacity: 1;
+    }
+
+    100% {
+        transform: translateY(160px);
+        opacity: 0;
+    }
+}
+
+@keyframes barcodeScan {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.7;
+    }
+}
+
+.hub-footer {
+    padding: 1rem;
+    background: rgba(255, 255, 255, 0.02);
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    display: flex;
+    gap: 1.5rem;
+}
+
+.h-stat {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.h-stat i {
+    width: 14px;
+    height: 14px;
+    color: var(--primary);
+}
+
+.shipping-page-section {
+    padding: 120px 0;
+    position: relative;
+    background: radial-gradient(circle at 10% 10%, rgba(37, 99, 235, 0.08) 0%, transparent 50%);
+    overflow: hidden;
+    /* Garantir que nada saia da tela lateralmente */
+}
+
+.shipping-visual-v2 {
+    position: relative;
+    /* Necessário para os boxes flutuantes serem relativos a ela */
+}
+
+/* Floating boxes anim */
+.ship-float {
+    position: absolute;
+    width: 60px;
+    height: 60px;
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    z-index: 5;
+    pointer-events: none;
+}
+
+.box-1 {
+    top: -30px;
+    right: 15%;
+    animation: float 4s infinite;
+}
+
+.box-2 {
+    bottom: 20px;
+    left: -20px;
+    animation: float 5s infinite reverse;
+}
+
+.box-3 {
+    top: 40%;
+    right: -20px;
+    /* Puxado um pouco mais para dentro */
+    animation: float 6s infinite 1s;
+}
+
+/* Responsive Shipping */
+@media (max-width: 992px) {
+    .shipping-grid {
+        grid-template-columns: 1fr;
+        gap: 4rem;
+        text-align: center;
+    }
+
+    .ship-f-item {
+        text-align: left;
+    }
+
+    .hub-body {
+        grid-template-columns: 1fr;
+    }
+
+    .labels-col {
+        display: none;
+        /* Hide col on mobile for space */
+    }
+
+    .shipping-visual-v2 {
+        padding: 0 1rem;
+    }
+}
+
+/* ==========================================
+   SEÇÃO: BOSS EXPERIENCE (A VISÃO DO DONO)
+   ========================================== */
+.boss-experience-section {
+    padding: 160px 0;
+    background: radial-gradient(circle at 80% 20%, rgba(124, 58, 237, 0.06) 0%, transparent 50%),
+        radial-gradient(circle at 20% 80%, rgba(37, 99, 235, 0.04) 0%, transparent 50%);
+}
+
+.section-header-center {
+    text-align: center;
+    max-width: 800px;
+    margin: 0 auto 6rem;
+}
+
+.boss-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4rem;
+    align-items: center;
+}
+
+.boss-context h3 {
+    font-size: 2rem;
+    font-weight: 900;
+    line-height: 1.3;
+    margin-bottom: 1.5rem;
+}
+
+.boss-context>p {
+    font-size: 1.1rem;
+    color: rgba(255, 255, 255, 0.6);
+    line-height: 1.7;
+    margin-bottom: 2.5rem;
+}
+
+.boss-benefits {
+    display: flex;
+    flex-direction: column;
+    gap: 1.2rem;
+}
+
+.boss-benefit {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 1.5rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 14px;
+    font-size: 1rem;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.boss-benefit i {
+    color: var(--primary);
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+}
+
+/* Phone Mockup */
+.boss-phone {
+    max-width: 360px;
+    margin: 0 auto;
+    border-radius: 36px !important;
+    overflow: hidden;
+    padding: 0 !important;
+    border: 2px solid rgba(255, 255, 255, 0.1) !important;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.4), 0 0 40px rgba(124, 58, 237, 0.1);
+}
+
+.phone-header {
+    background: #1a1a2e;
+    padding: 0.5rem 1.5rem 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.phone-notch {
+    width: 100px;
+    height: 6px;
+    background: #333;
+    border-radius: 10px;
+    margin-bottom: 0.3rem;
+}
+
+.phone-status-bar {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.7rem;
+    color: rgba(255, 255, 255, 0.5);
+    padding: 0.2rem 0;
+}
+
+.phone-icons {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
+.chat-header-bar {
+    background: #1a1a2e;
+    padding: 0.8rem 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.chat-avatar-gabi {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #a78bfa, #7c3aed);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 900;
+    font-size: 0.9rem;
+    color: #fff;
+}
+
+.chat-header-bar strong {
+    display: block;
+    font-size: 0.9rem;
+    color: #fff;
+}
+
+.chat-online {
+    font-size: 0.7rem;
+    color: #25D366;
+}
+
+/* Chat Messages */
+.chat-messages {
+    padding: 1rem;
+    background: #0d0d1a;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    min-height: 380px;
+}
+
+.chat-bubble {
+    max-width: 85%;
+    padding: 0.7rem 1rem;
+    border-radius: 16px;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    opacity: 0;
+    transform: translateY(15px);
+}
+
+.gabi-bubble {
+    background: linear-gradient(135deg, rgba(124, 58, 237, 0.18), rgba(167, 139, 250, 0.06));
+    border: 1px solid rgba(124, 58, 237, 0.25);
+    border-radius: 16px 16px 16px 4px;
+    align-self: flex-start;
+    color: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 4px 15px rgba(124, 58, 237, 0.12);
+    position: relative;
+    padding-left: 1.2rem !important;
+    overflow: hidden;
+}
+
+/* Gradient left accent bar */
+.gabi-bubble::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: linear-gradient(to bottom, #a78bfa, #7c3aed, #ec4899);
+    border-radius: 4px 0 0 4px;
+}
+
+.bubble-name {
+    font-size: 0.65rem;
+    font-weight: 800;
+    color: #a78bfa;
+    margin-bottom: 0.3rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    background: linear-gradient(90deg, #a78bfa, #c084fc);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.user-bubble {
+    background: rgba(37, 99, 235, 0.12);
+    border: 1px solid rgba(37, 99, 235, 0.15);
+    border-radius: 16px 16px 4px 16px;
+    align-self: flex-end;
+    color: rgba(255, 255, 255, 0.85);
+}
+
+/* Last bubble prep: wine accent */
+.msg-5 {
+    border-color: rgba(236, 72, 153, 0.3);
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.15), rgba(236, 72, 153, 0.1));
+    box-shadow: 0 4px 20px rgba(236, 72, 153, 0.1);
+}
+
+/* Chat Bubble Animations - triggered by JS scroll observer */
+@keyframes chatMsgIn {
+    0% {
+        opacity: 0;
+        transform: translateY(15px) scale(0.95);
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+
+/* Responsive Boss */
+@media (max-width: 992px) {
+    .boss-grid {
+        grid-template-columns: 1fr;
+        gap: 2.5rem;
+    }
+
+    .boss-context {
+        text-align: center;
+    }
+
+    .boss-context h3 {
+        font-size: 1.4rem;
+    }
+
+    .boss-context>p {
+        font-size: 0.95rem;
+    }
+
+    .boss-phone {
+        max-width: 320px;
+    }
+
+    .chat-messages {
+        min-height: 320px;
+    }
+
+    .boss-benefit {
+        padding: 0.8rem 1rem;
+        font-size: 0.9rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .boss-experience-section {
+        padding: 60px 0;
+    }
+
+    .boss-context h3 {
+        font-size: 1.2rem;
+    }
+
+    .boss-phone {
+        max-width: 100%;
+        border-radius: 24px !important;
+    }
+
+    .chat-bubble {
+        font-size: 0.8rem;
+        padding: 0.6rem 0.8rem;
+    }
+
+    .chat-messages {
+        min-height: 300px;
+        padding: 0.8rem;
+    }
+
+    .boss-benefit {
+        padding: 0.7rem;
+        gap: 0.7rem;
+        font-size: 0.85rem;
+    }
+}
+
+
+/* ==========================================
+   SEÇÃO: TESTIMONIALS
+   ========================================== */
+.testimonials-section {
+    padding: 160px 0;
+    background: radial-gradient(circle at 10% 90%, rgba(16, 185, 129, 0.05) 0%, transparent 50%);
+}
+
+.testimonials-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2rem;
+}
+
+.test-card {
+    padding: 2.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.test-user {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.test-avatar {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 900;
+}
+
+.test-user strong {
+    display: block;
+    color: #fff;
+    font-size: 1.1rem;
+}
+
+.test-user span {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.test-text {
+    font-size: 1.05rem;
+    line-height: 1.6;
+    color: rgba(255, 255, 255, 0.8);
+    font-style: italic;
+}
+
+.test-rating {
+    color: #fbbf24;
+    letter-spacing: 2px;
+}
+
+/* ==========================================
+   SEÇÃO: FAQ
+   ========================================== */
+.faq-section {
+    padding: 160px 0;
+    background: radial-gradient(circle at 50% 50%, rgba(255, 242, 0, 0.03) 0%, transparent 70%);
+}
+
+.faq-grid {
+    max-width: 800px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.faq-item {
+    padding: 0 !important;
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.faq-question {
+    padding: 1.5rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 700;
+    color: #fff;
+}
+
+.faq-item.active .faq-question {
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--primary);
+}
+
+.faq-answer {
+    padding: 0 2rem;
+    max-height: 0;
+    transition: all 0.4s ease-out;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 0.95rem;
+    line-height: 1.6;
+}
+
+.faq-item.active .faq-answer {
+    padding: 0 2rem 2rem;
+    max-height: 200px;
+}
+
+.faq-question i {
+    transition: transform 0.3s ease;
+}
+
+.faq-item.active i {
+    transform: rotate(45deg);
+    color: var(--primary);
+}
+
+/* ==========================================
+   RESPONSIVE: TESTIMONIALS + FAQ + SHIPPING
+   ========================================== */
+@media (max-width: 992px) {
+    .testimonials-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .shipping-page-section {
+        padding: 60px 0;
+    }
+
+    /* Hide ship cursor on mobile — it doesn't position well */
+    .ship-cursor {
+        display: none !important;
+    }
+
+    .ship-float {
+        display: none;
+    }
+}
+
+@media (max-width: 480px) {
+
+    .testimonials-section,
+    .faq-section {
+        padding: 50px 0;
+    }
+
+    .test-card {
+        padding: 1.5rem;
+    }
+
+    .test-text {
+        font-size: 0.9rem;
+    }
+
+    .test-user strong {
+        font-size: 0.95rem;
+    }
+
+    .test-avatar {
+        width: 40px;
+        height: 40px;
+        font-size: 0.85rem;
+    }
+
+    .faq-question {
+        padding: 1.2rem 1rem;
+        font-size: 0.9rem;
+    }
+
+    .faq-answer {
+        padding: 0 1rem;
+        font-size: 0.85rem;
+    }
+
+    .faq-item.active .faq-answer {
+        padding: 0 1rem 1.5rem;
+    }
+
+    .section-header-center {
+        margin-bottom: 2.5rem;
+    }
+
+    .section-title {
+        font-size: 1.5rem;
+    }
+
+    .section-subtitle {
+        font-size: 0.9rem;
+    }
+}
+
+/* SCROLL REVEAL ANIMATIONS */
+.boss-experience-section,
+.testimonials-section,
+.faq-section {
+    opacity: 0;
+    transform: translateY(30px);
+    transition: all 0.8s ease-out;
+}
+
+.boss-experience-section.revealed,
+.testimonials-section.revealed,
+.faq-section.revealed {
+    opacity: 1;
+    transform: translateY(0);
 }
