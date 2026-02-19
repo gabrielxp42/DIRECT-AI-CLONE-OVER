@@ -9,12 +9,41 @@ const corsHeaders = {
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// --- UTILS ---
+
+// Safe fetch with timeout
+const fetchWithTimeout = async (url: string, options: any, timeout = 50000) => {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+    try {
+        const response = await fetch(url, { ...options, signal: controller.signal });
+        clearTimeout(id);
+        return response;
+    } catch (e) {
+        clearTimeout(id);
+        throw e;
+    }
+};
+
+// Safe JSON parse — handles HTML error pages (502, 503 from nginx)
+const safeJsonParse = async (resp: Response): Promise<any> => {
+    const text = await resp.text();
+    try {
+        return JSON.parse(text);
+    } catch {
+        console.error(`[Gabi] Non-JSON response (${resp.status}):`, text.substring(0, 200));
+        return { error: true, message: `Servidor retornou erro ${resp.status}. Tente novamente em alguns segundos.`, _rawStatus: resp.status };
+    }
+};
+
 const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
         style: 'currency',
         currency: 'BRL'
     }).format(value);
 };
+
+// --- MAIN SERVE ---
 
 serve(async (req) => {
     if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -23,7 +52,7 @@ serve(async (req) => {
         const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
         const { orderId, status: requestedStatus, trackingCode } = await req.json();
 
-        console.log("[Gabi] Received request:", { orderId, requestedStatus });
+        console.log("[Gabi] Received request for notification:", { orderId, requestedStatus });
 
         if (!orderId) throw new Error("Missing orderId");
 
@@ -46,7 +75,7 @@ serve(async (req) => {
         const clientPhone = order.clientes?.telefone || "";
 
         if (!clientPhone) {
-            console.log("[Gabi] No phone number for client");
+            console.log("[Gabi] No phone number for client. Skipping.");
             return new Response(JSON.stringify({ skipped: true, reason: "No phone" }), { headers: corsHeaders });
         }
 
@@ -54,8 +83,6 @@ serve(async (req) => {
         let phone = clientPhone.replace(/\D/g, "");
         if (phone.length === 11 && !phone.startsWith("55")) phone = "55" + phone;
         if (phone.length === 10 && !phone.startsWith("55")) phone = "55" + phone;
-
-        console.log("[Gabi] Client:", clientName, "Phone:", phone);
 
         // 2. Get Merchant Profile
         const { data: merchant, error: merchantError } = await supabase
@@ -69,8 +96,6 @@ serve(async (req) => {
             throw new Error("Merchant profile not found");
         }
 
-        console.log("[Gabi] Merchant:", merchant.company_name, "WhatsApp Status:", merchant.whatsapp_status);
-
         // --- TRAVA DE SEGURANÇA PLUS MODE ---
         const isPlusActive = merchant.is_whatsapp_plus_active || merchant.is_admin || merchant.subscription_tier === 'expert';
         if (!isPlusActive) {
@@ -79,22 +104,18 @@ serve(async (req) => {
         }
 
         if (!merchant.whatsapp_instance_id) {
+            console.error("[Gabi] Merchant missing instance ID");
             return new Response(JSON.stringify({ error: "Missing WhatsApp Instance ID" }), { status: 400, headers: corsHeaders });
         }
 
         // 3. Get Template and Replace Variables
-        console.log("[Gabi] Looking for template for status:", statusToSend);
-        console.log("[Gabi] Available templates:", JSON.stringify(merchant.gabi_templates));
-
         const template = merchant.gabi_templates?.[statusToSend];
         if (!template) {
             console.log(`[Gabi] No template found for status: ${statusToSend}`);
             return new Response(JSON.stringify({ skipped: true, reason: "No template" }), { headers: corsHeaders });
         }
 
-        console.log("[Gabi] Template found, length:", template.length);
-
-        // Pre-formatar itens com valor unitário
+        // Pre-formatar itens
         const itemsList = order.pedido_items?.map((item: any) => {
             const isLinear = item.tipo === 'dtf' || item.tipo === 'vinil';
             const unitSingular = isLinear ? 'metro' : 'unid.';
@@ -115,7 +136,6 @@ serve(async (req) => {
             });
         }
 
-        // Recalcular Totais para consistência
         const subtotalProdutos = Number(order.subtotal_produtos || 0);
         const subtotalServicos = Number(order.subtotal_servicos || 0);
         const subtotal = subtotalProdutos + subtotalServicos;
@@ -129,18 +149,11 @@ serve(async (req) => {
             ? `${merchant.company_address_street}, ${merchant.company_address_number}${merchant.company_address_city ? ` - ${merchant.company_address_city}` : ''}`
             : "";
 
-        // Lógica de entrega idêntica ao frontend
         let entregaStr = "";
         if (order.tipo_entrega === 'frete') {
-            if (order.valor_frete && Number(order.valor_frete) > 0) {
-                entregaStr += `FRETE: ${formatCurrency(order.valor_frete)}\n`;
-            }
-            if (order.transportadora) {
-                entregaStr += `TRANSPORTADORA: ${order.transportadora.toUpperCase()}\n`;
-            }
-            if (trackingCode || order.tracking_code) {
-                entregaStr += `RASTREIO: ${trackingCode || order.tracking_code}\n`;
-            }
+            if (order.valor_frete && Number(order.valor_frete) > 0) entregaStr += `FRETE: ${formatCurrency(order.valor_frete)}\n`;
+            if (order.transportadora) entregaStr += `TRANSPORTADORA: ${order.transportadora.toUpperCase()}\n`;
+            if (trackingCode || order.tracking_code) entregaStr += `RASTREIO: ${trackingCode || order.tracking_code}\n`;
         } else if (order.tipo_entrega === 'retirada') {
             entregaStr = "RETIRADA NO LOCAL";
         }
@@ -164,8 +177,6 @@ serve(async (req) => {
             .replace(/{{entrega_info}}/g, entregaStr)
             .replace(/{{status}}/g, statusStr);
 
-        console.log("[Gabi] Final message prepared, length:", finalMessage.length);
-
         // 4. Get Admin Config for Evolution API
         const { data: adminProfile } = await supabase
             .from('profiles')
@@ -175,7 +186,6 @@ serve(async (req) => {
             .single();
 
         if (!adminProfile?.whatsapp_api_url) {
-            console.error("[Gabi] Admin API URL not configured");
             throw new Error("System WhatsApp API not configured");
         }
 
@@ -183,31 +193,48 @@ serve(async (req) => {
         const evoKey = adminProfile.whatsapp_api_key;
         const instanceId = merchant.whatsapp_instance_id;
 
-        console.log("[Gabi] Sending to Evolution API:", evoUrl, "Instance:", instanceId);
-
-        // 5. Send Message
+        // 5. Send Message using Robust Logic
         const sendUrl = `${evoUrl}/message/sendText/${instanceId}`;
-        const response = await fetch(sendUrl, {
+        const payload = {
+            number: phone,
+            text: finalMessage,
+            linkPreview: false,
+            delay: 1500
+        };
+
+        console.log(`[Gabi] Sending status notification for ${order.order_number} to ${phone}`);
+
+        let response = await fetchWithTimeout(sendUrl, {
             method: "POST",
             headers: { "Content-Type": "application/json", "apikey": evoKey },
-            body: JSON.stringify({
-                number: phone,
-                text: finalMessage,
-                linkPreview: false
-            })
+            body: JSON.stringify(payload)
+        }, 30000);
+
+        let result = await safeJsonParse(response);
+
+        // FALLBACK: Retry with + prefix if failed
+        if (!response.ok || result.error) {
+            console.log("[Gabi] First attempt failed, trying with + prefix...");
+            payload.number = "+" + phone;
+            response = await fetchWithTimeout(sendUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "apikey": evoKey },
+                body: JSON.stringify(payload)
+            }, 30000);
+            result = await safeJsonParse(response);
+        }
+
+        if (!response.ok) throw new Error(`Evolution API Error (${response.status}): ${JSON.stringify(result)}`);
+
+        return new Response(JSON.stringify({ success: true, data: result }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
 
-        const result = await response.json();
-        console.log("[Gabi] Evolution API response:", response.status, JSON.stringify(result));
-
-        if (!response.ok) throw new Error(`Evolution Error: ${JSON.stringify(result)}`);
-
-        return new Response(JSON.stringify({ success: true, message: "Sent successfully" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-
     } catch (error: any) {
-        console.error("[Gabi] Critical Send Error:", error.message);
-        console.error("[Gabi] Full Error Object:", JSON.stringify(error));
-        // Return 200 OK with error details so frontend can display them to the user (bypassing generic 400 error)
-        return new Response(JSON.stringify({ success: false, error: error.message, stack: error.stack }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        console.error("[Gabi] Critical Notification Error:", error.message);
+        return new Response(JSON.stringify({ success: false, error: error.message }), {
+            status: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
     }
 });

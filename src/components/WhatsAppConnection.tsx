@@ -67,6 +67,7 @@ export function WhatsAppConnection() {
     };
 
     const handleConnect = async (force = false) => {
+        if (loading) return; // Prevent double-clicks
         setLoading(true);
         setStatus('connecting');
         setQrCode(null);
@@ -80,22 +81,35 @@ export function WhatsAppConnection() {
 
             if (error) throw error;
 
-            if (data?.qrcode?.base64 || data?.base64) {
-                setQrCode(data.qrcode?.base64 || data.base64);
+            // Normalizar: O QR pode vir em data.qrcode.base64 ou data.base64 (Evolution v2 varia)
+            const qrBase64 = data?.qrcode?.base64 || data?.base64;
+
+            if (qrBase64) {
+                setQrCode(qrBase64);
                 toast.success("QR Code gerado! Escaneie agora.", {
                     description: "Abra o WhatsApp > Aparelhos Conectados > Conectar Aparelho"
                 });
-            } else if (data?.instance?.state === 'open' || data?.instance?.status === 'open') {
+            } else if (data?.instance?.state === 'open' || data?.instance?.status === 'open' || data?.status === 'connected') {
                 // Already connected
                 setStatus('connected');
                 toast.success("Instância já conectada!");
-                // Force update profile locally if needed
             } else {
                 console.error("WhatsApp Integration Error:", data); // Log full response
-                const errorMsg = data?.error || data?.message || JSON.stringify(data);
-                toast.error(`Não foi possível obter o QR Code.`, {
-                    description: `Detalhe: ${errorMsg}`
-                });
+
+                // Se a instância foi criada mas sem QR (count:0), avisar para tentar novamente
+                if (data?.qrcode?.count === 0 || data?.instance?.status === 'close') {
+                    toast.error("QR Code não gerado. Tente novamente.", {
+                        description: "Aguarde 5 segundos e clique em 'Conectar' novamente."
+                    });
+                } else {
+                    let errorMsg = "Falha ao obter QR Code";
+                    if (typeof data?.message === 'string') errorMsg = data.message;
+                    else if (typeof data?.error === 'string') errorMsg = data.error;
+                    else errorMsg = JSON.stringify(data);
+                    toast.error(`Não foi possível obter o QR Code.`, {
+                        description: errorMsg
+                    });
+                }
                 setStatus('disconnected');
             }
 
@@ -309,15 +323,23 @@ export function WhatsAppConnection() {
                                         <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest">Pronto para a ação</p>
                                     </div>
                                 </div>
-                                <Button
-                                    variant="outline"
-                                    onClick={handleDisconnect}
-                                    disabled={loading}
-                                    className="h-12 px-6 rounded-xl border-red-500/20 text-red-500 hover:bg-red-500 hover:text-white font-black uppercase tracking-widest text-xs transition-all"
-                                >
-                                    {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCw className="w-4 h-4 mr-2" />}
-                                    Resetar Conexão
-                                </Button>
+                                <div className="flex flex-col items-end gap-2">
+                                    <Button
+                                        variant="outline"
+                                        onClick={handleDisconnect}
+                                        disabled={loading}
+                                        className="h-12 px-6 rounded-xl border-red-500/20 text-red-500 hover:bg-red-500 hover:text-white font-black uppercase tracking-widest text-xs transition-all"
+                                    >
+                                        {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                                        Desconectar
+                                    </Button>
+                                    <button
+                                        onClick={() => handleConnect(true)}
+                                        className="text-[9px] text-zinc-500 hover:text-red-500 uppercase font-bold tracking-tighter transition-colors"
+                                    >
+                                        Problemas? Forçar Reset Total
+                                    </button>
+                                </div>
                             </div>
                         ) : (
                             <div className="flex flex-col items-center space-y-6">
@@ -337,13 +359,6 @@ export function WhatsAppConnection() {
                                                 Abra o WhatsApp no seu celular {'>'} Aparelhos Conectados {'>'} Conectar um Aparelho.
                                             </p>
                                         </div>
-                                        <Button
-                                            variant="ghost"
-                                            onClick={() => handleConnect(true)}
-                                            className="text-zinc-400 hover:text-white uppercase font-black text-[10px] tracking-widest"
-                                        >
-                                            Tive um problema, gerar novo QR Code
-                                        </Button>
                                     </div>
                                 ) : (
                                     <div className="w-full flex flex-col items-center py-8 space-y-4">
@@ -386,13 +401,17 @@ export function WhatsAppConnection() {
                                                 </div>
                                             </div>
                                         )}
-                                        {!loading && status === 'disconnected' && (
-                                            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest italic">
-                                                Pronto para gerar instância segura
-                                            </p>
-                                        )}
                                     </div>
                                 )}
+
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleConnect(true)}
+                                    className="text-zinc-400 hover:text-red-500 hover:bg-red-500/5 uppercase font-black text-[10px] tracking-widest mt-4"
+                                >
+                                    Problemas? Forçar Novo QR Code
+                                </Button>
                             </div>
                         )}
                     </div>

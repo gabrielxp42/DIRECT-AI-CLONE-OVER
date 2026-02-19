@@ -66,7 +66,7 @@ Deno.serve(async (req: Request) => {
         const EVOLUTION_KEY = adminProfile.whatsapp_api_key;
 
         // Custom fetch wrapper with timeout
-        const fetchWithTimeout = async (resource: string, options: RequestInit = {}, timeout = 15000) => {
+        const fetchWithTimeout = async (resource: string, options: RequestInit = {}, timeout = 50000) => {
             const controller = new AbortController();
             const id = setTimeout(() => controller.abort(), timeout);
             try {
@@ -80,11 +80,32 @@ Deno.serve(async (req: Request) => {
             }
         };
 
+        // Safe JSON parse — handles HTML error pages (502, 503 from nginx)
+        const safeJsonParse = async (resp: Response): Promise<any> => {
+            const text = await resp.text();
+            try {
+                return JSON.parse(text);
+            } catch {
+                console.error(`[Proxy] Non-JSON response (${resp.status}):`, text.substring(0, 200));
+                return { error: true, message: `Servidor retornou erro ${resp.status}. Tente novamente em alguns segundos.`, _rawStatus: resp.status };
+            }
+        };
+
+        const sanitizeInstanceName = (name: string) => {
+            return name
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "") // Remove accents
+                .toLowerCase()
+                .replace(/[^a-z0-9_]/g, "_") // Only a-z, 0-9 and _
+                .replace(/^_+|_+$/g, ""); // Remove trailing/leading underscores
+        };
+
         let result;
 
         // 3. Handle Actions
         if (body.action === 'create') {
-            const instanceId = body.instanceName || `user_${user.id.substring(0, 8)}`;
+            const rawInstanceId = body.instanceName || `user_${user.id.substring(0, 8)}`;
+            const instanceId = sanitizeInstanceName(rawInstanceId);
             const forceReset = body.force === true;
             console.log(`Proxied Create Request for ${instanceId} (v2) | Force: ${forceReset}`);
 
@@ -93,6 +114,7 @@ Deno.serve(async (req: Request) => {
                 if (forceReset) {
                     console.log(`[Proxy] Force reset requested for ${instanceId}. Deleting...`);
                     try {
+                        // Tentar logout e delete (fail-soft se a instância não existir)
                         await fetchWithTimeout(`${EVOLUTION_URL}/instance/logout/${instanceId}`, {
                             method: 'DELETE',
                             headers: { 'apikey': EVOLUTION_KEY }
@@ -102,8 +124,14 @@ Deno.serve(async (req: Request) => {
                             headers: { 'apikey': EVOLUTION_KEY }
                         }, 5000).catch(() => { });
                     } catch (e) {
-                        console.warn("[Proxy] Pre-creation delete failed (probably didn't exist):", e);
+                        console.warn("[Proxy] Pre-creation delete failed:", e);
                     }
+
+                    // Limpa o banco para garantir que o polling entenda que resetou
+                    await supabaseAdmin
+                        .from('profiles')
+                        .update({ whatsapp_status: 'disconnected', whatsapp_instance_id: null })
+                        .eq('id', user.id);
                 }
 
                 // Primeiro, verifica se já existe e qual o status (se não for force)
@@ -175,55 +203,70 @@ Deno.serve(async (req: Request) => {
                         })
                     });
 
-                    const createData = await createResp.json();
+                    const createData = await safeJsonParse(createResp);
 
-                    if (createResp.status === 403 || (createData.error && createData.error.includes("already exists"))) {
+                    // Detectar se a instância já existe (Evolution v2 retorna 403, 409, ou mensagem com "already")
+                    const errorStr = typeof createData.error === 'string' ? createData.error : (typeof createData.message === 'string' ? createData.message : '');
+                    const alreadyExists = createResp.status === 403 || createResp.status === 409 || errorStr.toLowerCase().includes('already');
+
+                    if (alreadyExists) {
                         // Fallback: Tentativa de conexão para instâncias existentes
+                        console.log(`[Proxy] Instance ${instanceId} already exists. Trying connect...`);
                         const connectResp = await fetchWithTimeout(`${EVOLUTION_URL}/instance/connect/${instanceId}`, {
                             headers: { 'apikey': EVOLUTION_KEY }
                         });
-                        result = await connectResp.json();
+                        result = await safeJsonParse(connectResp);
+                        // Normalizar: se o base64 estiver na raiz, mover para qrcode.base64
+                        if (result.base64 && !result.qrcode?.base64) {
+                            result.qrcode = { base64: result.base64, count: 1 };
+                        }
                     } else if (!createResp.ok) {
                         // Error handling
-                        console.error("Evolution v2 Error Details:", createData);
+                        console.error("Evolution v2 Error Details:", JSON.stringify(createData));
                         result = {
                             error: true,
-                            message: createData.message || "Erro na Evolution API v2",
+                            message: typeof createData.message === 'string' ? createData.message : (typeof createData.error === 'string' ? createData.error : JSON.stringify(createData)),
                             details: createData
                         };
                     } else {
                         result = createData;
+
+                        // SE gerou sem QR (count: 0) ou sem base64, força connect com retries
+                        if ((result.qrcode && result.qrcode.count === 0) || !result.qrcode?.base64) {
+                            console.log(`[Proxy] QR Code empty or count 0 for ${instanceId}. Retrying connect...`);
+
+                            // Retry connect até 3x com delay entre tentativas
+                            for (let attempt = 1; attempt <= 3; attempt++) {
+                                // Aguarda um pouco para a Evolution processar
+                                await new Promise(resolve => setTimeout(resolve, 2000));
+
+                                console.log(`[Proxy] Connect attempt ${attempt}/3 for ${instanceId}...`);
+                                try {
+                                    const wakeResp = await fetchWithTimeout(`${EVOLUTION_URL}/instance/connect/${instanceId}`, {
+                                        headers: { 'apikey': EVOLUTION_KEY }
+                                    });
+                                    const wakeData = await safeJsonParse(wakeResp);
+                                    console.log(`[Proxy] Connect attempt ${attempt} result:`, JSON.stringify(wakeData).substring(0, 200));
+
+                                    if (wakeData.base64 || wakeData.qrcode?.base64) {
+                                        // Sucesso! QR Code retornado
+                                        result = wakeData;
+                                        // Normalizar: se o base64 estiver na raiz, mover para qrcode.base64
+                                        if (wakeData.base64 && !result.qrcode?.base64) {
+                                            result.qrcode = { base64: wakeData.base64, count: 1 };
+                                        }
+                                        console.log(`[Proxy] QR Code obtained on attempt ${attempt}!`);
+                                        break;
+                                    }
+                                } catch (connectErr) {
+                                    console.warn(`[Proxy] Connect attempt ${attempt} failed:`, connectErr);
+                                }
+                            }
+                        }
                     }
 
                     // Configure Webhook for new instance
                     await configureWebhook();
-
-
-                    // AUTO-CONFIGURE WEBHOOK
-                    // Ensure the instance sends messages to our Supabase Webhook
-                    try {
-                        const WEBHOOK_URL = `${Deno.env.get('SUPABASE_URL')}/functions/v1/whatsapp-webhook`;
-                        console.log(`[Proxy] Configuring Webhook for ${instanceId} -> ${WEBHOOK_URL}`);
-
-                        await fetch(`${EVOLUTION_URL}/webhook/set/${instanceId}`, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'apikey': EVOLUTION_KEY
-                            },
-                            body: JSON.stringify({
-                                webhook: {
-                                    enabled: true,
-                                    url: WEBHOOK_URL,
-                                    webhookByEvents: true,
-                                    events: ["MESSAGES_UPSERT"]
-                                }
-                            })
-                        });
-                    } catch (webhookErr) {
-                        console.error("[Proxy] Warning: Failed to set webhook:", webhookErr);
-                        // Don't fail the whole request just because of webhook (fail-soft)
-                    }
 
                     // Se gerou QR ou conectou, marca como 'connecting' inicialmente (ou connected se open)
                     const finalStatus = (result.instance?.state === 'open' || result.instance?.status === 'open') ? 'connected' : 'connecting';
@@ -254,7 +297,8 @@ Deno.serve(async (req: Request) => {
                 .eq('id', user.id)
                 .single();
 
-            const instanceId = body.instanceName || profile?.whatsapp_instance_id || `user_${user.id.substring(0, 8)}`;
+            const rawInstanceId = body.instanceName || profile?.whatsapp_instance_id || `user_${user.id.substring(0, 8)}`;
+            const instanceId = sanitizeInstanceName(rawInstanceId);
             console.log(`Checking status for instance: ${instanceId}`);
 
             try {
@@ -265,16 +309,22 @@ Deno.serve(async (req: Request) => {
                 if (!resp.ok) {
                     // Se a instância não existe na Evolution, retorna desconectado
                     result = { connected: false, state: 'not_found' };
+                    // Sincroniza banco
+                    await supabaseAdmin
+                        .from('profiles')
+                        .update({ whatsapp_status: 'disconnected' })
+                        .eq('id', user.id);
                 } else {
                     const data = await resp.json();
                     const isOpen = data.instance?.state === 'open';
 
-                    if (isOpen) {
-                        await supabaseAdmin
-                            .from('profiles')
-                            .update({ whatsapp_status: 'connected' })
-                            .eq('id', user.id);
-                    }
+                    // SEMPRE sincroniza o status com o banco para evitar "falsos conectados"
+                    const currentStatus = isOpen ? 'connected' : 'connecting';
+                    await supabaseAdmin
+                        .from('profiles')
+                        .update({ whatsapp_status: currentStatus })
+                        .eq('id', user.id);
+
                     result = { state: data.instance?.state, connected: isOpen };
                 }
             } catch (err: any) {
@@ -300,6 +350,9 @@ Deno.serve(async (req: Request) => {
                         method: 'DELETE',
                         headers: { 'apikey': EVOLUTION_KEY }
                     }, 5000).catch(() => { });
+
+                    // Espera a Evolution limpar a sessão para evitar "count: 0" na recriação
+                    await new Promise(resolve => setTimeout(resolve, 2000));
                 } catch (e) {
                     console.error("Delete failed:", e);
                 }
@@ -354,15 +407,35 @@ Deno.serve(async (req: Request) => {
                         text: message,
                         linkPreview: false
                     })
-                });
+                }, 50000);
 
-                const data = await resp.json();
+                const data = await safeJsonParse(resp);
 
-                if (resp.ok) {
+                if (resp.ok && !data.error) {
                     result = { success: true, data };
                 } else {
                     console.error("Evolution Send Error:", data);
-                    result = { error: true, message: "Erro ao enviar mensagem", details: data };
+
+                    // FALLBACK: Tenta com o + se falhou sem
+                    if (resp.status === 400 || (data.message && data.message.includes("number"))) {
+                        console.log("[Proxy] Text retry with + prefix...");
+                        const retryResp = await fetchWithTimeout(sendUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'apikey': EVOLUTION_KEY },
+                            body: JSON.stringify({
+                                number: "+" + cleanPhone,
+                                text: message,
+                                linkPreview: false
+                            })
+                        }, 50000);
+                        const retryData = await safeJsonParse(retryResp);
+                        if (retryResp.ok && !retryData.error) {
+                            return new Response(JSON.stringify({ success: true, data: retryData }), { headers: corsHeaders });
+                        }
+                    }
+
+                    let detailedError = data?.response?.message || data?.message || "Erro ao enviar mensagem";
+                    result = { error: true, message: `Evolution: ${detailedError}`, details: data };
                 }
             } catch (err: any) {
                 console.error("Proxy Send Exception:", err);
@@ -413,56 +486,73 @@ Deno.serve(async (req: Request) => {
                 // Vamos enviar apenas o conteúdo Base64 puro.
 
                 let mediaContent = "";
-
-                if (mediaBase64) {
-                    // Remover prefixo se houver
-                    mediaContent = mediaBase64.includes('base64,') ? mediaBase64.split('base64,')[1] : mediaBase64;
-                    console.log(`[Proxy] v44: Using Frontend Base64 (Raw). Length: ${mediaContent.length}`);
-                } else if (body.mediaUrl) {
-                    mediaContent = body.mediaUrl;
-                    console.log(`[Proxy] v44: Fallback to URL string: ${body.mediaUrl}`);
+                if (mediaBase64 || body.mediaUrl) {
+                    // PRIORIDADE 1: URL (Mais leve para a Edge Function e mais estável na Evolution)
+                    if (body.mediaUrl) {
+                        mediaContent = body.mediaUrl;
+                        console.log(`[Proxy] v45: Using Media URL: ${body.mediaUrl}`);
+                    } else if (mediaBase64) {
+                        // PRIORIDADE 2: Base64 (Remover prefixo se houver)
+                        mediaContent = mediaBase64.includes('base64,') ? mediaBase64.split('base64,')[1] : mediaBase64;
+                        console.log(`[Proxy] v45: Using Base64. Length: ${mediaContent.length}`);
+                    }
                 }
 
                 if (!mediaContent) {
                     return new Response(JSON.stringify({ error: true, message: "Mídia obrigatória (Base64 ou URL)" }), { status: 400, headers: corsHeaders });
                 }
 
+                // PAYLOAD v46: Compatibilidade Total (Envia os dois padroes: Camel + Lower)
+                // Algumas versoes da v2 exigem "mediatype" (lower), outras "mediaType" (camel)
                 let payload: any = {
-                    number: phoneWithPlus,
-                    mediatype: "document",
-                    mimetype: "application/pdf",
+                    number: cleanPhone,
+                    mediaType: isDoc ? "document" : (mediaType || mediatype || "image"),
+                    mediatype: isDoc ? "document" : (mediaType || mediatype || "image"), // Fallback duplicado
+                    mimeType: mimetype || "application/pdf",
+                    mimetype: mimetype || "application/pdf", // Fallback duplicado
                     caption: message || "",
                     media: mediaContent,
-                    fileName: finalFileName
+                    fileName: finalFileName,
+                    delay: 1200
                 };
 
-                console.log(`[Proxy] v44 Payload prepared for ${finalFileName}`);
+                console.log(`[Proxy] v46 Payload prepared for ${finalFileName} to ${cleanPhone}`);
 
-                const resp = await fetch(sendUrl, {
+                const resp = await fetchWithTimeout(sendUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'apikey': EVOLUTION_KEY },
                     body: JSON.stringify(payload)
-                });
+                }, 50000);
 
-                const data = await resp.json();
-                console.log(`[Proxy] Evolution Response status=${resp.status}`);
+                const data = await safeJsonParse(resp);
+                console.log(`[Proxy] Evolution Response status=${resp.status}`, data);
 
                 if (resp.ok && !data.error) {
                     result = { success: true, data };
                 } else {
                     console.error("Evolution Send Media Error:", data);
-                    // Retornar a mensagem de erro REAL da evolution para facilitar o debug no frontend
-                    let detailedError = data?.response?.message || data?.message || "Erro no envio de mídia";
 
-                    if (detailedError.includes("Connection Closed") || detailedError.includes("not open")) {
-                        detailedError = "Sua conexão com o WhatsApp caiu. Por favor, vá em Configurações > Gabi Settings e leia o QR Code novamente para reconectar.";
+                    // FALLBACK: Se falhou sem o +, tenta com o + (Algumas instâncias v2 exigem)
+                    if (resp.status === 400 || (data.message && data.message.includes("number"))) {
+                        console.log("[Proxy] Retrying with + prefix...");
+                        payload.number = "+" + cleanPhone;
+                        const retryResp = await fetchWithTimeout(sendUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'apikey': EVOLUTION_KEY },
+                            body: JSON.stringify(payload)
+                        }, 50000);
+                        const retryData = await safeJsonParse(retryResp);
+                        if (retryResp.ok && !retryData.error) {
+                            return new Response(JSON.stringify({ success: true, data: retryData }), { headers: corsHeaders });
+                        }
                     }
 
-                    result = {
-                        error: true,
-                        message: `Evolution: ${detailedError}`,
-                        details: data
-                    };
+                    // Se falhou tudo, retorna o erro amigável
+                    let detailedError = data?.response?.message || data?.message || "Erro no envio de mídia";
+                    if (detailedError.includes("Connection Closed") || detailedError.includes("not open")) {
+                        detailedError = "Sua conexão com o WhatsApp caiu. Por favor, reconecte.";
+                    }
+                    result = { error: true, message: `Evolution: ${detailedError}`, details: data };
                 }
             } catch (err: any) {
                 console.error("Proxy Send Media Exception:", err);
