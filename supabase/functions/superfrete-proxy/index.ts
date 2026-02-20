@@ -43,25 +43,13 @@ Deno.serve(async (req: Request) => {
         let isMasterAccount = false;
 
         if (!token) {
-            // Fallback to Master Token (Production Only for now)
             token = Deno.env.get('SUPERFRETE_MASTER_TOKEN');
             isMasterAccount = true;
 
             if (!token) {
                 return new Response(JSON.stringify({
                     error: true,
-                    message: "Logística indisponível. Sua conta não possui token configurado e nenhum token mestre foi encontrado."
-                }), { status: 200, headers: corsHeaders });
-            }
-        }
-
-        // 3. Balance Check for Purchases (if using Master Account)
-        if (isMasterAccount && action === 'checkout') {
-            const estimatedPrice = params.price || 0;
-            if (estimatedPrice > (profile.wallet_balance || 0)) {
-                return new Response(JSON.stringify({
-                    error: true,
-                    message: `Saldo insuficiente. Você tem R$ ${profile.wallet_balance.toFixed(2)}, mas a etiqueta custa R$ ${estimatedPrice.toFixed(2)}.`
+                    message: "Logística indisponível. Token não configurado."
                 }), { status: 200, headers: corsHeaders });
             }
         }
@@ -82,43 +70,111 @@ Deno.serve(async (req: Request) => {
                 break;
             case 'checkout':
                 endpoint = "/api/v0/checkout";
-                // SuperFrete v0 checkout expects an array of IDs in the 'orders' field
                 if (typeof params === 'object') {
-                    // Supporting both 'id' and 'orders' for flexibility
-                    const orderId = params.id || (Array.isArray(params.orders) ? params.orders[0] : params.orders);
+                    const orderId = params.id || (Array.isArray(params.orders) ? params.orders[0] : params.id);
                     requestParams = { orders: [orderId] };
                 }
                 break;
             case 'tracking': {
-                // Construct permanent PDF URL using SuperFrete's base64 format
-                // The format is: https://etiqueta.superfrete.com/_etiqueta/pdf/{base64({"order_id":"<id>"})}?format=A4
                 const orderId = params?.orders?.[0] || params?.order_id || params?.id;
                 if (!orderId) throw new Error("ID da etiqueta não fornecido");
 
-                // Try to construct the URL directly (much more reliable than API)
-                const payload = JSON.stringify({ order_id: orderId });
-                // Use btoa equivalent for Deno
+                const payload = JSON.stringify({ order_id: String(orderId) });
                 const base64Payload = btoa(payload);
                 const permanentPdfUrl = `https://etiqueta.superfrete.com/_etiqueta/pdf/${base64Payload}?format=A4`;
 
-                console.log(`[SuperFrete Proxy] Constructed permanent PDF URL for order ${orderId}: ${permanentPdfUrl}`);
+                try {
+                    const trackResponse = await fetch(`${baseUrl}/api/v0/tracking`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'User-Agent': userAgent,
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify({ orders: [String(orderId)] })
+                    });
 
-                return new Response(JSON.stringify({
-                    url: permanentPdfUrl,
-                    pdf: permanentPdfUrl,
-                    order_id: orderId
-                }), {
-                    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-                    status: 200
-                });
+                    const responseText = await trackResponse.text();
+
+                    if (trackResponse.ok) {
+                        let trackData;
+                        try {
+                            trackData = JSON.parse(responseText);
+                        } catch (e) {
+                            return new Response(JSON.stringify({
+                                error: true,
+                                message: `A API do parceiro retornou um formato inesperado (${trackResponse.status}).`,
+                                details: responseText.substring(0, 100),
+                                url: permanentPdfUrl,
+                            }), {
+                                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                                status: 200
+                            });
+                        }
+
+                        const orderData = trackData[orderId] || trackData[Object.keys(trackData)[0]] || trackData;
+                        let foundCode = orderData.tracking || orderData.tracking_code || orderData.tracking_number
+                            || orderData.codigo_rastreio || orderData.objeto || orderData.code || null;
+
+                        if (!foundCode) {
+                            const stringified = JSON.stringify(trackData);
+                            const correiosPattern = /([A-Z]{2,3}\d{8,11}[A-Z]{2})/i;
+                            const match = stringified.match(correiosPattern);
+                            if (match) {
+                                foundCode = match[0].toUpperCase();
+                            }
+                        }
+
+                        if (foundCode) {
+                            return new Response(JSON.stringify({
+                                success: true,
+                                tracking_code: foundCode,
+                                status: orderData.status || null,
+                                url: permanentPdfUrl,
+                                pdf: permanentPdfUrl,
+                                raw: trackData
+                            }), {
+                                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                                status: 200
+                            });
+                        }
+
+                        return new Response(JSON.stringify({
+                            error: true,
+                            message: "Rastreio ainda não disponível na SuperFrete.",
+                            debug_raw: JSON.stringify(trackData).substring(0, 500),
+                            url: permanentPdfUrl,
+                        }), {
+                            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                            status: 200
+                        });
+                    }
+
+                    return new Response(JSON.stringify({
+                        error: true,
+                        message: `A API de rastreio respondeu com erro ${trackResponse.status}.`,
+                        details: responseText.substring(0, 200),
+                        url: permanentPdfUrl,
+                    }), {
+                        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                        status: 200
+                    });
+
+                } catch (e: any) {
+                    return new Response(JSON.stringify({
+                        error: true,
+                        message: `Falha na comunicação com o servidor de rastreio: ${e.message}`,
+                        url: permanentPdfUrl,
+                    }), {
+                        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                        status: 200
+                    });
+                }
             }
             default:
                 throw new Error("Ação inválida");
         }
-
-        console.log(`[SuperFrete Proxy] Action: ${action} | Master: ${isMasterAccount} | Endpoint: ${endpoint}`);
-        console.log(`[SuperFrete Proxy] Outgoing Request: ${method} ${baseUrl}${endpoint}`);
-        if (method !== 'GET') console.log(`[SuperFrete Proxy] Body:`, JSON.stringify(requestParams, null, 2));
 
         const response = await fetch(`${baseUrl}${endpoint}`, {
             method,
@@ -132,71 +188,34 @@ Deno.serve(async (req: Request) => {
         });
 
         const responseText = await response.text();
-        const snippet = responseText.substring(0, 150).replace(/\s+/g, ' ').trim();
-        console.log(`[SuperFrete Proxy] Raw response (${response.status}): ${snippet}`);
-
         let result: any = {};
         if (responseText && responseText.trim().length > 0) {
             try {
                 result = JSON.parse(responseText);
             } catch (e) {
-                console.error(`[SuperFrete Proxy] Failed to parse JSON response. raw response first 500 chars: ${responseText.substring(0, 500)}`);
-
-                // Case: HTML returned
-                if (responseText.toLowerCase().includes('<!doctype html>') || responseText.toLowerCase().includes('<html')) {
-                    return new Response(JSON.stringify({
-                        error: true,
-                        message: `A API do parceiro retornou uma página HTML em vez de dados (Status ${response.status}). Possível erro de endpoint ou manutenção.`,
-                        details: `Snippet: ${snippet}...`,
-                        tip: "Tente novamente em instantes. Se o erro persistir, o endpoint de checkout pode ter mudado."
-                    }), {
-                        status: 200,
-                        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-                    });
-                }
-
-                return new Response(JSON.stringify({
-                    error: true,
-                    message: `Resposta inválida da API do parceiro (${response.status}): ${snippet}...`,
-                    details: responseText.substring(0, 100),
-                    tip: "A API do parceiro retornou um formato não esperado."
-                }), {
-                    status: 200,
-                    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-                });
+                result = { error: true, message: "Resposta da API inválida (não JSON)", details: responseText.substring(0, 100) };
             }
-        } else if (response.ok) {
-            // Handle 204 or empty success responses
-            result = { success: true, status: 'ok' };
         }
 
         if (!response.ok) {
-            console.error(`[SuperFrete Proxy] API Error (${response.status}):`, result);
             return new Response(JSON.stringify({
                 error: true,
-                message: result.message || result.error_message || `Erro do Super Frete (${response.status})`,
+                message: result.message || `Erro ${response.status} na API do parceiro`,
                 details: result
-            }), {
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-                status: 200
-            });
+            }), { status: 200, headers: corsHeaders });
         }
 
-        // 4. Handle Wallet Debit & Persistence (if success and using Master Account)
+        // Handle Persistence for Checkout
         if (isMasterAccount && action === 'checkout' && !result.error) {
-            // result can be an array or object depending on version
             const checkoutResult = Array.isArray(result) ? result[0] : result;
             const finalPrice = checkoutResult.price || params.price || 0;
             const tagId = checkoutResult.tag || checkoutResult.id || (Array.isArray(params.orders) ? params.orders[0] : params.id);
-
-            console.log(`[SuperFrete Proxy] Persistence - Tag: ${tagId} | Price: ${finalPrice}`);
 
             const adminClient = createClient(
                 Deno.env.get('SUPABASE_URL') ?? '',
                 Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
             );
 
-            // Update balance if there's a price
             if (finalPrice > 0) {
                 const currentBalance = profile.wallet_balance || 0;
                 await adminClient
@@ -204,69 +223,41 @@ Deno.serve(async (req: Request) => {
                     .update({ wallet_balance: currentBalance - finalPrice })
                     .eq('id', user.id);
 
-                // Log transaction
                 await adminClient
                     .from('logistics_transactions')
                     .insert({
                         user_id: user.id,
                         amount: -finalPrice,
                         type: 'debit',
-                        description: `Emissão de etiqueta Super Frete (Ref: ${tagId})`,
+                        description: `Etiqueta Super Frete (Ref: ${tagId})`,
                         metadata: { action, result_id: tagId, pedido_id: params.pedido_id }
                     });
             }
 
-            // Extract all data from checkout result - SuperFrete uses various field names
-            const trackingCode = checkoutResult.tracking || checkoutResult.tracking_code
-                || checkoutResult.tracking_number || checkoutResult.codigo_rastreio || null;
-
-            // Recipient name: try checkout result first, then params
-            const recipientName = checkoutResult.to?.name || checkoutResult.recipient?.name
-                || checkoutResult.destinatario?.nome || checkoutResult.name
-                || params.recipient_name || params.to?.name || null;
-
-            // Service name: SEDEX, PAC, etc.
-            const serviceName = checkoutResult.service?.name || checkoutResult.service_name
-                || checkoutResult.service || checkoutResult.tipo_servico
-                || params.service_name || null;
-
-            // Use the order_id (alphanumeric) for PDF — NOT the numeric tag
+            const trackingCode = checkoutResult.tracking || checkoutResult.tracking_code || null;
             const sfOrderId = checkoutResult.order_id || checkoutResult.id || tagId;
-
-            console.log(`[SuperFrete Proxy] Extracted: tracking=${trackingCode}, recipient=${recipientName}, service=${serviceName}, orderId=${sfOrderId}`);
-            console.log(`[SuperFrete Proxy] Checkout result keys:`, Object.keys(checkoutResult));
-            console.log(`[SuperFrete Proxy] Checkout result (full):`, JSON.stringify(checkoutResult).substring(0, 1000));
-
             let pdfUrl = checkoutResult.pdf || checkoutResult.url;
 
-            // If no PDF URL from checkout, construct permanent URL using base64 format
             if (!pdfUrl && sfOrderId) {
                 const payload = JSON.stringify({ order_id: String(sfOrderId) });
                 const base64Payload = btoa(payload);
                 pdfUrl = `https://etiqueta.superfrete.com/_etiqueta/pdf/${base64Payload}?format=A4`;
-                console.log(`[SuperFrete Proxy] Constructed permanent PDF URL: ${pdfUrl}`);
             }
 
-            // Persist Label with all extracted info
-            const { error: insertError } = await adminClient
+            await adminClient
                 .from('shipping_labels')
                 .insert({
                     user_id: user.id,
                     pedido_id: params.pedido_id || null,
-                    external_id: String(sfOrderId || tagId),
+                    external_id: String(sfOrderId),
                     status: 'released',
                     pdf_url: pdfUrl || null,
                     price: finalPrice,
                     tracking_code: trackingCode,
-                    origin_zip: checkoutResult.from?.postal_code || params.from || null,
-                    destination_zip: checkoutResult.to?.postal_code || params.to || null,
-                    recipient_name: recipientName,
-                    service_name: serviceName
+                    recipient_name: checkoutResult.to?.name || params.recipient_name || null,
+                    service_name: checkoutResult.service?.name || params.service_name || null
                 });
 
-            if (insertError) console.error("[SuperFrete Proxy] Error persisting label:", insertError);
-
-            // Update pedido if ID is present
             if (params.pedido_id) {
                 await adminClient
                     .from('pedidos')
@@ -276,15 +267,6 @@ Deno.serve(async (req: Request) => {
                     })
                     .eq('id', params.pedido_id);
             }
-
-            // Ensure the result sent back to client has the PDF URL
-            if (pdfUrl && !result.pdf && !result.url) {
-                if (Array.isArray(result)) {
-                    result[0].pdf = pdfUrl;
-                } else {
-                    result.pdf = pdfUrl;
-                }
-            }
         }
 
         return new Response(JSON.stringify(result), {
@@ -293,13 +275,9 @@ Deno.serve(async (req: Request) => {
         });
 
     } catch (error: any) {
-        console.error("[SuperFrete Proxy] Critical Error:", error);
         return new Response(JSON.stringify({
             error: true,
             message: error.message || "Erro interno no servidor"
-        }), {
-            status: 200,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        }), { status: 200, headers: corsHeaders });
     }
 });

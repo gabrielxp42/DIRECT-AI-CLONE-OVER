@@ -109,15 +109,12 @@ export const LogisticsOverview: React.FC = () => {
             return;
         }
 
-        // Try to construct the permanent PDF URL directly using base64 format
-        // SuperFrete uses: https://etiqueta.superfrete.com/_etiqueta/pdf/{base64({"order_id":"<id>"})}?format=A4
         const labelExternalId = label.external_id || label.id;
         if (labelExternalId) {
             const payload = JSON.stringify({ order_id: labelExternalId });
             const base64Payload = btoa(payload);
             const constructedUrl = `https://etiqueta.superfrete.com/_etiqueta/pdf/${base64Payload}?format=A4`;
 
-            // Save to DB for future use
             supabase
                 .from('shipping_labels')
                 .update({ pdf_url: constructedUrl })
@@ -129,6 +126,63 @@ export const LogisticsOverview: React.FC = () => {
         }
 
         toast.error("ID da etiqueta não encontrado.");
+    };
+
+    const handleRefreshTracking = async (label: ShippingLabel) => {
+        const loadingToast = toast.loading("Sincronizando rastreio...");
+        try {
+            const token = await getValidToken();
+            const response = await fetch(`${SUPABASE_URL}/functions/v1/superfrete-proxy`, {
+                method: 'POST',
+                headers: {
+                    'apikey': SUPABASE_ANON_KEY,
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    action: 'tracking',
+                    params: { orders: [label.external_id] }
+                })
+            });
+
+            const data = await response.json();
+            if (data.error) {
+                const errorMsg = data.details ? `${data.message} (${data.details})` : data.message;
+                throw new Error(errorMsg);
+            }
+
+            if (data.tracking_code) {
+                await supabase
+                    .from('shipping_labels')
+                    .update({ tracking_code: data.tracking_code })
+                    .eq('id', label.id);
+
+                const { data: labelData } = await supabase
+                    .from('shipping_labels')
+                    .select('pedido_id')
+                    .eq('id', label.id)
+                    .single();
+
+                if (labelData?.pedido_id) {
+                    await supabase
+                        .from('pedidos')
+                        .update({ tracking_code: data.tracking_code })
+                        .eq('id', labelData.pedido_id);
+                }
+
+                toast.success(`Rastreio atualizado: ${data.tracking_code}`, { id: loadingToast });
+                refetchLabels();
+            } else {
+                console.log("Debug Logística:", data);
+                const debugMsg = data.debug_raw ? `\nDados: ${data.debug_raw}` : "";
+                toast.error(`A API respondeu mas não enviou o código.${debugMsg}`, {
+                    id: loadingToast,
+                    duration: 8000
+                });
+            }
+        } catch (error: any) {
+            toast.error(`Erro ao sincronizar: ${error.message}`, { id: loadingToast });
+        }
     };
 
     return (
@@ -164,7 +218,6 @@ export const LogisticsOverview: React.FC = () => {
                                     <Button
                                         className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold h-9 gap-2"
                                         onClick={() => {
-                                            // Here we would ideally open the logistics modal for this order
                                             toast.info(`Acesse o Pedido ${order.order_number} para finalizar o pagamento.`);
                                         }}
                                     >
@@ -231,25 +284,61 @@ export const LogisticsOverview: React.FC = () => {
                                                         {label.service_name || 'CORREIOS'}
                                                     </Badge>
                                                 </td>
-                                                <td className="px-4 py-4">
+                                                <td className="px-4 py-4 min-w-[200px]">
                                                     {label.tracking_code ? (
-                                                        <div className="flex items-center gap-1.5">
-                                                            <button
-                                                                onClick={() => copyToClipboard(label.tracking_code)}
-                                                                className="flex items-center gap-1.5 text-[10px] font-mono font-bold text-muted-foreground hover:text-primary bg-muted px-2 py-1 rounded-md border border-border"
-                                                            >
-                                                                <Copy className="h-3 w-3" />
-                                                                {label.tracking_code}
-                                                            </button>
-                                                            <button
-                                                                onClick={() => window.open(`https://rastreamento.correios.com.br/app/index.php?objeto=${label.tracking_code}`, '_blank')}
-                                                                className="text-muted-foreground/60 hover:text-blue-500"
-                                                            >
-                                                                <ExternalLink className="h-3 w-3" />
-                                                            </button>
+                                                        <div className="flex flex-col gap-1.5">
+                                                            <div className="flex items-center gap-1.5 overflow-hidden">
+                                                                <button
+                                                                    onClick={() => copyToClipboard(label.tracking_code)}
+                                                                    className="flex items-center gap-2 text-[10px] font-mono font-black text-secondary-foreground hover:text-primary bg-muted px-2.5 py-1.5 rounded-lg border border-border transition-all flex-1 shadow-sm min-w-0"
+                                                                    title="Copiar código"
+                                                                >
+                                                                    <Copy className="h-3 w-3 flex-shrink-0" />
+                                                                    <span className="truncate">{label.tracking_code}</span>
+                                                                </button>
+
+                                                                <div className="flex items-center p-0.5 bg-muted border border-border rounded-lg shadow-sm flex-shrink-0">
+                                                                    <button
+                                                                        onClick={() => handleRefreshTracking(label)}
+                                                                        className="p-1.5 text-muted-foreground hover:text-primary transition-colors rounded-md hover:bg-background"
+                                                                        title="Sincronizar com SuperFrete"
+                                                                    >
+                                                                        <Navigation className="h-3.5 w-3.5" />
+                                                                    </button>
+                                                                    <div className="w-[1px] h-3 bg-border mx-0.5" />
+                                                                    <button
+                                                                        onClick={() => window.open(`https://rastreamento.correios.com.br/app/index.php?objeto=${label.tracking_code}`, '_blank')}
+                                                                        className="p-1.5 text-muted-foreground hover:text-blue-500 transition-colors rounded-md hover:bg-background"
+                                                                        title="Rastrear nos Correios"
+                                                                    >
+                                                                        <ExternalLink className="h-3.5 w-3.5" />
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+
+                                                            {label.tracking_code.startsWith('ADI') && (
+                                                                <div className="flex items-center gap-1.5 px-1">
+                                                                    <div className="relative flex h-1.5 w-1.5">
+                                                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                                                                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-blue-500"></span>
+                                                                    </div>
+                                                                    <span className="text-[9px] text-blue-600 font-black uppercase tracking-tight">Cód. Temporário? Sincronize</span>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     ) : (
-                                                        <span className="text-[10px] text-muted-foreground/50 font-bold">-</span>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-[10px] text-muted-foreground/50 font-bold">-</span>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-8 w-8 text-primary hover:bg-primary/10 rounded-full"
+                                                                onClick={() => handleRefreshTracking(label)}
+                                                                title="Buscar Rastreio"
+                                                            >
+                                                                <Navigation className="h-4 w-4" />
+                                                            </Button>
+                                                        </div>
                                                     )}
                                                 </td>
                                                 <td className="px-4 py-4 text-[11px] font-black text-foreground">

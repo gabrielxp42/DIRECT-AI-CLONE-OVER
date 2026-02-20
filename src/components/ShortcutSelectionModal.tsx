@@ -19,7 +19,13 @@ import {
     ClipboardList,
     Check,
     Settings2,
-    X
+    X,
+    Truck,
+    MessageCircle,
+    Share2,
+    Factory,
+    LineChart,
+    Boxes
 } from "lucide-react";
 import { useCompanyProfile } from "@/hooks/useCompanyProfile";
 import { cn } from "@/lib/utils";
@@ -32,6 +38,7 @@ interface ShortcutOption {
     icon: any;
     description: string;
     color: string;
+    isComingSoon?: boolean;
 }
 
 const AVAILABLE_SHORTCUTS: ShortcutOption[] = [
@@ -41,8 +48,14 @@ const AVAILABLE_SHORTCUTS: ShortcutOption[] = [
     { id: 'add_insumo', label: 'Adicionar Insumo', icon: Layers, description: 'Registro rápido de novos materiais', color: 'text-emerald-400' },
     { id: 'new_cliente', label: 'Novo Cliente', icon: Users, description: 'Cadastro rápido de clientes', color: 'text-purple-400' },
     { id: 'new_produto', label: 'Novo Produto', icon: Package, description: 'Cadastro rápido de produtos', color: 'text-orange-400' },
-    { id: 'pix_generator', label: 'Gerador de PIX', icon: QrCode, description: 'Gerar QR Code PIX rapidamente', color: 'text-green-400' },
-    { id: 'price_table', label: 'Tabela de Preços', icon: ClipboardList, description: 'Consulta rápida de valores', color: 'text-cyan-400' },
+    { id: 'shipping', label: 'Gerar Frete', icon: Truck, description: 'Cotação e etiquetas Melhor Envio', color: 'text-yellow-400' },
+    { id: 'whatsapp_config', label: 'Conexão WhatsApp', icon: MessageCircle, description: 'Status e QR Code da instância', color: 'text-green-500' },
+    { id: 'finance', label: 'Financeiro', icon: LineChart, description: 'Resumo de caixa e lucros', color: 'text-rose-400' },
+    { id: 'inventory', label: 'Estoque', icon: Boxes, description: 'Controle de insumos', color: 'text-amber-400' },
+    { id: 'pix_generator', label: 'Gerador de PIX', icon: QrCode, description: 'Gerar QR Code PIX rapidamente', color: 'text-green-400', isComingSoon: true },
+    { id: 'price_table', label: 'Tabela de Preços', icon: ClipboardList, description: 'Consulta rápida de valores', color: 'text-cyan-400', isComingSoon: true },
+    { id: 'catalog', label: 'Catálogo Digital', icon: Share2, description: 'Link rápido do seu catálogo', color: 'text-indigo-400', isComingSoon: true },
+    { id: 'production', label: 'Produção', icon: Factory, description: 'Fila de pedidos ativos', color: 'text-slate-400', isComingSoon: true },
 ];
 
 interface ShortcutSelectionModalProps {
@@ -135,14 +148,20 @@ export const ShortcutSelectionModal = ({ isOpen, onClose }: ShortcutSelectionMod
                                             : "bg-transparent border-white/5 hover:bg-white/[0.02] hover:border-white/10 opacity-60 hover:opacity-100"
                                     )}
                                 >
-                                    {/* Selection Indicator */}
+                                    {/* Selection/Coming Soon Indicator */}
                                     <div className={cn(
                                         "absolute top-0 right-0 p-2 transition-all",
-                                        isSelected ? "opacity-100" : "opacity-0"
+                                        isSelected || shortcut.isComingSoon ? "opacity-100" : "opacity-0"
                                     )}>
-                                        <div className="bg-primary rounded-bl-xl rounded-tr-lg p-1">
-                                            <Check className="w-3 h-3 text-primary-foreground font-bold" strokeWidth={4} />
-                                        </div>
+                                        {shortcut.isComingSoon ? (
+                                            <div className="bg-zinc-700/50 rounded-bl-xl rounded-tr-lg px-2 py-0.5 border border-white/5">
+                                                <span className="text-[8px] font-black text-zinc-400 uppercase tracking-tighter">Em breve</span>
+                                            </div>
+                                        ) : isSelected && (
+                                            <div className="bg-primary rounded-bl-xl rounded-tr-lg p-1">
+                                                <Check className="w-3 h-3 text-primary-foreground font-bold" strokeWidth={4} />
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* Icon Box */}

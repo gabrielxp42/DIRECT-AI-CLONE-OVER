@@ -211,15 +211,31 @@ Deno.serve(async (req: Request) => {
 
                     if (alreadyExists) {
                         // Fallback: Tentativa de conexão para instâncias existentes
-                        console.log(`[Proxy] Instance ${instanceId} already exists. Trying connect...`);
-                        const connectResp = await fetchWithTimeout(`${EVOLUTION_URL}/instance/connect/${instanceId}`, {
-                            headers: { 'apikey': EVOLUTION_KEY }
-                        });
-                        result = await safeJsonParse(connectResp);
-                        // Normalizar: se o base64 estiver na raiz, mover para qrcode.base64
-                        if (result.base64 && !result.qrcode?.base64) {
-                            result.qrcode = { base64: result.base64, count: 1 };
+                        console.log(`[Proxy] Instance ${instanceId} already exists. Status: ${checkData?.instance?.state || 'not_open'}. Trying connect...`);
+
+                        // Retry connect até 3x para instâncias existentes que não estão open
+                        for (let attempt = 1; attempt <= 3; attempt++) {
+                            const connectResp = await fetchWithTimeout(`${EVOLUTION_URL}/instance/connect/${instanceId}`, {
+                                headers: { 'apikey': EVOLUTION_KEY }
+                            });
+                            const connectData = await safeJsonParse(connectResp);
+
+                            // Normalizar
+                            if (connectData.base64 && !connectData.qrcode?.base64) {
+                                connectData.qrcode = { base64: connectData.base64, count: 1 };
+                            }
+
+                            if (connectData.qrcode?.base64) {
+                                result = connectData;
+                                console.log(`[Proxy] QR Code obtained for existing instance on attempt ${attempt}`);
+                                break;
+                            }
+
+                            if (attempt < 3) await new Promise(resolve => setTimeout(resolve, 2000));
                         }
+
+                        if (!result) result = { error: true, message: "Instância existe mas falhou ao gerar QR Code. Tente novamente." };
+
                     } else if (!createResp.ok) {
                         // Error handling
                         console.error("Evolution v2 Error Details:", JSON.stringify(createData));
@@ -233,34 +249,23 @@ Deno.serve(async (req: Request) => {
 
                         // SE gerou sem QR (count: 0) ou sem base64, força connect com retries
                         if ((result.qrcode && result.qrcode.count === 0) || !result.qrcode?.base64) {
-                            console.log(`[Proxy] QR Code empty or count 0 for ${instanceId}. Retrying connect...`);
+                            console.log(`[Proxy] New instance created but QR empty for ${instanceId}. Retrying connect...`);
 
-                            // Retry connect até 3x com delay entre tentativas
                             for (let attempt = 1; attempt <= 3; attempt++) {
-                                // Aguarda um pouco para a Evolution processar
                                 await new Promise(resolve => setTimeout(resolve, 2000));
-
-                                console.log(`[Proxy] Connect attempt ${attempt}/3 for ${instanceId}...`);
                                 try {
                                     const wakeResp = await fetchWithTimeout(`${EVOLUTION_URL}/instance/connect/${instanceId}`, {
                                         headers: { 'apikey': EVOLUTION_KEY }
                                     });
                                     const wakeData = await safeJsonParse(wakeResp);
-                                    console.log(`[Proxy] Connect attempt ${attempt} result:`, JSON.stringify(wakeData).substring(0, 200));
-
                                     if (wakeData.base64 || wakeData.qrcode?.base64) {
-                                        // Sucesso! QR Code retornado
                                         result = wakeData;
-                                        // Normalizar: se o base64 estiver na raiz, mover para qrcode.base64
                                         if (wakeData.base64 && !result.qrcode?.base64) {
                                             result.qrcode = { base64: wakeData.base64, count: 1 };
                                         }
-                                        console.log(`[Proxy] QR Code obtained on attempt ${attempt}!`);
                                         break;
                                     }
-                                } catch (connectErr) {
-                                    console.warn(`[Proxy] Connect attempt ${attempt} failed:`, connectErr);
-                                }
+                                } catch (e) { console.warn("Retry failed", e); }
                             }
                         }
                     }
@@ -316,16 +321,19 @@ Deno.serve(async (req: Request) => {
                         .eq('id', user.id);
                 } else {
                     const data = await resp.json();
-                    const isOpen = data.instance?.state === 'open';
+                    const isOpen = (data.instance?.state === 'open' || data.instance?.status === 'open');
 
-                    // SEMPRE sincroniza o status com o banco para evitar "falsos conectados"
+                    // Sincroniza o status com o banco
                     const currentStatus = isOpen ? 'connected' : 'connecting';
                     await supabaseAdmin
                         .from('profiles')
-                        .update({ whatsapp_status: currentStatus })
+                        .update({
+                            whatsapp_status: currentStatus,
+                            whatsapp_instance_id: instanceId // Garante que o ID está salvo se achou por nome
+                        })
                         .eq('id', user.id);
 
-                    result = { state: data.instance?.state, connected: isOpen };
+                    result = { state: data.instance?.state || data.instance?.status, connected: isOpen };
                 }
             } catch (err: any) {
                 result = { error: true, message: err.message };

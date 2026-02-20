@@ -73,7 +73,18 @@ export function WhatsAppConnection() {
         setQrCode(null);
 
         try {
-            const instanceId = profile?.company_name?.toLowerCase().replace(/\s/g, '_') || `user_${profile?.id?.substring(0, 8)}`;
+            // Prioritize the existing instance ID from the database if available
+            const savedInstanceId = profile?.whatsapp_instance_id;
+
+            // Fallback generation logic - matching the proxy's sanitization pattern
+            const generatedId = (profile?.company_name || `user_${profile?.id?.substring(0, 8)}`)
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .toLowerCase()
+                .replace(/[^a-z0-9_]/g, "_")
+                .replace(/^_+|_+$/g, "");
+
+            const instanceId = savedInstanceId || generatedId;
 
             const { data, error } = await supabase.functions.invoke('whatsapp-proxy', {
                 body: { action: 'create', instanceName: instanceId, force }

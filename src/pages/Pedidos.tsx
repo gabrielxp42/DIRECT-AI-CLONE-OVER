@@ -68,6 +68,7 @@ import { useIsPlusMode } from '@/hooks/useIsPlusMode';
 import { WhatsAppActionDialog } from '@/components/WhatsAppActionDialog';
 import { ShippingModal } from '@/components/ShippingModal';
 import { toast } from "sonner";
+import { useBackgroundTasks } from '@/hooks/useBackgroundTasks';
 
 const ITEMS_PER_PAGE_OPTIONS = [10, 20, 50, 100];
 
@@ -103,12 +104,12 @@ const PedidosPage: React.FC = () => {
     showSuccess("Copiado com sucesso!");
   };
 
-  const [whatsAppDialog, setWhatsAppDialog] = useState<{ open: boolean; loading: boolean; pedido: Pedido | null; summary: string }>({
+  const [whatsAppDialog, setWhatsAppDialog] = useState<{ open: boolean; pedido: Pedido | null; summary: string }>({
     open: false,
-    loading: false,
     pedido: null,
     summary: ''
   });
+  const { addTask, updateTask, updateStep } = useBackgroundTasks();
   const { isTourOpen, currentStep, steps, startTour, nextStep, prevStep, closeTour, shouldAutoStart } = useTour(PEDIDOS_TOUR, 'pedidos');
   const { companyProfile } = useCompanyProfile();
 
@@ -355,46 +356,71 @@ const PedidosPage: React.FC = () => {
   };
 
   const handleConfirmWhatsAppSend = async (data: { phone?: string; attachPdf?: boolean; includeText?: boolean; includePix?: boolean } = {}) => {
-    if (!whatsAppDialog.pedido || whatsAppDialog.loading) return;
+    if (!whatsAppDialog.pedido) return;
 
-    setWhatsAppDialog(prev => ({ ...prev, loading: true }));
+    const pedido = whatsAppDialog.pedido;
+    const summary = whatsAppDialog.summary;
+    const phone = (data.phone || pedido.clientes?.telefone || '').replace(/\D/g, '');
+    const formattedPhone = phone.startsWith('55') ? phone : `55${phone}`;
 
-    try {
-      const phone = (data.phone || whatsAppDialog.pedido.clientes?.telefone || '').replace(/\D/g, '');
-      const formattedPhone = phone.startsWith('55') ? phone : `55${phone}`;
+    // Fecha o modal imediatamente
+    setWhatsAppDialog({ open: false, pedido: null, summary: '' });
 
-      // Etapa 1: Enviar PDF (Se solicitado)
-      if (data.attachPdf) {
-        showSuccess("Preparando PDF...");
-        const companyInfo = getCompanyInfoForPDF(companyProfile);
-        const pdfBase64 = await generateOrderPDFBase64(whatsAppDialog.pedido, tiposProducao || undefined, companyInfo);
-        const fileName = `pedido_${whatsAppDialog.pedido.id}_${Date.now()}.pdf`;
+    // Define os steps baseados no que foi selecionado
+    const steps = [];
+    if (data.attachPdf) {
+      steps.push({ id: 'pdf-gen', label: 'Gerar PDF', status: 'pending' as const });
+      steps.push({ id: 'pdf-send', label: 'Enviar PDF', status: 'pending' as const });
+    }
+    if (data.includeText) {
+      steps.push({ id: 'text-send', label: 'Enviar Resumo', status: 'pending' as const });
+    }
 
-        // Upload pro Supabase p/ garantir URL válida
-        const binaryString = window.atob(pdfBase64);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
-        }
+    const taskId = addTask({
+      title: `Pedido #${pedido.order_number}`,
+      description: `Enviando para ${pedido.clientes?.nome || 'Cliente'}`,
+      status: 'processing',
+      progress: 0,
+      steps
+    });
 
-        const { error: uploadError } = await supabase.storage.from('order-pdfs').upload(fileName, bytes, {
-          contentType: 'application/pdf',
-          upsert: true
-        });
+    // Função assíncrona que roda em background
+    const processEnvio = async () => {
+      try {
+        let currentProgress = 0;
 
-        if (uploadError) console.error('[WhatsApp] Upload failed:', uploadError);
+        // Etapa 1: Enviar PDF (Se solicitado)
+        if (data.attachPdf) {
+          updateTask(taskId, { progress: 10 });
+          updateStep(taskId, 'pdf-gen', 'loading');
 
-        let fileUrlToUse = '';
-        if (!uploadError) {
-          const { data: signedData } = await supabase.storage.from('order-pdfs').createSignedUrl(fileName, 3600);
-          if (signedData?.signedUrl) fileUrlToUse = signedData.signedUrl;
-        }
+          const companyInfo = getCompanyInfoForPDF(companyProfile);
+          const pdfBase64 = await generateOrderPDFBase64(pedido, tiposProducao || undefined, companyInfo);
+          const fileName = `pedido_${pedido.id}_${Date.now()}.pdf`;
 
-        // ENVIO DO PDF - Usa fetch direto com timeout maior (60s) para evitar 'signal aborted'
-        const session = (await supabase.auth.getSession()).data.session;
-        const pdfController = new AbortController();
-        const pdfTimeout = setTimeout(() => pdfController.abort(), 60000);
-        try {
+          updateStep(taskId, 'pdf-gen', 'completed');
+          updateStep(taskId, 'pdf-send', 'loading');
+          updateTask(taskId, { progress: 40 });
+
+          // Upload pro Supabase
+          const binaryString = window.atob(pdfBase64);
+          const bytes = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+
+          const { error: uploadError } = await supabase.storage.from('order-pdfs').upload(fileName, bytes, {
+            contentType: 'application/pdf',
+            upsert: true
+          });
+
+          let fileUrlToUse = '';
+          if (!uploadError) {
+            const { data: signedData } = await supabase.storage.from('order-pdfs').createSignedUrl(fileName, 3600);
+            if (signedData?.signedUrl) fileUrlToUse = signedData.signedUrl;
+          }
+
+          const session = (await supabase.auth.getSession()).data.session;
           const pdfResp = await fetch(`${SUPABASE_URL}/functions/v1/whatsapp-proxy`, {
             method: 'POST',
             headers: {
@@ -407,43 +433,27 @@ const PedidosPage: React.FC = () => {
               phone: formattedPhone,
               mediaUrl: fileUrlToUse,
               mediaBase64: pdfBase64,
-              mediaName: `Pedido_${whatsAppDialog.pedido.order_number}.pdf`,
+              mediaName: `Pedido_${pedido.order_number}.pdf`,
               mediaType: 'document',
               message: ''
-            }),
-            signal: pdfController.signal
+            })
           });
-          clearTimeout(pdfTimeout);
+
           const pdfResult = await pdfResp.json();
-
           if (!pdfResp.ok || pdfResult?.error) {
-            console.error('[WhatsApp] Erro no envio do PDF:', pdfResult);
-            showError(`Falha ao enviar PDF. Erro: ${pdfResult?.message || 'Desconhecido'}`);
-          } else {
-            showSuccess("PDF enviado com sucesso!");
+            throw new Error(pdfResult?.message || 'Falha ao enviar PDF');
           }
-        } catch (pdfErr: any) {
-          clearTimeout(pdfTimeout);
-          if (pdfErr.name === 'AbortError') {
-            console.error('[WhatsApp] PDF send timed out after 60s');
-            showError('Envio do PDF demorou demais. Verifique se chegou no WhatsApp.');
-          } else {
-            console.error('[WhatsApp] Erro no envio do PDF:', pdfErr);
-            showError(`Falha ao enviar PDF: ${pdfErr.message}`);
-          }
+
+          updateStep(taskId, 'pdf-send', 'completed');
+          updateTask(taskId, { progress: 70 });
         }
-      }
 
-      // Etapa 2: Enviar Texto (Se solicitado)
-      // Enviamos SEPARADAMENTE para garantir que o texto chegue mesmo se o PDF falhar, e vice-versa.
-      if (data.includeText) {
-        // Pequeno delay para garantir a ordem no WhatsApp (opcional, mas bom UX)
-        if (data.attachPdf) await new Promise(r => setTimeout(r, 1000));
+        // Etapa 2: Enviar Texto (Se solicitado)
+        if (data.includeText) {
+          updateStep(taskId, 'text-send', 'loading');
+          if (data.attachPdf) await new Promise(r => setTimeout(r, 1000));
 
-        const textSession = (await supabase.auth.getSession()).data.session;
-        const textController = new AbortController();
-        const textTimeout = setTimeout(() => textController.abort(), 60000);
-        try {
+          const textSession = (await supabase.auth.getSession()).data.session;
           const textResp = await fetch(`${SUPABASE_URL}/functions/v1/whatsapp-proxy`, {
             method: 'POST',
             headers: {
@@ -455,89 +465,37 @@ const PedidosPage: React.FC = () => {
               action: 'send-text',
               phone: formattedPhone,
               message: data.includePix && companyProfile?.company_pix_key
-                ? `${whatsAppDialog.summary}\n\n💰 *DADOS PARA PAGAMENTO*\nChave Pix: ${companyProfile.company_pix_key}`
-                : whatsAppDialog.summary
-            }),
-            signal: textController.signal
+                ? `${summary}\n\n💰 *DADOS PARA PAGAMENTO*\nChave Pix: ${companyProfile.company_pix_key}`
+                : summary
+            })
           });
-          clearTimeout(textTimeout);
-          const textResult = await textResp.json();
 
+          const textResult = await textResp.json();
           if (!textResp.ok || textResult?.error) {
             throw new Error(textResult?.message || 'Erro ao enviar texto');
           }
-          showSuccess("Resumo de texto enviado!");
-        } catch (textErr: any) {
-          clearTimeout(textTimeout);
-          if (textErr.name === 'AbortError') {
-            showError('Envio demorou demais. Verifique se chegou no WhatsApp.');
-          } else {
-            throw textErr;
-          }
+
+          updateStep(taskId, 'text-send', 'completed');
         }
+
+        updateTask(taskId, { status: 'completed', progress: 100 });
+        showSuccess(`Pedido #${pedido.order_number} enviado com sucesso!`);
+
+      } catch (err: any) {
+        console.error('Erro no envio em background:', err);
+        updateTask(taskId, {
+          status: 'error',
+          error: err.message || 'Erro desconhecido',
+          progress: 100
+        });
+
+        // Se der erro, avisamos o usuário que falhou
+        showError(`Falha ao enviar Pedido #${pedido.order_number}`);
       }
+    };
 
-      setWhatsAppDialog({ open: false, loading: false, pedido: null, summary: '' });
-    } catch (err: any) {
-      console.error('Erro no envio direto:', err);
-
-      const errorMessage = err.message || JSON.stringify(err);
-
-      // Se foi envio de mídia e falhou por erro de upload, tenta só texto
-      if (data.attachPdf && errorMessage.includes("Media upload failed")) {
-        console.log('[WhatsApp] Media failed, retrying with text only...');
-        showError('PDF não suportado pelo servidor. Enviando apenas texto...');
-
-        try {
-          const phone = (data.phone || whatsAppDialog.pedido.clientes?.telefone || '').replace(/\D/g, '');
-          const formattedPhone = phone.startsWith('55') ? phone : `55${phone}`;
-
-          const fallbackSession = (await supabase.auth.getSession()).data.session;
-          const fbController = new AbortController();
-          const fbTimeout = setTimeout(() => fbController.abort(), 60000);
-          const fbResp = await fetch(`${SUPABASE_URL}/functions/v1/whatsapp-proxy`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${fallbackSession?.access_token}`,
-              'apikey': SUPABASE_ANON_KEY
-            },
-            body: JSON.stringify({
-              action: 'send-text',
-              phone: formattedPhone,
-              message: (data.includePix && companyProfile?.company_pix_key
-                ? `${whatsAppDialog.summary}\n\n💰 *DADOS PARA PAGAMENTO*\nChave Pix: ${companyProfile.company_pix_key}`
-                : whatsAppDialog.summary) + '\n\n📎 (PDF disponível para download no sistema)'
-            }),
-            signal: fbController.signal
-          });
-          clearTimeout(fbTimeout);
-          const textResult = await fbResp.json();
-
-          if (fbResp.ok && !textResult?.error) {
-            showSuccess(`Texto enviado! PDF não suportado pelo servidor.`);
-            setWhatsAppDialog({ open: false, loading: false, pedido: null, summary: '' });
-            return;
-          }
-        } catch (textErr) {
-          console.error('Fallback text also failed:', textErr);
-        }
-      }
-
-      if (errorMessage.includes("Instância não conectada") || errorMessage.includes("Disconnected")) {
-        showError('Seu WhatsApp não está conectado! Vá em Configurações > WhatsApp para conectar.');
-      } else {
-        showError(`Erro: ${errorMessage.substring(0, 100)}. Abrindo WhatsApp Web...`);
-        // Fallback to wa.me link only for non-connection errors
-        const phone = (whatsAppDialog.pedido.clientes?.telefone || '').replace(/\D/g, '');
-        const encodedText = encodeURIComponent(whatsAppDialog.summary);
-        const url = phone
-          ? `https://wa.me/55${phone}?text=${encodedText}`
-          : `https://wa.me/?text=${encodedText}`;
-        window.open(url, '_blank');
-      }
-      setWhatsAppDialog({ open: false, loading: false, pedido: null, summary: '' });
-    }
+    // Inicia o processo sem await para não travar
+    processEnvio();
   };
 
   const handleDownloadCardImage = async (pedidoId: string, orderNumber: number) => {
@@ -1874,11 +1832,10 @@ const PedidosPage: React.FC = () => {
       {/* WhatsApp Plus Mode Dialog */}
       <WhatsAppActionDialog
         isOpen={whatsAppDialog.open}
-        onOpenChange={(open) => !open && setWhatsAppDialog({ open: false, loading: false, pedido: null, summary: '' })}
+        onOpenChange={(open) => !open && setWhatsAppDialog({ open: false, pedido: null, summary: '' })}
         customerName={whatsAppDialog.pedido?.clientes?.nome || 'Cliente'}
         phone={whatsAppDialog.pedido?.clientes?.telefone || ''}
         messagePreview={whatsAppDialog.summary}
-        isLoading={whatsAppDialog.loading}
         pixKey={companyProfile?.company_pix_key}
         onConfirm={handleConfirmWhatsAppSend}
       />
