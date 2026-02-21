@@ -577,12 +577,19 @@ h1 {
 /* Floating Dialog Bubbles */
 .gabi-dialogs {
     position: absolute;
-    width: 100%;
-    height: 100%;
+    width: 220px;
+    /* Same as orb wrap */
+    height: 220px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
     pointer-events: none;
+    z-index: 50;
+    display: block !important;
+    /* Restore coordinate system */
 }
 
-.gabi-bubble {
+.orb-bubble {
     position: absolute;
     background: rgba(255, 255, 255, 0.08);
     /* Pure Glass - no border */
@@ -590,6 +597,7 @@ h1 {
     border: none;
     padding: 1rem 1.5rem;
     border-radius: 20px;
+    width: 260px;
     max-width: 260px;
     /* Slightly tighter */
     opacity: 0;
@@ -598,9 +606,11 @@ h1 {
     z-index: 50;
     box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
     color: white;
+    display: flex !important;
+    flex-direction: column;
 }
 
-.gabi-bubble.visible {
+.orb-bubble.visible {
     opacity: 1;
     transform: translateY(0) scale(1.0);
 }
@@ -623,7 +633,7 @@ h1 {
     text-transform: uppercase;
 }
 
-.gabi-bubble p {
+.orb-bubble p {
     font-size: 0.85rem;
     line-height: 1.4;
     color: #fff;
@@ -687,33 +697,30 @@ h1 {
 
 /* Responsive adjustment for chat visibility */
 @media (max-width: 1400px) {
-    .gabi-bubble {
+    .orb-bubble {
         max-width: 220px;
         font-size: 0.8rem;
     }
 
     .bubble-left {
-        right: calc(100% + 15px);
+        right: calc(100% + 40px);
     }
 
     .bubble-right {
-        left: calc(100% + 15px);
+        left: calc(100% + 40px);
     }
 
     .bubble-left-bottom {
-        right: calc(100% + 10px);
+        right: calc(100% + 30px);
     }
 
     .bubble-right-bottom {
-        left: calc(100% + 20px);
+        left: calc(100% + 50px);
     }
 }
 
 @media (max-width: 992px) {
-    .gabi-dialogs {
-        display: none;
-        /* Hide on mobile to avoid extreme overlap/clipping */
-    }
+    /* Removed conflicting display: none to allow vertical mobile chat */
 }
 
 .ai-pulse {
@@ -1168,19 +1175,24 @@ h1 {
         gap: 1.2rem;
         margin-top: -100px;
         /* Pull messages over the sticky orb */
-        padding-bottom: 100px;
+        padding-bottom: 50px;
         pointer-events: none;
         z-index: 50;
         /* Above the orb */
+        top: auto;
+        left: auto;
+        transform: none;
+        height: auto;
     }
 
     /* Reset absolute positioning */
-    .gabi-bubble {
+    .orb-bubble {
         position: relative !important;
         top: auto !important;
         left: auto !important;
         right: auto !important;
         bottom: auto !important;
+        margin-bottom: 60px !important;
         max-width: 85%;
         padding: 1rem 1.2rem;
         border-radius: 20px;
@@ -1195,7 +1207,7 @@ h1 {
         transition: all 1s cubic-bezier(0.23, 1, 0.32, 1);
     }
 
-    .gabi-bubble.visible {
+    .orb-bubble.visible {
         opacity: 1;
         transform: translateY(0) scale(1);
     }
@@ -1220,7 +1232,7 @@ h1 {
     }
 
     /* Text sizing */
-    .gabi-bubble p {
+    .orb-bubble p {
         font-size: 0.7rem;
         line-height: 1.35;
         font-weight: 500;

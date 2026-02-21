@@ -62,7 +62,7 @@ export default function AffiliatePortal() {
     const [pixType, setPixType] = useState(profile?.affiliate_pix_key_type || '');
     const [pixKey, setPixKey] = useState(profile?.affiliate_pix_key || '');
 
-    const landingPageLink = `${window.location.origin}/?ref=${profile?.affiliate_code || ''}`;
+    const landingPageLink = `${window.location.origin}/landing-page?ref=${profile?.affiliate_code || ''}`;
     const checkoutLink = `${window.location.origin}/checkout?code=${profile?.affiliate_code || ''}`;
 
     useEffect(() => {
