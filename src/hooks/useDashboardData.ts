@@ -204,8 +204,8 @@ const fetchDashboardData = async (userId: string | undefined): Promise<Dashboard
       });
     }
 
-    // Big metric (Total Linear) strictly PAID + ROLL
-    if (isPaid) {
+    // Big metric (Total Linear) strictly NON-CANCELLED + ROLL
+    if (order.status !== 'cancelado') {
       totalMeters += calculateOrderRollMeters(order);
     }
   });

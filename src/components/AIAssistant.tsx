@@ -114,7 +114,7 @@ export const AIAssistant = () => {
     setMessages(prev => [...prev, userMessage]);
     setInput("");
     setIsLoading(true);
-    setLoadingStatus("Gabi está pensando...");
+    setLoadingStatus("Gabi está pesquisando no banco de dados...");
 
     try {
       // Chamar o Cérebro Unificado via Edge Function

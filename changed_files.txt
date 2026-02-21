@@ -1,0 +1,16 @@
+﻿package-lock.json
+pnpm-lock.yaml
+src/components/AdminGeminiConfig.tsx
+src/components/TaskDock.tsx
+src/components/WhatsAppActionDialog.tsx
+src/components/WhatsAppConnection.tsx
+src/contexts/SessionProvider.tsx
+src/integrations/gemini/client.ts
+src/pages/Pedidos.tsx
+supabase/functions/ai-response-generator/index.ts
+supabase/functions/ai-training-processor/index.ts
+supabase/functions/gabi-brain/index.ts
+supabase/functions/gabi-executiva-agent/index.ts
+supabase/functions/send-whatsapp-notification/index.ts
+supabase/functions/whatsapp-proxy/index.ts
+supabase/functions/whatsapp-webhook/index.ts

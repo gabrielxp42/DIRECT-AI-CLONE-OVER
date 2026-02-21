@@ -18,8 +18,8 @@ Deno.serve(async (req: Request) => {
             db_message_id,
             customer_phone,
             customer_name,
-            previous_history,
-            is_boss
+            is_boss,
+            quoted_message
         } = await req.json();
 
         const supabase = createClient(
@@ -83,13 +83,17 @@ Deno.serve(async (req: Request) => {
             }))
             .reverse();
 
+        // --- 2.5 ADD QUOTED CONTEXT (Omniscient Gabi) ---
+        if (quoted_message) {
+            console.log(`[Generator] Injecting quoted context: ${quoted_message.substring(0, 30)}...`);
+            textMessage = `[Nota Contextual: O usuário está respondendo à mensagem: "${quoted_message}"]\n\n${textMessage}`;
+        }
+
         // --- 3. CALL UNIFIED GABI BRAIN ---
-        // gabi-brain handles the ReAct logic and ALSO the WhatsApp message sending if platform is 'whatsapp'
-        console.log(`[Generator] Calling unified gabi-brain for text: "${textMessage}" with ${history.length} history items`);
+        console.log(`[Generator] Calling unified gabi-brain for user ${user_id}`);
         const brainRes = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/gabi-brain`, {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${user_id}`,
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
@@ -105,13 +109,44 @@ Deno.serve(async (req: Request) => {
 
         if (!brainRes.ok) {
             const errorText = await brainRes.text();
-            throw new Error(`Gabi-brain error: ${errorText}`);
+            console.error(`[Generator] Gabi-brain returned error: ${brainRes.status}`, errorText);
+            throw new Error(`Cérebro da Gabi indisponível (Status ${brainRes.status})`);
         }
 
         const brainData = await brainRes.json();
         const finalResponse = brainData.content || brainData.text || "Desculpe, tive um problema ao processar. Pode repetir? 😅";
 
-        // --- 3. Log Sent Message (gabi-brain already handled the delivery via Evolution API) ---
+        // --- 4. DELIVERY: Send back via Evolution API ---
+        const { data: profile } = await supabase.from('profiles').select('whatsapp_api_url, whatsapp_api_key, whatsapp_instance_id').eq('id', user_id).single();
+
+        if (profile?.whatsapp_api_url && profile?.whatsapp_api_key && profile?.whatsapp_instance_id) {
+            const evolutionUrl = profile.whatsapp_api_url.replace(/\/$/, "");
+            console.log(`[Generator] Delivering message to ${customer_phone} via ${profile.whatsapp_instance_id}...`);
+
+            try {
+                const sendRes = await fetch(`${evolutionUrl}/message/sendText/${profile.whatsapp_instance_id}`, {
+                    method: 'POST',
+                    headers: {
+                        'apikey': profile.whatsapp_api_key,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        number: customer_phone,
+                        text: finalResponse
+                    })
+                });
+
+                if (!sendRes.ok) {
+                    console.error(`[Generator] Evolution API send failed: ${sendRes.status} ${await sendRes.text()}`);
+                }
+            } catch (sendErr) {
+                console.error("[Generator] Delivery error:", sendErr);
+            }
+        } else {
+            console.warn("[Generator] Skipping delivery: WhatsApp API not configured for user", user_id);
+        }
+
+        // --- 5. Log Sent Message ---
         await supabase.from('whatsapp_messages').insert({
             user_id,
             phone: customer_phone,

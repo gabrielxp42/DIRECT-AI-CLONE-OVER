@@ -304,11 +304,20 @@ const send_whatsapp_message = async (args: { phone?: string; message: string; cl
     const foundClients = await findClientWithMultipleStrategies(searchTerm);
 
     if (foundClients && foundClients.length > 0) {
-      const client = foundClients[0] as any;
+      // Priorizar correspondência EXATA de nome para evitar pegar o "Gabriel" errado
+      const exactMatch = foundClients.find((c: any) =>
+        removeAccents(c.nome.toLowerCase()).trim() === removeAccents(searchTerm.toLowerCase()).trim()
+      );
+
+      const client = (exactMatch || foundClients[0]) as any;
       if (client.telefone) {
         finalPhone = client.telefone;
         resolvedClientName = client.nome;
-        console.log(`✅ [send_whatsapp_message] Telefone real encontrado para ${resolvedClientName}: ${finalPhone}`);
+        console.log(`✅ [send_whatsapp_message] Cliente selecionado: ${resolvedClientName} (${finalPhone})`);
+
+        if (!exactMatch && foundClients.length > 1) {
+          console.log(`⚠️ [send_whatsapp_message] Múltiplos clientes encontrados, pegando o primeiro mais próximo: ${resolvedClientName}`);
+        }
       }
     }
   }
@@ -516,7 +525,7 @@ export const get_top_clients = async (args: { top_n?: number }) => {
   }
 };
 
-// NOVO: Função para obter o total de metros lineares por período
+// NOVO: Função para obter o total de metros lineares e faturamento por período
 export const get_total_meters_by_period = async (args: {
   startDate?: string;
   endDate?: string;
@@ -528,12 +537,10 @@ export const get_total_meters_by_period = async (args: {
   let periodDescription = "em todo o período";
 
   if (allTime) {
-    // Para 'allTime', usamos uma data muito antiga como início
-    startDate = '2000-01-01T00:00:00.000Z';
+    startDate = '2020-01-01T00:00:00.000Z';
     endDate = new Date().toISOString();
     periodDescription = `desde o início`;
   } else if (!startDate && !endDate) {
-    // Default para o mês atual
     startDate = dateInfo.ranges.thisMonth.start;
     endDate = dateInfo.ranges.thisMonth.end;
     periodDescription = `neste mês de ${dateInfo.current.monthName} de ${dateInfo.current.year}`;
@@ -566,52 +573,91 @@ export const get_total_meters_by_period = async (args: {
     const token = await getValidToken();
     if (!token) throw new Error("Token inválido");
 
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_total_meters_by_period`, {
+    // 1. Buscar metragens via RPC
+    const responseMetragens = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_total_meters_by_period`, {
       method: 'POST',
       headers: {
         'apikey': SUPABASE_ANON_KEY,
         'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=representation' // Ensure we get the result back
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         p_start_date: startDate,
         p_end_date: endDate,
-        p_organization_id: ctx.organization_id // Adicionado filtro de organização
+        p_organization_id: ctx.organization_id
       })
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Erro HTTP: ${response.status} ${errorText}`);
+    // 2. Buscar pedidos para calcular receita verificada vs bruta
+    const orgFilter = ctx.organization_id ? `organization_id=eq.${ctx.organization_id}` : `user_id=eq.${ctx.user_id}`;
+    const responseOrders = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?select=id,status,valor_total,total_meters,pedido_status_history(status_novo,status_anterior)&created_at=gte.${startDate}&created_at=lte.${endDate}&${orgFilter}`, {
+      method: 'GET',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!responseMetragens.ok || !responseOrders.ok) {
+      throw new Error("Erro ao buscar dados financeiros.");
     }
 
-    const data = await response.json();
+    const metragensData = await responseMetragens.json();
+    const orders = await responseOrders.json();
 
-    // RPC returns a single object if it returns a composite type, or a scalar
-    // Assuming it returns a single row with total_meters and total_orders
-    const result = (Array.isArray(data) ? data[0] : data) as MetersReportResult;
+    const metResult = (Array.isArray(metragensData) ? metragensData[0] : metragensData) as MetersReportResult;
 
-    const totalMeters = result?.total_meters || 0;
-    const totalMetersDTF = result?.total_meters_dtf || 0;
-    const totalMetersVinil = result?.total_meters_vinil || 0;
-    const totalOrders = result?.total_orders || 0;
+    // Lógica de Receita Verificada (Status Pago/Entregue ou histórico de pago)
+    let totalBruto = 0;
+    let receitaVerificada = 0;
+    let totalOrdersList = (orders as any[]).length;
+    let paidCount = 0;
 
-    if (totalOrders === 0) {
-      return { message: `❌ Nenhum pedido encontrado ${periodDescription}. Total de metros: 0 ML.` };
-    }
+    (orders as any[]).forEach(o => {
+      totalBruto += Number(o.valor_total || 0);
+
+      const status = o.status?.toLowerCase();
+      const isPaidStatus = ['pago', 'entregue'].includes(status);
+      const isAwaitingPickup = status === 'aguardando retirada';
+      let wasPaid = false;
+
+      if (isAwaitingPickup && o.pedido_status_history && Array.isArray(o.pedido_status_history)) {
+        wasPaid = o.pedido_status_history.some((h: any) =>
+          h.status_novo?.toLowerCase() === 'pago' || h.status_anterior?.toLowerCase() === 'pago'
+        );
+      }
+
+      if (isPaidStatus || (isAwaitingPickup && wasPaid)) {
+        receitaVerificada += Number(o.valor_total || 0);
+        paidCount++;
+      }
+    });
+
+    const formatBRL = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
     return {
-      total_meters: totalMeters,
-      total_meters_dtf: totalMetersDTF,
-      total_meters_vinil: totalMetersVinil,
-      total_orders: totalOrders,
-      message: `📏 **Total de Metros Lineares** ${periodDescription}:\n\n- Total: **${totalMeters.toFixed(2)} ML**\n- 🖨️ DTF: **${totalMetersDTF.toFixed(2)} ML**\n- ✂️ Vinil: **${totalMetersVinil.toFixed(2)} ML**\n\n(Encontrados em ${totalOrders} pedidos)`
+      total_meters: metResult?.total_meters || 0,
+      total_meters_dtf: metResult?.total_meters_dtf || 0,
+      total_meters_vinil: metResult?.total_meters_vinil || 0,
+      total_orders: totalOrdersList,
+      financials: {
+        gross_revenue: totalBruto,
+        verified_revenue: receitaVerificada,
+        paid_orders: paidCount
+      },
+      message: `📊 **Relatório de Produção e Financeiro** ${periodDescription}:\n\n` +
+        `📏 **Metragem Total:** **${(metResult?.total_meters || 0).toFixed(2)} ML**\n` +
+        `  └ 🖨️ DTF: **${(metResult?.total_meters_dtf || 0).toFixed(2)} ML**\n` +
+        `  └ ✂️ Vinil: **${(metResult?.total_meters_vinil || 0).toFixed(2)} ML**\n\n` +
+        `💰 **Financeiro:**\n` +
+        `  └ 💵 Receita Verificada (Paga): **${formatBRL(receitaVerificada)}** (${paidCount} pedidos)\n` +
+        `  └ 📊 Volume Bruto (Total): **${formatBRL(totalBruto)}** (de ${totalOrdersList} pedidos)\n\n` +
+        `*Nota: A receita verificada considera apenas pedidos marcados como pago ou entregue.*`
     };
 
   } catch (error: any) {
-    console.error("Erro ao buscar total de metros:", error);
-    throw new Error(`❌ Erro ao buscar total de metros: ${error.message}`);
+    console.error("Erro ao buscar relatório de período:", error);
+    throw new Error(`❌ Erro ao buscar relatório: ${error.message}`);
   }
 };
 
@@ -733,6 +779,32 @@ export const openAIFunctions = [
         }
       },
       required: ["expression"]
+    }
+  },
+  {
+    name: "get_orders_summary",
+    description: "Lista pedidos recentes com nome de cliente e valores. Use para responder 'quais são os pedidos', 'liste os pedidos pendentes', 'quem falta pagar', etc.",
+    parameters: {
+      type: "object",
+      properties: {
+        status: {
+          type: "string",
+          enum: ["pendente", "pago", "processando", "entregue", "enviado", "cancelado", "aguardando retirada"],
+          description: "Filtro de status. Use 'pendente' para pedidos que ainda não foram pagos ou estão aguardando pagamento."
+        },
+        limit: { type: "number", description: "Limite de resultados (Padrão 20)." }
+      }
+    }
+  },
+  {
+    name: "get_order_details_v2",
+    description: "Mostra todos os detalhes de um pedido específico (itens, serviços, cliente, histórico). Use quando o usuário pedir detalhes de um pedido ou número de pedido específico.",
+    parameters: {
+      type: "object",
+      properties: {
+        orderId: { type: "string", description: "O ID único do pedido (UUID)." },
+        orderNumber: { type: "number", description: "O número visível do pedido (Ex: 1001)." }
+      }
     }
   },
   {
@@ -1262,29 +1334,22 @@ const findClientWithMultipleStrategies = async (clientName: string) => {
       'Content-Type': 'application/json'
     };
 
-    // Strategy 1: Try fuzzy search function (most flexible if working correctly)
+    // Base filter for organization/user context
+    const orgFilter = ctx.organization_id
+      ? `or=(organization_id.eq.${ctx.organization_id},and(organization_id.is.null,user_id.eq.${ctx.user_id}))`
+      : `user_id=eq.${ctx.user_id}`;
+
+    // Strategy 1: Fuzzy search via RPC (Best for typos)
     try {
-      console.log('📍 [findClient] Tentativa 1: Busca fuzzy com função do banco (normalized)');
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/find_client_by_fuzzy_name`, {
-        method: 'POST',
-        headers: headers,
-        body: JSON.stringify({
-          partial_name: normalizedClientName,
-          similarity_threshold: 0.05,
-          p_organization_id: ctx.organization_id // Assumindo que a RPC aceita este parâmetro ou filtra internamente
-        })
+      console.log(`📍 [findClient] Tentativa 1: Busca FUZZY via RPC para "${normalizedClientName}"`);
+      const { data: response, error } = await supabase.rpc('find_client_by_fuzzy_name', {
+        search_name: normalizedClientName,
+        p_organization_id: ctx.organization_id
       });
 
-      if (response.ok) {
-        const fuzzyClients = await response.json();
-        if (fuzzyClients && fuzzyClients.length > 0) {
-          // Filtragem extra por precaução caso a RPC ignore o parâmetro
-          const orgClients = fuzzyClients.filter((c: any) => c.organization_id === ctx.organization_id || !c.organization_id);
-          if (orgClients.length > 0) {
-            console.log(`✅ [findClient] Busca fuzzy encontrou ${orgClients.length} cliente(s):`, orgClients.map((c: any) => c.nome));
-            return orgClients;
-          }
-        }
+      if (!error && response && (response as any[]).length > 0) {
+        console.log(`✅ [findClient] Busca fuzzy encontrou ${(response as any[]).length} cliente(s):`, (response as any[]).map((c: any) => c.nome));
+        return response;
       }
     } catch (error) {
       console.log(`❌ [findClient] Erro ao chamar RPC find_client_by_fuzzy_name:`, error);
@@ -1293,8 +1358,7 @@ const findClientWithMultipleStrategies = async (clientName: string) => {
     // Strategy 2: Direct ILIKE search with normalized name
     try {
       console.log('📍 [findClient] Tentativa 2: Busca ILIKE com nome normalizado');
-      const orgFilter = ctx.organization_id ? `organization_id=eq.${ctx.organization_id}` : `user_id=eq.${ctx.user_id}`;
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=id,nome,organization_id,observacoes&nome=ilike.*${encodeURIComponent(normalizedClientName)}*&${orgFilter}&limit=10`, {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=id,nome,organization_id,telefone,observacoes&nome=ilike.*${encodeURIComponent(normalizedClientName)}*&${orgFilter}&limit=10`, {
         method: 'GET',
         headers: headers
       });
@@ -1313,8 +1377,7 @@ const findClientWithMultipleStrategies = async (clientName: string) => {
     // Strategy 3: Broad search and client-side filtering
     try {
       console.log(`📍 [findClient] Tentativa 3: Busca ampla e filtragem client-side`);
-      const orgFilter = ctx.organization_id ? `organization_id=eq.${ctx.organization_id}` : `user_id=eq.${ctx.user_id}`;
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=id,nome,organization_id,observacoes&${orgFilter}&limit=100`, {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=id,nome,organization_id,telefone,observacoes&${orgFilter}&limit=100`, {
         method: 'GET',
         headers: headers
       });
@@ -1335,7 +1398,7 @@ const findClientWithMultipleStrategies = async (clientName: string) => {
       console.log('❌ [findClient] Erro na busca ampla + client-side:', error);
     }
 
-    // Strategy 4: Original ILIKE search
+    // Strategy 4: Original ILIKE search on parts
     const nameParts = [
       ...originalName.split(' ').filter(part => part.length > 1),
       ...normalizedClientName.split(' ').filter(part => part.length > 1)
@@ -1346,8 +1409,7 @@ const findClientWithMultipleStrategies = async (clientName: string) => {
       for (const part of uniqueParts) {
         try {
           console.log(`📍 [findClient] Tentativa por parte do nome: "${part}"`);
-          const orgFilter = ctx.organization_id ? `organization_id=eq.${ctx.organization_id}` : `user_id=eq.${ctx.user_id}`;
-          const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=id,nome,organization_id,observacoes&nome=ilike.*${encodeURIComponent(part)}*&${orgFilter}&limit=10`, {
+          const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=id,nome,organization_id,telefone,observacoes&nome=ilike.*${encodeURIComponent(part)}*&${orgFilter}&limit=10`, {
             method: 'GET',
             headers: headers
           });
@@ -1367,9 +1429,8 @@ const findClientWithMultipleStrategies = async (clientName: string) => {
 
     console.log('❌ [findClient] Nenhuma estratégia de busca encontrou resultados');
     return null;
-
   } catch (error) {
-    console.log('❌ [findClient] Erro geral:', error);
+    console.log('❌ [findClient] Erro geral na busca:', error);
     return null;
   }
 };
@@ -1923,8 +1984,19 @@ const create_order = async (args: {
   valor_total: number;
   observacoes?: string;
 }) => {
-  const { clientName, items, servicos, valor_total, observacoes } = args;
+  const { clientName, items, servicos, valor_total: ia_valor_total, observacoes } = args;
+
+  // VERIFICAÇÃO DE SEGURANÇA: Recalcular o total real
+  const totalItems = (items || []).reduce((sum, item) => sum + (Number(item.quantity) * Number(item.price_unit)), 0);
+  const totalServices = (servicos || []).reduce((sum, s) => sum + (Number(s.quantity) * Number(s.price_unit)), 0);
+  const valor_real = totalItems + totalServices;
+
   console.log(`🆕 [create_order] Iniciando criação de pedido para: ${clientName}`);
+  console.log(`💰 [create_order] Validação de valor: IA sugeriu ${ia_valor_total} | Sistema calculou ${valor_real}`);
+
+  if (Math.abs(ia_valor_total - valor_real) > 0.01) {
+    console.warn(`⚠️ [create_order] DISCREPÂNCIA DETECTADA! Usando valor real do sistema: ${valor_real}`);
+  }
 
   try {
     const ctx = await getUserContext();
@@ -1956,7 +2028,7 @@ const create_order = async (args: {
       cliente_id: clientId,
       organization_id: ctx.organization_id,
       user_id: ctx.user_id,
-      valor_total: valor_total,
+      valor_total: valor_real, // SEMPRE usa o valor recalculado por segurança
       status: 'aguardando',
       observacoes: observacoes || '',
       total_metros: 0,
@@ -2061,12 +2133,12 @@ const create_order = async (args: {
 
     return {
       success: true,
-      message: `✅ **Pedido #${orderNumber} criado com sucesso!**\n👤 Cliente: **${client.nome}**\n💰 Valor Total: **R$ ${valor_total.toFixed(2)}**${memoryAlert}${proactiveTips}\n\nO pedido já está no sistema como "aguardando". Deseja que eu envie o link para o cliente?`,
+      message: `✅ **Pedido #${orderNumber} criado com sucesso!**\n👤 Cliente: **${client.nome}**\n💰 Valor Total: **R$ ${valor_real.toFixed(2)}**${memoryAlert}${proactiveTips}\n\nO pedido já está no sistema como "aguardando". Deseja que eu envie o link para o cliente?`,
       order: {
         id: orderId,
         order_number: orderNumber,
         clientName: client.nome,
-        valor_total: valor_total
+        valor_total: valor_real
       }
     };
 
@@ -2407,7 +2479,12 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
 
     console.log(`✅ [get_client_details] Cliente(s) encontrado(s):`, foundClients.map((c: any) => c.nome));
 
-    const clientId = (foundClients as any[])[0].id;
+    // Priorizar correspondência EXATA
+    const exactMatch = foundClients.find((c: any) =>
+      removeAccents(c.nome.toLowerCase()).trim() === removeAccents(clientName.toLowerCase()).trim()
+    );
+    const targetClient = exactMatch || foundClients[0];
+    const clientId = targetClient.id;
 
     try {
       const ctx = await getUserContext();
@@ -3185,6 +3262,60 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       };
     } catch (e: any) {
       return { error: true, message: `Erro ao obter link da etiqueta: ${e.message}` };
+    }
+  }
+
+  if (name === "get_orders_summary") {
+    try {
+      const ctx = await getUserContext();
+      if (!ctx) throw new Error("Contexto inválido");
+
+      const { data, error } = await supabase.rpc('get_orders_summary', {
+        p_status: args.status,
+        p_limit: args.limit || 20,
+        p_user_id: ctx.user_id,
+        p_organization_id: ctx.organization_id
+      });
+      if (error) throw error;
+
+      const summaryList = (data as any[]).map(o =>
+        `#${o.order_number} | **${o.cliente_nome}** | R$ ${o.valor_total?.toFixed(2) || '0.00'} | Status: ${o.status}`
+      ).join('\n');
+
+      return {
+        orders: data,
+        message: `📋 **Resumo de Pedidos (${args.status || 'Todos'}):**\n\n${summaryList || 'Nenhum pedido encontrado.'}`
+      };
+    } catch (e: any) {
+      console.error("❌ [get_orders_summary] Erro:", e);
+      return { error: true, message: `Erro ao buscar resumo de pedidos: ${e.message}` };
+    }
+  }
+
+  if (name === "get_order_details_v2") {
+    try {
+      let finalOrderId = args.orderId;
+      if (!finalOrderId && args.orderNumber) {
+        const { data: order } = await supabase.from('pedidos').select('id').eq('order_number', args.orderNumber).single();
+        finalOrderId = order?.id;
+      }
+      if (!finalOrderId) throw new Error("ID do pedido não identificado.");
+
+      const { data, error } = await supabase.rpc('get_order_details_v2', {
+        p_order_id: finalOrderId
+      });
+      if (error) throw error;
+
+      const p = data.pedido;
+      const c = data.cliente;
+
+      return {
+        details: data,
+        message: `🔍 **Detalhes do Pedido #${p?.order_number}**\n👤 Cliente: **${c?.nome}**\n💰 Total: **R$ ${p?.valor_total?.toFixed(2) || '0.00'}**\n📦 Status: **${p?.status}**\n\n_Para ver os itens detalhados, consulte o dashboard._`
+      };
+    } catch (e: any) {
+      console.error("❌ [get_order_details_v2] Erro:", e);
+      return { error: true, message: `Erro ao buscar detalhes do pedido: ${e.message}` };
     }
   }
 

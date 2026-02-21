@@ -51,13 +51,18 @@ export const ReportsGabiInsight = ({ reportData, isLoading }: GabiReportsInsight
         }
 
         // 4. Cenário Padrão (Resumo Geral)
+        const currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+        const pendingInfo = reportData.financialReport?.totalPending > 0
+            ? ` e temos ${currencyFormatter.format(reportData.financialReport.totalPending)} aguardando pagamento`
+            : "";
+
         return {
             icon: Bot,
             color: "text-primary",
             bg: "bg-primary/10",
             border: "border-primary/20",
             title: "Resumo da Gabi 💎",
-            message: `Tudo estável. Faturamos ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalRevenue)} com ${totalOrders} pedidos. A margem de lucro está saudável em ${profitMargin.toFixed(1)}%. Continue assim!`
+            message: `Tudo estável. Faturamos ${currencyFormatter.format(totalRevenue)}${pendingInfo} com ${totalOrders} pedidos. A margem de lucro está saudável em ${profitMargin.toFixed(1)}%. Continue assim!`
         };
     }, [reportData]);
 

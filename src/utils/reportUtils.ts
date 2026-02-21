@@ -318,8 +318,26 @@ export const fetchReportData = async (
             });
         }
 
-        if (isPaid) {
+        if (order.pedido_items) {
+            order.pedido_items.forEach((item: any) => {
+                const tipoRaw = (item.tipo || 'dtf').toLowerCase().trim();
+                // Filter for Linear Meters (Roll only) - Production should count regardless of payment
+                const isRoll = ['dtf', 'vinil', 'adesivo'].some(t => tipoRaw.includes(t)) && !tipoRaw.includes('varejo');
+                if (isRoll && order.status !== 'cancelado') {
+                    totalMeters += (Number(item.quantidade) || 0);
+                }
 
+                // Product Sales aggregation (stats) - Also useful for production volume
+                const productName = item.produtos?.nome || item.produto_nome || 'Produto não encontrado';
+                const existingProd = productSales.get(productName) || { totalSold: 0, revenue: 0 };
+                productSales.set(productName, {
+                    totalSold: existingProd.totalSold + item.quantidade,
+                    revenue: existingProd.revenue + (item.quantidade * item.preco_unitario)
+                });
+            });
+        }
+
+        if (isPaid) {
             // Cálculo robusto do faturamento "limpo" (sem frete)
             const subtotal = (order.subtotal_produtos || 0) + (order.subtotal_servicos || 0);
             const dPerc = subtotal * ((order.desconto_percentual || 0) / 100);
@@ -327,24 +345,6 @@ export const fetchReportData = async (
             totalRevenue += faturamentoLimpo;
 
             totalCost += calculateOrderCost(order);
-
-            if (order.pedido_items) {
-                order.pedido_items.forEach((item: any) => {
-                    const tipoRaw = (item.tipo || 'dtf').toLowerCase().trim();
-                    // Filter for Linear Meters (Roll only)
-                    const isRoll = ['dtf', 'vinil', 'adesivo'].some(t => tipoRaw.includes(t)) && !tipoRaw.includes('varejo');
-                    if (isRoll) {
-                        totalMeters += (Number(item.quantidade) || 0);
-                    }
-
-                    const productName = item.produtos?.nome || item.produto_nome || 'Produto não encontrado';
-                    const existingProd = productSales.get(productName) || { totalSold: 0, revenue: 0 };
-                    productSales.set(productName, {
-                        totalSold: existingProd.totalSold + item.quantidade,
-                        revenue: existingProd.revenue + (item.quantidade * item.preco_unitario)
-                    });
-                });
-            }
 
 
             // Customer Spending (only for PAID)
@@ -556,9 +556,9 @@ export const fetchReportData = async (
             return sum + Math.max(0, subtotal - (o.desconto_valor || 0) - dPerc);
         }, 0);
 
-        // Somar metros apenas de pedidos PAGOS (consistência total)
+        // Somar metros de pedidos NÃO CANCELADOS (Produção Real)
         const productionOrders = ordersInBucket.filter((o: any) => {
-            return o.pago_at !== null && o.status !== 'cancelado';
+            return o.status !== 'cancelado';
         });
 
         const met = Number(productionOrders.reduce((sum: number, o: any) => {

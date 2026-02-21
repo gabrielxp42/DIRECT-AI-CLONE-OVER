@@ -50,6 +50,15 @@ Deno.serve(async (req: Request) => {
             let msgText = data.message?.conversation || data.message?.extendedTextMessage?.text || data.message?.imageMessage?.caption || "";
             const audioBase64 = payload.base64 || data.message?.audioMessage?.base64 || "";
 
+            // REPLIES/QUOTED MESSAGES SUPPORT (Omniscient Gabi)
+            let quotedText = "";
+            const contextInfo = data.message?.extendedTextMessage?.contextInfo;
+            if (contextInfo?.quotedMessage) {
+                const qm = contextInfo.quotedMessage;
+                quotedText = qm.conversation || qm.extendedTextMessage?.text || "[Mídia/Voz]";
+                console.log(`[Webhook] User is replying to: "${quotedText.substring(0, 50)}..."`);
+            }
+
             // Save to DB
             const { data: insertedMsg } = await supabaseAdmin.from('whatsapp_messages').insert({
                 user_id: profile.id,
@@ -60,8 +69,12 @@ Deno.serve(async (req: Request) => {
                 client_name: data.pushName || null
             }).select('id').single();
 
-            // AI Logic
-            if (!fromMe && (profile.ai_auto_reply_enabled)) {
+            // AI Logic: ONLY respond if it's NOT from me AND AI is enabled AND it's the Boss's number
+            const customerPhone = remoteJid.split('@')[0];
+            const isBoss = (profile.whatsapp_boss_group_id && profile.whatsapp_boss_group_id.includes(customerPhone));
+
+            if (!fromMe && profile.ai_auto_reply_enabled && isBoss) {
+                console.log(`[Webhook] AI trigger for BOSS ${customerPhone}`);
                 fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/ai-response-generator`, {
                     method: 'POST',
                     headers: { 'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`, 'Content-Type': 'application/json' },
@@ -69,11 +82,15 @@ Deno.serve(async (req: Request) => {
                         user_id: profile.id,
                         message: msgText,
                         audio_base64: audioBase64,
+                        quoted_message: quotedText, // Pass along for context
                         db_message_id: insertedMsg?.id,
-                        customer_phone: remoteJid.replace(/@.+/, ''),
-                        customer_name: data.pushName || 'Cliente'
+                        customer_phone: customerPhone,
+                        customer_name: data.pushName || 'Boss',
+                        is_boss: true
                     })
-                }).catch(() => { });
+                }).catch((err) => { console.error("[Webhook] AI fetch failed:", err); });
+            } else if (!fromMe && !isBoss) {
+                console.log(`[Webhook] Message from customer (${customerPhone}) ignored for AI logic.`);
             }
         }
 

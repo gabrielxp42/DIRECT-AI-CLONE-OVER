@@ -1,0 +1,1 @@
+FINDSTR: não foi possível abrir ai-response\ C:\Users\Direct\.gemini\antigravity\brain\15f06c63-65fd-4fcf-be5e-498cecde2463\.system_generated\steps\2148\output.txt 

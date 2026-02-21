@@ -123,8 +123,68 @@ Deno.serve(async (req: Request) => {
             });
         }
 
-        // 4. Format Message (adding signature if not present)
-        const finalMessage = message.includes('🎩') ? message : `🎩 *Gabi Executiva*\n\n${message}`;
+        // 4. Humanize: Send ALL data to Gabi Brain for ONE natural message
+        let finalMessage = message;
+
+        if (record.title === 'RESUMO_PENDENCIAS' && record.data?.debtors) {
+            const debtors = record.data.debtors;
+            const total = record.data.total || debtors.length;
+            console.log(`[Executive Agent] Consolidating ${total} debtors into ONE human message`);
+
+            // Build a natural list for the LLM
+            const debtorList = debtors.map((d: any) =>
+                `- ${d.cliente}: pedido #${d.pedido}, R$ ${d.valor}, há ${d.dias} dias`
+            ).join('\n');
+
+            const prompt = `Você é a Gabi. Mande UMA ÚNICA mensagem pro Gabriel no WhatsApp avisando sobre essas pendências de pagamento.
+
+Dados:
+${debtorList}
+
+REGRAS IMPORTANTES:
+- Fale como uma amiga e parceira de negócios, NUNCA como um robô.
+- Cite os nomes dos clientes naturalmente, como se estivesse conversando. Ex: "o Kevin, o Henrique e o João ainda não pagaram..."
+- Mencione os valores e números de pedido de forma organizada mas natural.
+- No final, pergunte se ele quer que você cobre algum deles, e se sim, qual.
+- Use emojis com moderação. Seja elegante e organizada.
+- NÃO use frases como "ALERTA DE PENDÊNCIA" ou "⚠️". Isso é coisa de robô.
+- A mensagem deve parecer que veio de uma pessoa real que se importa.`;
+
+            try {
+                const brainRes = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/gabi-brain`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        message: prompt,
+                        platform: 'whatsapp',
+                        is_boss: true,
+                        user_id: userId
+                    })
+                });
+
+                if (brainRes.ok) {
+                    const brainData = await brainRes.json();
+                    if (brainData.content || brainData.text) {
+                        finalMessage = brainData.content || brainData.text;
+                        console.log("[Executive Agent] Humanization successful!");
+                    } else {
+                        console.warn("[Executive Agent] Brain returned empty, using fallback");
+                    }
+                } else {
+                    console.error(`[Executive Agent] Brain error: ${brainRes.status}`);
+                }
+            } catch (err: any) {
+                console.error("[Executive Agent] Humanization exception:", err.message);
+            }
+        }
+
+        // Clean header — only add if brain didn't already include one
+        if (!finalMessage.includes('Gabi')) {
+            finalMessage = `🎩 *Gabi*\n\n${finalMessage}`;
+        }
 
         console.log(`[Executive Agent] Sending to ${bossTarget} via ${INSTANCE}`);
 
@@ -158,6 +218,20 @@ Deno.serve(async (req: Request) => {
                     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
                 });
             }
+
+            // 6. LOG TO HISTORY (Omniscient Gabi)
+            // We save this to whatsapp_messages so the brain has context in future chats
+            console.log(`[Executive Agent] Logging message to history for context...`);
+            const cleanPhone = bossTarget.split('@')[0]; // Store just the digits/id
+            await supabase.from('whatsapp_messages').insert({
+                user_id: userId,
+                phone: cleanPhone,
+                message: finalMessage,
+                direction: 'sent',
+                status: 'delivered',
+                analyzed: true,
+                analysis_result: { source: "gabi-executiva", version: "1.0" }
+            });
 
             return new Response(JSON.stringify({ success: true, messageId: sendResult.key?.id || sendResult.messageId }), {
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' },

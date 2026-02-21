@@ -262,10 +262,10 @@ const Insumos = () => {
             const payload = {
                 user_id: session?.user.id,
                 nome: formData.nome,
-                quantidade_atual: Number(formData.quantidade_atual) || 0,
-                quantidade_inicial: Number(formData.quantidade_inicial) || Number(formData.quantidade_atual) || 0,
+                quantidade_atual: Number((Number(formData.quantidade_atual) || 0).toFixed(4)),
+                quantidade_inicial: Number((Number(formData.quantidade_inicial) || Number(formData.quantidade_atual) || 0).toFixed(4)),
                 unidade: formData.unidade || 'un',
-                quantidade_minima: Number(formData.quantidade_minima) || 0,
+                quantidade_minima: Number((Number(formData.quantidade_minima) || 0).toFixed(4)),
                 custo_unitario: Number(formData.custo_unitario) || 0
             };
 
@@ -305,9 +305,9 @@ const Insumos = () => {
                 return;
             }
 
-            const newQuantity = adjustType === 'add'
+            const newQuantity = Number((adjustType === 'add'
                 ? selectedInsumo.quantidade_atual + qty
-                : Math.max(0, selectedInsumo.quantidade_atual - qty);
+                : Math.max(0, selectedInsumo.quantidade_atual - qty)).toFixed(4));
 
             const { error } = await supabase
                 .from('insumos')
@@ -441,10 +441,10 @@ const Insumos = () => {
                                     <div className="space-y-4">
                                         <div className="flex items-end justify-between">
                                             <div
-                                                className="text-3xl font-bold text-primary flex items-end gap-1 cursor-help"
+                                                className="text-3xl font-bold text-primary flex items-end gap-1 cursor-help truncate max-w-full"
                                                 title={`Valor Exato: ${insumo.quantidade_atual}`}
                                             >
-                                                {insumo.quantidade_atual.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}
+                                                {insumo.quantidade_atual > 1000000 ? "+1M" : insumo.quantidade_atual.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}
                                                 <span className="text-sm font-normal text-muted-foreground mb-1">{insumo.unidade}</span>
                                             </div>
                                             <div className="text-right">
