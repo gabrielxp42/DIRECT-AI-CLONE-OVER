@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useBackgroundTasks, BackgroundTask } from '@/hooks/useBackgroundTasks';
 import {
@@ -59,12 +59,29 @@ const TaskItem = ({ task, onRemove }: { task: BackgroundTask, onRemove: () => vo
     const isCompleted = task.status === 'completed';
     const isError = task.status === 'error';
 
+    useEffect(() => {
+        if (isCompleted) {
+            const timer = setTimeout(() => {
+                onRemove();
+            }, 4000); // 4 seconds delay before auto-removing
+            return () => clearTimeout(timer);
+        }
+    }, [isCompleted, onRemove]);
+
     return (
         <motion.div
             layout
             initial={{ opacity: 0, x: -20, scale: 0.95 }}
             animate={{ opacity: 1, x: 0, scale: 1 }}
-            exit={{ opacity: 0, x: -100, scale: 0.9, transition: { duration: 0.2 } }}
+            exit={{
+                opacity: 0,
+                x: -100,
+                scale: 0.9,
+                transition: {
+                    duration: 0.5,
+                    ease: "circOut"
+                }
+            }}
             drag="x"
             dragConstraints={{ left: -100, right: 0 }}
             dragElastic={0.2}

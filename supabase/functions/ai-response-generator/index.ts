@@ -66,9 +66,26 @@ Deno.serve(async (req: Request) => {
             }
         }
 
-        // --- 2. CALL UNIFIED GABI BRAIN ---
+        // --- 2. FETCH HISTORY ---
+        console.log(`[Generator] Fetching history for ${customer_phone}...`);
+        const { data: rawHistory } = await supabase
+            .from('whatsapp_messages')
+            .select('role:direction, content:message')
+            .eq('user_id', user_id)
+            .eq('phone', customer_phone)
+            .order('created_at', { ascending: false })
+            .limit(10);
+
+        const history = (rawHistory || [])
+            .map((m: any) => ({
+                role: m.role === 'received' ? 'user' : 'assistant',
+                content: m.content
+            }))
+            .reverse();
+
+        // --- 3. CALL UNIFIED GABI BRAIN ---
         // gabi-brain handles the ReAct logic and ALSO the WhatsApp message sending if platform is 'whatsapp'
-        console.log(`[Generator] Calling unified gabi-brain for text: "${textMessage}"`);
+        console.log(`[Generator] Calling unified gabi-brain for text: "${textMessage}" with ${history.length} history items`);
         const brainRes = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/gabi-brain`, {
             method: 'POST',
             headers: {
@@ -77,7 +94,7 @@ Deno.serve(async (req: Request) => {
             },
             body: JSON.stringify({
                 message: textMessage,
-                history: [], // We could pass history here for better context
+                history: history,
                 platform: 'whatsapp',
                 is_boss: is_boss,
                 customer_name: customer_name,

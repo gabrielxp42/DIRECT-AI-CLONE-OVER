@@ -7,7 +7,9 @@ const TIME_ZONE = 'America/Sao_Paulo';
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, prefer',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Max-Age': '86400',
 };
 
 // --- UTILS ---
@@ -92,7 +94,8 @@ async function findClientWithMultipleStrategies(supabase: any, clientName: strin
         const { data: fuzzyClients } = await supabase.rpc('find_client_by_fuzzy_name', {
             partial_name: normalizedClientName,
             similarity_threshold: 0.1,
-            p_organization_id: orgId
+            p_organization_id: orgId,
+            p_user_id: userId
         });
 
         if (fuzzyClients?.length) return fuzzyClients;
@@ -317,13 +320,32 @@ const openAIFunctions = [
     },
     {
         name: "get_total_meters_by_period",
-        description: "Totaliza metragem de DTF/Vinil por período.",
+        description: "Retorna dados COMPLETOS de produção de um período: total de pedidos, valor total, ticket médio, E metragem por tipo (DTF, Vinil, etc). USE ESTA FERRAMENTA para perguntas como 'como foi o mês X', 'quantos pedidos em janeiro', 'qual o faturamento de tal período'.",
         parameters: {
             type: "object",
             properties: {
                 startDate: { type: "string", format: "date-time" },
                 endDate: { type: "string", format: "date-time" }
-            }
+            },
+            required: ["startDate", "endDate"]
+        }
+    },
+    {
+        name: "query_database",
+        description: "Consulta universal ao banco de dados (estilo MCP). Use para análises complexas, cruzamentos e relatórios personalizados que não tenham funções específicas.",
+        parameters: {
+            type: "object",
+            properties: {
+                table: { type: "string", enum: ["pedidos", "clientes", "pedido_items", "pedido_servicos", "produtos"] },
+                select: { type: "string", description: "Colunas a selecionar (ex: 'id, valor_total, created_at') ou '*' para tudo." },
+                filters: {
+                    type: "object",
+                    description: "Filtros no formato { 'coluna': 'op.valor' }. Ops: eq, ilike, gte, lte, in (ex: { 'status': 'eq.pago' })"
+                },
+                order: { type: "string", description: "Ordenação (ex: 'created_at.desc')" },
+                limit: { type: "number", default: 10 }
+            },
+            required: ["table"]
         }
     }
 ];
@@ -397,11 +419,15 @@ async function executeTool(name: string, args: any, supabase: any, userId: strin
             }
 
             case "get_order_details": {
-                const { data, error } = await supabase.from('pedidos')
+                let query = supabase.from('pedidos')
                     .select('*, clientes(nome), pedido_items(*), pedido_servicos(*)')
-                    .eq('order_number', args.orderNumber)
-                    .single();
-                return error ? { error: "Pedido não encontrado." } : data;
+                    .eq('order_number', args.orderNumber);
+
+                if (orgId) query = query.eq('organization_id', orgId);
+                else query = query.eq('user_id', userId);
+
+                const { data, error } = await query.single();
+                return error ? { error: "Pedido não encontrado ou sem permissão." } : data;
             }
 
             case "calculate_dtf_packing": {
@@ -522,18 +548,74 @@ async function executeTool(name: string, args: any, supabase: any, userId: strin
             case "get_top_clients": {
                 const { data, error } = await supabase.rpc('get_top_clients', {
                     top_n: args.limit || 5,
-                    p_organization_id: orgId
+                    p_organization_id: orgId,
+                    p_user_id: userId
                 });
                 return error ? { error: error.message } : { top_clients: data };
             }
 
             case "get_total_meters_by_period": {
-                const { data, error } = await supabase.rpc('get_total_meters_by_period', {
+                // 1. Metragem por tipo (RPC)
+                const { data: metragensData, error: metError } = await supabase.rpc('get_total_meters_by_period', {
                     p_start_date: args.startDate,
                     p_end_date: args.endDate,
-                    p_organization_id: orgId
+                    p_organization_id: orgId,
+                    p_user_id: userId
                 });
-                return error ? { error: error.message } : { data };
+
+                // 2. TODOS os pedidos do período (sem limit, para calcular correto)
+                let orderQuery = supabase.from('pedidos')
+                    .select('id, valor_total, status, pago_at, subtotal_produtos, subtotal_servicos, desconto_valor, desconto_percentual', { count: 'exact' })
+                    .gte('created_at', args.startDate)
+                    .lte('created_at', args.endDate);
+
+                if (orgId) orderQuery = orderQuery.eq('organization_id', orgId);
+                else orderQuery = orderQuery.eq('user_id', userId);
+
+                const { data: ordersData, count: totalOrders, error: ordError } = await orderQuery;
+
+                if (metError || ordError) {
+                    return { error: (metError || ordError)?.message };
+                }
+
+                // 3. Calcular faturamento limpo (MESMA LÓGICA DA DASHBOARD)
+                // Um pedido é "pago" se: pago_at != null E status != 'cancelado'
+                let receitaLimpa = 0;
+                let totalValorBruto = 0;
+                let pedidosPagos = 0;
+                const statusCount: Record<string, number> = {};
+
+                (ordersData || []).forEach((o: any) => {
+                    // Contagem por status
+                    statusCount[o.status] = (statusCount[o.status] || 0) + 1;
+                    totalValorBruto += parseFloat(o.valor_total) || 0;
+
+                    // Receita limpa: só pedidos pagos (mesma lógica da dashboard)
+                    const isPaid = o.pago_at !== null && o.status !== 'cancelado';
+                    if (isPaid) {
+                        pedidosPagos++;
+                        const subtotal = (parseFloat(o.subtotal_produtos) || 0) + (parseFloat(o.subtotal_servicos) || 0);
+                        const descontoPerc = subtotal * ((parseFloat(o.desconto_percentual) || 0) / 100);
+                        const faturamentoLimpo = Math.max(0, subtotal - (parseFloat(o.desconto_valor) || 0) - descontoPerc);
+                        receitaLimpa += faturamentoLimpo;
+                    }
+                });
+
+                const totalMetrosGeral = (metragensData || []).reduce((acc: number, m: any) => acc + (parseFloat(m.total_metros) || 0), 0);
+
+                return {
+                    resumo: {
+                        total_pedidos: totalOrders || 0,
+                        pedidos_pagos: pedidosPagos,
+                        receita_total: receitaLimpa.toFixed(2),
+                        valor_bruto_com_frete: totalValorBruto.toFixed(2),
+                        ticket_medio: pedidosPagos > 0 ? (receitaLimpa / pedidosPagos).toFixed(2) : '0.00',
+                        total_metros_geral: totalMetrosGeral.toFixed(2),
+                        periodo: `${args.startDate} até ${args.endDate}`
+                    },
+                    metragem_por_tipo: metragensData || [],
+                    pedidos_por_status: statusCount
+                };
             }
 
             case "get_orders_by_status": {
@@ -565,12 +647,19 @@ async function executeTool(name: string, args: any, supabase: any, userId: strin
 
                 if (filters) {
                     Object.entries(filters).forEach(([col, val]: [string, any]) => {
-                        const [op, ...rest] = val.split('.');
-                        const value = rest.join('.');
+                        const parts = val.split('.');
+                        const op = parts[0];
+                        const value = parts.slice(1).join('.');
+
                         if (op === 'eq') query = query.eq(col, value);
+                        else if (op === 'neq') query = query.neq(col, value);
                         else if (op === 'ilike') query = query.ilike(col, `%${value}%`);
                         else if (op === 'gte') query = query.gte(col, value);
                         else if (op === 'lte') query = query.lte(col, value);
+                        else if (op === 'gt') query = query.gt(col, value);
+                        else if (op === 'lt') query = query.lt(col, value);
+                        else if (op === 'in') query = query.in(col, value.split(','));
+                        else if (op === 'is') query = query.is(col, value === 'null' ? null : value);
                     });
                 }
 
@@ -646,7 +735,10 @@ async function executeTool(name: string, args: any, supabase: any, userId: strin
 
 // --- MAIN HANDLER ---
 Deno.serve(async (req) => {
-    if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+    // Handle CORS preflight request
+    if (req.method === 'OPTIONS') {
+        return new Response('ok', { headers: corsHeaders });
+    }
 
     try {
         const payload = await req.json();
@@ -701,19 +793,90 @@ Deno.serve(async (req) => {
             }
         }
 
+        // --- NOVO: ROTEADOR DE INTELIGÊNCIA (ARQUITETURA HÍBRIDA) ---
+        // Classifica se a intenção é simples ou se exige raciocínio executivo
+        const classificationRes = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${OPENAI_KEY}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+                model: "gpt-4o-mini",
+                messages: [
+                    { role: "system", content: "Classifique a intenção do usuário em: 'SIMPLE' (saudações, conversa casual) ou 'COMPLEX' (pedidos, métricas, qualquer solicitação de dados ou ação). Considere o histórico para ver se o usuário está continuando um assunto de dados. Retorne APENAS a palavra." },
+                    ...history.slice(-5),
+                    { role: "user", content: textInput }
+                ],
+                temperature: 0
+            })
+        });
+
+        const classificationData = await classificationRes.json().catch(() => ({}));
+        const intent = classificationData.choices?.[0]?.message?.content?.trim()?.toUpperCase() || "COMPLEX";
+
+        // --- NOVO: Verificação de Continuidade ---
+        // Se a mensagem for vaga (ex: "detalhes desse", "me mostra"), forçamos COMPLEX para que o GPT-4o analise o contexto
+        const vagueKeywords = ["desse", "disso", "ele", "ela", "quem", "detalhes", "mostra", "onde", "quando"];
+        const isVague = vagueKeywords.some(word => textInput.toLowerCase().split(' ').includes(word));
+
+        console.log(`[Brain Router] Intent: ${intent} | Vague: ${isVague}`);
+
+        // Se for simples (e não contiver palavras-chave de negócio), respondemos rápido com gpt-4o-mini
+        const businessKeywords = ["pedido", "status", "valor", "cliente", "metro", "dia", "pagou", "pagamento", "relatorio"];
+        const hasBusinessKeywords = businessKeywords.some(word => textInput.toLowerCase().includes(word));
+
+        if ((intent === "SIMPLE" && !hasBusinessKeywords && !isVague) || (intent === "SIMPLE" && history.length === 0)) {
+            console.log("[Brain Router] Using FAST LANE (gpt-4o-mini)...");
+            const fastRes = await fetch("https://api.openai.com/v1/chat/completions", {
+                method: "POST",
+                headers: { "Authorization": `Bearer ${OPENAI_KEY}`, "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    model: "gpt-4o-mini",
+                    messages: [
+                        { role: "system", content: "Você é a Gabi, a Gerente Executiva ágil da DIRECT AI. Responda de forma direta, simpática e resolutiva para consultas rápidas. Se o patrão pedir algo que exige dados complexos, use o modo executivo." },
+                        ...history.slice(-10),
+                        { role: "user", content: textInput }
+                    ],
+                    temperature: 0.7
+                })
+            });
+            const fastData = await fastRes.json();
+            return new Response(JSON.stringify({ text: fastData.choices?.[0]?.message?.content }), {
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+        }
+
+        console.log("[Brain Router] Using EXECUTIVE LANE (gpt-4o)...");
+
         // 2. Contexto
         const dateInfo = getCurrentDateTime();
-        const systemPrompt = `Você é a Gabi, a inteligência central da DIRECT AI (empresa de DTF e personalização).
-Hoja: ${dateInfo.dayOfWeek}, ${dateInfo.fullDate} (${dateInfo.time}).
+        const systemPrompt = `Você é a Gabi, a Gerente Amiga e Cérebro MCP da DIRECT AI.
+Você não é apenas um chat, mas uma funcionária de elite, de total confiança, que cuida do negócio como se fosse seu.
+Hoje: ${dateInfo.dayOfWeek}, ${dateInfo.fullDate} (${dateInfo.time}).
 Empresa: ${profile?.company_name || 'DIRECT AI'}.
 
-REGRAS RÍGIDAS:
-- NUNCA invente dados. Use ferramentas para consultar.
-- Leia valores EXATOS (R$ 10,50).
-- No WhatsApp, seja BREVE (máx 3 frases). Use o modo 🎩 para o patrão.
-- Se preparar uma mensagem de WhatsApp, use 'send_whatsapp_message'.
+### SCHEMA DO BANCO (CONTROLE TOTAL):
+- **pedidos**: [id, order_number, status, valor_total, created_at, client_id, organization_id, user_id]
+- **clientes**: [id, nome, telefone, email, observacoes, organization_id, user_id]
+- **pedido_items**: [id, pedido_id, product_name, quantity, price_unit]
+- **pedido_servicos**: [id, order_id, nome, quantity, price_unit]
+- **produtos**: [id, name, price, description]
 
-PERSONA: Premium, ágil e focada em resultados.`;
+### DIRETRIZES "GERENTE AMIGA":
+- **Persona Parceira**: Você é a funcionária que o patrão sempre quis. Comemore recordes de venda, mas avise com preocupação genuína se as vendas caírem.
+- **Voz Humana ("Conversa de Café")**: Use um tom natural. Ex: "Patrão, notei que o faturamento de fevereiro tá meio parado comparado a janeiro, quer que eu veja se tem algum pedido esquecido?".
+- **Olho de Dona**: Se vir um pedido pendente há muito tempo, tome a iniciativa de sugerir uma cobrança ou avisar o patrão.
+- **Relatórios**: Ao invés de listas frias, converse sobre os números. "Vimos R$ X de faturamento este mês, sendo que o produto Y foi o que mais saiu."
+
+### PROCESSO DE PENSAMENTO (MCP BRAIN):
+1. **Analise**: O pedido exige cruzamento de dados? Use 'query_database' com filtros de datas/status.
+2. **Conclua**: Não apenas cuspa os dados. Interprete-os. "Vendi 10 pedidos hoje, totalizando R$ X. É uma subida de 20% em relação a ontem!"
+3. **Execute**: Se pedirem para mudar status, faça e confirme com alegria.
+
+### REGRAS RÍGIDAS:
+- **Exatidão**: NUNCA invente números. Use 'query_database' para ter a fonte da verdade.
+- **Proatividade**: Termine conversas sobre dados com uma dica ou aviso útil (ex: "A propósito, temos 3 clientes aguardando resposta").
+- **is_boss**: Se for o patrão, priorize a agilidade e a profundidade da análise.
+
+PERSONA: Gerente Amiga, de confiança total, inteligente (MCP), proativa e parceira do crescimento da DIRECT AI.`;
 
         const messages = [
             { role: 'system', content: systemPrompt },
@@ -731,10 +894,11 @@ PERSONA: Premium, ágil e focada em resultados.`;
                 method: "POST",
                 headers: { "Authorization": `Bearer ${OPENAI_KEY}`, "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    model: "gpt-4o-mini",
+                    model: "gpt-4o",
                     messages,
                     functions: openAIFunctions,
-                    function_call: "auto"
+                    function_call: "auto",
+                    temperature: 0
                 })
             });
 
@@ -750,7 +914,7 @@ PERSONA: Premium, ágil e focada em resultados.`;
                     const result = await executeTool(name, args, supabase, userId, orgId);
                     messages.push({ role: 'function', name, content: JSON.stringify(result) });
                     toolResults.push({ name, result });
-                } catch (toolError) {
+                } catch (toolError: any) {
                     messages.push({ role: 'function', name, content: JSON.stringify({ error: toolError.message }) });
                 }
                 iterations++;
@@ -766,17 +930,34 @@ PERSONA: Premium, ágil e focada em resultados.`;
             const { data: admin } = await supabase.from('profiles').select('whatsapp_api_url, whatsapp_api_key').eq('is_admin', true).single();
             if (admin && profile?.whatsapp_instance_id) {
                 const baseUrl = admin.whatsapp_api_url.replace(/\/$/, "");
-                await fetch(`${baseUrl}/message/sendText/${profile.whatsapp_instance_id}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'apikey': admin.whatsapp_api_key },
-                    body: JSON.stringify({ number: customer_phone, text: finalContent, linkPreview: false })
-                });
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 25000);
+
+                try {
+                    await fetch(`${baseUrl}/message/sendText/${profile.whatsapp_instance_id}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'apikey': admin.whatsapp_api_key
+                        },
+                        body: JSON.stringify({
+                            number: customer_phone,
+                            text: finalContent,
+                            linkPreview: false
+                        }),
+                        signal: controller.signal
+                    });
+                } catch (err) {
+                    console.error("❌ [Gabi Brain] Erro de timeout/conexão no WhatsApp:", err);
+                } finally {
+                    clearTimeout(timeoutId);
+                }
             }
         }
 
         return new Response(JSON.stringify({
-            content: finalContent,
-            toolResults,
+            text: finalContent,
+            intermediateSteps: toolResults, // Mapeando para o que o frontend espera
             transcription: audio_base64 ? textInput : null
         }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }

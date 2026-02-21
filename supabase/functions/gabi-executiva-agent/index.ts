@@ -131,6 +131,11 @@ Deno.serve(async (req: Request) => {
         // 5. Send Message
         try {
             const sendUrl = `${EVOLUTION_URL}/message/sendText/${INSTANCE}`;
+
+            // Custom fetch with timeout to avoid 504 Supabase Timeout (150s)
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 25000); // 25s limit
+
             const sendResponse = await fetch(sendUrl, {
                 method: 'POST',
                 headers: {
@@ -141,8 +146,9 @@ Deno.serve(async (req: Request) => {
                     number: bossTarget,
                     text: finalMessage,
                     linkPreview: false
-                })
-            });
+                }),
+                signal: controller.signal
+            }).finally(() => clearTimeout(timeoutId));
 
             const sendResult = await sendResponse.json();
             console.log(`[Executive Agent] Evolution API Response status=${sendResponse.status}:`, JSON.stringify(sendResult));

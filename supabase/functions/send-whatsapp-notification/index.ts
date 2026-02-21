@@ -12,7 +12,7 @@ const corsHeaders = {
 // --- UTILS ---
 
 // Safe fetch with timeout
-const fetchWithTimeout = async (url: string, options: any, timeout = 50000) => {
+const fetchWithTimeout = async (url: string, options: any, timeout = 20000) => {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeout);
     try {
@@ -208,7 +208,7 @@ serve(async (req) => {
             method: "POST",
             headers: { "Content-Type": "application/json", "apikey": evoKey },
             body: JSON.stringify(payload)
-        }, 30000);
+        }, 20000);
 
         let result = await safeJsonParse(response);
 
@@ -220,7 +220,7 @@ serve(async (req) => {
                 method: "POST",
                 headers: { "Content-Type": "application/json", "apikey": evoKey },
                 body: JSON.stringify(payload)
-            }, 30000);
+            }, 20000);
             result = await safeJsonParse(response);
         }
 

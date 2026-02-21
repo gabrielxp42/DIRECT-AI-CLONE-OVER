@@ -14,7 +14,7 @@ export function AdminGeminiConfig() {
     const [saving, setSaving] = useState(false);
     const [config, setConfig] = useState({
         gemini_api_key: '',
-        gemini_training_model: 'gemini-2.5-flash-lite',
+        gemini_training_model: 'gemini-2.5-flash',
         gemini_response_model: 'gemini-2.5-flash',
         ai_auto_reply_enabled: false
     });
@@ -39,7 +39,7 @@ export function AdminGeminiConfig() {
             if (data) {
                 setConfig({
                     gemini_api_key: data.gemini_api_key || '',
-                    gemini_training_model: data.gemini_training_model || 'gemini-2.5-flash-lite',
+                    gemini_training_model: data.gemini_training_model || 'gemini-2.5-flash',
                     gemini_response_model: data.gemini_response_model || 'gemini-2.5-flash',
                     ai_auto_reply_enabled: data.ai_auto_reply_enabled || false
                 });
@@ -142,9 +142,9 @@ export function AdminGeminiConfig() {
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite (Mais Rápido/Barato)</SelectItem>
-                                        <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash (Equilibrado)</SelectItem>
-                                        <SelectItem value="gemini-1.5-flash">Gemini 1.5 Flash (Legacy)</SelectItem>
+                                        <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash (Padrão Gratuito/Estável)</SelectItem>
+                                        <SelectItem value="gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite (Mais Rápido)</SelectItem>
+                                        <SelectItem value="gemini-3-flash">Gemini 3 Flash (Preview)</SelectItem>
                                     </SelectContent>
                                 </Select>
                                 <p className="text-[10px] text-muted-foreground">
@@ -162,9 +162,8 @@ export function AdminGeminiConfig() {
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash (Rápido)</SelectItem>
-                                        <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro (Raciocínio Avançado)</SelectItem>
-                                        <SelectItem value="gemini-1.5-pro">Gemini 1.5 Pro (Legacy)</SelectItem>
+                                        <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash (Estável)</SelectItem>
+                                        <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro (Qualidade Máxima)</SelectItem>
                                     </SelectContent>
                                 </Select>
                                 <p className="text-[10px] text-muted-foreground">

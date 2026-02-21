@@ -4,6 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
 // --- UTILS ---
@@ -79,7 +80,12 @@ Deno.serve(async (req: Request) => {
         }
 
         const GEMINI_KEY = adminProfile.gemini_api_key;
+        const OPENAI_KEY = Deno.env.get('OPENAI_API_KEY');
         const MODEL = adminProfile.gemini_training_model || 'gemini-1.5-flash';
+
+        if (!OPENAI_KEY) {
+            throw new Error("Sistema não configurado (Falta OpenAI API Key no ambiente)");
+        }
 
         // 2. Determine users to process
         const body = await req.json().catch(() => ({}));
@@ -133,6 +139,7 @@ Deno.serve(async (req: Request) => {
         // 3. Process each user
         for (const trainingRecord of usersToTrain) {
             const userId = trainingRecord.user_id;
+            console.log(`[Processor] Processing user ${userId}...`);
 
             // Fetch unanalyzed messages (Batched: 50 messages max)
             const { data: messages, error: msgError } = await supabase
@@ -251,12 +258,24 @@ Deno.serve(async (req: Request) => {
 
                 const { data: trainingStatus } = await supabase
                     .from('ai_agent_training')
-                    .select('last_report_at')
+                    .select('last_report_at, last_context_fingerprint')
                     .eq('user_id', userId)
                     .single();
 
                 const lastReport = trainingStatus?.last_report_at;
+                const lastFingerprint = trainingStatus?.last_context_fingerprint;
+
+                // 1. Frequency Control (Cooldown of 4 hours)
                 const isDue = forceUserId || !lastReport || (Date.now() - new Date(lastReport).getTime() > 4 * 60 * 60 * 1000);
+
+                // 2. Quiet Hours (Avoid pro-active alerts between 23h and 08h)
+                const currentHour = parseInt(dateInfo.time.split(':')[0]);
+                const isQuietHours = currentHour >= 23 || currentHour < 8;
+
+                if (isQuietHours && !forceUserId) {
+                    console.log(`[Processor] Strategic Secretary in Quiet Hours (${currentHour}h) for ${userId}. Skipping.`);
+                    continue;
+                }
 
                 if (isDue) {
                     console.log(`[Processor] Strategic Secretary phase STARTED for ${userId}...`);
@@ -299,7 +318,21 @@ Deno.serve(async (req: Request) => {
                         .in('status', ['pendente', 'aguardando_pagamento'])
                         .lt('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
 
-                    // 3. Monthly Metrics
+                    // 3. Fingerprint check: avoid sending same info
+                    const currentFingerprint = `unpaid:${(unpaidOrders || []).map((o: any) => o.order_number).sort().join(',')}|msg:${pendingMessages?.length || 0}`;
+
+                    if (currentFingerprint === lastFingerprint && !forceUserId) {
+                        console.log(`[Processor] Data hasn't changed for ${userId}. Skipping duplicate report.`);
+                        await supabase.from('ai_training_logs').insert({
+                            user_id: userId,
+                            agent_type: 'synthesizer',
+                            action: 'analysis_skipped',
+                            details: { message: "Dados idênticos ao último relatório. Pulando para evitar spam.", fingerprint: currentFingerprint }
+                        });
+                        continue;
+                    }
+
+                    // 4. Monthly Metrics
                     const { data: profile } = await supabase.from('profiles').select('organization_id').eq('id', userId).single();
                     const { data: monthlyMetrics } = await supabase.rpc('get_total_meters_by_period', {
                         p_start_date: dateInfo.ranges.thisMonth.start,
@@ -307,7 +340,7 @@ Deno.serve(async (req: Request) => {
                         p_organization_id: profile?.organization_id
                     });
 
-                    // 4. Generate Strategic Note with Gemini
+                    // 5. Generate Strategic Note with Gemini 
                     const strategicContext = {
                         pending_whatsapp: inactivityDetails,
                         unpaid_orders: unpaidOrders || [],
@@ -323,61 +356,81 @@ Deno.serve(async (req: Request) => {
                         details: {
                             inactivity_grouped: inactivityDetails,
                             unpaid_count: strategicContext.unpaid_orders.length,
-                            metrics: strategicContext.metrics
+                            metrics: strategicContext.metrics,
+                            fingerprint: currentFingerprint
                         }
                     });
 
-                    const executiveNote = await generateExecutiveNote(strategicContext, GEMINI_KEY, MODEL);
+                    // 6. Attempt to generate Strategic Note
+                    try {
+                        const executiveNote = await generateExecutiveNote(strategicContext, OPENAI_KEY);
 
-                    // Log: Raw response for debugging
-                    await supabase.from('ai_training_logs').insert({
-                        user_id: userId,
-                        agent_type: 'synthesizer',
-                        action: 'raw_ai_response',
-                        details: { response: executiveNote }
-                    });
-
-                    const hasUnpaid = strategicContext.unpaid_orders.length > 0;
-                    const hasMessages = strategicContext.pending_whatsapp.length > 0;
-                    const shouldForce = hasUnpaid || hasMessages;
-
-                    if (executiveNote && (!executiveNote.includes("SKIP_ALERT") || shouldForce)) {
-                        let note = executiveNote;
-                        if (note.includes("SKIP_ALERT") && shouldForce) {
-                            note = "Gabi identificou pendências importantes: " +
-                                (hasUnpaid ? `${strategicContext.unpaid_orders.length} pedidos não pagos. ` : "") +
-                                (hasMessages ? "Clientes aguardando no WhatsApp." : "");
-                        }
-
-                        console.log(`[Processor] Executive note generated for ${userId}. Saving insight...`);
-                        await supabase.from('agent_insights').insert({
+                        // Log: Raw response for debugging
+                        await supabase.from('ai_training_logs').insert({
                             user_id: userId,
-                            insight_type: 'executive_alert',
-                            title: 'Resumo da Secretária Gabi',
-                            description: note,
-                            confidence: 0.9,
-                            is_active: true
+                            agent_type: 'synthesizer',
+                            action: 'raw_ai_response',
+                            details: { response: executiveNote }
                         });
 
-                        // Update last report timestamp
+                        const hasUnpaid = strategicContext.unpaid_orders.length > 0;
+                        const hasMessages = strategicContext.pending_whatsapp.length > 0;
+                        const shouldForce = hasUnpaid || hasMessages;
+
+                        if (executiveNote && (!executiveNote.includes("SKIP_ALERT") || shouldForce)) {
+                            let note = executiveNote;
+                            if (note.includes("SKIP_ALERT") && shouldForce) {
+                                note = "Gabi identificou pendências importantes: " +
+                                    (hasUnpaid ? `${strategicContext.unpaid_orders.length} pedidos não pagos. ` : "") +
+                                    (hasMessages ? "Clientes aguardando no WhatsApp." : "");
+                            }
+
+                            console.log(`[Processor] Executive note generated for ${userId}. Saving insight...`);
+                            await supabase.from('agent_insights').insert({
+                                user_id: userId,
+                                insight_type: 'executive_alert',
+                                title: 'Resumo da Secretária Gabi',
+                                description: note,
+                                confidence: 0.9,
+                                is_active: true
+                            });
+
+                            await supabase.from('ai_training_logs').insert({
+                                user_id: userId,
+                                agent_type: 'synthesizer',
+                                action: 'insight_generated',
+                                details: { message: "Relatório executivo gerado e enviado para agent_insights." }
+                            });
+                        } else {
+                            console.log(`[Processor] Secretary skipped alert for ${userId} (Nothing critical).`);
+                            await supabase.from('ai_training_logs').insert({
+                                user_id: userId,
+                                agent_type: 'synthesizer',
+                                action: 'analysis_skipped',
+                                details: { message: "Análise concluída. Nada crítico identificado (SKIP_ALERT)." }
+                            });
+                        }
+
+                        // Update last report timestamp and fingerprint ON SUCCESS
                         await supabase.from('ai_agent_training')
-                            .update({ last_report_at: new Date().toISOString() })
+                            .update({
+                                last_report_at: new Date().toISOString(),
+                                last_context_fingerprint: currentFingerprint
+                            })
                             .eq('user_id', userId);
 
-                        await supabase.from('ai_training_logs').insert({
-                            user_id: userId,
-                            agent_type: 'synthesizer',
-                            action: 'insight_generated',
-                            details: { message: "Relatório executivo gerado e enviado para agent_insights." }
-                        });
-                    } else {
-                        console.log(`[Processor] Secretary skipped alert for ${userId} (Nothing critical).`);
-                        await supabase.from('ai_training_logs').insert({
-                            user_id: userId,
-                            agent_type: 'synthesizer',
-                            action: 'analysis_skipped',
-                            details: { message: "Análise concluída. Nada crítico identificado (SKIP_ALERT)." }
-                        });
+                    } catch (reportErr: any) {
+                        console.error(`[Processor] Strategic Note Error for ${userId}:`, reportErr);
+
+                        // IMPORTANT: Mark attempt even on failure to avoid infinite retry every 5 mins
+                        // Set a smaller cooldown (e.g. 1h) instead of the full 4h if it failed
+                        const retryIn = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(); // 4h standard - 3h = 1h wait
+
+                        await supabase.from('ai_agent_training')
+                            .update({ last_report_at: retryIn })
+                            .eq('user_id', userId);
+
+                        throw reportErr; // Re-throw for main loop logging
                     }
                 } else {
                     console.log(`[Processor] Strategic Report skipped (Not due yet for ${userId})`);
@@ -411,59 +464,58 @@ Deno.serve(async (req: Request) => {
     }
 });
 
-// Helper: Strategic Secretary Intelligence
-async function generateExecutiveNote(ctx: any, apiKey: string, model: string) {
+// Helper: Strategic Secretary Intelligence (Updated for OpenAI GPT-4o)
+async function generateExecutiveNote(ctx: any, apiKey: string) {
     const prompt = `
-    ATUE COMO A GABI, UMA SECRETÁRIA EXECUTIVA DE ALTA PERFORMANCE.
-
-    ESTADO DA OPERAÇÃO:
+    ATUE COMO A GABI, A GERENTE AMIGA E PARCEIRA DE CONFIANÇA DO PATRÃO NA DIRECT AI.
+    
+    ESTADO DA OPERAÇÃO AGORA:
     - Data: ${ctx.date}
-    - WhatsApp Pendente:
-${ctx.pending_whatsapp || 'Nenhuma conversa pendente há mais de 6h.'}
-    - Pedidos Não Pagos (> 24h): ${ctx.unpaid_orders.length} pedidos. Valor total pendente: R$ ${ctx.unpaid_orders.reduce((acc: number, o: any) => acc + (o.valor_total || 0), 0).toFixed(2)}
+    - Conversas Pendentes: ${ctx.pending_whatsapp || 'Tudo em dia por aqui!'}
+    - Pedidos aguardando pagamento (> 24h): ${ctx.unpaid_orders.length} pedidos. Total: R$ ${ctx.unpaid_orders.reduce((acc: number, o: any) => acc + (o.valor_total || 0), 0).toFixed(2)}
     - Produção do Mês: ${ctx.metrics.total_meters?.toFixed(2) || 0} metros em ${ctx.metrics.total_orders || 0} pedidos.
 
-    TAREFA:
-    Crie um relatório curto, proativo e estratégico (máximo 4-5 linhas).
-    Use o tom de voz da Gabi (educada, mas focada em lucro e eficiência).
+    OBJETIVO:
+    Dê um resumo proativo para o patrão. Imagine que você está sentada com ele tomando um café. 
+    Seja humana, use o "olho de dona" e fale de forma natural.
 
-    REGRAS DE CRITICIDADE:
-    - Se houver QUALQUER pedido não pago há mais de 24h, gere o relatório. ISSO É OBRIGATÓRIO.
-    - Se houver clientes aguardando há mais de 6h, gere o relatório.
-    - O relatório deve destacar o valor total que a empresa tem para receber (Pedidos Não Pagos).
+    DIRETRIZES DE TOM:
+    - Evite ser uma lista de supermercado. Converse.
+    - Se as vendas estiverem boas, comemore! Se houver muitos calotes ou mensagens paradas, avise com tom de preocupação e parceira.
+    - Dê uma dica ou sugestão de ação baseada no que viu.
+    - Máximo 4-5 linhas para ser ágil.
 
-    FORMATO:
-    - Use bullet points.
-    - Retorne "SKIP_ALERT" APENAS se: (Pedidos Não Pagos = 0) E (WhatsApp Pendente = 0). Caso contrário, gere a nota.
-    - No final, dê uma sugestão rápida de ação (ex: "Cobrar fulano", "Revisar as metas").
-    - Em pedidos, mencione o prejuízo potencial dos não pagos.
+    RETORNO "SKIP_ALERT": 
+    Apenas se ABSOLUTAMENTE tudo estiver perfeito e não houver nada relevante para comentar. Mas se quiser apenas dar um "Bom dia" com uma análise positiva, pode mandar também.
     `;
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
     try {
-        const response = await fetch(geminiUrl, {
+        const response = await fetch("https://api.openai.com/v1/chat/completions", {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            },
             body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }]
+                model: "gpt-4o",
+                messages: [
+                    { role: "system", content: "Você é uma secretária executiva focada em dados reais e gestão de lucros. Não invente números." },
+                    { role: "user", content: prompt }
+                ],
+                temperature: 0
             })
         });
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-            console.error(`[Gemini Executive Error] Status: ${response.status}`, errorData);
-
-            // EMERGENCY LOG: What went wrong with the API?
-            // Note: We need to recreate the supabase client or pass it. 
-            // For now, let's just use console.error which should show up in logs.
-            return `ERROR_API_${response.status}_${JSON.stringify(errorData)}`;
+            throw new Error(`OpenAI API Error (${response.status}): ${errorData.error?.message || response.statusText}`);
         }
+
         const data = await response.json();
-        return data.candidates?.[0]?.content?.parts?.[0]?.text;
+        return data.choices?.[0]?.message?.content?.trim() || "SKIP_ALERT";
     } catch (e: any) {
         console.error("[Processor] generateExecutiveNote Error:", e);
-        return `ERROR_CATCH_${e.message}`;
+        throw e;
     }
 }
 
@@ -513,9 +565,11 @@ async function analyzeWithGemini(conversation: string, apiKey: string, model: st
         });
 
         if (!response.ok) {
-            const err = await response.text();
-            console.error("Gemini API Error:", err);
-            return null;
+            const errorData = await response.json().catch(() => ({}));
+            const status = response.status;
+            const msg = errorData.error?.message || "Erro desconhecido na API Gemini";
+            console.error(`[Gemini API Error] Status: ${status}`, errorData);
+            throw new Error(`Gemini API Error (${status}): ${msg}`);
         }
 
         const data = await response.json();

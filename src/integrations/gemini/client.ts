@@ -36,7 +36,7 @@ export const getGeminiClient = async () => {
   return new GoogleGenerativeAI(key);
 };
 
-export const getGenerativeModel = async (modelName = "gemini-1.5-flash") => {
+export const getGenerativeModel = async (modelName = "gemini-2.0-flash") => {
   try {
     const genAI = await getGeminiClient();
     return genAI.getGenerativeModel({

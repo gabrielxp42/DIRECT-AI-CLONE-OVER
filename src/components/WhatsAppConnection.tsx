@@ -1,8 +1,7 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { MessageSquare, QrCode, RefreshCw, CheckCircle, Loader2, AlertCircle, Smartphone, ShieldCheck, Zap, Bot, Star, Gift, Crown, ArrowRight } from "lucide-react";
+import { MessageSquare, QrCode, RefreshCw, CheckCircle, Loader2, AlertCircle, Smartphone, ShieldCheck, Zap, Bot, Star, Gift, Crown, ArrowRight, RefreshCcw, Power } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/contexts/SessionProvider";
 import { useIsPlusMode } from "@/hooks/useIsPlusMode";
@@ -29,10 +28,14 @@ export function WhatsAppConnection() {
 
     // Polling de status quando estiver connecting
     useEffect(() => {
+        let isPolling = false;
         let interval: NodeJS.Timeout;
 
         if (status === 'connecting') {
             interval = setInterval(async () => {
+                if (isPolling) return; // Evita chamadas sobrepostas
+                isPolling = true;
+
                 try {
                     const { data } = await supabase.functions.invoke('whatsapp-proxy', {
                         body: { action: 'update-status' }
@@ -41,12 +44,21 @@ export function WhatsAppConnection() {
                     if (data?.connected) {
                         setStatus('connected');
                         setShowSuccessModal(true);
-                        toast.success("WhatsApp Conectado com Sucesso!", {
-                            description: "A Gabi AI já está no comando e pronta para avisar seus clientes."
-                        });
+                        setQrCode(null);
+                        toast.success("WhatsApp Conectado com Sucesso!");
+                    } else if (data?.qrcode) {
+                        // Se recebemos um QR, atualizamos o estado
+                        setQrCode(data.qrcode);
+                    } else if (data?.state === 'not_found' || data?.error) {
+                        // Se a instância não existe ou deu erro crítico, volta ao estado inicial
+                        console.log("Instance not found or error during polling, resetting status");
+                        setStatus('disconnected');
+                        setQrCode(null);
                     }
                 } catch (e) {
                     console.error("Status check failed", e);
+                } finally {
+                    isPolling = false;
                 }
             }, 5000); // Checa a cada 5 segundos
         }
@@ -59,10 +71,16 @@ export function WhatsAppConnection() {
     const checkConnectionStatus = async () => {
         if (profile?.whatsapp_status === 'connected') {
             setStatus('connected');
+            setQrCode(null);
         } else if (profile?.whatsapp_status === 'connecting') {
             setStatus('connecting');
+            // Recuperar QR do cache se existir
+            if (profile?.whatsapp_qr_cache) {
+                setQrCode(profile.whatsapp_qr_cache);
+            }
         } else {
             setStatus('disconnected');
+            setQrCode(null);
         }
     };
 
@@ -142,12 +160,38 @@ export function WhatsAppConnection() {
 
             if (data?.connected) {
                 setStatus('connected');
-                toast.success("Considerei conectado!");
+                setShowSuccessModal(true);
+                setQrCode(null);
+                toast.success("Conectado!");
+            } else if (data?.qrcode) {
+                setQrCode(data.qrcode);
+                toast.success("QR Code atualizado!");
             } else {
                 toast.info("Ainda sincronizando... Verifique se o QR Code foi escaneado.");
             }
         } catch (e) {
             toast.error("Erro ao verificar status.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleRestart = async () => {
+        setLoading(true);
+        try {
+            const { data } = await supabase.functions.invoke('whatsapp-proxy', {
+                body: { action: 'restart' }
+            });
+
+            if (data?.success) {
+                toast.success("Reiniciando instância... Aguarde a sincronização.");
+                // Força um check de status em breve
+                setTimeout(handleForceRefresh, 3000);
+            } else {
+                toast.error("Erro ao reiniciar instância.");
+            }
+        } catch (e) {
+            toast.error("Erro na comunicação com a Gabi.");
         } finally {
             setLoading(false);
         }
@@ -287,12 +331,14 @@ export function WhatsAppConnection() {
                                 )}
                             </div>
                             <h2 className="text-3xl font-black italic uppercase tracking-tighter text-zinc-900 dark:text-white">
-                                {status === 'connected' ? "BOT ATIVO NO COMANDO" : "CONEXÃO DA INTELIGÊNCIA"}
+                                {status === 'connected' ? "BOT ATIVO NO COMANDO" : status === 'connecting' ? "ESTABELECENDO CONTATO..." : "CONEXÃO DA INTELIGÊNCIA"}
                             </h2>
                             <p className="text-zinc-500 dark:text-zinc-400 text-sm font-bold italic leading-tight max-w-md">
                                 {status === 'connected'
                                     ? "👋 Ei! Gabi aqui. Estou conectada e pronta para automatizar seus avisos de pedido."
-                                    : "👋 Olá! Sou a Gabi. Preciso que você conecte o WhatsApp para que eu possa falar com seus clientes."}
+                                    : status === 'connecting'
+                                        ? "🚀 Só um segundo! Estou configurando minha inteligência no seu WhatsApp..."
+                                        : "👋 Olá! Sou a Gabi. Preciso que você conecte o WhatsApp para que eu possa falar com seus clientes."}
                             </p>
                         </div>
                     </div>
@@ -337,19 +383,30 @@ export function WhatsAppConnection() {
                                 <div className="flex flex-col items-end gap-2">
                                     <Button
                                         variant="outline"
+                                        onClick={handleRestart}
+                                        disabled={loading}
+                                        className="h-12 px-6 rounded-xl border-primary/20 text-primary hover:bg-primary hover:text-white font-black uppercase tracking-widest text-xs transition-all"
+                                    >
+                                        {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCcw className="w-4 h-4 mr-2" />}
+                                        Reiniciar Sincronização
+                                    </Button>
+                                    <Button
+                                        variant="outline"
                                         onClick={handleDisconnect}
                                         disabled={loading}
-                                        className="h-12 px-6 rounded-xl border-red-500/20 text-red-500 hover:bg-red-500 hover:text-white font-black uppercase tracking-widest text-xs transition-all"
+                                        className="h-10 px-4 rounded-xl border-red-500/20 text-red-500 hover:bg-red-500 hover:text-white font-black uppercase tracking-widest text-[10px] transition-all opacity-60 hover:opacity-100"
                                     >
-                                        {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                                        {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Power className="w-3 h-3 mr-2" />}
                                         Desconectar
                                     </Button>
-                                    <button
-                                        onClick={() => handleConnect(true)}
-                                        className="text-[9px] text-zinc-500 hover:text-red-500 uppercase font-bold tracking-tighter transition-colors"
-                                    >
-                                        Problemas? Forçar Reset Total
-                                    </button>
+                                    <div className="flex flex-col items-center gap-2 mt-2">
+                                        <button
+                                            onClick={() => handleConnect(true)}
+                                            className="text-[9px] text-zinc-500 hover:text-red-500 uppercase font-bold tracking-tighter transition-colors"
+                                        >
+                                            Problemas Graves? Forçar Reset Total
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         ) : (
@@ -394,35 +451,26 @@ export function WhatsAppConnection() {
                                                 </p>
                                                 <div className="flex gap-4">
                                                     <Button
-                                                        variant="link"
-                                                        size="sm"
+                                                        variant="outline"
                                                         onClick={handleForceRefresh}
-                                                        className="text-[9px] text-zinc-400 hover:text-primary uppercase font-black"
+                                                        disabled={loading}
+                                                        className="px-4 h-10 rounded-xl border-primary/20 text-primary hover:bg-primary/10 font-bold uppercase tracking-widest text-[10px]"
                                                     >
-                                                        Verificar Agora
-                                                    </Button>
-                                                    <Button
-                                                        variant="link"
-                                                        size="sm"
-                                                        onClick={handleDisconnect}
-                                                        className="text-[9px] text-red-400 hover:text-red-500 uppercase font-black"
-                                                    >
-                                                        Cancelar e Resetar
+                                                        Atualizar Status
                                                     </Button>
                                                 </div>
+                                                <Button
+                                                    variant="link"
+                                                    size="sm"
+                                                    onClick={handleDisconnect}
+                                                    className="text-[9px] text-red-400 hover:text-red-500 uppercase font-black"
+                                                >
+                                                    Cancelar e Resetar
+                                                </Button>
                                             </div>
                                         )}
                                     </div>
                                 )}
-
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleConnect(true)}
-                                    className="text-zinc-400 hover:text-red-500 hover:bg-red-500/5 uppercase font-black text-[10px] tracking-widest mt-4"
-                                >
-                                    Problemas? Forçar Novo QR Code
-                                </Button>
                             </div>
                         )}
                     </div>
@@ -434,7 +482,6 @@ export function WhatsAppConnection() {
                 onClose={() => setShowSuccessModal(false)}
             />
 
-            {/* AI Training Progress - Show after connection */}
             {status === 'connected' && (
                 <div className="mt-6">
                     <AITrainingProgressCard />

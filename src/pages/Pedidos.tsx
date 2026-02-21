@@ -104,10 +104,18 @@ const PedidosPage: React.FC = () => {
     showSuccess("Copiado com sucesso!");
   };
 
-  const [whatsAppDialog, setWhatsAppDialog] = useState<{ open: boolean; pedido: Pedido | null; summary: string }>({
+  const [whatsAppDialog, setWhatsAppDialog] = useState<{
+    open: boolean;
+    loading: boolean;
+    pedido: Pedido | null;
+    summary: string;
+    error?: string | null;
+  }>({
     open: false,
     pedido: null,
-    summary: ''
+    summary: '',
+    error: null,
+    loading: false
   });
   const { addTask, updateTask, updateStep } = useBackgroundTasks();
   const { isTourOpen, currentStep, steps, startTour, nextStep, prevStep, closeTour, shouldAutoStart } = useTour(PEDIDOS_TOUR, 'pedidos');
@@ -344,7 +352,7 @@ const PedidosPage: React.FC = () => {
 
     if (isPlusMode) {
       // PLUS MODE: Abrir dialog para envio direto (mesmo se sem telefone, o dialog permite buscar)
-      setWhatsAppDialog({ open: true, loading: false, pedido, summary });
+      setWhatsAppDialog({ open: true, loading: false, pedido, summary, error: null });
     } else {
       // NORMAL MODE: Abrir link wa.me
       const encodedText = encodeURIComponent(summary);
@@ -421,6 +429,9 @@ const PedidosPage: React.FC = () => {
           }
 
           const session = (await supabase.auth.getSession()).data.session;
+          const pdfController = new AbortController();
+          const pdfTimeout = setTimeout(() => pdfController.abort(), 60000);
+
           const pdfResp = await fetch(`${SUPABASE_URL}/functions/v1/whatsapp-proxy`, {
             method: 'POST',
             headers: {
@@ -436,8 +447,10 @@ const PedidosPage: React.FC = () => {
               mediaName: `Pedido_${pedido.order_number}.pdf`,
               mediaType: 'document',
               message: ''
-            })
+            }),
+            signal: pdfController.signal
           });
+          clearTimeout(pdfTimeout);
 
           const pdfResult = await pdfResp.json();
           if (!pdfResp.ok || pdfResult?.error) {
@@ -454,6 +467,9 @@ const PedidosPage: React.FC = () => {
           if (data.attachPdf) await new Promise(r => setTimeout(r, 1000));
 
           const textSession = (await supabase.auth.getSession()).data.session;
+          const textController = new AbortController();
+          const textTimeout = setTimeout(() => textController.abort(), 60000);
+
           const textResp = await fetch(`${SUPABASE_URL}/functions/v1/whatsapp-proxy`, {
             method: 'POST',
             headers: {
@@ -467,8 +483,10 @@ const PedidosPage: React.FC = () => {
               message: data.includePix && companyProfile?.company_pix_key
                 ? `${summary}\n\n💰 *DADOS PARA PAGAMENTO*\nChave Pix: ${companyProfile.company_pix_key}`
                 : summary
-            })
+            }),
+            signal: textController.signal
           });
+          clearTimeout(textTimeout);
 
           const textResult = await textResp.json();
           if (!textResp.ok || textResult?.error) {
@@ -1832,10 +1850,12 @@ const PedidosPage: React.FC = () => {
       {/* WhatsApp Plus Mode Dialog */}
       <WhatsAppActionDialog
         isOpen={whatsAppDialog.open}
-        onOpenChange={(open) => !open && setWhatsAppDialog({ open: false, pedido: null, summary: '' })}
+        onOpenChange={(open) => setWhatsAppDialog(prev => ({ ...prev, open }))}
         customerName={whatsAppDialog.pedido?.clientes?.nome || 'Cliente'}
         phone={whatsAppDialog.pedido?.clientes?.telefone || ''}
         messagePreview={whatsAppDialog.summary}
+        isLoading={whatsAppDialog.loading}
+        errorMessage={whatsAppDialog.error}
         pixKey={companyProfile?.company_pix_key}
         onConfirm={handleConfirmWhatsAppSend}
       />

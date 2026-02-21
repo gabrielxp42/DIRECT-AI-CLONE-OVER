@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
-import { FileText, MessageSquare, Phone, Send } from "lucide-react";
+import { FileText, MessageSquare, Phone, Send, AlertCircle } from "lucide-react";
 
 const PixIcon = ({ className }: { className?: string }) => (
     <i className={cn("fa-brands fa-pix", className)}></i>
@@ -28,6 +28,7 @@ interface WhatsAppActionDialogProps {
     pixKey?: string | null;
     onConfirm: (data: { phone: string; attachPdf: boolean; includeText: boolean; includePix: boolean }) => void;
     isLoading?: boolean;
+    errorMessage?: string | null;
 }
 
 export const WhatsAppActionDialog = ({
@@ -38,7 +39,8 @@ export const WhatsAppActionDialog = ({
     messagePreview,
     pixKey,
     onConfirm,
-    isLoading = false
+    isLoading = false,
+    errorMessage = null
 }: WhatsAppActionDialogProps) => {
     const isMobile = useIsMobile();
     const [editablePhone, setEditablePhone] = useState(phone);
@@ -84,6 +86,16 @@ export const WhatsAppActionDialog = ({
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-6 space-y-5">
+                    {/* Mensagem de Erro */}
+                    {errorMessage && (
+                        <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/20 flex items-start gap-3 text-destructive animate-in fade-in slide-in-from-top-2 duration-300">
+                            <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                            <div className="text-xs font-medium leading-tight">
+                                {errorMessage}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Campo de Telefone */}
                     <div className="space-y-2">
                         <Label htmlFor="phone" className="text-muted-foreground flex items-center gap-2">
