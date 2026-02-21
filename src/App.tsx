@@ -85,6 +85,7 @@ const App = () => (
                       <Route path="/privacy" element={<Legal />} />
                       <Route path="/checkout" element={<Checkout />} />
                       <Route path="/landing-page" element={<Navigate to="/" replace />} />
+                      <Route path="/index.html" element={<Navigate to="/" replace />} />
                       <Route path="/" element={<LandingPage />} />
                       <Route element={<ProtectedRoute />}>
                         <Route element={<SubscriptionGuard />}>
