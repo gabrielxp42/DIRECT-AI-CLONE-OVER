@@ -9,8 +9,11 @@ export default function LandingPage() {
     const iframeSrc = `/landing-page/index.html${queryParams}`;
 
     useEffect(() => {
+        console.log('🏠 [LandingPage] Auth Check:', { hasSession: !!session, isLoading });
+
         // Redirecionar se já estiver logado
         if (!isLoading && session) {
+            console.log('🏠 [LandingPage] User is authenticated, redirecting to /dashboard');
             navigate('/dashboard', { replace: true });
         }
 
@@ -20,6 +23,7 @@ export default function LandingPage() {
     // O retorno da div com iframe só será exibido enquanto não estiver redirecionando
     // ou se o usuário não estiver logado.
     if (!isLoading && session) {
+        console.log('🏠 [LandingPage] Blocking render during redirect');
         return null;
     }
 

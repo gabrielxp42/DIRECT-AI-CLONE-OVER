@@ -111,13 +111,11 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
       console.log('🔍 [SessionProvider] Initializing session...');
 
       try {
-        // 1. Tentar obter token válido usando o guardião do projeto (que é estável)
         const token = await getValidToken();
 
         if (token) {
-          console.log('✅ [SessionProvider] Valid token found via TokenGuard');
+          console.log('✅ [SessionProvider] Token detected, fetching full session data...');
 
-          // Recuperar o resto da sessão do storage correto para ter o objeto Session completo
           const getAuthKey = (storage: Storage) => Object.keys(storage).find(key => key.includes('auth-token'));
           let authKey = getAuthKey(localStorage);
           let storage = localStorage;
@@ -132,29 +130,35 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
 
           if (fullSession && fullSession.user) {
             setSession(fullSession);
+            console.log('👤 [SessionProvider] Session restored for user:', fullSession.user.id);
 
-            // Buscar perfil
             const p = await fetchProfileData(fullSession.user.id, token);
             if (p) {
+              console.log('📄 [SessionProvider] Profile data loaded successfully');
               setProfile(p);
               setOrganizationId(p.organization_id);
+            } else {
+              console.warn('⚠️ [SessionProvider] Profile fetch returned no data');
             }
 
-            // Sincronizar o cliente supabase em background se necessário
             supabaseClient.auth.setSession({
               access_token: token,
               refresh_token: fullSession.refresh_token
-            }).catch(() => { });
+            }).catch(err => {
+              console.error('❌ [SessionProvider] Error setting supabase session:', err);
+            });
 
             setupTokenRefresh();
+          } else {
+            console.log('ℹ️ [SessionProvider] Stored auth token found but Session object is missing/invalid');
           }
         } else {
-          console.log('ℹ️ [SessionProvider] No active session found during initialization');
+          console.log('ℹ️ [SessionProvider] No active session found via TokenGuard');
         }
       } catch (error) {
-        console.error('❌ [SessionProvider] Initialization error:', error);
+        console.error('❌ [SessionProvider] Fatal initialization error:', error);
       } finally {
-        console.log('🏁 [SessionProvider] Initialization finished');
+        console.log('🏁 [SessionProvider] Initialization lifecycle complete');
         setIsLoading(false);
       }
     };
@@ -162,35 +166,45 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
     // Configurar listener para mudanças futuras
     const { data: { subscription: authSub } } = supabaseClient.auth.onAuthStateChange(
       async (event, currentSession) => {
-        console.log('🔐 [SessionProvider] Auth state change event:', event);
+        console.log(`🔐 [SessionProvider] Auth state change event: ${event}`);
 
         if (event === 'SIGNED_OUT') {
+          console.log('🚪 [SessionProvider] User signed out, clearing state');
           setSession(null);
           setProfile(null);
           setOrganizationId(null);
           clearTokenRefresh();
+          setIsLoading(false); // Explicit stop after sign out
         } else if (currentSession) {
-          // Atualizar sessão apenas se necessário para evitar loops
+          console.log('🔑 [SessionProvider] Session active for user:', currentSession.user.id);
+
           setSession(prev => {
             if (prev?.access_token === currentSession.access_token) return prev;
             return currentSession;
           });
 
-          // Buscar perfil se for um novo usuário ou se o perfil ainda não existe
           const currentProfile = stateRef.current.profile;
           if (!currentProfile || currentProfile.id !== currentSession.user.id) {
+            console.log('⏳ [SessionProvider] Profile missing or changed, fetching...');
             const p = await fetchProfileData(currentSession.user.id, currentSession.access_token);
             if (p) {
               setProfile(p);
               setOrganizationId(p.organization_id);
+              console.log('✅ [SessionProvider] Profile sync complete');
             }
           }
 
           if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
             setupTokenRefresh();
           }
+
+          // Note: setIsLoading(false) usually happens after initialize completes, 
+          // but we ensure it here too for sign-in edge cases.
+          setIsLoading(false);
+        } else if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
+          // If we have no session but these events fire, the loading might hang if we don't handle it
+          setIsLoading(false);
         }
-        setIsLoading(false);
       }
     );
 
