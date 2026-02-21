@@ -61,7 +61,7 @@ export function CommandMenu() {
           <CommandEmpty>Nenhum resultado encontrado.</CommandEmpty>
 
           <CommandGroup heading="Navegação">
-            <CommandItem onSelect={() => runCommand(() => navigate("/"))}>
+            <CommandItem onSelect={() => runCommand(() => navigate("/dashboard"))}>
               <LayoutDashboard className="mr-2 h-4 w-4" />
               <span>Dashboard</span>
             </CommandItem>

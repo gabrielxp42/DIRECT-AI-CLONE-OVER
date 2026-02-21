@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { lazy, Suspense } from "react";
 import Layout from "./components/Layout";
 import { SessionProvider } from "./contexts/SessionProvider";
@@ -84,11 +84,12 @@ const App = () => (
                       <Route path="/terms" element={<Legal />} />
                       <Route path="/privacy" element={<Legal />} />
                       <Route path="/checkout" element={<Checkout />} />
-                      <Route path="/landing-page" element={<LandingPage />} />
+                      <Route path="/landing-page" element={<Navigate to="/" replace />} />
+                      <Route path="/" element={<LandingPage />} />
                       <Route element={<ProtectedRoute />}>
                         <Route element={<SubscriptionGuard />}>
                           <Route element={<Layout />}>
-                            <Route path="/" element={<Index />} />
+                            <Route path="/dashboard" element={<Index />} />
                             <Route path="/clientes" element={<Clientes />} />
                             <Route path="/produtos" element={<Produtos />} />
                             <Route path="/pedidos" element={<Pedidos />} />

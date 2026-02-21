@@ -16,7 +16,7 @@ const AdminRoute = ({ children }: { children: React.ReactNode }) => {
     // Double check: Must be authenticated AND have is_admin flag
     if (!session || !profile?.is_admin) {
         // Redirect suspicious attempts to home or login logic
-        return <Navigate to="/" replace />;
+        return <Navigate to="/dashboard" replace />;
     }
 
     return <>{children}</>;

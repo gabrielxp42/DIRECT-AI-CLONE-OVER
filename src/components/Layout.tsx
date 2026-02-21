@@ -25,7 +25,7 @@ import { TrendingUp } from 'lucide-react';
 import { TaskDock } from './TaskDock';
 
 const staticNavItems = [
-  { href: '/', icon: Home, label: 'Dashboard' },
+  { href: '/dashboard', icon: Home, label: 'Dashboard' },
   { href: '/pedidos', icon: ShoppingCart, label: 'Pedidos' },
   { href: '/clientes', icon: Users, label: 'Clientes' },
   { href: '/produtos', icon: Package, label: 'Produtos' },
@@ -84,7 +84,7 @@ const Layout = () => {
         <div className="flex h-full flex-col gap-2">
           {/* Header do Sidebar */}
           <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-4 overflow-hidden">
-            <Link to="/" className="flex items-center gap-3 font-semibold text-sidebar-foreground">
+            <Link to="/dashboard" className="flex items-center gap-3 font-semibold text-sidebar-foreground">
               {companyProfile?.company_logo_url ? (
                 <img src={companyProfile.company_logo_url} alt="Company Logo" className="h-8 w-8 object-contain flex-shrink-0" />
               ) : (
@@ -167,7 +167,7 @@ const Layout = () => {
           <div className="h-safe-top pt-safe" />
 
           <div className="flex h-14 items-center gap-4 px-4 lg:h-[60px] lg:px-6">
-            <Link to="/" className="flex items-center gap-2 font-semibold hover:opacity-80 transition-opacity">
+            <Link to="/dashboard" className="flex items-center gap-2 font-semibold hover:opacity-80 transition-opacity">
               {companyProfile?.company_logo_url ? (
                 <img src={companyProfile.company_logo_url} alt="Company Logo" className="h-8 w-8 object-contain" />
               ) : (

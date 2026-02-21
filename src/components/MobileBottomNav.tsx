@@ -9,7 +9,7 @@ import { useShortcuts } from '@/hooks/useShortcuts';
 import { ShortcutSelectionModal } from './ShortcutSelectionModal';
 
 const navItemsLeft = [
-  { href: '/', icon: Home, label: 'Início' },
+  { href: '/dashboard', icon: Home, label: 'Início' },
   { href: '/pedidos', icon: ShoppingCart, label: 'Pedidos' },
   { href: '/clientes', icon: User, label: 'Clientes' },
 ];

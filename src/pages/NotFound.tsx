@@ -50,7 +50,7 @@ const NotFound = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
             <Button
-              onClick={() => navigate("/")}
+              onClick={() => navigate("/dashboard")}
               className="h-14 rounded-2xl bg-[#FFF200] text-black hover:bg-[#ffe600] font-extrabold text-lg gap-2 shadow-[0_0_20px_-5px_rgba(255,242,0,0.3)] transition-all hover:scale-[1.03] active:scale-[0.97]"
             >
               <Home className="h-5 w-5" />
