@@ -855,7 +855,7 @@ const Checkout = () => {
                                                                 placeholder="Nome como está no cartão"
                                                                 value={cardData.holderName}
                                                                 onChange={e => setCardData({ ...cardData, holderName: e.target.value.toUpperCase() })}
-                                                                className="pl-10 bg-black/40 border-white/10 h-11 text-xs text-white placeholder:text-white/30"
+                                                                className="pl-10 bg-black/40 border-white/10 h-11 text-xs text-white placeholder:text-white/30 text-white"
                                                             />
                                                         </div>
                                                         <div className="relative">
@@ -864,7 +864,7 @@ const Checkout = () => {
                                                                 placeholder="Número do cartão"
                                                                 value={cardData.number}
                                                                 onChange={e => setCardData({ ...cardData, number: formatCardNumber(e.target.value) })}
-                                                                className="pl-10 bg-black/40 border-white/10 h-11 text-xs text-white placeholder:text-white/30 font-mono tracking-wider"
+                                                                className="pl-10 bg-black/40 border-white/10 h-11 text-xs text-white placeholder:text-white/30 font-mono tracking-wider text-white"
                                                             />
                                                             <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500/40" />
                                                         </div>
@@ -873,14 +873,14 @@ const Checkout = () => {
                                                                 placeholder="MM/AA"
                                                                 value={cardData.expiry}
                                                                 onChange={e => setCardData({ ...cardData, expiry: formatExpiry(e.target.value) })}
-                                                                className="bg-black/40 border-white/10 h-11 text-xs text-white text-center"
+                                                                className="bg-black/40 border-white/10 h-11 text-xs text-white text-center text-white"
                                                             />
                                                             <Input
                                                                 placeholder="CVV"
                                                                 maxLength={4}
                                                                 value={cardData.cvv}
                                                                 onChange={e => setCardData({ ...cardData, cvv: e.target.value.replace(/\D/g, '') })}
-                                                                className="bg-black/40 border-white/10 h-11 text-xs text-white text-center"
+                                                                className="bg-black/40 border-white/10 h-11 text-xs text-white text-center text-white"
                                                             />
                                                         </div>
                                                     </div>
@@ -902,7 +902,7 @@ const Checkout = () => {
                                                     placeholder="CPF ou CNPJ (obrigatório)"
                                                     value={formatCPFCNPJ(clientInfo.cpfCnpj)}
                                                     onChange={e => setClientInfo({ ...clientInfo, cpfCnpj: e.target.value.replace(/\D/g, '') })}
-                                                    className="bg-black/40 border-white/10 h-10 text-xs text-white placeholder:text-white/30 transition-all font-mono"
+                                                    className="bg-black/40 border-white/10 h-10 text-xs text-white placeholder:text-white/30 transition-all font-mono text-white"
                                                     maxLength={18}
                                                 />
 
@@ -913,14 +913,14 @@ const Checkout = () => {
                                                             placeholder="CEP"
                                                             value={clientInfo.postalCode}
                                                             onChange={e => setClientInfo({ ...clientInfo, postalCode: e.target.value.replace(/\D/g, '') })}
-                                                            className="bg-black/40 border-white/10 h-10 text-xs text-white placeholder:text-white/30 font-mono"
+                                                            className="bg-black/40 border-white/10 h-10 text-xs text-white placeholder:text-white/30 font-mono text-white"
                                                             maxLength={8}
                                                         />
                                                         <Input
                                                             placeholder="Nº ou Complemento"
                                                             value={clientInfo.addressNumber}
                                                             onChange={e => setClientInfo({ ...clientInfo, addressNumber: e.target.value })}
-                                                            className="bg-black/40 border-white/10 h-10 text-xs text-white placeholder:text-white/30"
+                                                            className="bg-black/40 border-white/10 h-10 text-xs text-white placeholder:text-white/30 text-white"
                                                         />
                                                     </div>
                                                 )}
@@ -929,7 +929,7 @@ const Checkout = () => {
                                                     placeholder="WhatsApp para recibo"
                                                     value={clientInfo.phone}
                                                     onChange={e => setClientInfo({ ...clientInfo, phone: e.target.value.replace(/\D/g, '') })}
-                                                    className="bg-black/40 border-white/10 h-10 text-xs text-white placeholder:text-white/30 font-mono"
+                                                    className="bg-black/40 border-white/10 h-10 text-xs text-white placeholder:text-white/30 font-mono text-white"
                                                 />
                                             </div>
 
