@@ -1,0 +1,1460 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Direct AI - A Primeira IA Gerente de Gráficas do Mundo</title>
+    <meta name="description"
+        content="Automatize seu negócio com a Direct AI. Inteligência artificial avançada para gestão de pedidos DTF, clientes e produção.">
+
+    <!-- SEO & Social Share (Open Graph) -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="/">
+    <meta property="og:title" content="Direct AI - Sua Gráfica no Piloto Automático">
+    <meta property="og:description"
+        content="Automatize pedidos, cobranças e produção com a Gabi, a IA especializada em gráficas DTF.">
+    <meta property="og:image" content="/logo.png">
+
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="/">
+    <meta property="twitter:title" content="Direct AI - Sua Gráfica no Piloto Automático">
+    <meta property="twitter:description"
+        content="Automatize pedidos, cobranças e produção com a Gabi, a IA especializada em gráficas DTF.">
+    <meta property="twitter:image" content="/logo.png">
+
+    <!-- Cache Control - Aggressive Reset -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="style.css?v=20240116_1755">
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+
+<body class="dark-theme">
+    <div class="background-blobs">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+        <div class="blob blob-3"></div>
+    </div>
+
+    <nav class="navbar">
+        <div class="container">
+            <div class="logo">
+                <span class="logo-text">DIRECT <span class="accent">AI</span></span>
+            </div>
+            <div class="nav-links">
+                <a href="#agente-ia">A Gabi</a>
+                <a href="#solucao">Soluções</a>
+                <a href="#logistica">Logística</a>
+                <a href="#comparativo">AI vs Planilha</a>
+                <a href="#faq">Dúvidas</a>
+                <a href="/login" class="btn btn-outline">Entrar</a>
+                <a href="/checkout" class="btn btn-primary">Assinar Agora</a>
+            </div>
+            <div class="mobile-actions">
+                <a href="/" class="mobile-login-btn">
+                    <i data-lucide="user"></i>
+                </a>
+                <button class="mobile-menu-btn" id="mobileMenuBtn">
+                    <i data-lucide="menu"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <header class="hero">
+        <div class="container">
+            <div class="hero-content">
+                <div class="badge-new">
+                    <span class="pulse"></span>
+                    TECNOLOGIA DE PONTA EM DTF & GESTÃO
+                </div>
+                <h1>Pare de <span class="text-gradient">Rasgar Dinheiro</span> com a Desorganização da sua Gráfica DTF
+                </h1>
+                <p>O único sistema com Inteligência Artificial especializado em DTF. Uma funcionária que não dorme, não
+                    erra e organiza sua produção, metros lineares e cobranças automaticamente.
+                </p>
+                <div class="hero-actions">
+                    <a href="/checkout" class="btn btn-lg btn-primary">
+                        RECUPERAR MEU LUCRO NO DTF
+                        <i data-lucide="zap"></i>
+                    </a>
+                    <a href="#comparativo" class="btn btn-lg btn-ghost">Adeus Planilhas</a>
+                </div>
+                <div class="hero-stats">
+                    <div class="stat-item">
+                        <span class="stat-value">+50%</span>
+                        <span class="stat-label">Eficiência</span>
+                    </div>
+                    <div class="stat-divider"></div>
+                    <div class="stat-item">
+                        <span class="stat-value">100% 🇧🇷</span>
+                        <span class="stat-label">Nacional</span>
+                    </div>
+                    <div class="stat-divider"></div>
+                    <div class="stat-item">
+                        <span class="stat-value">24/7</span>
+                        <span class="stat-label">Suporte AI</span>
+                    </div>
+                </div>
+            </div>
+            <div class="hero-visual">
+                <div class="glass-card main-preview">
+                    <img src="hero-desktop.png" alt="Direct AI Dashboard Desktop" class="preview-img desktop-only">
+                    <img src="hero-mobile.png" alt="Direct AI Dashboard Mobile" class="preview-img mobile-only">
+                    <div class="glass-overlay"></div>
+                </div>
+                <div class="floating-element element-1">
+                    <div class="mini-card glass">
+                        <i data-lucide="zap" class="icon-yellow"></i>
+                        <span>Pedido via Áudio</span>
+                    </div>
+                </div>
+                <div class="floating-element element-2">
+                    <div class="mini-card glass">
+                        <i data-lucide="package" class="icon-purple"></i>
+                        <span>Insumos DTF</span>
+                    </div>
+                </div>
+                <div class="floating-element element-3">
+                    <div class="mini-card glass">
+                        <i data-lucide="bar-chart-3" class="icon-blue"></i>
+                        <span>Relatórios IA</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <section id="agente-ia" class="ai-brain-section">
+        <div class="container">
+            <div class="ai-reveal">
+                <div class="ai-core-visual">
+                    <div class="gabi-orb-wrap">
+                        <canvas id="gabiSmoke"></canvas>
+                        <div class="ai-pulse"></div>
+                        <div class="ai-sphere">
+                            <i data-lucide="brain-circuit"></i>
+                        </div>
+                        <!-- Floating Dialog Bubbles moved inside wrapper for better positioning -->
+                        <div class="gabi-dialogs">
+                            <div class="orb-bubble bubble-left" data-scroll-reveal="1">
+                                <span class="bubble-user">Você:</span>
+                                <p>Gabi, quanto entrou de grana essa semana?</p>
+                            </div>
+                            <div class="orb-bubble bubble-right" data-scroll-reveal="2">
+                                <span class="bubble-gabi">Gabi:</span>
+                                <p>Essa semana foram R$ 4.280 em 31 pedidos. 📈 Seu ticket médio subiu 12% comparado à
+                                    semana passada!</p>
+                            </div>
+                            <div class="orb-bubble bubble-left-bottom" data-scroll-reveal="3">
+                                <span class="bubble-user">Você:</span>
+                                <p>O pedido do Marcelo tá pronto, avisa ele pra buscar.</p>
+                            </div>
+                            <div class="orb-bubble bubble-right-bottom" data-scroll-reveal="4">
+                                <span class="bubble-gabi">Gabi:</span>
+                                <p>Pronto! ✅ Atualizei o status e já mandei no WhatsApp dele: "Seu pedido está pronto
+                                    para
+                                    retirada!"</p>
+                            </div>
+                            <div class="orb-bubble bubble-extra-1" data-scroll-reveal="5">
+                                <span class="bubble-gabi">Gabi:</span>
+                                <p>⚠️ Atenção: O cliente "Estamparia do João" tem R$ 350 em aberto há 8 dias. Quer que
+                                    eu
+                                    envie um lembrete?</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="ai-content">
+                    <div class="badge-new">ESTRUTURA DE REDE NEURAL</div>
+                    <h2 class="section-title">Conheça a <span class="accent">Gabi</span>: O Cérebro do seu DTF</h2>
+                    <p class="section-subtitle">A Gabi não é um robô comum. Ela é uma Inteligência Artificial treinada
+                        para entender o dia a dia de uma Gráfica DTF. Ela entende sua gíria, seu barulho e sua pressa.
+                    </p>
+                    <div class="ai-features-list">
+                        <div class="ai-list-item">
+                            <i data-lucide="camera"></i>
+                            <span><strong>Visão Computacional:</strong> Tire foto de um rascunho ou pedido manual. Gabi
+                                interpreta a letra e gera a ordem digital na hora.</span>
+                        </div>
+                        <div class="ai-list-item">
+                            <i data-lucide="mic-2"></i>
+                            <span><strong>Rede Neural de Voz:</strong> Mande áudios em meio ao barulho das máquinas e
+                                ela entende cada detalhe do pedido.</span>
+                        </div>
+                        <div class="ai-list-item">
+                            <i data-lucide="message-square"></i>
+                            <span><strong>Foco em Pagamento:</strong> Ela conversa com clientes via WhatsApp,
+                                recuperando pagamentos e organizando o financeiro de forma automática.</span>
+                        </div>
+                    </div>
+                    <div class="ai-cta">
+                        <a href="/checkout" class="btn btn-lg btn-primary">EU PRECISO DA
+                            GABI NO MEU TIME</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- INTEGRAÇÃO WHATSAPP -->
+    <section id="whatsapp-integration" class="whatsapp-section">
+        <div class="container">
+            <div class="whatsapp-grid">
+                <div class="whatsapp-visual">
+                    <div class="wp-demo-container">
+                        <!-- PASSO 1: Mini Painel do Sistema -->
+                        <div class="wp-demo-step wp-step-system">
+                            <div class="wp-system-header">
+                                <div class="wp-sys-dot red"></div>
+                                <div class="wp-sys-dot yellow"></div>
+                                <div class="wp-sys-dot green"></div>
+                                <span class="wp-sys-title">Painel — Pedido #1087</span>
+                            </div>
+                            <div class="wp-system-body">
+                                <div class="wp-order-info">
+                                    <div class="wp-order-row">
+                                        <span class="wp-label">Cliente</span>
+                                        <span class="wp-value">João Silva</span>
+                                    </div>
+                                    <div class="wp-order-row">
+                                        <span class="wp-label">Produto</span>
+                                        <span class="wp-value">Adesivo 3m² + Banner 2m</span>
+                                    </div>
+                                    <div class="wp-order-row">
+                                        <span class="wp-label">Total</span>
+                                        <span class="wp-value wp-price">R$ 487,00</span>
+                                    </div>
+                                </div>
+                                <div class="wp-status-change">
+                                    <div class="wp-current-status-row">
+                                        <span class="wp-label">Status Atual</span>
+                                        <span class="badge-status-yellow wp-status-pill">Em Produção</span>
+                                    </div>
+                                    <div class="wp-action-row">
+                                        <button class="wp-btn-simulate">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                                                stroke="currentColor" stroke-width="3" stroke-linecap="round"
+                                                stroke-linejoin="round">
+                                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                                                <polyline points="22 4 12 14.01 9 11.01" />
+                                            </svg>
+                                            <span>Pronto p/ Retirada</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Conector animado -->
+                        <div class="wp-demo-connector">
+                            <div class="wp-connector-line"></div>
+                            <div class="wp-connector-badge">
+                                <svg class="wp-connector-icon" viewBox="0 0 24 24" fill="none"
+                                    xmlns="http://www.w3.org/2000/svg">
+                                    <path
+                                        d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"
+                                        fill="#25D366" />
+                                </svg>
+                                <span>Gabi envia automaticamente</span>
+                            </div>
+                            <div class="wp-connector-line"></div>
+                        </div>
+
+                        <!-- PASSO 2: Chat WhatsApp -->
+                        <div class="wp-demo-step wp-step-chat">
+                            <div class="wp-chat-header-bar">
+                                <div class="wp-chat-avatar">J</div>
+                                <div class="wp-chat-contact">
+                                    <strong>João Silva</strong>
+                                    <span>online</span>
+                                </div>
+                            </div>
+                            <div class="wp-chat-body-sim">
+                                <div class="wp-bubble wp-bubble-gabi wp-anim-1">
+                                    <p>Olá João! 👋 Seu pedido <strong>#1087</strong> está <strong>pronto para
+                                            retirada</strong>!</p>
+                                    <p class="wp-bubble-detail">📦 Adesivo 3m² + Banner 2m<br>💰 Total: R$ 487,00</p>
+                                    <span class="wp-bubble-time">11:42 ✓✓</span>
+                                </div>
+                                <div class="wp-bubble wp-bubble-client wp-anim-2">
+                                    <p>Perfeito! Vou buscar agora mesmo 🚀</p>
+                                    <span class="wp-bubble-time">11:43</span>
+                                </div>
+                                <div class="wp-bubble wp-bubble-gabi wp-anim-3">
+                                    <p>Estaremos te esperando! 😊 Obrigado pela preferência.</p>
+                                    <span class="wp-bubble-time">11:43 ✓✓</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- CURSOR ANIMADO -->
+                        <div class="wp-cursor">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+                                xmlns="http://www.w3.org/2000/svg">
+                                <path
+                                    d="M5.65376 12.3673H5.46026L5.31717 12.4976L0.500002 16.8829L0.500002 1.19841L11.7841 12.3673H5.65376Z"
+                                    fill="white" stroke="black" stroke-width="1" />
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="whatsapp-content">
+                    <div class="badge-new bg-whatsapp">
+                        <span class="pulse wp-pulse"></span>
+                        CONEXÃO DIRETA
+                    </div>
+                    <h2 class="section-title">Sua Gráfica no <span class="whatsapp-accent">WhatsApp</span> do Cliente
+                    </h2>
+                    <p class="section-subtitle">Esqueça o vai e vem de mensagens manuais. Nossa integração oficial
+                        permite que a IA cuide de toda a comunicação enquanto você foca na produção.</p>
+
+                    <div class="whatsapp-features">
+                        <div class="wp-feature-item">
+                            <div class="wp-feature-icon">
+                                <i data-lucide="send"></i>
+                            </div>
+                            <div>
+                                <strong>Resumos Automáticos</strong>
+                                <p>Envie orçamentos detalhados com metragens e totais em um clique direto no WhatsApp do
+                                    cliente.</p>
+                            </div>
+                        </div>
+                        <div class="wp-feature-item">
+                            <div class="wp-feature-icon">
+                                <i data-lucide="bell-ring"></i>
+                            </div>
+                            <div>
+                                <strong>"Pedido Pronto!"</strong>
+                                <p>Notifique automaticamente quando a produção terminar. Sem precisar pegar o celular.
+                                </p>
+                            </div>
+                        </div>
+                        <div class="wp-feature-item">
+                            <div class="wp-feature-icon">
+                                <i data-lucide="wallet"></i>
+                            </div>
+                            <div>
+                                <strong>Cobrança Inteligente</strong>
+                                <p>Lembretes de pagamento gentis e eficientes que aumentam sua conversão em até 40%.</p>
+                            </div>
+                        </div>
+                        <div class="wp-feature-item">
+                            <div class="wp-feature-icon">
+                                <i data-lucide="toggle-right"></i>
+                            </div>
+                            <div>
+                                <strong>Controle Total</strong>
+                                <p>Ative ou pause o bot a qualquer momento. Você decide quando a IA assume o
+                                    atendimento.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="ai-cta">
+                        <a href="/checkout" class="btn btn-lg btn-whatsapp">QUERO
+                            INTEGRAR MEU WHATSAPP <i data-lucide="arrow-right"></i></a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- NOVA SEÇÃO: REVOLUÇÃO LOGÍSTICA -->
+    <section id="logistica" class="shipping-page-section">
+        <div class="container">
+            <div class="shipping-grid">
+                <div class="shipping-content">
+                    <div class="badge-new bg-blue">
+                        <i data-lucide="truck"></i> LOGÍSTICA 5.0
+                    </div>
+                    <h2 class="section-title">Envios que se <span class="accent">Resolvem Sozinhos</span></h2>
+                    <p class="section-subtitle">A única plataforma que une I.A. de Atendimento com Logística Real. Gere
+                        etiquetas, cote fretes e imprima tudo sem sair da tela.</p>
+
+                    <div class="shipping-features-v2">
+                        <div class="ship-f-item">
+                            <div class="ship-f-icon">
+                                <i data-lucide="zap"></i>
+                            </div>
+                            <div class="ship-f-text">
+                                <strong>Emissão em 1 Clique</strong>
+                                <p>Chega de copiar e colar. Os dados do cliente e do pedido já estão lá. Clique, pague e
+                                    imprima.</p>
+                            </div>
+                        </div>
+                        <div class="ship-f-item">
+                            <div class="ship-f-icon">
+                                <i data-lucide="message-circle"></i>
+                            </div>
+                            <div class="ship-f-text">
+                                <strong>Cotação via Gabi</strong>
+                                <p>Pergunte o valor do frete no chat e a Gabi te entrega as melhores taxas da SuperFrete
+                                    na hora.</p>
+                            </div>
+                        </div>
+                        <div class="ship-f-item">
+                            <div class="ship-f-icon">
+                                <i data-lucide="printer"></i>
+                            </div>
+                            <div class="ship-f-text">
+                                <strong>Impressão Turbo</strong>
+                                <p>Suporte nativo para etiquetas térmicas. Imprima em massa e despache mais rápido que
+                                    nunca.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="ai-cta">
+                        <a href="/checkout" class="btn btn-lg btn-primary">
+                            TURBINAR MEUS ENVIOS
+                            <i data-lucide="package"></i>
+                        </a>
+                    </div>
+                </div>
+
+                <div class="shipping-visual-v2">
+                    <div class="logistic-hub-card glass-card">
+                        <!-- Top Bar -->
+                        <div class="hub-header">
+                            <div class="hub-dots">
+                                <span></span><span></span><span></span>
+                            </div>
+                            <div class="hub-search">direct-ai.pro/logistica</div>
+                        </div>
+
+                        <!-- Main Logistic UI -->
+                        <div class="hub-body">
+                            <!-- Pending Labels Column -->
+                            <div class="hub-col labels-col">
+                                <div class="col-header">Pendentes (3)</div>
+                                <div class="label-mini-card active-card">
+                                    <div class="l-info">
+                                        <span class="l-id">#1092</span>
+                                        <span class="l-client">Ana Beatriz</span>
+                                    </div>
+                                    <div class="l-action">
+                                        <div class="btn-ship-mini-sim" id="shipBtnSim">Emitir</div>
+                                    </div>
+                                </div>
+                                <div class="label-mini-card">
+                                    <div class="l-info">
+                                        <span class="l-id">#1093</span>
+                                        <span class="l-client">Carlos Matos</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Interactive Middle Section -->
+                            <div class="hub-col interaction-col">
+                                <!-- Gabi Quote Animation -->
+                                <div class="gabi-quote-box glass">
+                                    <div class="g-q-header">
+                                        <i data-lucide="bot"></i> Gabi AI
+                                    </div>
+                                    <div class="g-q-body">
+                                        <div class="g-msg">"Gabi, frete para 01310-100?"</div>
+                                        <div class="g-reply">
+                                            <span>SEDEX: <strong>R$ 14,90</strong></span>
+                                            <span class="g-badge">Melhor Preço</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Label Generate Animation -->
+                                <div class="label-preview-anim">
+                                    <div class="barcode">|| ||| | || |||| |</div>
+                                    <div class="label-text">OBJETO POSTADO</div>
+                                    <div class="success-check"><i data-lucide="check-circle"></i></div>
+                                    <div class="print-glow"></div>
+                                </div>
+
+                                <!-- Gabi WhatsApp Notification -->
+                                <div class="gabi-tracking-notif glass">
+                                    <div class="g-t-header">
+                                        <i data-lucide="message-square" style="color: #25D366;"></i>
+                                        <span>Gabi p/ Ana Beatriz</span>
+                                    </div>
+                                    <div class="g-t-body">
+                                        "Seu pedido foi postado! 🚀 Código: <strong>SF1234567BR</strong>"
+                                    </div>
+                                    <div class="g-t-status">Enviado via WhatsApp ✅</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- CURSOR ANIMADO LOGISTICA -->
+                        <div class="ship-cursor">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+                                xmlns="http://www.w3.org/2000/svg">
+                                <path
+                                    d="M5.65376 12.3673H5.46026L5.31717 12.4976L0.500002 16.8829L0.500002 1.19841L11.7841 12.3673H5.65376Z"
+                                    fill="white" stroke="black" stroke-width="1" />
+                            </svg>
+                        </div>
+
+
+
+                        <!-- Hub Stats -->
+                        <div class="hub-footer">
+                            <div class="h-stat">
+                                <i data-lucide="trending-down"></i>
+                                <span>Frete 35% mais barato</span>
+                            </div>
+                            <div class="h-stat">
+                                <i data-lucide="clock"></i>
+                                <span>Economia de 5h/semana</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Floating Assets -->
+                    <div class="ship-float box-1"><i data-lucide="package"></i></div>
+                    <div class="ship-float box-2"><i data-lucide="truck"></i></div>
+                    <div class="ship-float box-3"><i data-lucide="printer"></i></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SEÇÃO: A EXPERIÊNCIA DO PATRÃO -->
+    <section id="comparativo" class="boss-experience-section">
+        <div class="container">
+            <div class="section-header-center">
+                <div class="badge-new">🕶️ A VISÃO DO DONO</div>
+                <h2 class="section-title">Sua empresa no <span class="accent">seu bolso</span>. 24/7.</h2>
+                <p class="section-subtitle">Imagine estar num restaurante, num churrasco, na praia... e saber exatamente
+                    como sua gráfica está indo. Sem ligar pra ninguém.</p>
+            </div>
+
+            <div class="boss-grid">
+                <!-- Lado Esquerdo: Contexto Emocional -->
+                <div class="boss-context">
+                    <h3>Chega de ser <span style="color: #ef4444;">escravo</span> da sua própria empresa.</h3>
+                    <p>A Gabi não só organiza seus pedidos. Ela <strong>gerencia seu negócio</strong> e te avisa do que
+                        importa, antes que vire problema.</p>
+
+                    <div class="boss-benefits">
+                        <div class="boss-benefit">
+                            <i data-lucide="trending-up"></i>
+                            <span>Relatórios de vendas e lucro em tempo real</span>
+                        </div>
+                        <div class="boss-benefit">
+                            <i data-lucide="bell-ring"></i>
+                            <span>Alertas proativos de pagamentos pendentes</span>
+                        </div>
+                        <div class="boss-benefit">
+                            <i data-lucide="smartphone"></i>
+                            <span>Tudo acessível do PC ou celular, 24 horas</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Lado Direito: Conversa Animada com a Gabi -->
+                <div class="boss-chat-visual">
+                    <div class="boss-phone glass-card">
+                        <div class="phone-header">
+                            <div class="phone-notch"></div>
+                            <div class="phone-status-bar">
+                                <span>21:47</span>
+                                <div class="phone-icons">
+                                    <i data-lucide="wifi" style="width:12px;height:12px;"></i>
+                                    <i data-lucide="battery-full" style="width:12px;height:12px;"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="chat-header-bar">
+                            <div class="chat-avatar-gabi">G</div>
+                            <div>
+                                <strong>Gabi AI</strong>
+                                <span class="chat-online">online</span>
+                            </div>
+                        </div>
+
+                        <div class="chat-messages" id="bossChatMessages">
+                            <!-- Gabi Proativa -->
+                            <div class="chat-bubble gabi-bubble msg-1">
+                                <div class="bubble-name">Gabi AI 🤖</div>
+                                Patrão! Notei que faz 3 dias que o <strong>João</strong> ainda não pagou o pedido
+                                <strong>#1092</strong> 💰
+                            </div>
+                            <div class="chat-bubble gabi-bubble msg-2">
+                                <div class="bubble-name">Gabi AI 🤖</div>
+                                Quer que eu mande uma mensagem educada lembrando ele do pagamento? 😊
+                            </div>
+
+                            <!-- Resposta do Patrão -->
+                            <div class="chat-bubble user-bubble msg-3">
+                                Pode mandar, Gabi. E me diz, como foram as vendas hoje?
+                            </div>
+
+                            <!-- Gabi responde com dados -->
+                            <div class="chat-bubble gabi-bubble msg-4">
+                                <div class="bubble-name">Gabi AI 🤖</div>
+                                Pronto! Lembrete enviado pro João ✅<br><br>
+                                Sobre as vendas de hoje:<br>
+                                📦 <strong>12 pedidos</strong> fechados<br>
+                                📏 <strong>38 metros</strong> de filme DTF rodados<br>
+                                💰 Faturamento: <strong>R$ 2.840,00</strong><br>
+                                📈 <strong>+22%</strong> comparado com ontem! 🚀
+                            </div>
+
+                            <!-- Patrão satisfeito -->
+                            <div class="chat-bubble user-bubble msg-5">
+                                Perfeito. Agora vou pedir meu vinho tranquilo 🍷😎
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SEÇÃO: PROVA SOCIAL (MÁQUINA DE VENDAS #1) -->
+    <section id="depoimentos" class="testimonials-section">
+        <div class="container">
+            <div class="section-header-center">
+                <div class="badge-new bg-emerald">PROVA SOCIAL</div>
+                <h2 class="section-title">Quem usa, <span class="accent">não volta atrás</span></h2>
+            </div>
+
+            <div class="testimonials-grid">
+                <div class="test-card glass-card">
+                    <div class="test-user">
+                        <div class="test-avatar">RB</div>
+                        <div>
+                            <strong>Ricardo Barbosa</strong>
+                            <span>RB Gráfica Digital</span>
+                        </div>
+                    </div>
+                    <p class="test-text">"Antes eu dependia do designer pra saber quantos logos cabiam no metro. Agora
+                        eu abro a calculadora, jogo as medidas e já mando o orçamento pro cliente na hora. O atendimento
+                        ficou 10x mais rápido."</p>
+                    <div class="test-rating">⭐⭐⭐⭐⭐</div>
+                </div>
+
+                <div class="test-card glass-card">
+                    <div class="test-user">
+                        <div class="test-avatar">AM</div>
+                        <div>
+                            <strong>Andréa Mendes</strong>
+                            <span>Mendes Brindes</span>
+                        </div>
+                    </div>
+                    <p class="test-text">"O que mais impressiona meus clientes é a Gabi. Ela responde o frete na hora e
+                        avisa quando o pedido foi postado. O nível de profissionalismo subiu 100%."</p>
+                    <div class="test-rating">⭐⭐⭐⭐⭐</div>
+                </div>
+
+                <div class="test-card glass-card">
+                    <div class="test-user">
+                        <div class="test-avatar">FP</div>
+                        <div>
+                            <strong>Felipe Porto</strong>
+                            <span>Porto Custom</span>
+                        </div>
+                    </div>
+                    <p class="test-text">"Eu anotava tudo no caderno e numa planilha que nunca batia. Hoje eu pergunto
+                        pra Gabi quantos metros rodei ontem, quem não pagou, quanto faturei — e ela me responde na hora.
+                        Pela primeira vez eu sei de verdade como minha empresa tá."</p>
+                    <div class="test-rating">⭐⭐⭐⭐⭐</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SEÇÃO: FAQ (MÁQUINA DE VENDAS #3) -->
+    <section id="faq" class="faq-section">
+        <div class="container">
+            <div class="section-header-center">
+                <h2 class="section-title">Dúvidas <span class="accent">Frequentes</span></h2>
+                <p class="section-subtitle">Tudo o que você precisa saber para turbinar sua gráfica hoje.</p>
+            </div>
+
+            <div class="faq-grid">
+                <div class="faq-item glass-card">
+                    <div class="faq-question">
+                        <span>É difícil de configurar o sistema?</span>
+                        <i data-lucide="plus"></i>
+                    </div>
+                    <div class="faq-answer">
+                        <p>De jeito nenhum! Em menos de 5 minutos você conecta seu WhatsApp e já pode começar a
+                            cadastrar seus produtos e calcular fretes.</p>
+                    </div>
+                </div>
+
+                <div class="faq-item glass-card">
+                    <div class="faq-question">
+                        <span>O sistema funciona no meu celular?</span>
+                        <i data-lucide="plus"></i>
+                    </div>
+                    <div class="faq-answer">
+                        <p>Sim! A Direct AI foi feita para ser usada na palma da mão. Você controla sua produção, fala
+                            com a Gabi e atende clientes de qualquer lugar.</p>
+                    </div>
+                </div>
+
+                <div class="faq-item glass-card">
+                    <div class="faq-question">
+                        <span>Preciso instalar alguma coisa na minha impressora?</span>
+                        <i data-lucide="plus"></i>
+                    </div>
+                    <div class="faq-answer">
+                        <p>Não. A Direct AI gera as etiquetas e arquivos prontos para impressão. Você só precisa abrir
+                            no seu PC e mandar para a impressora normalmente.</p>
+                    </div>
+                </div>
+
+                <div class="faq-item glass-card">
+                    <div class="faq-question">
+                        <span>E se eu precisar de ajuda?</span>
+                        <i data-lucide="plus"></i>
+                    </div>
+                    <div class="faq-answer">
+                        <p>Temos um suporte humano especializado e a própria Gabi que pode te tirar dúvidas sobre as
+                            funcionalidades a qualquer momento.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="solucao" class="interface-showcase">
+        <div class="container">
+            <div class="grid-showcase">
+                <div class="showcase-content">
+                    <div class="badge-accent">DASHBOARD DE ALTA PERFORMANCE</div>
+                    <h2 class="section-title">Relatórios que <span class="accent">Dão o Norte</span></h2>
+                    <p class="section-subtitle">Saiba exatamente quanto você lucrou, qual impressora rendeu mais e
+                        receba avisos preventivos para nunca mais parar a produção por falta de insumo.</p>
+                </div>
+                <div class="visual-container">
+                    <div class="glass-card stats-preview">
+                        <img src="relatorios-desktop.png" alt="Relatórios Direct AI" class="preview-img">
+                        <div class="glass-overlay"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- NEW CALCULATOR REVOLUTION SECTION -->
+    <section id="calculadora-revolucionaria" class="calculator-section">
+        <div class="container">
+            <div class="calculator-grid">
+                <div class="calc-visual">
+                    <div class="glass-card calc-preview-card">
+                        <img src="calculator-preview.png" alt="Calculadora DTF Revolucionária" class="calc-img">
+                        <div class="calc-glow"></div>
+                    </div>
+                    <!-- Badges agora fora do card para poder "vazar" (break out) -->
+                    <div class="floating-badge badge-top-right">
+                        <i data-lucide="check-circle-2"></i> Preview Real
+                    </div>
+                    <div class="floating-badge badge-bottom-left">
+                        <i data-lucide="scissors"></i> Margens Exatas
+                    </div>
+
+                </div>
+                <div class="calc-content">
+                    <div class="badge-new bg-yellow">
+                        <i data-lucide="zap"></i> EXCLUSIVIDADE DIRECT AI
+                    </div>
+                    <h2 class="section-title compact-title">Não pare seu Designer para responder: <span
+                            class="accent">"Quantas cabem
+                            no metro?"</span></h2>
+
+                    <p class="section-description">
+                        Acabe com esse gargalo. Com a <strong>Calculadora Visual</strong>, qualquer pessoa da sua equipe
+                        responde em segundos: <em>"Para 1.000 unidades 5x5cm, vamos gastar exatos 4,3 metros"</em>.
+                    </p>
+
+                    <ul class="feature-checklist compact-list">
+                        <li>
+                            <i data-lucide="check"></i>
+                            <span><strong>Autonomia pro Atendimento:</strong> Seu balcão orça sozinho.</span>
+                        </li>
+                        <li>
+                            <i data-lucide="check"></i>
+                            <span><strong>Adeus "Montar pra ver":</strong> Simulação visual instantânea.</span>
+                        </li>
+                    </ul>
+
+                    <!-- Gabi AI Glass Bubble -->
+                    <div class="gabi-glass-bubble">
+                        <div class="bubble-sparkles">✦</div>
+                        <div class="bubble-content">
+                            <div class="bubble-icon">
+                                <i data-lucide="bot"></i>
+                            </div>
+                            <div class="bubble-text">
+                                <strong>Prefere perguntar?</strong>
+                                <p>A Gabi também sabe! É só mandar: <em>"Gabi, quantos metros pra 100 logos 5x5?"</em> e
+                                    ela responde na hora.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="calc-actions">
+                        <button class="btn btn-lg btn-primary open-calculator-modal">
+                            TESTAR AGORA
+                            <i data-lucide="calculator"></i>
+                        </button>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="mobile-experience" id="pedidos-rapidos">
+        <div class="container">
+            <div class="grid-showcase reverse">
+                <div class="visual-container">
+                    <div class="glass-card mobile-preview">
+                        <img src="orders-mobile.png" alt="Criação de Pedidos Direct AI" class="preview-img mobile-img">
+                        <div class="glass-overlay"></div>
+                    </div>
+                    <!-- Badges Inteligentes -->
+                    <div class="floating-element element-5">
+                        <div class="mini-card glass">
+                            <i data-lucide="zap" class="icon-yellow"></i>
+                            <span>Importação do Zap</span>
+                        </div>
+                    </div>
+                    <div class="floating-element element-8">
+                        <div class="mini-card glass">
+                            <i data-lucide="sparkles" class="icon-blue"></i>
+                            <span>Serviços Inteligentes</span>
+                        </div>
+                    </div>
+                    <div class="floating-element element-9">
+                        <div class="mini-card glass">
+                            <i data-lucide="truck" class="icon-purple"></i>
+                            <span>Frete Automático</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="showcase-content">
+                    <div class="badge-accent">AGILIDADE REVOLUCIONÁRIA</div>
+                    <h2 class="section-title">Criação de Pedidos <span class="accent">Ultra-Rápida</span></h2>
+                    <p class="section-subtitle">Desenvolvido especificamente para gráficas DTF. Crie pedidos em segundos
+                        pelo computador ou celular com total fluidez e inteligência.</p>
+
+                    <ul class="feature-checklist-simple">
+                        <li>
+                            <i data-lucide="check-circle-2" class="icon-green"></i>
+                            <span><strong>Cálculo Automático:</strong> Metragens e preços definidos na hora.</span>
+                        </li>
+                        <li>
+                            <i data-lucide="check-circle-2" class="icon-green"></i>
+                            <span><strong>Serviços Especiais:</strong> Gestão de Montagem, "N com Foto" e mais.</span>
+                        </li>
+                        <li>
+                            <i data-lucide="check-circle-2" class="icon-green"></i>
+                            <span><strong>Frete & Taxas:</strong> Cálculo de entrega integrado ao pedido.</span>
+                        </li>
+                    </ul>
+
+                    <div class="time-gain-badge">
+                        <div class="time-gain-icon">
+                            <i data-lucide="clock"></i>
+                        </div>
+                        <span>Ganhe até <strong>2h por dia</strong> na sua operação</span>
+                    </div>
+
+                    <a href="/checkout" class="btn btn-primary btn-cta-inline">QUERO
+                        ESSA AGILIDADE</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="funcionalidades" class="features">
+        <div class="container text-center">
+            <h2 class="section-title">O Poder da <span class="accent">IA</span> no seu Negócio DTF</h2>
+            <div class="features-grid">
+                <div class="feature-card glass-card">
+                    <div class="feature-icon">
+                        <i data-lucide="mic"></i>
+                    </div>
+                    <h3>Áudio p/ Pedido</h3>
+                    <p>Fale as medidas e o tipo de filme e a Gabi gera a ordem de produção instantaneamente.</p>
+                </div>
+                <div class="feature-card glass-card">
+                    <div class="feature-icon">
+                        <i data-lucide="calculator"></i>
+                    </div>
+                    <h3>Metragem em Tempo Real</h3>
+                    <p>Cálculo automático de metros lineares e controle rigoroso de estoque de filme.</p>
+                </div>
+                <div class="feature-card glass-card">
+                    <div class="feature-icon">
+                        <i data-lucide="smartphone"></i>
+                    </div>
+                    <h3>PWA de Produção</h3>
+                    <p>Controle a fila de impressão direto do celular no chão de fábrica ou na estufa.</p>
+                </div>
+                <div class="feature-card glass-card">
+                    <div class="feature-icon">
+                        <i data-lucide="check-circle"></i>
+                    </div>
+                    <h3>Cobrança Automática</h3>
+                    <p>A Gabi avisa o cliente no WhatsApp e recupera faturamento perdido sem esforço.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+
+    <section id="comparativo" class="vs-section">
+        <div class="container">
+            <h2 class="section-title text-center">Por que gerenciar seu DTF no manual está te <span
+                    class="accent">esgotando?</span></h2>
+            <div class="vs-grid">
+                <div class="vs-card chaos">
+                    <div class="vs-header">O ESGOTAMENTO DO MANUAL</div>
+                    <ul class="vs-list">
+                        <li><i data-lucide="alert-triangle"></i> Burnout tentando fechar o caixa na mão</li>
+                        <li><i data-lucide="alert-triangle"></i> Stress total conferindo conversas no WhatsApp</li>
+                        <li><i data-lucide="alert-triangle"></i> Noite sem sono: "Será que esqueci algum pedido?"</li>
+                        <li><i data-lucide="alert-triangle"></i> Cansaço mental de processos lentos e repetitivos</li>
+                    </ul>
+                </div>
+                <div class="vs-divider">VS</div>
+                <div class="vs-card success">
+                    <div class="vs-header">A LIBERDADE DIRECT AI</div>
+                    <ul class="vs-list">
+                        <li><i data-lucide="check-circle-2"></i> Paz mental: Gabi organiza tudo via áudio</li>
+                        <li><i data-lucide="check-circle-2"></i> Você foca em vender, ela cuida da burocracia</li>
+                        <li><i data-lucide="check-circle-2"></i> Caixa fechado e conferido automaticamente</li>
+                        <li><i data-lucide="check-circle-2"></i> Controle total do seu lucro sem esforço</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="cta" class="cta-section">
+        <div class="container">
+            <div class="cta-card glass-card">
+                <h2>Seu DTF vai <span class="accent">Escalar</span> ou você vai continuar contando metros na mão?</h2>
+                <p>Enquanto você perde tempo preenchendo planilhas, seus concorrentes usam a Gabi para faturar 3x mais.
+                    Recupere sua paz e o controle do seu filme agora.</p>
+                <div class="cta-actions">
+                    <a href="/checkout" class="btn btn-lg btn-primary">ASSUMIR O
+                        CONTROLE
+                        DO MEU DTF</a>
+                    <a href="https://wa.me/5521986243396" target="_blank" class="btn btn-lg btn-outline">Falar com
+                        Consultor</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-logo">
+                    <span class="logo-text">DIRECT <span class="accent">AI</span></span>
+                    <p>INTELIGÊNCIA ARTIFICIAL PARA PEQUENAS E GRANDES GRÁFICAS</p>
+                </div>
+                <div class="footer-bottom">
+                    <p>&copy; 2026 Direct AI. Todos os direitos reservados.</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Subscription Modal -->
+    <!-- DTF Calculator Modal -->
+    <div class="modal-overlay" id="calculatorModal">
+        <div class="calculator-modal glass-card">
+            <button class="modal-close" id="closeCalculatorModal">
+                <i data-lucide="x"></i>
+            </button>
+
+            <div class="calc-modal-content">
+                <!-- Top Sales Banner -->
+                <div class="calc-top-banner">
+                    <div class="banner-content">
+                        <span class="banner-badge">OFERTA LIMITADA</span>
+                        <span class="banner-text">Pare de perder dinheiro! Organize seu DTF com IA a partir de R$
+                            97/mês</span>
+                    </div>
+                    <a href="/checkout" class="banner-cta">EU QUERO AGORA</a>
+                </div>
+
+                <div class="calc-main-split">
+                    <div class="calc-left">
+                        <div class="calc-header">
+                            <div class="calc-title">
+                                <i data-lucide="calculator" class="icon-yellow"></i>
+                                <div>
+                                    <h2>Calculadora DTF Pro</h2>
+                                    <p>Simulação técnica em tempo real</p>
+                                </div>
+                            </div>
+                            <div class="calc-ai-tips" id="calcAiTips">
+                                <i data-lucide="sparkles" class="h-3 w-3"></i>
+                                <span id="tipText">Carregando dicas da Gabi...</span>
+                            </div>
+                        </div>
+
+                        <!-- Mobile View Toggle (Only visible on mobile) -->
+                        <div class="mobile-view-toggle">
+                            <button class="view-btn active" data-view="edit">
+                                <i data-lucide="edit-3"></i> Editar
+                            </button>
+                            <button class="view-btn" data-view="preview">
+                                <i data-lucide="eye"></i> Visualizar
+                            </button>
+                        </div>
+
+                        <div class="calc-tabs">
+                            <button class="tab-btn active" data-mode="simple">
+                                <i data-lucide="layout-grid"></i> Item Único
+                            </button>
+                            <button class="tab-btn" data-mode="multi">
+                                <i data-lucide="layers"></i> Multi-Itens
+                            </button>
+                        </div>
+
+                        <div class="calc-form-scroll custom-scrollbar">
+                            <!-- Material Settings -->
+                            <div class="form-group">
+                                <label class="group-label">Configurações do Rolo</label>
+                                <div class="input-grid">
+                                    <div class="field">
+                                        <label>Largura do Rolo (cm)</label>
+                                        <div class="num-input-wrap">
+                                            <button class="ctrl-btn" data-action="minus" data-target="calcRollWidth"><i
+                                                    data-lucide="minus"></i></button>
+                                            <input type="number" id="calcRollWidth" value="58" min="20" max="120">
+                                            <button class="ctrl-btn" data-action="plus" data-target="calcRollWidth"><i
+                                                    data-lucide="plus"></i></button>
+                                        </div>
+                                        <div class="quick-btns">
+                                            <button class="q-btn" data-value="30">30cm</button>
+                                            <button class="q-btn active" data-value="58">58cm</button>
+                                        </div>
+                                    </div>
+                                    <div class="field" data-hover="margin">
+                                        <label>Margem (cm)</label>
+                                        <div class="num-input-wrap">
+                                            <button class="ctrl-btn" data-action="minus" data-target="calcMargin"><i
+                                                    data-lucide="minus"></i></button>
+                                            <input type="number" id="calcMargin" value="0.5" step="0.5" min="0"
+                                                max="10">
+                                            <button class="ctrl-btn" data-action="plus" data-target="calcMargin"><i
+                                                    data-lucide="plus"></i></button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="calcErrorAlert" class="calc-error-alert" style="display: none;">
+                                <i data-lucide="alert-circle"></i>
+                                <span>Logo mais larga que o rolo!</span>
+                            </div>
+
+                            <!-- Simple Mode Fields -->
+                            <div id="simpleModeFields">
+                                <div class="form-group">
+                                    <label class="group-label">Dimensões da Imagem</label>
+                                    <div class="input-grid">
+                                        <div class="field" data-hover="imageSize">
+                                            <label>Largura (cm)</label>
+                                            <div class="num-input-wrap">
+                                                <button class="ctrl-btn" data-action="minus"
+                                                    data-target="calcImgWidth"><i data-lucide="minus"></i></button>
+                                                <input type="number" id="calcImgWidth" value="10" step="0.5">
+                                                <button class="ctrl-btn" data-action="plus"
+                                                    data-target="calcImgWidth"><i data-lucide="plus"></i></button>
+                                            </div>
+                                        </div>
+                                        <div class="field" data-hover="imageSize">
+                                            <label>Altura (cm)</label>
+                                            <div class="num-input-wrap">
+                                                <button class="ctrl-btn" data-action="minus"
+                                                    data-target="calcImgHeight"><i data-lucide="minus"></i></button>
+                                                <input type="number" id="calcImgHeight" value="10" step="0.5">
+                                                <button class="ctrl-btn" data-action="plus"
+                                                    data-target="calcImgHeight"><i data-lucide="plus"></i></button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="group-label">Quantidade</label>
+                                    <div class="input-grid">
+                                        <div class="field" data-hover="quantity">
+                                            <div class="num-input-wrap">
+                                                <button class="ctrl-btn" data-action="minus"
+                                                    data-target="calcQuantity"><i data-lucide="minus"></i></button>
+                                                <input type="number" id="calcQuantity" value="10" min="1">
+                                                <button class="ctrl-btn" data-action="plus"
+                                                    data-target="calcQuantity"><i data-lucide="plus"></i></button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Multi Mode Fields -->
+                            <div id="multiModeFields" style="display: none;">
+                                <div class="multi-items-container" id="multiItemsList">
+                                    <!-- Multi items will be rendered here -->
+                                </div>
+                                <button class="btn btn-outline btn-sm w-full mt-2" id="addMultiItem">
+                                    <i data-lucide="plus"></i> Adicionar Outro Item
+                                </button>
+                            </div>
+
+                            <!-- Shared Footer Fields -->
+                            <div class="form-group pt-4 border-t border-white/10 mt-4">
+                                <div class="input-grid">
+                                    <div class="field" data-hover="separation">
+                                        <label>Espaçamento entre logos (cm)</label>
+                                        <div class="num-input-wrap">
+                                            <button class="ctrl-btn" data-action="minus" data-target="calcSeparation"
+                                                data-step="0.1"><i data-lucide="minus"></i></button>
+                                            <input type="number" id="calcSeparation" value="0.5" step="0.1" min="0">
+                                            <button class="ctrl-btn" data-action="plus" data-target="calcSeparation"
+                                                data-step="0.1"><i data-lucide="plus"></i></button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="calc-results-footer">
+                            <div class="results-grid">
+                                <div class="result-card primary">
+                                    <span class="res-label">Metragem Total</span>
+                                    <span class="res-value" id="resTotalMeters">0.00m</span>
+                                </div>
+                                <div class="result-card secondary">
+                                    <span class="res-label" id="resSecondaryLabel">Logos por Metro</span>
+                                    <span class="res-value" id="resSecondaryValue">0 un</span>
+                                </div>
+                            </div>
+
+                            <div class="gabi-summary" id="gabiSummaryBox">
+                                <div class="gabi-icon">
+                                    <i data-lucide="bot"></i>
+                                </div>
+                                <div class="gabi-content">
+                                    <div class="gabi-title">Resumo da Gabi</div>
+                                    <div class="gabi-text" id="gabiSummaryText">
+                                        Calculando a melhor otimização para você...
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="calc-right">
+                        <div class="preview-container glass-card">
+                            <div class="calc-ruler-top">
+                                <div class="ruler-info">
+                                    <div class="pulse-dot"></div>
+                                    <span>Rolo Selecionado (cm)</span>
+                                </div>
+                                <div class="ruler-line-wrap">
+                                    <div class="ruler-value"><span id="rulerRollValue">58</span> CM</div>
+                                    <div class="ruler-line"></div>
+                                </div>
+                            </div>
+
+                            <div class="preview-scroll custom-scrollbar" id="previewContainer">
+                                <div id="perfWarning" class="perf-warning" style="display: none;">
+                                    <i data-lucide="zap"></i>
+                                    <span>Preview limitado a 200 itens para fluidez</span>
+                                </div>
+                                <div id="calcPaper" class="preview-paper">
+                                    <!-- Usable Area -->
+                                    <div id="calcUsableArea" class="usable-area">
+                                        <!-- Dynamic items will be rendered here -->
+                                    </div>
+
+                                    <!-- Margin Overlays -->
+                                    <div id="calcMarginLeft" class="margin-overlay left"></div>
+                                    <div id="calcMarginRight" class="margin-overlay right"></div>
+                                </div>
+                            </div>
+
+                            <div class="preview-legend">
+                                <div class="legend-item"><span class="dot yellow"></span> Logos</div>
+                                <div class="legend-item"><span class="dot emerald"></span> Margem</div>
+                                <div class="legend-item"><span class="dot purple"></span> Espaço (S)</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Separate Subscription Modal -->
+    <div class="modal-overlay" id="subscriptionModal">
+        <div class="subscription-modal glass-card">
+            <button class="modal-close" id="closeModal">
+                <i data-lucide="x"></i>
+            </button>
+
+            <div class="modal-left">
+                <div class="modal-badge">
+                    <i data-lucide="crown"></i>
+                    PLANOS DIRECT AI
+                </div>
+                <h2 class="modal-title">
+                    ESCOLHA SUA <br>
+                    <span class="accent shimm-text">EVOLUÇÃO</span>
+                </h2>
+                <div class="price-container">
+                    <div style="margin-bottom: 10px;">
+                        <span class="new-price" style="font-size: 1.5rem;">PRO: R$ 97</span>
+                        <span class="price-meta">/mês</span>
+                    </div>
+                    <div>
+                        <span class="new-price" style="font-size: 1.5rem; color: #10b981;">PRO MAX: R$ 137</span>
+                        <span class="price-meta">/mês</span>
+                    </div>
+                </div>
+                <a href="/checkout" class="modal-cta">
+                    Escolher Plano Agora
+                    <i data-lucide="arrow-right"></i>
+                </a>
+            </div>
+
+            <div class="modal-right">
+                <div class="benefit-small">
+                    <i data-lucide="bot"></i>
+                    <h4>Gerente 24h</h4>
+                    <p>Pergunte sobre lucros e metas. Gabi responde na hora.</p>
+                </div>
+                <div class="benefit-small">
+                    <i data-lucide="target"></i>
+                    <h4>Recupere Vendas</h4>
+                    <p>IA avisa quais clientes VIP sumiram e sugere cobrança.</p>
+                </div>
+                <div class="benefit-small">
+                    <i data-lucide="trending-up"></i>
+                    <h4>Adeus Planilhas</h4>
+                    <p>Controle financeiro automático e faturamento em tempo real.</p>
+                </div>
+                <div class="benefit-small">
+                    <i data-lucide="printer"></i>
+                    <h4>Para DTF</h4>
+                    <p>Cálculo automático de metros e rolos de filme restantes.</p>
+                </div>
+                <div class="benefit-small">
+                    <i data-lucide="zap"></i>
+                    <h4>Pedido em 30s</h4>
+                    <p>Crie orçamentos e pedidos complexos via áudio ou texto.</p>
+                </div>
+                <div class="benefit-small">
+                    <i data-lucide="users"></i>
+                    <h4>Histórico Total</h4>
+                    <p>Toda a vida do seu cliente gravada para facilitar vendas.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js?v=20240116_1755"></script>
+    <script>
+        window.addEventListener('load', () => {
+            lucide.createIcons();
+
+            // --- GALACTIC SMOKE PHYSICS ---
+            const canvas = document.getElementById('gabiSmoke');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const pulse = document.querySelector('.ai-pulse');
+
+            let particles = [];
+            let lastScrollY = window.scrollY;
+            let scrollVelocity = 0;
+
+            // --- SMOOTH ANIMATION PROGRESS ---
+            let visualProgress = 0;
+            const progressEase = 0.08;
+            const isMobile = window.innerWidth <= 992;
+
+
+
+            function resize() {
+                canvas.width = 1000;
+                canvas.height = 1000;
+            }
+            window.addEventListener('resize', resize);
+            resize();
+
+            class Particle {
+                constructor(x, y, vY) {
+                    this.x = x + (Math.random() - 0.5) * 50;
+                    this.y = y + (Math.random() - 0.5) * 50;
+                    this.size = Math.random() * 50 + 20;
+                    this.alpha = 0.5;
+                    this.color = this.getRandomColor();
+                    this.vx = (Math.random() - 0.5) * 1.5;
+                    this.vy = -vY * 0.4 + (Math.random() - 0.5) * 1.2;
+                    this.life = 1.0;
+                    this.decay = Math.random() * 0.015 + 0.008;
+                }
+
+                getRandomColor() {
+                    const colors = ['#FFF200', '#7c3aed', '#2563eb'];
+                    return colors[Math.floor(Math.random() * colors.length)];
+                }
+
+                update() {
+                    this.x += this.vx;
+                    this.y += this.vy;
+                    this.life -= this.decay;
+
+                    // Fade out as it nears canvas edges to prevent sharp cuts
+                    const edgeDistX = Math.min(this.x, canvas.width - this.x);
+                    const edgeDistY = Math.min(this.y, canvas.height - this.y);
+                    const edgeAlpha = Math.min(edgeDistX, edgeDistY) / 100;
+
+                    this.alpha = Math.max(0, this.life * 0.4 * Math.min(1, edgeAlpha));
+                    this.size += 0.6;
+                }
+
+                draw() {
+                    ctx.save();
+                    ctx.globalAlpha = this.alpha;
+                    ctx.beginPath();
+                    const g = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.size);
+                    g.addColorStop(0, this.color);
+                    g.addColorStop(1, 'transparent');
+                    ctx.fillStyle = g;
+                    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                }
+            }
+
+            function animate() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // Track actual scroll velocity for animations
+                const currentActual = window.scrollY;
+                scrollVelocity = currentActual - lastScrollY;
+                lastScrollY = currentActual;
+
+                // Smoothly update visualProgress towards actual scroll
+                if (aiSection) {
+                    const rect = (isMobile ? document.querySelector('.ai-core-visual') : aiSection).getBoundingClientRect();
+                    const viewHeight = window.innerHeight;
+
+                    let targetProg;
+                    if (isMobile) {
+                        const sectionEntry = rect.top - viewHeight;
+                        const sectionHeight = rect.height;
+                        targetProg = Math.max(0, Math.min(1, -sectionEntry / sectionHeight));
+                    } else {
+                        targetProg = Math.max(0, Math.min(1, (viewHeight - rect.top) / rect.height));
+                    }
+
+                    // Ease the visual progress
+                    visualProgress += (targetProg - visualProgress) * (isMobile ? 0.25 : 0.08);
+
+                    // Update bubbles based on visualProgress
+                    bubbles.forEach((bubble) => {
+                        const revealAt = parseFloat(bubble.getAttribute('data-scroll-reveal')) * (isMobile ? 0.18 : 0.2);
+                        if (visualProgress > revealAt) {
+                            bubble.classList.add('visible');
+                        } else {
+                            bubble.classList.remove('visible');
+                        }
+                    });
+                }
+
+                const sX = canvas.width / 2;
+                const sY = canvas.height / 2;
+
+                const spawn = Math.min(Math.floor(Math.abs(scrollVelocity) * 0.4) + 1, 6);
+                for (let i = 0; i < spawn; i++) {
+                    particles.push(new Particle(sX, sY, scrollVelocity));
+                }
+
+                particles = particles.filter(p => p.life > 0);
+                ctx.globalCompositeOperation = 'screen';
+                particles.forEach(p => { p.update(); p.draw(); });
+
+                if (pulse) {
+                    const pS = 1 + Math.min(Math.abs(scrollVelocity) * 0.004, 0.4);
+                    pulse.style.transform = "translate(-50%, -50%) scale(" + pS + ")";
+                }
+
+                requestAnimationFrame(animate);
+            }
+
+            const bubbles = document.querySelectorAll('.orb-bubble');
+            const aiSection = document.getElementById('agente-ia');
+
+            // Mobile Menu Toggle
+            const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+            const navLinks = document.querySelector('.nav-links');
+
+            if (mobileMenuBtn && navLinks) {
+                mobileMenuBtn.addEventListener('click', () => {
+                    navLinks.classList.toggle('active');
+                });
+            }
+
+            // Initialize Lucide Icons
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+
+            // Modal Logic
+            const modal = document.getElementById('subscriptionModal');
+            const openBtns = document.querySelectorAll('.open-subscription-modal');
+            const closeBtn = document.getElementById('closeModal');
+
+            if (modal && openBtns && closeBtn) {
+                openBtns.forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        modal.classList.add('active');
+                        document.body.style.overflow = 'hidden';
+                    });
+                });
+
+                closeBtn.addEventListener('click', () => {
+                    modal.classList.remove('active');
+                    document.body.style.overflow = 'auto';
+                });
+
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) {
+                        modal.classList.remove('active');
+                        document.body.style.overflow = 'auto';
+                    }
+                });
+            }
+
+            animate();
+        });
+    </script>
+</body>
+
+</html>
