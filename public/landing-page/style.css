@@ -697,25 +697,40 @@ h1 {
 
 /* Responsive adjustment for chat visibility */
 @media (max-width: 1400px) {
+    .ai-reveal {
+        gap: 4rem;
+        /* Reduce huge 12rem gap perfectly for laptops */
+    }
+
     .orb-bubble {
-        max-width: 220px;
-        font-size: 0.8rem;
+        max-width: 200px;
+        font-size: 0.75rem;
+        padding: 0.8rem 1rem;
     }
 
     .bubble-left {
-        right: calc(100% + 40px);
+        top: -60px;
+        right: calc(100% + 10px);
     }
 
     .bubble-right {
-        left: calc(100% + 40px);
+        top: 0px;
+        left: calc(100% + 10px);
     }
 
     .bubble-left-bottom {
-        right: calc(100% + 30px);
+        bottom: -20px;
+        right: calc(100% - 10px);
     }
 
     .bubble-right-bottom {
-        left: calc(100% + 50px);
+        bottom: -110px;
+        left: calc(100% + 10px);
+    }
+
+    .bubble-extra-1 {
+        top: -130px;
+        left: calc(100% - 20px);
     }
 }
 
