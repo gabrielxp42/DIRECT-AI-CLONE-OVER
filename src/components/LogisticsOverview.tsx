@@ -1,5 +1,5 @@
 import React from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { SUPABASE_URL, SUPABASE_ANON_KEY, supabase } from '@/integrations/supabase/client';
 import { getValidToken } from '@/utils/tokenGuard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,6 +33,7 @@ interface ShippingLabel {
     recipient_name: string;
     service_name: string;
     created_at: string;
+    pedido_id: string;
 }
 
 interface PendingOrderLabel {
@@ -48,6 +49,10 @@ interface PendingOrderLabel {
 export const LogisticsOverview: React.FC = () => {
     const { session } = useSession();
     const userId = session?.user?.id;
+    const queryClient = useQueryClient();
+    const [localTrackingUpdates, setLocalTrackingUpdates] = React.useState<Record<string, string>>({});
+    const [isAutoSyncing, setIsAutoSyncing] = React.useState(false);
+    const syncQueueRef = React.useRef<Set<string>>(new Set());
 
     const { data: labels, isLoading: loadingLabels, refetch: refetchLabels } = useQuery({
         queryKey: ['shipping_labels_all', userId],
@@ -128,8 +133,8 @@ export const LogisticsOverview: React.FC = () => {
         toast.error("ID da etiqueta não encontrado.");
     };
 
-    const handleRefreshTracking = async (label: ShippingLabel) => {
-        const loadingToast = toast.loading("Sincronizando rastreio...");
+    const handleRefreshTracking = async (label: ShippingLabel, isBackground: boolean = false) => {
+        const loadingToast = !isBackground ? toast.loading(`Sincronizando rastreio: ${label.recipient_name}...`) : null;
         try {
             const token = await getValidToken();
             const response = await fetch(`${SUPABASE_URL}/functions/v1/superfrete-proxy`, {
@@ -145,45 +150,117 @@ export const LogisticsOverview: React.FC = () => {
                 })
             });
 
-            const data = await response.json();
+            let data;
+            let responseText = "";
+            try {
+                responseText = await response.text();
+                data = JSON.parse(responseText);
+            } catch (e) {
+                // FALLBACK NO FRONTEND: Se a Edge Function não deployada mandou HTML/Erro
+                console.log("Edge Function retornou formato inválido. Tentando extração manual do HTML no Frontend...");
+                const correiosMatch = responseText.match(/([A-Z]{2}\d{9}[A-Z]{2})/i);
+                const adiMatch = responseText.match(/(ADI\d{8,12}[A-Z]{0,2})/i);
+                const foundTracking = correiosMatch?.[0] || adiMatch?.[0];
+
+                if (foundTracking) {
+                    data = {
+                        success: true,
+                        tracking_code: foundTracking.toUpperCase(),
+                        message: "Extraído via fallback do Frontend"
+                    };
+                } else {
+                    const snippet = responseText.substring(0, 50) + "...";
+                    throw new Error(`A API do parceiro ainda não retornou o rastreio (Status ${response.status}). Detalhes: ${snippet}`);
+                }
+            }
+
             if (data.error) {
                 const errorMsg = data.details ? `${data.message} (${data.details})` : data.message;
                 throw new Error(errorMsg);
             }
-
             if (data.tracking_code) {
-                await supabase
+                // Atualizar etiqueta com rastreio e PDF permanente
+                const updateData: any = { tracking_code: data.tracking_code };
+                if (data.url || data.pdf) updateData.pdf_url = data.url || data.pdf;
+
+                const { error: labelError } = await supabase
                     .from('shipping_labels')
-                    .update({ tracking_code: data.tracking_code })
+                    .update(updateData)
                     .eq('id', label.id);
 
-                const { data: labelData } = await supabase
-                    .from('shipping_labels')
-                    .select('pedido_id')
-                    .eq('id', label.id)
-                    .single();
-
-                if (labelData?.pedido_id) {
-                    await supabase
-                        .from('pedidos')
-                        .update({ tracking_code: data.tracking_code })
-                        .eq('id', labelData.pedido_id);
+                if (labelError) {
+                    console.error("Erro ao atualizar shipping_labels:", labelError);
+                    throw new Error(`Erro ao salvar no banco: ${labelError.message}`);
                 }
 
-                toast.success(`Rastreio atualizado: ${data.tracking_code}`, { id: loadingToast });
-                refetchLabels();
+                // Atualizar pedido se vinculado
+                if (label.pedido_id) {
+                    const { error: pedidoError } = await supabase
+                        .from('pedidos')
+                        .update({ tracking_code: data.tracking_code })
+                        .eq('id', label.pedido_id);
+
+                    if (pedidoError) console.warn("Aviso: Falha ao atualizar o pedido vinculado:", pedidoError);
+                }
+
+                // ATUALIZAÇÃO INSTANTÂNEA PARA O USUÁRIO
+                setLocalTrackingUpdates(prev => ({
+                    ...prev,
+                    [label.id]: data.tracking_code
+                }));
+
+                if (!isBackground) {
+                    toast.success(`Rastreio atualizado: ${data.tracking_code}`, {
+                        id: loadingToast!,
+                        description: data.message === "Extraído via fallback de texto" || data.message === "Extraído via fallback do Frontend" ? "Código recuperado com sucesso!" : "Informações sincronizadas com sucesso."
+                    });
+                }
+
+                // Forçar invalidação agressiva do cache
+                await queryClient.invalidateQueries({ queryKey: ['shipping_labels_all'] });
+                await queryClient.invalidateQueries({ queryKey: ['pending_labels_orders'] });
+                await refetchLabels();
+                await refetchLabels();
             } else {
                 console.log("Debug Logística:", data);
-                const debugMsg = data.debug_raw ? `\nDados: ${data.debug_raw}` : "";
-                toast.error(`A API respondeu mas não enviou o código.${debugMsg}`, {
-                    id: loadingToast,
-                    duration: 8000
-                });
+                if (!isBackground) toast.error(data.error || "Não foi possível obter o rastreio.");
             }
         } catch (error: any) {
-            toast.error(`Erro ao sincronizar: ${error.message}`, { id: loadingToast });
+            console.error("Erro ao sincronizar:", error);
+            if (!isBackground) toast.error(error.message || "Erro na conexão");
         }
     };
+
+    // Robô de Sincronização Automática
+    React.useEffect(() => {
+        if (!labels || labels.length === 0 || isAutoSyncing) return;
+
+        const labelsToSync = labels.filter(label =>
+            (!label.tracking_code || label.tracking_code.startsWith('ADI')) &&
+            !syncQueueRef.current.has(label.id)
+        );
+
+        if (labelsToSync.length > 0) {
+            const runAutoSync = async () => {
+                setIsAutoSyncing(true);
+
+                // Pegar os 5 mais recentes que precisam de sync
+                const topSync = labelsToSync.slice(0, 5);
+
+                for (const label of topSync) {
+                    if (syncQueueRef.current.has(label.id)) continue;
+                    syncQueueRef.current.add(label.id);
+                    await handleRefreshTracking(label, true);
+                    // Pequena pausa para a API respirar
+                    await new Promise(r => setTimeout(r, 1000));
+                }
+
+                setIsAutoSyncing(false);
+            };
+
+            runAutoSync();
+        }
+    }, [labels, isAutoSyncing]);
 
     return (
         <div className="space-y-6">
@@ -285,61 +362,69 @@ export const LogisticsOverview: React.FC = () => {
                                                     </Badge>
                                                 </td>
                                                 <td className="px-4 py-4 min-w-[200px]">
-                                                    {label.tracking_code ? (
-                                                        <div className="flex flex-col gap-1.5">
-                                                            <div className="flex items-center gap-1.5 overflow-hidden">
-                                                                <button
-                                                                    onClick={() => copyToClipboard(label.tracking_code)}
-                                                                    className="flex items-center gap-2 text-[10px] font-mono font-black text-secondary-foreground hover:text-primary bg-muted px-2.5 py-1.5 rounded-lg border border-border transition-all flex-1 shadow-sm min-w-0"
-                                                                    title="Copiar código"
-                                                                >
-                                                                    <Copy className="h-3 w-3 flex-shrink-0" />
-                                                                    <span className="truncate">{label.tracking_code}</span>
-                                                                </button>
+                                                    {(() => {
+                                                        const displayTracking = localTrackingUpdates[label.id] || label.tracking_code;
 
-                                                                <div className="flex items-center p-0.5 bg-muted border border-border rounded-lg shadow-sm flex-shrink-0">
-                                                                    <button
-                                                                        onClick={() => handleRefreshTracking(label)}
-                                                                        className="p-1.5 text-muted-foreground hover:text-primary transition-colors rounded-md hover:bg-background"
-                                                                        title="Sincronizar com SuperFrete"
-                                                                    >
-                                                                        <Navigation className="h-3.5 w-3.5" />
-                                                                    </button>
-                                                                    <div className="w-[1px] h-3 bg-border mx-0.5" />
-                                                                    <button
-                                                                        onClick={() => window.open(`https://rastreamento.correios.com.br/app/index.php?objeto=${label.tracking_code}`, '_blank')}
-                                                                        className="p-1.5 text-muted-foreground hover:text-blue-500 transition-colors rounded-md hover:bg-background"
-                                                                        title="Rastrear nos Correios"
-                                                                    >
-                                                                        <ExternalLink className="h-3.5 w-3.5" />
-                                                                    </button>
-                                                                </div>
-                                                            </div>
+                                                        if (displayTracking) {
+                                                            return (
+                                                                <div className="flex flex-col gap-1.5">
+                                                                    <div className="flex items-center gap-1.5 overflow-hidden">
+                                                                        <button
+                                                                            onClick={() => copyToClipboard(displayTracking)}
+                                                                            className="flex items-center gap-2 text-[10px] font-mono font-black text-secondary-foreground hover:text-primary bg-muted px-2.5 py-1.5 rounded-lg border border-border transition-all flex-1 shadow-sm min-w-0"
+                                                                            title="Copiar código"
+                                                                        >
+                                                                            <Copy className="h-3 w-3 flex-shrink-0" />
+                                                                            <span className="truncate">{displayTracking}</span>
+                                                                        </button>
 
-                                                            {label.tracking_code.startsWith('ADI') && (
-                                                                <div className="flex items-center gap-1.5 px-1">
-                                                                    <div className="relative flex h-1.5 w-1.5">
-                                                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                                                                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-blue-500"></span>
+                                                                        <div className="flex items-center p-0.5 bg-muted border border-border rounded-lg shadow-sm flex-shrink-0">
+                                                                            <button
+                                                                                onClick={() => handleRefreshTracking(label)}
+                                                                                className="p-1.5 text-muted-foreground hover:text-primary transition-colors rounded-md hover:bg-background"
+                                                                                title="Sincronizar com SuperFrete"
+                                                                            >
+                                                                                <Navigation className="h-3.5 w-3.5" />
+                                                                            </button>
+                                                                            <div className="w-[1px] h-3 bg-border mx-0.5" />
+                                                                            <button
+                                                                                onClick={() => window.open(`https://rastreamento.correios.com.br/app/index.php?objeto=${displayTracking}`, '_blank')}
+                                                                                className="p-1.5 text-muted-foreground hover:text-blue-500 transition-colors rounded-md hover:bg-background"
+                                                                                title="Rastrear nos Correios"
+                                                                            >
+                                                                                <ExternalLink className="h-3.5 w-3.5" />
+                                                                            </button>
+                                                                        </div>
                                                                     </div>
-                                                                    <span className="text-[9px] text-blue-600 font-black uppercase tracking-tight">Cód. Temporário? Sincronize</span>
+
+                                                                    {displayTracking.startsWith('ADI') && (
+                                                                        <div className="flex items-center gap-1.5 px-1">
+                                                                            <div className="relative flex h-1.5 w-1.5">
+                                                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                                                                                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-blue-500"></span>
+                                                                            </div>
+                                                                            <span className="text-[9px] text-blue-600 font-black uppercase tracking-tight">Cód. Temporário? Sincronize</span>
+                                                                        </div>
+                                                                    )}
                                                                 </div>
-                                                            )}
-                                                        </div>
-                                                    ) : (
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="text-[10px] text-muted-foreground/50 font-bold">-</span>
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                className="h-8 w-8 text-primary hover:bg-primary/10 rounded-full"
-                                                                onClick={() => handleRefreshTracking(label)}
-                                                                title="Buscar Rastreio"
-                                                            >
-                                                                <Navigation className="h-4 w-4" />
-                                                            </Button>
-                                                        </div>
-                                                    )}
+                                                            );
+                                                        }
+
+                                                        return (
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-[10px] text-muted-foreground/50 font-bold">-</span>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="h-8 w-8 text-primary hover:bg-primary/10 rounded-full"
+                                                                    onClick={() => handleRefreshTracking(label)}
+                                                                    title="Buscar Rastreio"
+                                                                >
+                                                                    <Navigation className="h-4 w-4" />
+                                                                </Button>
+                                                            </div>
+                                                        );
+                                                    })()}
                                                 </td>
                                                 <td className="px-4 py-4 text-[11px] font-black text-foreground">
                                                     {formatCurrency(label.price)}

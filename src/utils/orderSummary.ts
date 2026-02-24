@@ -76,8 +76,8 @@ export const generateOrderSummary = (pedido: Pedido, template?: string, pixKey?:
             .replace(/{{telefone}}/g, phoneStr)
             .replace(/{{order_number}}/g, (pedido.order_number || 0).toString())
             .replace(/{{data_criacao}}/g, dateStr)
-            .replace(/{{tracking_code}}/g, pedido.tracking_code || "")
-            .replace(/{{tracking}}/g, pedido.tracking_code || "")
+            .replace(/{{tracking_code}}/g, (pedido.tracking_code && !pedido.tracking_code.startsWith('ADI')) ? pedido.tracking_code : "")
+            .replace(/{{tracking}}/g, (pedido.tracking_code && !pedido.tracking_code.startsWith('ADI')) ? pedido.tracking_code : "")
             .replace(/{{total}}/g, formatCurrency(valorTotalCalculado))
             .replace(/{{subtotal}}/g, formatCurrency(subtotal))
             .replace(/{{frete_valor}}/g, formatCurrency(frete))
@@ -137,7 +137,7 @@ export const generateOrderSummary = (pedido: Pedido, template?: string, pixKey?:
 
     const subtotalProdutos = Number(pedido.subtotal_produtos || 0);
 
-    if (pedido.tipo_entrega === 'frete' && pedido.tracking_code) {
+    if (pedido.tipo_entrega === 'frete' && pedido.tracking_code && !pedido.tracking_code.startsWith('ADI')) {
         summary += `📦 *CÓD. RASTREIO:* ${pedido.tracking_code}\n`;
         summary += `${separator}\n\n`;
     }

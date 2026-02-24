@@ -31,7 +31,7 @@ const staticNavItems = [
   { href: '/produtos', icon: Package, label: 'Produtos' },
   { href: '/insumos', icon: Layers, label: 'Insumos' },
   { href: '/reports', icon: BarChart3, label: 'Relatórios' },
-
+  { href: '/logistica', icon: Truck, label: 'Logística' },
   { href: '/gabi', icon: Bot, label: 'Gabi' },
 ];
 

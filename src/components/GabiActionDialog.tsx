@@ -18,7 +18,7 @@ interface GabiActionDialogProps {
     customerName: string;
     phone: string;
     messagePreview: string;
-    onConfirm: () => void;
+    onConfirm: (msg: string) => void | Promise<void>;
     isLoading?: boolean;
     actionType?: 'billing' | 'offer' | 'generic';
 }
@@ -90,7 +90,7 @@ export const GabiActionDialog = ({
                         Cancelar
                     </Button>
                     <Button
-                        onClick={onConfirm}
+                        onClick={() => onConfirm(messagePreview)}
                         disabled={isLoading}
                         className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-bold h-12 shadow-lg shadow-purple-900/20"
                     >

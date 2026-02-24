@@ -83,25 +83,44 @@ Deno.serve(async (req: Request) => {
                 const base64Payload = btoa(payload);
                 const permanentPdfUrl = `https://etiqueta.superfrete.com/_etiqueta/pdf/${base64Payload}?format=A4`;
 
+                const trackUrl = `${baseUrl}/api/v0/order/info/${orderId}`;
+                console.log(`[Superfrete Tracking] Calling: ${trackUrl}`);
+
                 try {
-                    const trackResponse = await fetch(`${baseUrl}/api/v0/tracking`, {
-                        method: 'POST',
+                    const trackResponse = await fetch(trackUrl, {
+                        method: 'GET',
                         headers: {
                             'Authorization': `Bearer ${token}`,
                             'User-Agent': userAgent,
-                            'Content-Type': 'application/json',
                             'Accept': 'application/json'
-                        },
-                        body: JSON.stringify({ orders: [String(orderId)] })
+                        }
                     });
 
-                    const responseText = await trackResponse.text();
+                    let responseText = await trackResponse.text();
+                    console.log(`[Superfrete Tracking] Response Status: ${trackResponse.status}`);
 
                     if (trackResponse.ok) {
                         let trackData;
                         try {
                             trackData = JSON.parse(responseText);
                         } catch (e) {
+                            // MODO GUERREIRO: Tentar extrair do HTML/Texto se falhar o JSON
+                            const correiosMatch = responseText.match(/([A-Z]{2}\d{9}[A-Z]{2})/i);
+                            const adiMatch = responseText.match(/(ADI\d{8,12}[A-Z]{0,2})/i);
+                            const foundCode = correiosMatch?.[0] || adiMatch?.[0];
+
+                            if (foundCode) {
+                                return new Response(JSON.stringify({
+                                    success: true,
+                                    tracking_code: foundCode.toUpperCase(),
+                                    message: "Extraído via fallback de texto",
+                                    url: permanentPdfUrl,
+                                }), {
+                                    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                                    status: 200
+                                });
+                            }
+
                             return new Response(JSON.stringify({
                                 error: true,
                                 message: `A API do parceiro retornou um formato inesperado (${trackResponse.status}).`,
@@ -113,24 +132,78 @@ Deno.serve(async (req: Request) => {
                             });
                         }
 
-                        const orderData = trackData[orderId] || trackData[Object.keys(trackData)[0]] || trackData;
-                        let foundCode = orderData.tracking || orderData.tracking_code || orderData.tracking_number
-                            || orderData.codigo_rastreio || orderData.objeto || orderData.code || null;
+                        // Tentar extrair o código de várias formas
+                        let foundCode = null;
+                        let orderData = trackData;
 
-                        if (!foundCode) {
-                            const stringified = JSON.stringify(trackData);
-                            const correiosPattern = /([A-Z]{2,3}\d{8,11}[A-Z]{2})/i;
-                            const match = stringified.match(correiosPattern);
-                            if (match) {
-                                foundCode = match[0].toUpperCase();
+                        console.log(`[Superfrete Tracking] Processando resposta para ${orderId}`);
+
+                        // 1. Tentar busca direta por ID
+                        if (trackData[orderId]) {
+                            orderData = trackData[orderId];
+                        }
+                        // 2. Se for um array (v0 às vezes retorna array de objetos)
+                        else if (Array.isArray(trackData)) {
+                            const match = trackData.find(item => String(item.order_id || item.id || item.tag) === String(orderId));
+                            orderData = match || trackData[0];
+                        }
+                        // 3. Busca recursiva básica / Iterativa por chaves
+                        else if (typeof trackData === 'object' && trackData !== null) {
+                            // Se o orderId estiver em algum lugar como valor de uma chave 'id' ou 'order_id'
+                            const keys = Object.keys(trackData);
+                            for (const key of keys) {
+                                const val = trackData[key];
+                                if (val && typeof val === 'object') {
+                                    if (String(val.order_id || val.id || val.tag) === String(orderId)) {
+                                        orderData = val;
+                                        break;
+                                    }
+                                }
                             }
                         }
 
-                        if (foundCode) {
+                        // Função auxiliar para pegar código de um objeto
+                        const extractFromObj = (obj: any) => {
+                            if (!obj) return null;
+                            const code = obj.tracking || obj.tracking_code || obj.tracking_number
+                                || obj.codigo_rastreio || obj.objeto || obj.code || null;
+
+                            if (typeof code === 'string') return code;
+                            if (typeof code === 'object' && code !== null) {
+                                return code.code || code.tracking_code || code.number || null;
+                            }
+                            return null;
+                        };
+
+                        foundCode = extractFromObj(orderData);
+
+                        // 4. Fallback final: Se ainda não achou, varrer TODO o JSON por um padrão de Correios
+                        if (!foundCode || typeof foundCode !== 'string' || foundCode.length < 5) {
+                            const stringified = JSON.stringify(trackData);
+                            // Padrão Correios: 2 letras + 9 dígitos + 2 letras
+                            const correiosPattern = /([A-Z]{2}\d{9}[A-Z]{2})/i;
+                            // Padrão Superfrete ADI: ADI + dígitos + letras
+                            const adiPattern = /(ADI\d{8,12}[A-Z]{0,2})/i;
+
+                            const coreiosMatch = stringified.match(correiosPattern);
+                            if (coreiosMatch) {
+                                foundCode = coreiosMatch[0].toUpperCase();
+                                console.log(`[Superfrete Tracking] Código Correios extraído: ${foundCode}`);
+                            } else {
+                                const adiMatch = stringified.match(adiPattern);
+                                if (adiMatch) {
+                                    foundCode = adiMatch[0].toUpperCase();
+                                    console.log(`[Superfrete Tracking] Código ADI extraído: ${foundCode}`);
+                                }
+                            }
+                        }
+
+                        if (foundCode && typeof foundCode === 'string') {
+                            console.log(`[Superfrete Tracking] Sucesso: ${foundCode}`);
                             return new Response(JSON.stringify({
                                 success: true,
                                 tracking_code: foundCode,
-                                status: orderData.status || null,
+                                status: orderData?.status || null,
                                 url: permanentPdfUrl,
                                 pdf: permanentPdfUrl,
                                 raw: trackData
@@ -234,7 +307,23 @@ Deno.serve(async (req: Request) => {
                     });
             }
 
-            const trackingCode = checkoutResult.tracking || checkoutResult.tracking_code || null;
+            // Tentar extrair o código de rastreio de forma robusta
+            let trackingCode = checkoutResult.tracking || checkoutResult.tracking_code || null;
+            if (typeof trackingCode === 'object' && trackingCode !== null) {
+                trackingCode = trackingCode.code || trackingCode.tracking_code || trackingCode.number || null;
+            }
+
+            // Fallback se não achou nos campos padrão
+            if (!trackingCode || (typeof trackingCode === 'string' && trackingCode.length < 5)) {
+                const stringified = JSON.stringify(checkoutResult);
+                const correiosMatch = stringified.match(/([A-Z]{2}\d{9}[A-Z]{2})/i);
+                if (correiosMatch) {
+                    trackingCode = correiosMatch[0].toUpperCase();
+                } else {
+                    const adiMatch = stringified.match(/(ADI\d{8,12}[A-Z]{0,2})/i);
+                    if (adiMatch) trackingCode = adiMatch[0].toUpperCase();
+                }
+            }
             const sfOrderId = checkoutResult.order_id || checkoutResult.id || tagId;
             let pdfUrl = checkoutResult.pdf || checkoutResult.url;
 

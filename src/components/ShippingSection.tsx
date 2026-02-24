@@ -557,8 +557,20 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
                             params: { orders: [labelId] }
                         })
                     });
-                    const trackingData = await trackingResponse.json();
-                    if (!trackingData.error && trackingData.tracking_code) {
+                    let trackingData;
+                    const responseText = await trackingResponse.text();
+                    try {
+                        trackingData = JSON.parse(responseText);
+                    } catch (e) {
+                        const correiosMatch = responseText.match(/([A-Z]{2}\d{9}[A-Z]{2})/i);
+                        const adiMatch = responseText.match(/(ADI\d{8,12}[A-Z]{0,2})/i);
+                        const foundTracking = correiosMatch?.[0] || adiMatch?.[0];
+                        if (foundTracking) {
+                            trackingData = { tracking_code: foundTracking.toUpperCase() };
+                        }
+                    }
+
+                    if (trackingData && !trackingData.error && trackingData.tracking_code) {
                         await supabase
                             .from('pedidos')
                             .update({ tracking_code: trackingData.tracking_code })
@@ -1021,7 +1033,9 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
                                             <div className="p-3 bg-white/60 rounded-xl border border-emerald-200/50 flex items-center justify-between">
                                                 <div className="flex flex-col">
                                                     <span className="text-[9px] font-black text-emerald-600/60 uppercase">Código de Rastreio</span>
-                                                    <span className="text-sm font-mono font-black text-emerald-800">{trackingCode || 'AGUARDANDO...'}</span>
+                                                    <span className="text-sm font-mono font-black text-emerald-800">
+                                                        {(trackingCode && !trackingCode.startsWith('ADI')) ? trackingCode : 'AGUARDANDO SYNC...'}
+                                                    </span>
                                                 </div>
                                                 {trackingCode && (
                                                     <Button

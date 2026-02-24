@@ -36,7 +36,8 @@ import {
     Gift,
     Star,
     Copy,
-    Brain
+    Brain,
+    Wallet
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { toast } from 'sonner';
@@ -61,6 +62,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { motion } from "framer-motion";
 import { AdminGeminiConfig } from "@/components/AdminGeminiConfig";
 import { AdminAIMonitoring } from "@/components/AdminAIMonitoring";
+import { AdminWalletManager } from "@/components/AdminWalletManager";
 
 type AdminProfile = {
     id: string;
@@ -577,6 +579,9 @@ export default function Admin() {
                     <TabsTrigger value="payouts" className="rounded-xl px-4 md:px-8 font-black uppercase tracking-widest text-[11px] flex-1 md:flex-none shrink-0 text-emerald-500">
                         <DollarSign size={14} className="mr-1" /> Pagamentos
                     </TabsTrigger>
+                    <TabsTrigger value="wallet" className="rounded-xl px-4 md:px-8 font-black uppercase tracking-widest text-[11px] flex-1 md:flex-none shrink-0 text-blue-500 flex items-center gap-2">
+                        <Wallet size={14} /> Carteira
+                    </TabsTrigger>
                 </TabsList>
 
                 {/* ABA DE USUÁRIOS */}
@@ -1069,6 +1074,11 @@ export default function Admin() {
                             </Table>
                         </CardContent>
                     </Card>
+                </TabsContent>
+
+                {/* ABA DE CARTEIRA / LOGÍSTICA */}
+                <TabsContent value="wallet">
+                    <AdminWalletManager />
                 </TabsContent>
             </Tabs>
 

@@ -1,0 +1,57 @@
+11:17:46 - Projects in this build: 
+    * tsconfig.app.json
+    * tsconfig.node.json
+    * tsconfig.json
+
+11:17:46 - Project 'tsconfig.app.json' is out of date because buildinfo file 'tsconfig.app.tsbuildinfo' indicates that program needs to report errors.
+
+11:17:46 - Building project 'C:/Users/Direct/Videos/DIRECT-AI-GB-1/tsconfig.app.json'...
+
+src/components/AIMessagesWidget.tsx(297,41): error TS2322: Type 'Promise<void>' is not assignable to type 'void'.
+src/components/AITrainingLogs.tsx(158,94): error TS2322: Type 'unknown' is not assignable to type 'ReactNode'.
+src/components/AITrainingProgressCard.tsx(78,33): error TS2339: Property 'training_status' does not exist on type '{} | { [key: string]: any; }'.
+  Property 'training_status' does not exist on type '{}'.
+src/components/AITrainingProgressCard.tsx(78,79): error TS2339: Property 'conversations_analyzed' does not exist on type '{} | { [key: string]: any; }'.
+  Property 'conversations_analyzed' does not exist on type '{}'.
+src/components/AITrainingProgressCard.tsx(80,53): error TS2339: Property 'conversations_analyzed' does not exist on type '{} | { [key: string]: any; }'.
+  Property 'conversations_analyzed' does not exist on type '{}'.
+src/components/AITrainingProgressCard.tsx(80,108): error TS2339: Property 'started_at' does not exist on type '{} | { [key: string]: any; }'.
+  Property 'started_at' does not exist on type '{}'.
+src/components/AITrainingProgressCard.tsx(81,73): error TS2339: Property 'conversations_analyzed' does not exist on type '{} | { [key: string]: any; }'.
+  Property 'conversations_analyzed' does not exist on type '{}'.
+src/components/marketing/OrderCreationAnimation.tsx(162,25): error TS2322: Type '{ x: number; y: number; opacity: number; }' is not assignable to type 'string'.
+src/components/marketing/OrderCreationAnimation.tsx(163,25): error TS2322: Type '{ x: number; y: number; }' is not assignable to type 'string'.
+src/components/marketing/OrderCreationAnimation.tsx(164,25): error TS2322: Type '{ scale: number; }' is not assignable to type 'string'.
+src/components/marketing/OrderCreationAnimation.tsx(165,25): error TS2322: Type '{ scale: number; }' is not assignable to type 'string'.
+src/components/marketing/OrderCreationAnimation.tsx(166,25): error TS2322: Type '{ x: number; y: number; }' is not assignable to type 'string'.
+src/components/marketing/OrderCreationAnimation.tsx(167,25): error TS2322: Type '{ scale: number; }' is not assignable to type 'string'.
+src/components/marketing/OrderCreationAnimation.tsx(168,25): error TS2322: Type '{ scale: number; }' is not assignable to type 'string'.
+src/components/marketing/OrderCreationAnimation.tsx(169,25): error TS2322: Type '{ x: number; y: number; opacity: number; }' is not assignable to type 'string'.
+src/components/PedidoForm.tsx(685,11): error TS2451: Cannot redeclare block-scoped variable 'newItem'.
+src/components/PedidoForm.tsx(706,11): error TS2451: Cannot redeclare block-scoped variable 'newItem'.
+src/components/PedidoForm.tsx(708,26): error TS2552: Cannot find name 'maxNumber'. Did you mean 'Number'?
+src/hooks/useSubscription.ts(80,38): error TS2339: Property 'next_billing_date' does not exist on type 'Profile | { subscription_status: "trial"; trial_start_date: string; daily_ai_count: number; }'.
+  Property 'next_billing_date' does not exist on type '{ subscription_status: "trial"; trial_start_date: string; daily_ai_count: number; }'.
+src/hooks/useSubscription.ts(81,55): error TS2339: Property 'next_billing_date' does not exist on type 'Profile | { subscription_status: "trial"; trial_start_date: string; daily_ai_count: number; }'.
+  Property 'next_billing_date' does not exist on type '{ subscription_status: "trial"; trial_start_date: string; daily_ai_count: number; }'.
+src/hooks/useSubscription.ts(112,50): error TS2339: Property 'is_whatsapp_plus_active' does not exist on type 'Profile | { subscription_status: "trial"; trial_start_date: string; daily_ai_count: number; }'.
+  Property 'is_whatsapp_plus_active' does not exist on type '{ subscription_status: "trial"; trial_start_date: string; daily_ai_count: number; }'.
+src/pages/Admin.tsx(286,30): error TS2339: Property 'pixKey' does not exist on type 'AffiliateStat | { code: any; users: number; revenue: number; commission: number; }'.
+  Property 'pixKey' does not exist on type '{ code: any; users: number; revenue: number; commission: number; }'.
+src/pages/Admin.tsx(287,30): error TS2339: Property 'pixType' does not exist on type 'AffiliateStat | { code: any; users: number; revenue: number; commission: number; }'.
+  Property 'pixType' does not exist on type '{ code: any; users: number; revenue: number; commission: number; }'.
+src/pages/GabiSettings.tsx(444,46): error TS2339: Property 'gabi_templates' does not exist on type 'Profile'.
+src/pages/GabiSettings.tsx(459,35): error TS2339: Property 'whatsapp_boss_group_id' does not exist on type 'Profile'.
+src/pages/Pedidos.tsx(375,23): error TS2345: Argument of type '{ open: false; pedido: null; summary: string; }' is not assignable to parameter of type 'SetStateAction<{ open: boolean; loading: boolean; pedido: Pedido; summary: string; error?: string; }>'.
+  Property 'loading' is missing in type '{ open: false; pedido: null; summary: string; }' but required in type '{ open: boolean; loading: boolean; pedido: Pedido; summary: string; error?: string; }'.
+11:18:04 - Project 'tsconfig.node.json' is out of date because buildinfo file 'tsconfig.node.tsbuildinfo' indicates that program needs to report errors.
+
+11:18:04 - Building project 'C:/Users/Direct/Videos/DIRECT-AI-GB-1/tsconfig.node.json'...
+
+vite.config.ts(19,29): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '() => { server: { host: string; port: number; }; define: { 'import.meta.env.VITE_APP_VERSION': string; }; plugins: (Plugin<any> | Plugin<any>[])[]; resolve: { alias: { "@": string; }; }; build: { ...; }; }' is not assignable to parameter of type 'UserConfigExport'.
+      Type '() => { server: { host: string; port: number; }; define: { 'import.meta.env.VITE_APP_VERSION': string; }; plugins: (Plugin<any> | Plugin<any>[])[]; resolve: { alias: { "@": string; }; }; build: { ...; }; }' is not assignable to type 'UserConfigFnObject'.
+        Call signature return types '{ server: { host: string; port: number; }; define: { 'import.meta.env.VITE_APP_VERSION': string; }; plugins: (Plugin<any> | Plugin<any>[])[]; resolve: { alias: { "@": string; }; }; build: { ...; }; }' and 'UserConfig' are incompatible.
+          The types of 'build.minify' are incompatible between these types.
+            Type 'string' is not assignable to type 'boolean | "terser" | "esbuild" | undefined'.

@@ -19,6 +19,7 @@ interface OrderWithClient {
   total_metros_vinil: number;
   created_at: string;
   clientes: ClientName | null;
+  tracking_code?: string | null;
 }
 
 interface ServiceWithOrder {
@@ -33,6 +34,7 @@ interface ServiceWithOrder {
     status: string;
     created_at: string;
     clientes: ClientName | null;
+    tracking_code?: string | null;
   } | null;
 }
 
@@ -1605,7 +1607,7 @@ export const list_orders = async (args: {
     }
 
     const queryParams = new URLSearchParams();
-    queryParams.append('select', 'id,order_number,status,valor_total,total_metros,total_metros_dtf,total_metros_vinil,created_at,clientes(nome),pedido_servicos(nome,quantidade,valor_unitario),pedido_status_history(*)');
+    queryParams.append('select', 'id,order_number,status,valor_total,total_metros,total_metros_dtf,total_metros_vinil,created_at,clientes(nome),pedido_servicos(nome,quantidade,valor_unitario),pedido_status_history(*),tracking_code');
     if (ctx.organization_id) {
       queryParams.append('organization_id', `eq.${ctx.organization_id}`);
     } else {
@@ -1699,6 +1701,7 @@ export const list_orders = async (args: {
       total_metros_vinil: order.total_metros_vinil,
       created_at: new Date(order.created_at).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }),
       cliente: order.clientes?.nome,
+      tracking_code: order.tracking_code,
       itens: (order.pedido_servicos || []).map((s: any) => ({
         nome: s.nome,
         quantidade: Number(s.quantidade),
@@ -1850,7 +1853,7 @@ export const list_services = async (args: {
     }
 
     const queryParams = new URLSearchParams();
-    queryParams.append('select', 'id,nome,quantidade,valor_unitario,pedido_id,pedidos!inner(id,order_number,status,created_at,organization_id,clientes(nome))');
+    queryParams.append('select', 'id,nome,quantidade,valor_unitario,pedido_id,pedidos!inner(id,order_number,status,created_at,organization_id,clientes(nome),tracking_code)');
     if (ctx.organization_id) {
       queryParams.append('pedidos.organization_id', `eq.${ctx.organization_id}`);
     } else {
@@ -1936,7 +1939,8 @@ export const list_services = async (args: {
       order_number: service.pedidos?.order_number,
       order_status: service.pedidos?.status,
       order_date: service.pedidos ? new Date(service.pedidos.created_at).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }) : 'N/A',
-      client_name: service.pedidos?.clientes?.nome
+      client_name: service.pedidos?.clientes?.nome,
+      tracking_code: service.pedidos?.tracking_code && !service.pedidos.tracking_code.startsWith('ADI') ? service.pedidos.tracking_code : 'AGUARDANDO...'
     }));
 
     // Apply client-side sorting for Strategy 1
@@ -2381,7 +2385,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       // Log for debugging
       console.log(`📡 [get_client_orders] Fetching orders for client ID: ${clientId}`);
 
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?select=id,order_number,status,valor_total,total_metros,total_metros_dtf,total_metros_vinil,created_at,clientes(nome),pedido_servicos(nome,quantidade,valor_unitario)&cliente_id=eq.${clientId}&${orgFilter}&order=created_at.desc`, {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?select=id,order_number,status,valor_total,total_metros,total_metros_dtf,total_metros_vinil,created_at,clientes(nome),pedido_servicos(nome,quantidade,valor_unitario),tracking_code&cliente_id=eq.${clientId}&${orgFilter}&order=created_at.desc`, {
         method: 'GET',
         headers: {
           'apikey': SUPABASE_ANON_KEY,
@@ -2416,12 +2420,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
         total_metros_vinil: order.total_metros_vinil,
         created_at: new Date(order.created_at).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }),
         cliente: order.clientes?.nome,
-        itens: (order.pedido_servicos || []).map((s: any) => ({
-          nome: s.nome,
-          quantidade: Number(s.quantidade),
-          valor_unitario: Number(s.valor_unitario),
-          valor_total: Number(s.quantidade) * Number(s.valor_unitario),
-        })),
+        tracking_code: order.tracking_code && !order.tracking_code.startsWith('ADI') ? order.tracking_code : 'AGUARDANDO...'
       }));
 
       const totalValue = (orders as unknown as OrderWithClient[]).reduce((sum, order) => sum + order.valor_total, 0);
@@ -2472,7 +2471,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
         }
         throw new Error(`❌ Não encontrei nenhum cliente com o nome "${clientName}".`);
       } catch (error: any) {
-        console.error(`❌ [get_client_details] Erro ao buscar lista de clientes:`, error);
+
         throw new Error(`❌ Não encontrei nenhum cliente com o nome "${clientName}". Verifique se o nome está correto.`);
       }
     }
@@ -2564,8 +2563,14 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
         total: service.quantidade * service.valor_unitario
       }));
 
+      let message = `📋 **Detalhes do pedido #${(orderData as any).order_number}**`;
+      const tracking_code = (orderData as any).tracking_code;
+      if (tracking_code && !tracking_code.startsWith('ADI')) {
+        message += `\n📦 Código de Rastreamento: **${tracking_code}**`;
+      }
+
       return {
-        message: `📋 **Detalhes do pedido #${(orderData as any).order_number}**`,
+        message,
         order: {
           order_number: (orderData as any).order_number,
           cliente: (orderData as any).clientes?.nome || 'Cliente não encontrado',
@@ -2576,6 +2581,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
           total_metros_vinil: (orderData as any).total_metros_vinil,
           data_criacao: new Date((orderData as any).created_at).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }),
           observacoes: (orderData as any).observacoes || 'Nenhuma observação',
+          tracking_code: tracking_code && !tracking_code.startsWith('ADI') ? tracking_code : 'AGUARDANDO...',
           items: formattedItems,
           servicos: formattedServices
         }
@@ -2601,7 +2607,7 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       if (!token) throw new Error("Token inválido");
 
       const queryParams = new URLSearchParams();
-      queryParams.append('select', 'id,order_number,status,valor_total,total_metros,total_metros_dtf,total_metros_vinil,created_at,clientes(nome)');
+      queryParams.append('select', 'id,order_number,status,valor_total,total_metros,total_metros_dtf,total_metros_vinil,created_at,clientes(nome),tracking_code');
       if (ctx.organization_id) {
         queryParams.append('organization_id', `eq.${ctx.organization_id}`);
       } else {
@@ -2671,7 +2677,8 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
         total_metros_dtf: order.total_metros_dtf,
         total_metros_vinil: order.total_metros_vinil,
         created_at: new Date(order.created_at).toLocaleDateString('pt-BR', { timeZone: TIME_ZONE }),
-        cliente: order.clientes?.nome
+        cliente: order.clientes?.nome,
+        tracking_code: order.tracking_code
       }));
 
       // FIX 10, 11: Casting para OrderWithClient[]
@@ -3309,9 +3316,10 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       const p = data.pedido;
       const c = data.cliente;
 
+      const trackingInfo = p?.tracking_code && !p.tracking_code.startsWith('ADI') ? `\n📦 Rastreio: **${p.tracking_code}**` : '';
       return {
         details: data,
-        message: `🔍 **Detalhes do Pedido #${p?.order_number}**\n👤 Cliente: **${c?.nome}**\n💰 Total: **R$ ${p?.valor_total?.toFixed(2) || '0.00'}**\n📦 Status: **${p?.status}**\n\n_Para ver os itens detalhados, consulte o dashboard._`
+        message: `🔍 **Detalhes do Pedido #${p?.order_number}**\n👤 Cliente: **${c?.nome}**\n💰 Total: **R$ ${p?.valor_total?.toFixed(2) || '0.00'}**\n📦 Status: **${p?.status}**${trackingInfo}\n\n_Para ver os itens detalhados, consulte o dashboard._`
       };
     } catch (e: any) {
       console.error("❌ [get_order_details_v2] Erro:", e);

@@ -158,19 +158,15 @@ export const OrderCreationAnimation = () => {
                 <motion.div
                     className="absolute z-50 pointer-events-none"
                     initial={{ x: 200, y: 200, opacity: 0 }}
-                    animate={[
-                        { x: 180, y: 150, opacity: 1 }, // Enter
-                        { x: 140, y: 180 }, // Move to "Cotar Frete" button
-                        { scale: 0.8 }, // Click Down
-                        { scale: 1 }, // Click Up
-                        { x: 140, y: 230 }, // Move to Result (SEDEX)
-                        { scale: 0.8 }, // Click Down (Select)
-                        { scale: 1 }, // Click Up
-                        { x: 280, y: 300, opacity: 0 } // Leave
-                    ]}
+                    animate={{
+                        x: [200, 180, 140, 140, 140, 140, 140, 140, 280],
+                        y: [200, 150, 180, 180, 180, 230, 230, 230, 300],
+                        opacity: [0, 1, 1, 1, 1, 1, 1, 1, 0],
+                        scale: [1, 1, 1, 0.8, 1, 1, 0.8, 1, 1]
+                    }}
                     transition={{
                         duration: 4,
-                        times: [0, 0.2, 0.25, 0.3, 0.5, 0.55, 0.6, 1],
+                        times: [0, 0.2, 0.25, 0.3, 0.5, 0.55, 0.6, 0.8, 1],
                         delay: 1.2
                     }}
                 >

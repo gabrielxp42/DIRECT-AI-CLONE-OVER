@@ -250,7 +250,7 @@ const generateOrderPDFDocument = async (
   if (pedido.tipo_entrega) {
     summaryRows.push([pedido.tipo_entrega === 'frete' ? 'Entrega (Frete)' : 'Retirada', formatCurrency(pedido.valor_frete || 0)]);
     if (pedido.transportadora) summaryRows.push(['Transportadora', pedido.transportadora]);
-    if (pedido.tracking_code) summaryRows.push(['Rastreio', pedido.tracking_code]);
+    if (pedido.tracking_code && !pedido.tracking_code.startsWith('ADI')) summaryRows.push(['Rastreio', pedido.tracking_code]);
   }
   summaryRows.push(['Total Final', formatCurrency(finalTotal)]);
 

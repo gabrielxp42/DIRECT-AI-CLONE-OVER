@@ -239,7 +239,7 @@ export const printThermalReceipt = (pedido: Pedido) => {
         <div class="line" style="text-align: right;">
           TRANSPORTADORA: <strong>${pedido.transportadora.toUpperCase()}</strong>
         </div>` : ''}
-        ${pedido.tipo_entrega === 'frete' && pedido.tracking_code ? `
+        ${pedido.tipo_entrega === 'frete' && pedido.tracking_code && !pedido.tracking_code.startsWith('ADI') ? `
         <div class="line" style="text-align: right;">
           RASTREIO: <strong>${pedido.tracking_code}</strong>
         </div>` : ''}

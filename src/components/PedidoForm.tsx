@@ -531,6 +531,28 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
       }
     }
 
+    // 1.1 Verificar erros em serviços (array) e expandir o primeiro com erro
+    if (errors.servicos && Array.isArray(errors.servicos)) {
+      const firstErrorIndex = errors.servicos.findIndex((s: any) => s !== undefined && s !== null);
+      if (firstErrorIndex !== -1) {
+        const field = servicoFields[firstErrorIndex];
+        const fieldId = (field as any).id || (field as any).fieldId || `servico-${firstErrorIndex}`;
+
+        // Expandir o serviço com erro
+        setAccordionServiceValue(fieldId);
+
+        // Pequeno delay para permitir que o accordion abra antes de rolar
+        setTimeout(() => {
+          const element = document.getElementsByName(`servicos.${firstErrorIndex}.nome`)[0];
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            element.focus();
+          }
+        }, 100);
+        return;
+      }
+    }
+
     // 2. Lógica genérica para outros campos
     const firstError = Object.keys(errors).reduce((acc, key) => {
       if (acc) return acc;
@@ -648,44 +670,45 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
     }
   };
 
-  const addItem = () => {
+  const addItem = (initialData?: any) => {
     hapticTap(); // Feedback ao adicionar
 
-    // Calcular o próximo número sequencial
-    const currentItems = form.getValues('items') || [];
-    const maxNumber = currentItems.reduce((max, item) => {
-      return Math.max(max, item.tempDisplayNumber || 0);
-    }, currentItems.length);
+    // Evitar spam de itens vazios se o último já for vazio
+    if (!initialData && itemFields.length > 0) {
+      const lastItem = form.getValues(`items.${itemFields.length - 1}`);
+      if (!lastItem?.produto_id && !lastItem?.produto_nome) {
+        setAccordionItemValue(itemFields[itemFields.length - 1].tempId);
+        return;
+      }
+    }
+
+    const maxNumber = itemFields.length > 0
+      ? Math.max(...itemFields.map((field: any) => field.tempDisplayNumber || 0))
+      : 0;
+
+    const newItem = {
+      tempId: Math.random().toString(36).substr(2, 9),
+      tempDisplayNumber: maxNumber + 1,
+      produto_id: initialData?.produto_id || "",
+      quantidade: initialData?.quantidade || 1,
+      tipo_producao: initialData?.tipo_producao || "",
+      preco_unitario: initialData?.preco_unitario || (initialData?.id ? 0 : (selectedClientValorMetro || 0)),
+      observacao: initialData?.observacao || "",
+      produto_nome: initialData?.produto_nome || "",
+      tipo: 'dtf' as const
+    };
 
     // Adicionar ao INÍCIO da lista usando prepend seria o ideal, mas useFieldArray padrão é append.
     // Vamos usar insert(0, item) se quisermos no topo, ou append para o final.
     // O código original usava [newItem, ...currentItems], então vamos inserir no índice 0.
 
-    // NOTA: useFieldArray tem insert, mas vamos simplificar usando append e move se necessário, 
+    // NOTA: useFieldArray tem insert, mas vamos simplificar usando append e move se necessário,
     // ou melhor, vamos usar o prepend se disponível, mas insert(0) funciona.
     // Como não desestruturei insert, vou adicionar ao final por enquanto ou mudar a desestruturação acima.
     // Vamos mudar a desestruturação acima para incluir insert.
 
-    const newItem = {
-      tempId: Math.random().toString(36).substr(2, 9),
-      tempDisplayNumber: maxNumber + 1,
-      produto_id: null,
-      produto_nome: "",
-      quantidade: 1,
-      preco_unitario: selectedClientValorMetro || 0,
-      tipo: 'dtf' as const,
-      observacao: ""
-    };
-
-    // Inserir no topo (índice 0)
-    // Precisamos do método insert do useFieldArray. Vou atualizar a desestruturação no próximo passo ou assumir que vou corrigir.
-    // Por segurança, vou usar appendItem (final da lista) que é o padrão mais seguro.
-    // O usuário pediu "Adicionar ao INÍCIO" no código original?
-    // Sim: const newItems = [newItem, ...currentItems];
-    // Vou usar insert(0, item) na implementação. Vou assumir que vou adicionar insert na desestruturação.
-
-    appendItem(newItem, { shouldFocus: false });
     // Se quiser no topo: insert(0, newItem); (preciso pegar insert do hook)
+    appendItem(newItem, { shouldFocus: false });
 
     // Limpar snapshot anterior
     setItemSnapshot(null);
@@ -766,6 +789,17 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
   };
 
   const addServico = () => {
+    // Evitar spam de serviços vazios
+    if (servicoFields.length > 0) {
+      const lastServico = form.getValues(`servicos.${servicoFields.length - 1}`);
+      if (!lastServico?.nome && (lastServico?.valor_unitario === 0 || !lastServico?.valor_unitario)) {
+        const lastField = servicoFields[servicoFields.length - 1];
+        const lastId = (lastField as any).id || (lastField as any).fieldId || `servico-${servicoFields.length - 1}`;
+        setAccordionServiceValue(lastId);
+        return;
+      }
+    }
+
     const newServico = {
       nome: "",
       quantidade: 1,
@@ -912,7 +946,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
   };
 
   // Removido form.watch('items') pois agora usamos useFieldArray
-  // const items = form.watch('items') || []; 
+  // const items = form.watch('items') || [];
   // const itemIds = useMemo(() => items.map((item) => item.tempId || `temp-${items.indexOf(item)}`), [items]);
 
   // Para drag and drop, precisamos dos IDs
@@ -1181,7 +1215,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                 // Check error state for this specific item
                                 const hasError = !!form.formState.errors.items?.[index];
 
-                                // Precisamos pegar os valores atuais para exibir no card fechado, 
+                                // Precisamos pegar os valores atuais para exibir no card fechado,
                                 // pois 'field' só tem os valores iniciais (defaultValue)
                                 const currentValues = form.getValues(`items.${index}`);
                                 const produtoNome = currentValues?.produto_nome || field.produto_nome;
@@ -1205,7 +1239,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                         className="flex items-center justify-between p-4 cursor-pointer hover:bg-accent/50 transition-colors"
                                         onClick={() => {
                                           if (isOpen) {
-                                            // Ao fechar clicando no header, apenas fecha SEM restaurar snapshot
+                                            // Ao fechar clicando no header, apenas closes SEM restaurar snapshot
                                             setAccordionItemValue(undefined);
                                             setItemSnapshot(null);
                                           } else {
@@ -1671,7 +1705,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                                 Confirmar
                                               </Button>
                                             </div>
-                                          </div>
+                                          </div >
                                         </div>
                                       </div>
                                     </Card>
@@ -1690,10 +1724,11 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                       </p>
                     )}
                   </FormItem>
-                )}
+                )
+                }
               />
 
-              <Separator className="my-6" />
+              < Separator className="my-6" />
 
               <div id="services-section" className="space-y-4">
                 <div className="flex items-center justify-between flex-wrap gap-2">
@@ -1792,6 +1827,12 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                 <div className="font-medium text-sm flex items-center gap-2">
                                   <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                                   {nome || `Serviço #${index + 1} (Sem nome)`}
+                                  {form.formState.errors.servicos?.[index] && (
+                                    <span className="flex items-center text-[10px] text-destructive font-black animate-pulse ml-1 bg-destructive/10 px-1.5 py-0.5 rounded-full border border-destructive/20 uppercase">
+                                      <Info className="h-3 w-3 mr-1" />
+                                      Erro
+                                    </span>
+                                  )}
                                 </div>
                                 <div className="text-xs text-muted-foreground ml-6">
                                   Qtd: {quantidade} | Total: {formatCurrency(Number(quantidade) * Number(valorUnitario))}
@@ -1824,12 +1865,10 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                           <FormLabel>Serviço</FormLabel>
                                           <FormControl>
                                             <Input
-                                              name={field.name}
+                                              {...field}
                                               value={field.value || ''}
-                                              onChange={field.onChange}
-                                              onBlur={field.onBlur}
-                                              ref={field.ref}
                                               placeholder="Ex: Montagem de Arq"
+                                              className="bg-background"
                                             />
                                           </FormControl>
                                         </FormItem>
@@ -2179,7 +2218,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
         <FreightQuoteModal
           open={isFreightModalOpen}
           onOpenChange={setIsFreightModalOpen}
-          defaultCEP={clientes.find(c => c.id === form.getValues('cliente_id'))?.endereco?.cep || ""}
+          defaultCEP={clientes.find(c => c.id === form.getValues('cliente_id'))?.cep || ""}
           onSelectQuote={(quote) => {
             form.setValue('valor_frete', quote.price);
             form.setValue('transportadora', quote?.carrier || "");

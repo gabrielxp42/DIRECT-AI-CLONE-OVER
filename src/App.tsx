@@ -36,6 +36,7 @@ const Profile = lazy(() => import("./pages/Profile"));
 const GabiSettings = lazy(() => import("./pages/GabiSettings"));
 const Affiliate = lazy(() => import("./pages/Affiliate"));
 const LandingPage = lazy(() => import("./pages/LandingPage"));
+const Logistics = lazy(() => import("./pages/Logistics"));
 
 
 // Configurar QueryClient com opções otimizadas
@@ -95,6 +96,7 @@ const App = () => (
                             <Route path="/pedidos" element={<Pedidos />} />
                             <Route path="/reports" element={<Reports />} />
                             <Route path="/insumos" element={<Insumos />} />
+                            <Route path="/logistica" element={<Logistics />} />
                             <Route path="/settings" element={<Settings />} />
                             <Route path="/profile" element={<Profile />} />
                             <Route path="/gabi" element={<GabiSettings />} />
