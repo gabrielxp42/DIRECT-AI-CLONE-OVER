@@ -459,6 +459,11 @@ const PedidosPage: React.FC = () => {
 
           updateStep(taskId, 'pdf-send', 'completed');
           updateTask(taskId, { progress: 70 });
+
+          // 🔥 LIMPEZA: Remove o PDF do storage após o envio para não acumular lixo
+          supabase.storage.from('order-pdfs').remove([fileName]).catch(err => {
+            console.warn("[Storage] Erro ao limpar arquivo temporário:", err);
+          });
         }
 
         // Etapa 2: Enviar Texto (Se solicitado)

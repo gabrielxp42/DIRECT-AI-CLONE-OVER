@@ -49,7 +49,7 @@ const generateOrderPDFDocument = async (
   companyInfo?: CompanyInfoForPDF
 ): Promise<jsPDF> => {
   console.log(`[PDF] Iniciando documentação unificada para pedido #${pedido.order_number}`);
-  const doc = new jsPDF();
+  const doc = new jsPDF({ compress: true });
   const pageWidth = doc.internal.pageSize.width;
   const company = { ...DEFAULT_COMPANY_INFO, ...companyInfo };
 
@@ -75,7 +75,7 @@ const generateOrderPDFDocument = async (
   const logoUrl = company.logo_url || '/logo.png';
   try {
     const logoBase64 = await getImageAsBase64(logoUrl);
-    doc.addImage(logoBase64, 'PNG', 16, 14, 18, 18);
+    doc.addImage(logoBase64, 'PNG', 16, 14, 18, 18, undefined, 'FAST');
   } catch (e) {
     console.warn("[PDF] Falha ao carregar logo, usando fallback visual.");
     doc.setFillColor(0, 0, 0); doc.rect(16, 14, 18, 18, 'F');
