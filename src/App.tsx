@@ -35,7 +35,6 @@ const Legal = lazy(() => import("./pages/Legal"));
 const Profile = lazy(() => import("./pages/Profile"));
 const GabiSettings = lazy(() => import("./pages/GabiSettings"));
 const Affiliate = lazy(() => import("./pages/Affiliate"));
-const Logistics = lazy(() => import("./pages/Logistics"));
 const LandingPage = lazy(() => import("./pages/LandingPage"));
 
 
@@ -100,7 +99,6 @@ const App = () => (
                             <Route path="/profile" element={<Profile />} />
                             <Route path="/gabi" element={<GabiSettings />} />
                             <Route path="/affiliate" element={<Affiliate />} />
-                            <Route path="/logistica" element={<Logistics />} />
 
                             <Route path="/admin" element={
                               <AdminRoute>

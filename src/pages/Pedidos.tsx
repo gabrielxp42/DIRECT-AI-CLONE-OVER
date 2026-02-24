@@ -469,6 +469,8 @@ const PedidosPage: React.FC = () => {
         // Etapa 2: Enviar Texto (Se solicitado)
         if (data.includeText) {
           updateStep(taskId, 'text-send', 'loading');
+          console.log("[WhatsApp] Iniciando envio do resumo...");
+
           if (data.attachPdf) await new Promise(r => setTimeout(r, 1000));
 
           const textSession = (await supabase.auth.getSession()).data.session;
@@ -485,15 +487,17 @@ const PedidosPage: React.FC = () => {
             body: JSON.stringify({
               action: 'send-text',
               phone: formattedPhone,
-              message: data.includePix && companyProfile?.company_pix_key
-                ? `${summary}\n\n💰 *DADOS PARA PAGAMENTO*\nChave Pix: ${companyProfile.company_pix_key}`
-                : summary
+              message: (data.includePix && companyProfile?.company_pix_key)
+                ? `${summary.trim()}\n\n💰 *DADOS PARA PAGAMENTO*\nChave Pix: ${companyProfile.company_pix_key}`
+                : summary.trim()
             }),
             signal: textController.signal
           });
           clearTimeout(textTimeout);
 
           const textResult = await textResp.json();
+          console.log("[WhatsApp] Resposta envio resumo:", textResult);
+
           if (!textResp.ok || textResult?.error) {
             throw new Error(textResult?.message || 'Erro ao enviar texto');
           }

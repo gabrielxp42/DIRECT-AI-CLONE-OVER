@@ -30,8 +30,8 @@ const staticNavItems = [
   { href: '/clientes', icon: Users, label: 'Clientes' },
   { href: '/produtos', icon: Package, label: 'Produtos' },
   { href: '/insumos', icon: Layers, label: 'Insumos' },
-  { href: '/logistica', icon: Truck, label: 'Logística' },
   { href: '/reports', icon: BarChart3, label: 'Relatórios' },
+
   { href: '/gabi', icon: Bot, label: 'Gabi' },
 ];
 

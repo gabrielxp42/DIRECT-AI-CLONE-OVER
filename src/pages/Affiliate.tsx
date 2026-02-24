@@ -45,6 +45,15 @@ const PIX_TYPES = [
     { value: 'random', label: 'Chave Aleatória' },
 ];
 
+const GOALS = [
+    { threshold: 5, label: 'Bronze', icon: '🥉', bonus: 'Bônus de R$ 50,00' },
+    { threshold: 10, label: 'Silver', icon: '🥈', bonus: 'Bônus de R$ 100,00' },
+    { threshold: 20, label: 'Gold', icon: '🥇', bonus: 'Bônus de R$ 200,00' },
+    { threshold: 50, label: 'Diamond', icon: '💎', bonus: 'Bônus de R$ 500,00' },
+    { threshold: 100, label: 'Black', icon: '🚀', bonus: 'Notebook Dell Inspiron' },
+];
+
+
 export default function AffiliatePortal() {
     const { profile } = useSession();
     const [stats, setStats] = useState({
@@ -341,7 +350,7 @@ export default function AffiliatePortal() {
 
                 <Card className="rounded-[2.5rem] border-none bg-white dark:bg-zinc-900/50 shadow-xl overflow-hidden group hover:-translate-y-1 transition-transform duration-300">
                     <CardHeader className="p-8 pb-4 flex flex-row items-center justify-between">
-                        <div className="p-3 rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-zinc-500 group-hover:bg-violet-500/10 group-hover:text-violet-500 transition-colors">
+                        <div className="p-3 rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-zinc-500 group-hover:bg-emerald-500/10 group-hover:text-emerald-500 transition-colors">
                             <TrendingUp size={24} />
                         </div>
                         <Badge variant="outline" className="rounded-full font-black uppercase italic text-[10px]">Mensal</Badge>
@@ -400,6 +409,98 @@ export default function AffiliatePortal() {
                 </Card>
             </div>
 
+            {/* Metas e Gamificação */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <Card className="rounded-[2.5rem] border-none bg-white dark:bg-zinc-900/50 shadow-xl overflow-hidden flex flex-col">
+                    <CardHeader className="p-8 pb-4">
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 rounded-2xl bg-amber-500/10 text-amber-500">
+                                <Target size={24} />
+                            </div>
+                            <div>
+                                <CardTitle className="text-xl font-black uppercase italic tracking-tighter">Suas Metas</CardTitle>
+                                <CardDescription className="text-xs font-medium italic">Alcance novos níveis para desbloquear bônus.</CardDescription>
+                            </div>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="p-8 pt-4 flex-1 flex flex-col justify-between">
+                        <div className="space-y-6">
+                            {GOALS.map((goal, idx) => {
+                                const isCompleted = stats.activeUsers >= goal.threshold;
+                                const isCurrent = stats.activeUsers < goal.threshold && (idx === 0 || stats.activeUsers >= GOALS[idx - 1].threshold);
+
+                                return (
+                                    <div key={goal.label} className={`flex items-center gap-4 transition-all duration-300 ${isCompleted ? 'opacity-100' : isCurrent ? 'opacity-100 scale-[1.02]' : 'opacity-40'}`}>
+                                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl shadow-lg ${isCompleted ? 'bg-emerald-500/20 grayscale-0' : 'bg-zinc-100 dark:bg-zinc-800 grayscale'}`}>
+                                            {goal.icon}
+                                        </div>
+                                        <div className="flex-1">
+                                            <div className="flex justify-between items-end mb-1">
+                                                <h4 className="font-black uppercase italic text-sm tracking-tighter">Nível {goal.label}</h4>
+                                                <span className="text-[10px] font-black italic text-zinc-500">{stats.activeUsers}/{goal.threshold}</span>
+                                            </div>
+                                            <Progress value={Math.min((stats.activeUsers / goal.threshold) * 100, 100)} className="h-1.5 bg-zinc-100 dark:bg-zinc-800" />
+                                            {isCurrent && (
+                                                <p className="text-[9px] font-bold text-amber-500 uppercase tracking-widest mt-2 animate-pulse">
+                                                    Próximo Bônus: {goal.bonus}
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* Projeção de Ganhos */}
+                <Card className="rounded-[2.5rem] border-none bg-zinc-950 shadow-xl overflow-hidden relative group">
+                    <div className="absolute inset-0 bg-gradient-to-br from-emerald-600/20 to-zinc-950 pointer-events-none" />
+
+                    <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10 pointer-events-none" />
+                    <CardHeader className="p-8 pb-4 relative z-10">
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 rounded-2xl bg-white/20 text-white backdrop-blur-md">
+                                <TrendingUp size={24} />
+                            </div>
+                            <div>
+                                <CardTitle className="text-xl font-black uppercase italic tracking-tighter text-white">Projeção de Ganhos</CardTitle>
+                                <CardDescription className="text-xs font-medium italic text-white/70">Veja quanto você pode ganhar por mês.</CardDescription>
+                            </div>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="p-8 pt-4 relative z-10 space-y-8">
+                        <div className="grid grid-cols-2 gap-4">
+                            {[10, 20, 50, 100].map((num) => {
+                                const monthlyComm = num * 97 * (profile?.commission_rate || 10) / 100;
+
+                                return (
+                                    <div key={num} className="p-4 rounded-3xl bg-white/10 border border-white/10 backdrop-blur-md">
+                                        <p className="text-[10px] font-black text-white/50 uppercase tracking-widest">{num} Indicações</p>
+                                        <p className="text-2xl font-black text-white italic tracking-tighter">R$ {monthlyComm.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}</p>
+                                        <p className="text-[9px] font-bold text-emerald-400 uppercase italic">Por Mês (Recorrente)</p>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        <div className="p-6 rounded-[2rem] bg-black/20 border border-white/5 backdrop-blur-xl">
+                            <h4 className="text-xs font-black text-white uppercase italic tracking-widest mb-4 flex items-center gap-2">
+                                <Sparkles size={14} className="text-amber-400" />
+                                Grande Meta do Mês
+                            </h4>
+                            <div className="flex items-baseline gap-2">
+                                <span className="text-4xl font-black text-white italic tracking-tighter leading-none">R$ {(200 * 97 * (profile?.commission_rate || 10) / 100).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}</span>
+                                <span className="text-xs font-black text-white/50 uppercase italic tracking-tighter">/Mês</span>
+                            </div>
+                            <p className="text-[10px] text-white/70 font-medium mt-2">
+                                Baseado em 200 usuários ativos. Com nossa taxa de retenção média, isso se torna sua <b>aposentadoria digital</b>.
+                            </p>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+
             {/* Next Steps / Info */}
             <div className="grid md:grid-cols-2 gap-8">
                 <Card className="rounded-[2.5rem] border-none bg-white dark:bg-zinc-900/50 shadow-xl overflow-hidden">
@@ -426,6 +527,7 @@ export default function AffiliatePortal() {
                                         {PIX_TYPES.map(t => (
                                             <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
                                         ))}
+
                                     </SelectContent>
                                 </Select>
                             </div>

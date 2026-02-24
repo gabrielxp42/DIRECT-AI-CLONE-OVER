@@ -129,6 +129,54 @@ Deno.serve(async (req: Request) => {
                 await supabaseAdmin.from('profiles').update({ whatsapp_instance_id: null, whatsapp_status: 'disconnected', whatsapp_qr_cache: null }).eq('id', user.id);
             }
             result = { success: true };
+        } else if (body.action === 'send-text') {
+            const { data: p } = await supabaseAdmin.from('profiles').select('whatsapp_instance_id').eq('id', user.id).single();
+            if (!p?.whatsapp_instance_id) throw new Error("Instância WhatsApp não encontrada");
+
+            const resp = await fetchWithTimeout(`${EVOLUTION_URL}/message/sendText/${p.whatsapp_instance_id}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'apikey': EVOLUTION_KEY },
+                body: JSON.stringify({
+                    number: body.phone,
+                    text: body.message,
+                    delay: 1200,
+                    linkPreview: false
+                })
+            });
+            result = await safeJson(resp);
+            console.log(`[Proxy] Text sent to ${body.phone}, status: ${resp.status}`);
+        } else if (body.action === 'send-media') {
+            const { data: p } = await supabaseAdmin.from('profiles').select('whatsapp_instance_id').eq('id', user.id).single();
+            if (!p?.whatsapp_instance_id) throw new Error("Instância WhatsApp não encontrada");
+
+            const mediaPayload: any = {
+                number: body.phone,
+                mediatype: body.mediaType || 'image',
+                caption: body.message || '',
+                delay: 1500
+            };
+
+            // Prefere base64 se disponível para evitar depender de URLs externas/temporárias
+            if (body.mediaBase64) {
+                mediaPayload.media = body.mediaBase64;
+            } else if (body.mediaUrl) {
+                mediaPayload.media = body.mediaUrl;
+            }
+
+            if (body.mediaName) {
+                mediaPayload.fileName = body.mediaName;
+            }
+
+            const resp = await fetchWithTimeout(`${EVOLUTION_URL}/message/sendMedia/${p.whatsapp_instance_id}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'apikey': EVOLUTION_KEY },
+                body: JSON.stringify(mediaPayload)
+            });
+            result = await safeJson(resp);
+            console.log(`[Proxy] Media sent to ${body.phone}, status: ${resp.status}`);
+        } else {
+            console.warn(`[Proxy] Unknown action: ${body.action}`);
+            result = { error: true, message: `Ação desconhecida: ${body.action}` };
         }
 
         return new Response(JSON.stringify(result), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });

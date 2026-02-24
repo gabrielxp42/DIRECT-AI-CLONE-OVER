@@ -75,6 +75,18 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
     stateRef.current = { profile, session };
   }, [profile, session]);
 
+  // Affiliate Tracking Component-level logic
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('ref') || params.get('code');
+
+    if (code) {
+      console.log('🎯 [SessionProvider] Affiliate code detected:', code);
+      localStorage.setItem('direct_ai_affiliate_code', code.toUpperCase());
+    }
+  }, []);
+
+
   const fetchProfileData = async (userId: string, token: string) => {
     try {
       // Usar fetch direto como no restante do projeto para máxima estabilidade

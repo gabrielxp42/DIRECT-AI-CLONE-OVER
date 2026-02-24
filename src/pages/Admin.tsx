@@ -529,7 +529,7 @@ export default function Admin() {
                 <Card className="bg-white dark:bg-zinc-900 border-none shadow-xl rounded-[2rem] overflow-hidden">
                     <CardContent className="p-8">
                         <div className="flex items-center gap-4 mb-4">
-                            <div className="p-3 bg-violet-500/10 rounded-2xl text-violet-500">
+                            <div className="p-3 bg-emerald-500/10 rounded-2xl text-emerald-500">
                                 <Users size={24} />
                             </div>
                             <span className="text-xs font-black uppercase tracking-widest text-muted-foreground">Clientes Cadastrados</span>
@@ -571,7 +571,7 @@ export default function Admin() {
                     <TabsTrigger value="ai-monitoring" className="rounded-xl px-4 md:px-8 font-black uppercase tracking-widest text-[11px] flex-1 md:flex-none shrink-0 flex items-center gap-2">
                         <Brain size={14} /> Monitoramento IA
                     </TabsTrigger>
-                    <TabsTrigger value="gemini-config" className="rounded-xl px-4 md:px-8 font-black uppercase tracking-widest text-[11px] flex-1 md:flex-none shrink-0 text-violet-500">Gemini Config</TabsTrigger>
+                    <TabsTrigger value="gemini-config" className="rounded-xl px-4 md:px-8 font-black uppercase tracking-widest text-[11px] flex-1 md:flex-none shrink-0 text-emerald-500">Gemini Config</TabsTrigger>
                     <TabsTrigger value="evolution" className="rounded-xl px-4 md:px-8 font-black uppercase tracking-widest text-[11px] flex-1 md:flex-none shrink-0 text-green-500">Evolution API</TabsTrigger>
                     <TabsTrigger value="marketing" className="rounded-xl px-4 md:px-8 font-black uppercase tracking-widest text-[11px] flex-1 md:flex-none shrink-0">Marketing & Ganhos</TabsTrigger>
                     <TabsTrigger value="payouts" className="rounded-xl px-4 md:px-8 font-black uppercase tracking-widest text-[11px] flex-1 md:flex-none shrink-0 text-emerald-500">
@@ -645,7 +645,7 @@ export default function Admin() {
                                                 </Badge>
                                             </TableCell>
                                             <TableCell className="p-6 text-center">
-                                                <Badge variant="outline" className="font-black tabular-nums border-zinc-200 dark:border-zinc-800 text-violet-500">
+                                                <Badge variant="outline" className="font-black tabular-nums border-zinc-200 dark:border-zinc-800 text-emerald-500">
                                                     {user.clientes_count || 0}
                                                 </Badge>
                                             </TableCell>
@@ -1083,9 +1083,9 @@ export default function Admin() {
                     {selectedUser && (
                         <div className="space-y-6 py-6 font-bold overflow-y-auto max-h-[70vh] pr-2">
                             <div className="grid grid-cols-2 gap-4">
-                                <div className="p-4 rounded-2xl bg-violet-50 dark:bg-violet-900/10 border border-violet-100 dark:border-violet-900/20 text-center">
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-violet-500 block mb-1">Pedidos Feitos</span>
-                                    <span className="text-2xl font-black italic text-violet-700 dark:text-violet-400 leading-none">
+                                <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/20 text-center">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-emerald-500 block mb-1">Pedidos Feitos</span>
+                                    <span className="text-2xl font-black italic text-emerald-700 dark:text-emerald-400 leading-none">
                                         {loadingStats ? <RefreshCw className="animate-spin inline" size={16} /> : userStats?.pedidos || 0}
                                     </span>
                                 </div>
