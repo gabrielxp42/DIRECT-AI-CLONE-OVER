@@ -55,13 +55,26 @@ export const FreightQuoteModal = ({ open, onOpenChange, onSelectQuote, defaultCE
 
         const originCEP = companyProfile?.company_address_zip?.replace(/\D/g, '') || "04571010";
         const destinationCEP = destCEP.replace(/\D/g, '');
+        const provider = companyProfile?.logistics_provider || null;
+        const proxyUrl = provider === 'frenet' ? 'frenet-proxy' : 'superfrete-proxy';
 
         setLoading(true);
         try {
             const token = await getValidToken();
             const payload = {
                 action: 'calculate',
-                params: {
+                params: provider === 'frenet' ? {
+                    SellerCEP: originCEP,
+                    RecipientCEP: destinationCEP,
+                    ShipmentItemArray: [{
+                        Weight: dimensions.weight,
+                        Height: dimensions.height,
+                        Width: dimensions.width,
+                        Length: dimensions.length,
+                        Quantity: 1
+                    }],
+                    RecipientCountry: "BR"
+                } : {
                     from: { postal_code: originCEP },
                     to: { postal_code: destinationCEP },
                     package: dimensions,
@@ -69,7 +82,7 @@ export const FreightQuoteModal = ({ open, onOpenChange, onSelectQuote, defaultCE
                 }
             };
 
-            const response = await fetch(`${SUPABASE_URL}/functions/v1/superfrete-proxy`, {
+            const response = await fetch(`${SUPABASE_URL}/functions/v1/${proxyUrl}`, {
                 method: 'POST',
                 headers: {
                     'apikey': SUPABASE_ANON_KEY,
@@ -81,37 +94,29 @@ export const FreightQuoteModal = ({ open, onOpenChange, onSelectQuote, defaultCE
 
             const data = await response.json();
             if (data.error) {
-                console.log("SuperFrete API Error Data:", data);
-
-                // Verificação de erros específicos de validação
-                if (data.details && typeof data.details === 'object') {
-                    // @ts-ignore - knowing that details might have errors
-                    const errors = data.details.errors || {};
-
-                    if (errors["correios.destination_postcode"]) {
-                        throw new Error("CEP de destino inválido. Verifique o número digitado.");
-                    }
-
-                    if (errors["ms-freight-calculator.no_result"]) {
-                        throw new Error("Nenhum frete encontrado. Verifique se o CEP aceita SEDEX/PAC e dimensões.");
-                    }
-                }
-
-                let detailedMessage = data.message || "Erro no cálculo";
-
-                // Fallback: mostra JSON se não for um erro conhecido
-                if (data.details) {
-                    const extra = JSON.stringify(data.details);
-                    // Limita tamanho para não quebrar UI
-                    if (extra.length < 200) detailedMessage += ` (${extra})`;
-                }
-
-                throw new Error(detailedMessage);
+                console.log(`${provider} Calculation Error:`, data);
+                throw new Error(data.message || "Erro no cálculo");
             }
 
-            const sorted = Array.isArray(data) ? [...data].sort((a, b) => parseFloat(a.price) - parseFloat(b.price)) : [];
+            let normalizedQuotes: any[] = [];
+
+            if (provider === 'frenet' && data.ShippingSevicesArray) {
+                normalizedQuotes = data.ShippingSevicesArray
+                    .filter((s: any) => !s.Error)
+                    .map((s: any) => ({
+                        id: s.ServiceCode,
+                        name: s.ServiceDescription,
+                        price: s.ShippingPrice.replace(',', '.'),
+                        delivery_time: s.DeliveryTime,
+                        provider: 'frenet'
+                    }));
+            } else if (Array.isArray(data)) {
+                normalizedQuotes = data.map(q => ({ ...q, provider: 'superfrete' }));
+            }
+
+            const sorted = normalizedQuotes.sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
             setQuotes(sorted);
-            if (sorted.length === 0) showError("Nenhuma opção de frete encontrada para este CEP.");
+            if (sorted.length === 0) showError("Nenhuma opção de frete encontrada.");
         } catch (error: any) {
             console.error(error);
             let msg = error.message;
@@ -204,7 +209,12 @@ export const FreightQuoteModal = ({ open, onOpenChange, onSelectQuote, defaultCE
                                 className="w-full p-4 rounded-xl border border-white/5 bg-white/5 hover:bg-primary/10 hover:border-primary/30 transition-all flex items-center justify-between group"
                             >
                                 <div className="text-left">
-                                    <p className="text-sm font-black text-white uppercase italic leading-none mb-1 group-hover:text-primary transition-colors">{quote.name}</p>
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <p className="text-sm font-black text-white uppercase italic leading-none group-hover:text-primary transition-colors">{quote.name}</p>
+                                        <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase ${quote.provider === 'frenet' ? 'bg-blue-500/20 text-blue-400' : 'bg-orange-500/20 text-orange-400'}`}>
+                                            {quote.provider}
+                                        </span>
+                                    </div>
                                     <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{quote.delivery_time} dias úteis</p>
                                 </div>
                                 <div className="text-right">

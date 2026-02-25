@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Truck, Loader2, CreditCard, Download, PackageOpen, ExternalLink, ChevronDown, ChevronUp, Zap, Sparkles, MapPin, User, Search, CheckCircle2, Copy } from 'lucide-react';
+import { Truck, Loader2, CreditCard, Download, PackageOpen, ExternalLink, ChevronDown, ChevronUp, Zap, Sparkles, MapPin, User, Search, CheckCircle2, Copy, Clock, Filter } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/integrations/supabase/client';
@@ -48,12 +48,14 @@ const formatCurrency = (value: number) => {
 };
 
 interface ShippingOption {
-    id: number;
+    id: string | number;
     name: string;
     price: string;
     discount: string;
     delivery_time: number;
     arrival_date?: string;
+    provider: 'superfrete' | 'frenet';
+    carrier_logo?: string;
 }
 
 interface ShippingSectionProps {
@@ -85,6 +87,7 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
     const [options, setOptions] = useState<ShippingOption[]>([]);
     const [selectedOption, setSelectedOption] = useState<ShippingOption | null>(null);
     const [labelId, setLabelId] = useState<string | undefined>(initialLabelId);
+    const [labelProvider, setLabelProvider] = useState<'superfrete' | 'frenet' | null>(null);
     const [status, setStatus] = useState<string | undefined>(initialStatus);
     const [labelUrl, setLabelUrl] = useState<string | null>(null);
     const [trackingCode, setTrackingCode] = useState<string | null>(null);
@@ -133,6 +136,7 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
                         if (label.pdf_url) setLabelUrl(label.pdf_url);
                         if (label.status) setStatus(label.status);
                         if (label.tracking_code) setTrackingCode(label.tracking_code);
+                        if (label.provider) setLabelProvider(label.provider as any);
                     }
                 } catch (err) {
                     console.error("[ShippingSection] Erro ao buscar etiqueta existente:", err);
@@ -283,74 +287,166 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
             return;
         }
 
-        const originCEP = companyProfile?.company_address_zip?.replace(/\D/g, '') || "04571010"; // Fallback se não houver no perfil
+        const originCEP = companyProfile?.company_address_zip?.replace(/\D/g, '') || "04571010";
         const destinationCEP = cepToUse.replace(/\D/g, '');
 
-        console.log("[ShippingSection] Calculando frete:", { originCEP, destinationCEP, packageDimensions });
+        console.log("[ShippingSection] Calculando frete multi-provedor:", { originCEP, destinationCEP });
         setLoading(true);
+        setOptions([]);
+
         try {
             const token = await getValidToken();
-            const payload = {
-                action: 'calculate',
-                params: {
-                    from: { postal_code: originCEP },
-                    to: { postal_code: destinationCEP },
-                    package: packageDimensions,
-                    services: "1,2,17" // PAC, SEDEX, Mini Envios
+
+            const provider = companyProfile?.logistics_provider || null;
+
+            // 1. Promessa para SuperFrete (só se provider for superfrete ou null)
+            const superFretePromise = (!provider || provider === 'superfrete')
+                ? fetch(`${SUPABASE_URL}/functions/v1/superfrete-proxy`, {
+                    method: 'POST',
+                    headers: {
+                        'apikey': SUPABASE_ANON_KEY,
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        action: 'calculate',
+                        params: {
+                            from: { postal_code: originCEP },
+                            to: { postal_code: destinationCEP },
+                            package: packageDimensions,
+                            services: "1,2,17"
+                        }
+                    })
+                }).then(res => res.json())
+                    .catch((err: any) => ({ error: true, message: `SuperFrete offline: ${err.message}` }))
+                : Promise.resolve(null);
+
+            // 2. Promessa para Frenet (só se provider for frenet ou null)
+            const frenetPromise = (!provider || provider === 'frenet')
+                ? fetch(`${SUPABASE_URL}/functions/v1/frenet-proxy`, {
+                    method: 'POST',
+                    headers: {
+                        'apikey': SUPABASE_ANON_KEY,
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        action: 'calculate',
+                        params: {
+                            seller_cep: originCEP,
+                            recipient_cep: destinationCEP,
+                            items: [{
+                                Weight: packageDimensions.weight,
+                                Height: packageDimensions.height,
+                                Width: packageDimensions.width,
+                                Length: packageDimensions.length,
+                                Quantity: 1
+                            }]
+                        }
+                    })
+                }).then(res => res.json())
+                    .catch((err: any) => ({ error: true, message: `Frenet offline: ${err.message}` }))
+                : Promise.resolve(null);
+
+            // Executar em paralelo
+            const [sfData, frData] = await Promise.all([superFretePromise, frenetPromise]);
+
+            console.log("[ShippingSection] Provider selecionado:", provider);
+            console.log("[ShippingSection] SuperFrete response:", sfData);
+            console.log("[ShippingSection] Frenet response:", frData);
+
+            let combinedOptions: ShippingOption[] = [];
+
+            // Processar SuperFrete
+            if (sfData && !sfData.error) {
+                // SuperFrete pode retornar array direto ou objeto com dispatchers/data
+                let sfOptions: any[] = [];
+                if (Array.isArray(sfData)) {
+                    sfOptions = sfData;
+                } else if (Array.isArray(sfData.dispatchers)) {
+                    sfOptions = sfData.dispatchers;
+                } else if (Array.isArray(sfData.data)) {
+                    sfOptions = sfData.data;
                 }
-            };
-            console.log("[ShippingSection] Payload enviado:", payload);
 
-            const response = await fetch(`${SUPABASE_URL}/functions/v1/superfrete-proxy`, {
-                method: 'POST',
-                headers: {
-                    'apikey': SUPABASE_ANON_KEY,
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(payload)
-            });
-
-            const data = await response.json();
-            console.log("[ShippingSection] Resposta recebida:", data);
-
-            if (data.error) {
-                console.error("[ShippingSection] Erro detalhado:", data);
-                let errorMessage = data.message || "Erro desconhecido no cálculo";
-                if (data.details?.errors) {
-                    const errorDetails = Object.entries(data.details.errors)
-                        .map(([key, val]) => `${key}: ${Array.isArray(val) ? val.join(', ') : val}`)
-                        .join(' | ');
-                    errorMessage += ` (${errorDetails})`;
+                if (sfOptions.length > 0) {
+                    combinedOptions = [
+                        ...combinedOptions,
+                        ...sfOptions.map((opt: any) => ({
+                            id: opt.id,
+                            name: opt.name,
+                            price: opt.price,
+                            discount: opt.discount || "0",
+                            delivery_time: opt.delivery_time,
+                            provider: 'superfrete' as const,
+                            carrier_logo: opt.name.toLowerCase().includes('correios')
+                                ? 'https://logodownload.org/wp-content/uploads/2014/05/correios-logo-1.png'
+                                : opt.name.toLowerCase().includes('jadlog')
+                                    ? 'https://logodownload.org/wp-content/uploads/2019/07/jadlog-logo.png'
+                                    : undefined
+                        }))
+                    ];
+                } else {
+                    console.warn("[ShippingSection] SuperFrete retornou 0 opções. Data:", sfData);
                 }
-                throw new Error(errorMessage);
+            } else if (sfData) {
+                console.warn("[ShippingSection] SuperFrete retornou erro:", sfData);
             }
 
+            // Processar Frenet
+            if (frData && !frData.error && frData.ShippingSevicesArray) {
+                combinedOptions = [
+                    ...combinedOptions,
+                    ...frData.ShippingSevicesArray
+                        .filter((opt: any) => !opt.Error)
+                        .map((opt: any) => ({
+                            id: opt.ServiceCode,
+                            name: opt.ServiceDescription,
+                            price: String(opt.ShippingPrice).replace(',', '.'),
+                            discount: "0",
+                            delivery_time: parseInt(opt.DeliveryTime),
+                            provider: 'frenet' as const,
+                            carrier_logo: opt.Carrier === 'Correios'
+                                ? 'https://logodownload.org/wp-content/uploads/2014/05/correios-logo-1.png'
+                                : opt.Carrier === 'Jadlog'
+                                    ? 'https://logodownload.org/wp-content/uploads/2019/07/jadlog-logo.png'
+                                    : opt.Carrier === 'Loggi'
+                                        ? 'https://logodownload.org/wp-content/uploads/2019/08/loggi-logo.png'
+                                        : opt.Carrier?.toLowerCase().includes('j&t')
+                                            ? 'https://upload.wikimedia.org/wikipedia/commons/4/4c/J%26T_Express_logo.png'
+                                            : opt.Carrier?.toLowerCase().includes('imile')
+                                                ? 'https://imile.com/wp-content/uploads/2021/04/imile-logo.png'
+                                                : undefined
+                        }))
+                ];
+            } else if (frData) {
+                console.warn("[ShippingSection] Frenet retornou formato inesperado ou erro:", frData);
+            }
+
+            console.log("[ShippingSection] Opções combinadas:", combinedOptions.length);
+
             // Ordenar por preço
-            const sorted = Array.isArray(data) ? [...data].sort((a, b) => parseFloat(a.price) - parseFloat(b.price)) : [];
+            const sorted = combinedOptions.sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
             setOptions(sorted);
 
             if (sorted.length > 0) {
                 setSelectedOption(sorted[0]);
                 showSuccess(`${sorted.length} opções de frete encontradas.`);
+            } else {
+                // Montar mensagem de erro detalhada
+                const errorParts: string[] = [];
+                if (sfData?.error) errorParts.push(`SuperFrete: ${sfData.message || 'erro desconhecido'}`);
+                if (frData?.error) errorParts.push(`Frenet: ${frData.message || 'erro desconhecido'}`);
+
+                if (errorParts.length > 0) {
+                    showError(errorParts.join(' | '));
+                } else {
+                    showError("Nenhuma opção de frete encontrada. Verifique o CEP e dimensões do pacote.");
+                }
             }
         } catch (error: any) {
-            console.error("[ShippingSection] Erro ao calcular frete:", error);
-            let msg = error.message || "Erro desconhecido";
-
-            // Tratamento amigável para CEP não encontrado/inválido
-            if (
-                msg.includes("not found") ||
-                msg.includes("não encontrado") ||
-                msg.includes("CEP de destino inválido") ||
-                msg.includes("404")
-            ) {
-                msg = "CEP de destino não encontrado ou inválido. Verifique se o número está correto.";
-            } else if (msg === "Ocorreu um ou mais erros.") {
-                msg = "Erro na validação do frete. Verifique o CEP, Peso (min 300g) e Dimensões ou se o serviço está disponível.";
-            }
-
-            showError(msg);
+            console.error("[ShippingSection] Erro no cálculo:", error);
+            showError("Falha ao comunicar com os serviços de frete.");
         } finally {
             setLoading(false);
         }
@@ -370,6 +466,8 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
         }
 
         setLoading(true);
+        const proxy = selectedOption.provider === 'frenet' ? 'frenet-proxy' : 'superfrete-proxy';
+
         try {
             const token = await getValidToken();
             const payload = {
@@ -394,16 +492,17 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
                         number: manualDestNumber || "S/N",
                         district: manualDestDistrict || "Bairro",
                         city: manualDestCity || "Cidade",
-                        state_abbr: manualDestState || "UF"
+                        state_abbr: manualDestState || "UF",
+                        complement: manualDestComplement
                     },
                     service: selectedOption.id,
-                    volumes: [packageDimensions], // Correção: v0/cart espera um array 'volumes'
+                    volumes: [packageDimensions],
                     options: { non_commercial: true }
                 }
             };
-            console.log("[ShippingSection] Payload Criar Etiqueta:", payload);
+            console.log(`[ShippingSection] Creating label via ${proxy}:`, payload);
 
-            const response = await fetch(`${SUPABASE_URL}/functions/v1/superfrete-proxy`, {
+            const response = await fetch(`${SUPABASE_URL}/functions/v1/${proxy}`, {
                 method: 'POST',
                 headers: {
                     'apikey': SUPABASE_ANON_KEY,
@@ -429,6 +528,7 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
             }
 
             setLabelId(data.id);
+            setLabelProvider(selectedOption.provider);
             setStatus(data.status);
 
             // Salvar no pedido
@@ -489,9 +589,11 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
         }
 
         setLoading(true);
+        const proxy = selectedOption.provider === 'frenet' ? 'frenet-proxy' : 'superfrete-proxy';
+
         try {
             const token = await getValidToken();
-            const response = await fetch(`${SUPABASE_URL}/functions/v1/superfrete-proxy`, {
+            const response = await fetch(`${SUPABASE_URL}/functions/v1/${proxy}`, {
                 method: 'POST',
                 headers: {
                     'apikey': SUPABASE_ANON_KEY,
@@ -605,10 +707,19 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
     const handleDownload = async () => {
         if (!labelId) return;
 
+        // SE já temos a URL (já veio do banco ou da geração), abre direto
+        if (labelUrl) {
+            window.open(labelUrl, '_blank');
+            return;
+        }
+
         setLoading(true);
+        const currentProvider = labelProvider || selectedOption?.provider || 'superfrete';
+        const proxy = currentProvider === 'frenet' ? 'frenet-proxy' : 'superfrete-proxy';
+
         try {
             const token = await getValidToken();
-            const response = await fetch(`${SUPABASE_URL}/functions/v1/superfrete-proxy`, {
+            const response = await fetch(`${SUPABASE_URL}/functions/v1/${proxy}`, {
                 method: 'POST',
                 headers: {
                     'apikey': SUPABASE_ANON_KEY,
@@ -617,7 +728,9 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
                 },
                 body: JSON.stringify({
                     action: 'tracking',
-                    params: { orders: [labelId] }
+                    params: currentProvider === 'superfrete'
+                        ? { orders: [labelId] }
+                        : { id: labelId }
                 })
             });
 
@@ -628,7 +741,7 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
             const url = result.pdf || result.url;
 
             if (!url) {
-                throw new Error("Aguardando geração do link do PDF pela SuperFrete...");
+                throw new Error(`Aguardando geração do link do PDF pela ${currentProvider === 'frenet' ? 'Frenet' : 'SuperFrete'}...`);
             }
 
             setLabelUrl(url);
@@ -648,8 +761,8 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
         }
     };
 
-    const bestPriceId = options.length > 0 ? options[0].id : null;
-    const fastestOptionId = options.length > 0 ? [...options].sort((a, b) => a.delivery_time - b.delivery_time)[0].id : null;
+    const bestPrice = options.length > 0 ? options[0] : null;
+    const fastestOption = options.length > 0 ? [...options].sort((a, b) => a.delivery_time - b.delivery_time)[0] : null;
 
     return (
         <Card className="border-primary/20 shadow-md overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-500">
@@ -851,29 +964,15 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
                         <div className="grid grid-cols-1 gap-3 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
                             {options.map((opt) => (
                                 <div
-                                    key={opt.id}
+                                    key={`${opt.provider}-${opt.id}`}
                                     onClick={() => setSelectedOption(opt)}
                                     className={cn(
-                                        "group relative p-4 rounded-xl border-2 transition-all cursor-pointer active:scale-[0.98]",
-                                        selectedOption?.id === opt.id
-                                            ? "border-primary bg-primary/5 shadow-inner"
+                                        "group relative p-4 rounded-xl border-2 transition-all cursor-pointer active:scale-[0.98] overflow-hidden",
+                                        selectedOption?.id === opt.id && selectedOption?.provider === opt.provider
+                                            ? "border-primary bg-primary/5 shadow-inner ring-4 ring-primary/5"
                                             : "border-border hover:border-primary/40 hover:bg-white"
                                     )}
                                 >
-                                    {/* Badges Flutuantes */}
-                                    <div className="absolute -top-2 right-4 flex gap-1">
-                                        {opt.id === bestPriceId && (
-                                            <Badge className="bg-green-500 hover:bg-green-600 border-none h-5 text-[9px] font-bold uppercase py-0 px-2 rounded-full shadow-sm">
-                                                <Sparkles className="h-2.5 w-2.5 mr-1" /> Melhor Preço
-                                            </Badge>
-                                        )}
-                                        {opt.id === fastestOptionId && opt.id !== bestPriceId && (
-                                            <Badge className="bg-blue-500 hover:bg-blue-600 border-none h-5 text-[9px] font-bold uppercase py-0 px-2 rounded-full shadow-sm">
-                                                <Zap className="h-2.5 w-2.5 mr-1" /> Mais Rápido
-                                            </Badge>
-                                        )}
-                                    </div>
-
                                     <div className="flex justify-between items-start">
                                         <div className="space-y-1">
                                             <div className="flex items-center gap-2">
@@ -882,10 +981,32 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
                                                     opt.name.toLowerCase().includes('pac') ? "bg-yellow-400" :
                                                         opt.name.toLowerCase().includes('sedex') ? "bg-blue-500" : "bg-red-500"
                                                 )} />
-                                                <span className="font-bold text-sm tracking-tight">{opt.name}</span>
+                                                {opt.carrier_logo && (
+                                                    <div className="h-6 w-6 mr-1 flex items-center justify-center">
+                                                        <img
+                                                            src={opt.carrier_logo}
+                                                            alt=""
+                                                            className="h-full w-full object-contain"
+                                                            onError={(e) => (e.currentTarget.style.display = 'none')}
+                                                        />
+                                                    </div>
+                                                )}
+                                                <span className="font-bold text-sm tracking-tight line-clamp-1 max-w-[150px]">{opt.name}</span>
+
+                                                {/* Logo do Provedor ao lado do nome */}
+                                                <div className="h-4 w-10 bg-white border border-border rounded-md flex items-center justify-center p-0.5 shadow-xs overflow-hidden ml-1">
+                                                    <img
+                                                        src={opt.provider === 'superfrete' ? "/logo - superfrete.png" : "/logo - fre net.png"}
+                                                        alt={opt.provider}
+                                                        className="h-full w-full object-contain"
+                                                    />
+                                                </div>
                                             </div>
                                             <div className="flex flex-col">
-                                                <span className="text-[11px] text-muted-foreground font-medium">Prazo: {opt.delivery_time} dias úteis</span>
+                                                <span className="text-[11px] text-muted-foreground font-medium flex items-center gap-1">
+                                                    <Clock className="h-3 w-3" />
+                                                    Prazo: {opt.delivery_time} {opt.delivery_time === 1 ? 'dia útil' : 'dias úteis'}
+                                                </span>
                                                 {opt.arrival_date && (
                                                     <span className="text-[9px] text-muted-foreground italic">Entrega estimada: {new Date(opt.arrival_date).toLocaleDateString('pt-BR')}</span>
                                                 )}
@@ -893,9 +1014,11 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
                                         </div>
 
                                         <div className="text-right flex flex-col items-end">
-                                            <span className="text-lg font-black text-primary leading-none">R$ {opt.price}</span>
+                                            <span className="text-lg font-black text-primary leading-none">{formatCurrency(parseFloat(opt.price))}</span>
                                             {opt.discount && parseFloat(opt.discount) > 0 && (
-                                                <span className="text-[10px] text-muted-foreground line-through decoration-red-400/50">R$ {(parseFloat(opt.price) + parseFloat(opt.discount)).toFixed(2)}</span>
+                                                <Badge className="bg-green-500 hover:bg-green-600 text-[8px] h-3.5 px-1 font-black mt-1">
+                                                    -{opt.discount}% OFF
+                                                </Badge>
                                             )}
                                         </div>
                                     </div>
@@ -903,7 +1026,7 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
                                     {/* Seleção Visual */}
                                     <div className={cn(
                                         "mt-3 h-1 w-full rounded-full transition-all",
-                                        selectedOption?.id === opt.id ? "bg-primary opacity-100" : "bg-primary/5 opacity-0 group-hover:opacity-100"
+                                        selectedOption?.id === opt.id && selectedOption?.provider === opt.provider ? "bg-primary opacity-100" : "bg-primary/5 opacity-0 group-hover:opacity-100"
                                     )} />
                                 </div>
                             ))}

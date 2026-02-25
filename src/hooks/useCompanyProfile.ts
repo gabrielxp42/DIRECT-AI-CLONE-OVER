@@ -27,6 +27,10 @@ export interface CompanyProfile {
     gabi_templates: Record<string, string> | null;
     company_business_hours: string | null;
     wallet_balance: number | null;
+    logistics_provider: 'superfrete' | 'frenet' | null;
+    frenet_token: string | null;
+    frenet_access_key: string | null;
+    frenet_access_password: string | null;
 }
 
 export interface CompanyProfileUpdate {
@@ -51,6 +55,10 @@ export interface CompanyProfileUpdate {
     // New fields
     gabi_templates?: Record<string, string>;
     company_business_hours?: string;
+    logistics_provider?: 'superfrete' | 'frenet';
+    frenet_token?: string;
+    frenet_access_key?: string;
+    frenet_access_password?: string;
 }
 
 // Helper to format full address
@@ -108,7 +116,7 @@ export const useCompanyProfile = () => {
                 const token = await getValidToken();
                 if (!token) return null;
 
-                const url = `${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}&select=company_name,company_slogan,company_phone,company_whatsapp,company_email,company_website,company_address_street,company_address_number,company_address_neighborhood,company_address_city,company_address_state,company_address_zip,company_address_complement,company_pix_key,company_pix_key_type,company_logo_url,sidebar_shortcuts,company_primary_color,gabi_templates,company_business_hours,wallet_balance`;
+                const url = `${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}&select=company_name,company_slogan,company_phone,company_whatsapp,company_email,company_website,company_address_street,company_address_number,company_address_neighborhood,company_address_city,company_address_state,company_address_zip,company_address_complement,company_pix_key,company_pix_key_type,company_logo_url,sidebar_shortcuts,company_primary_color,gabi_templates,company_business_hours,wallet_balance,logistics_provider,frenet_token,frenet_access_key,frenet_access_password`;
 
                 const response = await fetch(url, {
                     method: 'GET',

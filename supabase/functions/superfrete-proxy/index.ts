@@ -76,8 +76,29 @@ Deno.serve(async (req: Request) => {
                 }
                 break;
             case 'tracking': {
-                const orderId = params?.orders?.[0] || params?.order_id || params?.id;
-                if (!orderId) throw new Error("ID da etiqueta não fornecido");
+                let orderId = params?.orders?.[0] || params?.order_id || params?.id;
+
+                // Se o ID parecer um UUID (ID do banco), buscar o external_id correspondente
+                const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+                if (orderId && uuidPattern.test(orderId)) {
+                    console.log(`[Superfrete Tracking] Resolvendo UUID ${orderId} para external_id...`);
+                    const adminClient = createClient(
+                        Deno.env.get('SUPABASE_URL') ?? '',
+                        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+                    );
+                    const { data: label } = await adminClient
+                        .from('shipping_labels')
+                        .select('external_id')
+                        .eq('id', orderId)
+                        .single();
+
+                    if (label?.external_id) {
+                        console.log(`[Superfrete Tracking] Resolved UUID to external_id: ${label.external_id}`);
+                        orderId = label.external_id;
+                    }
+                }
+
+                if (!orderId) throw new Error("ID da etiqueta não fornecido ou não encontrado");
 
                 const payload = JSON.stringify({ order_id: String(orderId) });
                 const base64Payload = btoa(payload);
@@ -198,14 +219,18 @@ Deno.serve(async (req: Request) => {
                             }
                         }
 
+                        const finalStatus = orderData?.status || orderData?.status_description || orderData?.tracking_status || null;
+                        console.log(`[Superfrete Tracking] ID: ${orderId}, Status Extraído: ${finalStatus}, Código: ${foundCode}`);
+
                         if (foundCode && typeof foundCode === 'string') {
-                            console.log(`[Superfrete Tracking] Sucesso: ${foundCode}`);
                             return new Response(JSON.stringify({
                                 success: true,
                                 tracking_code: foundCode,
-                                status: orderData?.status || null,
+                                status: finalStatus,
                                 url: permanentPdfUrl,
                                 pdf: permanentPdfUrl,
+                                raw_status: orderData?.status || null, // Debug
+                                raw_description: orderData?.status_description || null, // Debug
                                 raw: trackData
                             }), {
                                 headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -268,6 +293,11 @@ Deno.serve(async (req: Request) => {
             } catch (e) {
                 result = { error: true, message: "Resposta da API inválida (não JSON)", details: responseText.substring(0, 100) };
             }
+        }
+
+        console.log(`[superfrete-proxy] Action: ${action}, Status: ${response.status}, IsArray: ${Array.isArray(result)}, Keys: ${typeof result === 'object' ? Object.keys(result).join(',') : 'N/A'}`);
+        if (action === 'calculate') {
+            console.log("[superfrete-proxy] Calculate response:", JSON.stringify(result).substring(0, 500));
         }
 
         if (!response.ok) {
@@ -344,7 +374,8 @@ Deno.serve(async (req: Request) => {
                     price: finalPrice,
                     tracking_code: trackingCode,
                     recipient_name: checkoutResult.to?.name || params.recipient_name || null,
-                    service_name: checkoutResult.service?.name || params.service_name || null
+                    service_name: checkoutResult.service?.name || params.service_name || null,
+                    provider: 'superfrete'
                 });
 
             if (params.pedido_id) {

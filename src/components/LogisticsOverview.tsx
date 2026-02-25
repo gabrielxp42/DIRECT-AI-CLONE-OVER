@@ -16,7 +16,8 @@ import {
     Package,
     AlertCircle,
     Copy,
-    Navigation
+    Navigation,
+    RefreshCw
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSession } from '@/contexts/SessionProvider';
@@ -34,6 +35,7 @@ interface ShippingLabel {
     service_name: string;
     created_at: string;
     pedido_id: string;
+    provider?: string;
 }
 
 interface PendingOrderLabel {
@@ -53,6 +55,7 @@ export const LogisticsOverview: React.FC = () => {
     const [localTrackingUpdates, setLocalTrackingUpdates] = React.useState<Record<string, string>>({});
     const [isAutoSyncing, setIsAutoSyncing] = React.useState(false);
     const syncQueueRef = React.useRef<Set<string>>(new Set());
+    const isSyncingRef = React.useRef(false); // Lock de execução do robô
 
     const { data: labels, isLoading: loadingLabels, refetch: refetchLabels } = useQuery({
         queryKey: ['shipping_labels_all', userId],
@@ -137,7 +140,11 @@ export const LogisticsOverview: React.FC = () => {
         const loadingToast = !isBackground ? toast.loading(`Sincronizando rastreio: ${label.recipient_name}...`) : null;
         try {
             const token = await getValidToken();
-            const response = await fetch(`${SUPABASE_URL}/functions/v1/superfrete-proxy`, {
+            const provider = label.provider || 'superfrete';
+            const functionName = provider === 'frenet' ? 'frenet-proxy' : 'superfrete-proxy';
+
+            console.log(`[LogisticsOverview] Refreshing tracking for provider: ${provider}, Label ID: ${label.id}, External ID: ${label.external_id}`);
+            const response = await fetch(`${SUPABASE_URL}/functions/v1/${functionName}`, {
                 method: 'POST',
                 headers: {
                     'apikey': SUPABASE_ANON_KEY,
@@ -146,7 +153,13 @@ export const LogisticsOverview: React.FC = () => {
                 },
                 body: JSON.stringify({
                     action: 'tracking',
-                    params: { orders: [label.external_id] }
+                    params: {
+                        id: label.id,
+                        order_id: label.external_id,
+                        orders: [label.external_id],
+                        tracking_num: label.tracking_code,
+                        service_code: label.service_name
+                    }
                 })
             });
 
@@ -170,17 +183,21 @@ export const LogisticsOverview: React.FC = () => {
                     };
                 } else {
                     const snippet = responseText.substring(0, 50) + "...";
-                    throw new Error(`A API do parceiro ainda não retornou o rastreio (Status ${response.status}). Detalhes: ${snippet}`);
+                    const cleanerError = responseText.includes('<!DOCTYPE html>') ? "Erro interno do servidor (HTML)" : snippet;
+                    throw new Error(`A API do parceiro ainda não retornou o rastreio. Detalhes: ${cleanerError}`);
                 }
             }
 
-            if (data.error) {
-                const errorMsg = data.details ? `${data.message} (${data.details})` : data.message;
+            if (data.error || data.message?.includes('[object Object]')) {
+                const errorMsg = typeof data.message === 'object' ? JSON.stringify(data.message) : (data.message || "Erro desconhecido");
                 throw new Error(errorMsg);
             }
             if (data.tracking_code) {
-                // Atualizar etiqueta com rastreio e PDF permanente
-                const updateData: any = { tracking_code: data.tracking_code };
+                // Atualizar etiqueta com rastreio, status e PDF permanente
+                const updateData: any = {
+                    tracking_code: data.tracking_code,
+                    status: data.status || 'released' // Persistir o status real retornado pela API
+                };
                 if (data.url || data.pdf) updateData.pdf_url = data.url || data.pdf;
 
                 const { error: labelError } = await supabase
@@ -197,7 +214,10 @@ export const LogisticsOverview: React.FC = () => {
                 if (label.pedido_id) {
                     const { error: pedidoError } = await supabase
                         .from('pedidos')
-                        .update({ tracking_code: data.tracking_code })
+                        .update({
+                            tracking_code: data.tracking_code,
+                            shipping_label_status: data.status || 'released' // Também manter o status do pedido sincronizado
+                        })
                         .eq('id', label.pedido_id);
 
                     if (pedidoError) console.warn("Aviso: Falha ao atualizar o pedido vinculado:", pedidoError);
@@ -223,44 +243,92 @@ export const LogisticsOverview: React.FC = () => {
                 await refetchLabels();
             } else {
                 console.log("Debug Logística:", data);
-                if (!isBackground) toast.error(data.error || "Não foi possível obter o rastreio.");
+                if (!isBackground) {
+                    toast.error(data.error || "Não foi possível obter o rastreio.", { id: loadingToast! });
+                }
             }
         } catch (error: any) {
             console.error("Erro ao sincronizar:", error);
-            if (!isBackground) toast.error(error.message || "Erro na conexão");
+            if (!isBackground) {
+                toast.error(error.message || "Erro na conexão", { id: loadingToast! });
+            }
         }
     };
 
-    // Robô de Sincronização Automática
+    // Escutar por mudanças em tempo real (Realtime)
     React.useEffect(() => {
-        if (!labels || labels.length === 0 || isAutoSyncing) return;
+        if (!userId) return;
+
+        const channel = supabase
+            .channel('logistics_realtime')
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'shipping_labels',
+                    filter: `user_id=eq.${userId}`
+                },
+                (payload) => {
+                    console.log('📦 Mudança detectada em Logistics (Realtime):', payload);
+                    // Invalidação imediata do cache para refletir mudanças do Robô de Sync ou outros usuários
+                    queryClient.invalidateQueries({ queryKey: ['shipping_labels_all'] });
+                    toast.info("Status atualizado em tempo real", {
+                        description: "Uma etiqueta foi atualizada pelo sistema de sincronização."
+                    });
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [userId, queryClient]);
+
+    // Robô de Sincronização Automática (Agressivo)
+    React.useEffect(() => {
+        if (!labels || labels.length === 0 || isAutoSyncing || isSyncingRef.current) return;
+
+        // Limpar o cache de sincronização a cada 30 minutos para permitir novas tentativas automáticas
+        const clearTimer = setInterval(() => {
+            console.log("🔄 [Logistics] Limpando fila de sync para nova rodada automática...");
+            syncQueueRef.current.clear();
+            queryClient.invalidateQueries({ queryKey: ['shipping_labels_all'] });
+        }, 1000 * 60 * 30);
 
         const labelsToSync = labels.filter(label =>
             (!label.tracking_code || label.tracking_code.startsWith('ADI')) &&
             !syncQueueRef.current.has(label.id)
-        );
+        ).slice(0, 5); // Tentar 5 por vez
 
         if (labelsToSync.length > 0) {
             const runAutoSync = async () => {
+                if (isSyncingRef.current) return;
+                isSyncingRef.current = true;
                 setIsAutoSyncing(true);
 
-                // Pegar os 5 mais recentes que precisam de sync
-                const topSync = labelsToSync.slice(0, 5);
+                console.log(`🤖 [Logistics] Robô iniciando sincronização de ${labelsToSync.length} etiquetas...`);
 
-                for (const label of topSync) {
-                    if (syncQueueRef.current.has(label.id)) continue;
-                    syncQueueRef.current.add(label.id);
-                    await handleRefreshTracking(label, true);
-                    // Pequena pausa para a API respirar
-                    await new Promise(r => setTimeout(r, 1000));
+                try {
+                    for (const label of labelsToSync) {
+                        syncQueueRef.current.add(label.id);
+                        await handleRefreshTracking(label, true);
+                        // Pausa entre chamadas para evitar Rate Limit
+                        await new Promise(r => setTimeout(r, 1500));
+                    }
+                } catch (error) {
+                    console.error("Erro no robô de sincronização:", error);
+                } finally {
+                    setIsAutoSyncing(false);
+                    isSyncingRef.current = false;
                 }
-
-                setIsAutoSyncing(false);
             };
 
             runAutoSync();
         }
-    }, [labels, isAutoSyncing]);
+
+        return () => clearInterval(clearTimer);
+    }, [labels, isAutoSyncing, queryClient]);
 
     return (
         <div className="space-y-6">
@@ -315,13 +383,49 @@ export const LogisticsOverview: React.FC = () => {
                         <CheckCircle2 className="h-4 w-4" />
                         Histórico de Etiquetas
                     </h3>
-                    <div className="flex gap-2">
-                        <Button variant="outline" size="sm" className="h-8 text-[10px] font-bold gap-1.5 uppercase tracking-wide">
-                            <Search className="h-3 w-3" /> Buscar
+                    <div className="flex items-center gap-3">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="bg-primary/5 border-primary/20 hover:bg-primary/10 text-primary gap-2 h-9 text-[10px] font-bold uppercase tracking-wide"
+                            onClick={async () => {
+                                if (isAutoSyncing) return;
+                                const labelsToSync = labels?.filter(l => !l.tracking_code || l.tracking_code.startsWith('ADI')) || [];
+                                if (labelsToSync.length === 0) {
+                                    toast.info("Tudo pronto!", { description: "Todas as etiquetas já estão sincronizadas." });
+                                    return;
+                                }
+                                setIsAutoSyncing(true);
+                                const t = toast.loading(`Sincronizando ${labelsToSync.length} etiquetas...`);
+                                let count = 0;
+                                try {
+                                    for (const l of labelsToSync) {
+                                        await handleRefreshTracking(l, true);
+                                        count++;
+                                        toast.loading(`Sincronizando ${count}/${labelsToSync.length}...`, { id: t });
+                                        await new Promise(r => setTimeout(r, 1000));
+                                    }
+                                    toast.success("Sincronização concluída!", { id: t });
+                                } catch (error) {
+                                    toast.error("Erro durante a sincronização em lote", { id: t });
+                                } finally {
+                                    setIsAutoSyncing(false);
+                                    queryClient.invalidateQueries({ queryKey: ['shipping_labels_all'] });
+                                }
+                            }}
+                            disabled={isAutoSyncing}
+                        >
+                            <RefreshCw className={`h-4 w-4 ${isAutoSyncing ? 'animate-spin' : ''}`} />
+                            {isAutoSyncing ? 'Sincronizando...' : 'Sincronizar Tudo'}
                         </Button>
-                        <Button variant="outline" size="sm" className="h-8 text-[10px] font-bold gap-1.5 uppercase tracking-wide">
-                            <Filter className="h-3 w-3" /> Filtrar
-                        </Button>
+                        <div className="flex bg-muted p-1 rounded-xl shadow-inner border border-border/50">
+                            <Button variant="outline" size="sm" className="h-8 text-[10px] font-bold gap-1.5 uppercase tracking-wide border-none bg-transparent hover:bg-white/50">
+                                <Search className="h-3 w-3" /> Buscar
+                            </Button>
+                            <Button variant="outline" size="sm" className="h-8 text-[10px] font-bold gap-1.5 uppercase tracking-wide border-none bg-transparent hover:bg-white/50">
+                                <Filter className="h-3 w-3" /> Filtrar
+                            </Button>
+                        </div>
                     </div>
                 </div>
 
@@ -357,9 +461,21 @@ export const LogisticsOverview: React.FC = () => {
                                                     </div>
                                                 </td>
                                                 <td className="px-4 py-4">
-                                                    <Badge variant="outline" className="text-[9px] font-black px-1.5 h-5 bg-muted border-border">
-                                                        {label.service_name || 'CORREIOS'}
-                                                    </Badge>
+                                                    <div className="flex flex-col gap-1">
+                                                        <Badge variant="outline" className="text-[9px] font-black px-1.5 h-5 bg-muted border-border whitespace-nowrap">
+                                                            {label.service_name || 'CORREIOS'}
+                                                        </Badge>
+                                                        {label.provider && (
+                                                            <div className="flex items-center gap-1">
+                                                                <img
+                                                                    src={label.provider === 'frenet' ? "/logo - fre net.png" : "/logo - superfrete.png"}
+                                                                    alt={label.provider}
+                                                                    className="h-3 w-3 object-contain opacity-70"
+                                                                />
+                                                                <span className="text-[8px] font-bold text-muted-foreground uppercase">{label.provider}</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </td>
                                                 <td className="px-4 py-4 min-w-[200px]">
                                                     {(() => {
@@ -430,9 +546,41 @@ export const LogisticsOverview: React.FC = () => {
                                                     {formatCurrency(label.price)}
                                                 </td>
                                                 <td className="px-4 py-4">
-                                                    <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30 text-[9px] font-bold px-2 py-0.5 whitespace-nowrap">
-                                                        {label.status === 'released' ? 'Aguardando postagem' : label.status}
-                                                    </Badge>
+                                                    {(() => {
+                                                        const status = label.status?.toLowerCase() || '';
+                                                        let badgeConfig = {
+                                                            label: label.status || 'Pendente',
+                                                            className: "bg-slate-500/15 text-slate-400 border-slate-500/30"
+                                                        };
+
+                                                        if (status === 'released' || status.includes('aguardando') || status.includes('liberada')) {
+                                                            badgeConfig = {
+                                                                label: 'Aguardando postagem',
+                                                                className: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+                                                            };
+                                                        } else if (status.includes('postado') || status.includes('trânsito') || status.includes('transito') || status.includes('encaminhado') || status.includes('entregue em')) {
+                                                            badgeConfig = {
+                                                                label: 'Em Trânsito',
+                                                                className: "bg-blue-500/15 text-blue-400 border-blue-500/30"
+                                                            };
+                                                        } else if (status.includes('entregue') || status.includes('destinatário') || status === 'delivered' || status.includes('concluido') || status.includes('concluído')) {
+                                                            badgeConfig = {
+                                                                label: 'Entregue',
+                                                                className: "bg-purple-500/15 text-purple-400 border-purple-500/30"
+                                                            };
+                                                        } else if (status.includes('cancelado') || status.includes('estornado') || status === 'cancelled') {
+                                                            badgeConfig = {
+                                                                label: 'Cancelado',
+                                                                className: "bg-red-500/15 text-red-400 border-red-500/30"
+                                                            };
+                                                        }
+
+                                                        return (
+                                                            <Badge className={`${badgeConfig.className} text-[9px] font-bold px-2 py-0.5 whitespace-nowrap`}>
+                                                                {badgeConfig.label}
+                                                            </Badge>
+                                                        );
+                                                    })()}
                                                 </td>
                                                 <td className="px-4 py-4">
                                                     <span className="text-[10px] font-medium text-muted-foreground">
@@ -441,6 +589,18 @@ export const LogisticsOverview: React.FC = () => {
                                                 </td>
                                                 <td className="px-4 py-4 text-right">
                                                     <div className="flex items-center justify-end gap-1">
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-8 w-8 text-muted-foreground/60 hover:text-primary hover:bg-primary/10"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleRefreshTracking(label);
+                                                            }}
+                                                            title="Sincronizar Rastreio"
+                                                        >
+                                                            <RefreshCw className="h-4 w-4" />
+                                                        </Button>
                                                         <Button
                                                             variant="ghost"
                                                             size="icon"
@@ -479,7 +639,7 @@ export const LogisticsOverview: React.FC = () => {
                         )}
                     </CardContent>
                 </Card>
-            </div>
-        </div>
+            </div >
+        </div >
     );
 };

@@ -47,6 +47,7 @@ export const WalletRechargeModal = ({ open, onOpenChange, currentBalance = 0 }: 
     const [pixData, setPixData] = useState<any>(null);
     const [cpfCnpj, setCpfCnpj] = useState('');
     const [userProfile, setUserProfile] = useState<any>(null);
+    const [activeProvider, setActiveProvider] = useState<'superfrete' | 'frenet' | null>(null);
 
     // Buscar perfil do usuário para verificar CPF
     useEffect(() => {
@@ -58,12 +59,13 @@ export const WalletRechargeModal = ({ open, onOpenChange, currentBalance = 0 }: 
     const fetchProfile = async () => {
         const { data } = await supabase
             .from('profiles')
-            .select('cpf_cnpj')
+            .select('cpf_cnpj, logistics_provider')
             .eq('id', session?.user?.id)
             .single();
 
         if (data) {
             setUserProfile(data);
+            setActiveProvider(data.logistics_provider as any);
             if (data.cpf_cnpj) {
                 setCpfCnpj(data.cpf_cnpj);
             }
@@ -105,6 +107,31 @@ export const WalletRechargeModal = ({ open, onOpenChange, currentBalance = 0 }: 
         setStep('processing');
 
         try {
+            // Se for Frenet, usamos o proxy da Frenet para depósito direto (Wallet API)
+            if (activeProvider === 'frenet' && paymentMethod === 'PIX') {
+                const { data, error } = await supabase.functions.invoke('frenet-proxy', {
+                    body: {
+                        action: 'deposit',
+                        params: {
+                            amount: amount,
+                            payment_method: 'PIX'
+                        }
+                    }
+                });
+
+                if (error) throw error;
+                // A Frenet retorna dados do PIX de forma diferente
+                if (data.PixQrCode || data.PixelPayload) {
+                    setPixData({
+                        payload: data.PixelPayload || data.PixQrCode,
+                        encodedImage: data.PixBase64 // Se vier base64 direto
+                    });
+                    setStep('pix');
+                    return;
+                }
+            }
+
+            // Fallback para Asaas (padrão Direct AI / SuperFrete)
             const { data, error } = await supabase.functions.invoke('asaas-checkout', {
                 body: {
                     userId: session.user.id,

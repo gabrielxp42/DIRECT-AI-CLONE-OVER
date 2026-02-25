@@ -522,7 +522,12 @@ Você é a GABI. Organize, cuide e brilhe.`;
                             };
                         } else if (call.function.name === "calculate_shipping") {
                             const companyCep = profile?.zip_code || profile?.company_address_zip || "22780-084";
-                            const response = await fetch(`${SUPABASE_URL}/functions/v1/superfrete-proxy`, {
+                            const provider = profile?.logistics_provider || 'superfrete';
+                            const proxyUrl = provider === 'frenet' ? 'frenet-proxy' : 'superfrete-proxy';
+
+                            console.log(`🚚 [GABI-Brain] Calculating shipping with ${provider} (Proxy: ${proxyUrl})`);
+
+                            const response = await fetch(`${SUPABASE_URL}/functions/v1/${proxyUrl}`, {
                                 method: 'POST',
                                 headers: {
                                     'apikey': SUPABASE_SERVICE_ROLE_KEY,
@@ -531,7 +536,18 @@ Você é a GABI. Organize, cuide e brilhe.`;
                                 },
                                 body: JSON.stringify({
                                     action: 'calculate',
-                                    params: {
+                                    params: provider === 'frenet' ? {
+                                        SellerCEP: (args.from || companyCep).replace(/\D/g, ''),
+                                        RecipientCEP: args.to.replace(/\D/g, ''),
+                                        ShipmentItemArray: [{
+                                            Weight: args.package?.weight || 0.5,
+                                            Height: args.package?.height || 2,
+                                            Width: args.package?.width || 11,
+                                            Length: args.package?.length || 16,
+                                            Quantity: 1
+                                        }],
+                                        RecipientCountry: "BR"
+                                    } : {
                                         from: (args.from || companyCep).replace(/\D/g, ''),
                                         to: args.to.replace(/\D/g, ''),
                                         package: args.package || { weight: 0.5, height: 2, width: 11, length: 16 },
@@ -539,7 +555,22 @@ Você é a GABI. Organize, cuide e brilhe.`;
                                     }
                                 })
                             });
-                            result = await response.json();
+
+                            const calculationResult = await response.json();
+
+                            // Normalize response for AI understanding
+                            if (provider === 'frenet' && calculationResult.ShippingSevicesArray) {
+                                result = calculationResult.ShippingSevicesArray
+                                    .filter((s: any) => !s.Error)
+                                    .map((s: any) => ({
+                                        name: s.ServiceDescription,
+                                        price: parseFloat(s.ShippingPrice.replace(',', '.')),
+                                        delivery_time: s.DeliveryTime,
+                                        id: s.ServiceCode
+                                    }));
+                            } else {
+                                result = calculationResult;
+                            }
                         } else if (call.function.name === "query_database") {
                             let select = args.select || '*';
                             if (select.includes('(')) select = '*';
