@@ -7,8 +7,8 @@ const corsHeaders = {
     'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PUT, DELETE',
 };
 
-const BASE_URL = "https://api.frenet.com.br";
-const BASE_URL_HML = "https://api-hml.apifrenet.com.br";
+const BASE_URL = "https://api.frenet.com.br/v1";
+const BASE_URL_HML = "https://api-hml.apifrenet.com.br/v1";
 
 Deno.serve(async (req: Request) => {
     if (req.method === 'OPTIONS') {
@@ -55,12 +55,16 @@ Deno.serve(async (req: Request) => {
         const baseUrl = isSandbox ? BASE_URL_HML : BASE_URL;
         const userAgent = `DIRECT-AI-GB-1 (v1.0.0; ${profile.email || 'user@directai.com'})`;
 
-        const commonHeaders = {
+        const commonHeaders: Record<string, string> = {
             'token': token,
             'Content-Type': 'application/json',
             'Accept': 'application/json',
             'User-Agent': userAgent
         };
+
+        if (profile.frenet_partner_token) {
+            commonHeaders['x-partner-token'] = profile.frenet_partner_token;
+        }
 
         if (action === 'calculate') {
             // Mapping for Frenet Quote
@@ -162,18 +166,24 @@ Deno.serve(async (req: Request) => {
             const result = await response.json();
 
             // Sync balance with profiles table for local UI speed
-            if (response.ok && !result.error && typeof result.Balance === 'number') {
+            // Using AvailableAmount because it's the real spendable balance
+            const balanceToSync = typeof result.AvailableAmount === 'number' ? result.AvailableAmount : result.Amount;
+
+            if (response.ok && !result.error && typeof balanceToSync === 'number') {
                 const adminClient = createClient(
                     Deno.env.get('SUPABASE_URL') ?? '',
                     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
                 );
                 await adminClient
                     .from('profiles')
-                    .update({ frenet_balance: result.Balance })
+                    .update({ frenet_balance: balanceToSync })
                     .eq('id', user.id);
             }
 
-            return new Response(JSON.stringify(result), { headers: corsHeaders, status: 200 });
+            return new Response(JSON.stringify({
+                ...result,
+                Balance: balanceToSync // Keep Balance field for frontend compatibility if needed
+            }), { headers: corsHeaders, status: 200 });
 
         } else if (action === 'deposit') {
             // params: { amount: number, payment_method: 'PIX' | 'BOLETO' }
