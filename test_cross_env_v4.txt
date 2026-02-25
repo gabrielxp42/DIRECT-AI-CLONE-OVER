@@ -1,0 +1,32 @@
+
+--- Testing https://api.frenet.com.br/v1/wallet ---
+Header: {"token":"56DCF50FR85ECR47D6R8402RDB5BFFAC96C2"} | Status: 404
+Header: {"Token":"56DCF50FR85ECR47D6R8402RDB5BFFAC96C2"} | Status: 404
+
+--- Testing https://api.frenet.com.br/v1/user/info ---
+Header: {"token":"56DCF50FR85ECR47D6R8402RDB5BFFAC96C2"} | Status: 404
+Header: {"Token":"56DCF50FR85ECR47D6R8402RDB5BFFAC96C2"} | Status: 404
+
+--- Testing https://api.frenet.com.br/v1/customer/info ---
+Header: {"token":"56DCF50FR85ECR47D6R8402RDB5BFFAC96C2"} | Status: 404
+Header: {"Token":"56DCF50FR85ECR47D6R8402RDB5BFFAC96C2"} | Status: 404
+
+--- Testing https://api.frenet.com.br/v1/wallet/balance ---
+Header: {"token":"56DCF50FR85ECR47D6R8402RDB5BFFAC96C2"} | Status: 404
+Header: {"Token":"56DCF50FR85ECR47D6R8402RDB5BFFAC96C2"} | Status: 404
+
+--- Testing https://api-hml.apifrenet.com.br/v1/wallet ---
+Error: fetch failed
+Error: fetch failed
+
+--- Testing https://api-hml.apifrenet.com.br/v1/user/info ---
+Error: fetch failed
+Error: fetch failed
+
+--- Testing https://api-hml.apifrenet.com.br/v1/customer/info ---
+Error: fetch failed
+Error: fetch failed
+
+--- Testing https://api-hml.apifrenet.com.br/v1/wallet/balance ---
+Error: fetch failed
+Error: fetch failed

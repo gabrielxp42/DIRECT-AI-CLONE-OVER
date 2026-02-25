@@ -1,0 +1,110 @@
+
+========================================
+TESTING BASE: https://api.frenet.com.br/v1
+========================================
+
+--- Probing Wallet (Standard) ---
+URL: https://api.frenet.com.br/v1/wallet
+Status: 404 Not Found
+Response is NOT JSON. Raw (first 200 chars): <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"> <html xmlns="http://www.w3.org/1999/xhtml"> <head> <meta http-equiv="Content-Type" cont
+
+--- Probing Wallet Balance ---
+URL: https://api.frenet.com.br/v1/wallet/balance
+Status: 404 Not Found
+Response is NOT JSON. Raw (first 200 chars): <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"> <html xmlns="http://www.w3.org/1999/xhtml"> <head> <meta http-equiv="Content-Type" cont
+
+--- Probing Wallet Info ---
+URL: https://api.frenet.com.br/v1/wallet/info
+Status: 404 Not Found
+Response is NOT JSON. Raw (first 200 chars): <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"> <html xmlns="http://www.w3.org/1999/xhtml"> <head> <meta http-equiv="Content-Type" cont
+
+--- Probing Account Balance ---
+URL: https://api.frenet.com.br/v1/account/balance
+Status: 404 Not Found
+Response is NOT JSON. Raw (first 200 chars): <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"> <html xmlns="http://www.w3.org/1999/xhtml"> <head> <meta http-equiv="Content-Type" cont
+
+--- Probing Account Info ---
+URL: https://api.frenet.com.br/v1/account/info
+Status: 404 Not Found
+Response is NOT JSON. Raw (first 200 chars): <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"> <html xmlns="http://www.w3.org/1999/xhtml"> <head> <meta http-equiv="Content-Type" cont
+
+--- Probing Profile ---
+URL: https://api.frenet.com.br/v1/profile
+Status: 404 Not Found
+Response is NOT JSON. Raw (first 200 chars): <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"> <html xmlns="http://www.w3.org/1999/xhtml"> <head> <meta http-equiv="Content-Type" cont
+
+--- Probing V1 Root (Info) ---
+URL: https://api.frenet.com.br/v1
+Status: 404 Not Found
+Response is NOT JSON. Raw (first 200 chars): <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"> <html xmlns="http://www.w3.org/1999/xhtml"> <head> <meta http-equiv="Content-Type" cont
+
+========================================
+TESTING BASE: https://api-hml.apifrenet.com.br/v1
+========================================
+
+--- Probing Wallet (Standard) ---
+URL: https://api-hml.apifrenet.com.br/v1/wallet
+Fetch error for Wallet (Standard): fetch failed
+
+--- Probing Wallet Balance ---
+URL: https://api-hml.apifrenet.com.br/v1/wallet/balance
+Fetch error for Wallet Balance: fetch failed
+
+--- Probing Wallet Info ---
+URL: https://api-hml.apifrenet.com.br/v1/wallet/info
+Fetch error for Wallet Info: fetch failed
+
+--- Probing Account Balance ---
+URL: https://api-hml.apifrenet.com.br/v1/account/balance
+Fetch error for Account Balance: fetch failed
+
+--- Probing Account Info ---
+URL: https://api-hml.apifrenet.com.br/v1/account/info
+Fetch error for Account Info: fetch failed
+
+--- Probing Profile ---
+URL: https://api-hml.apifrenet.com.br/v1/profile
+Fetch error for Profile: fetch failed
+
+--- Probing V1 Root (Info) ---
+URL: https://api-hml.apifrenet.com.br/v1
+Fetch error for V1 Root (Info): fetch failed
+
+========================================
+TESTING BASE: https://api.frenet.com.br
+========================================
+
+--- Probing Wallet (Standard) ---
+URL: https://api.frenet.com.br/wallet
+Status: 404 Not Found
+Response is NOT JSON. Raw (first 200 chars): <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"> <html xmlns="http://www.w3.org/1999/xhtml"> <head> <meta http-equiv="Content-Type" cont
+
+--- Probing Wallet Balance ---
+URL: https://api.frenet.com.br/wallet/balance
+Status: 404 Not Found
+Response is NOT JSON. Raw (first 200 chars): <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"> <html xmlns="http://www.w3.org/1999/xhtml"> <head> <meta http-equiv="Content-Type" cont
+
+--- Probing Wallet Info ---
+URL: https://api.frenet.com.br/wallet/info
+Status: 404 Not Found
+Response is NOT JSON. Raw (first 200 chars): <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"> <html xmlns="http://www.w3.org/1999/xhtml"> <head> <meta http-equiv="Content-Type" cont
+
+--- Probing Account Balance ---
+URL: https://api.frenet.com.br/account/balance
+Status: 404 Not Found
+Response is NOT JSON. Raw (first 200 chars): <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"> <html xmlns="http://www.w3.org/1999/xhtml"> <head> <meta http-equiv="Content-Type" cont
+
+--- Probing Account Info ---
+URL: https://api.frenet.com.br/account/info
+Status: 404 Not Found
+Response is NOT JSON. Raw (first 200 chars): <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"> <html xmlns="http://www.w3.org/1999/xhtml"> <head> <meta http-equiv="Content-Type" cont
+
+--- Probing Profile ---
+URL: https://api.frenet.com.br/profile
+Status: 404 Not Found
+Response is NOT JSON. Raw (first 200 chars): <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"> <html xmlns="http://www.w3.org/1999/xhtml"> <head> <meta http-equiv="Content-Type" cont
+
+--- Probing V1 Root (Info) ---
+URL: https://api.frenet.com.br
+Status: 406 Not Acceptable
+Response is NOT JSON. Raw (first 200 chars): <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"> <html xmlns="http://www.w3.org/1999/xhtml"> <head> <meta http-equiv="Content-Type" cont

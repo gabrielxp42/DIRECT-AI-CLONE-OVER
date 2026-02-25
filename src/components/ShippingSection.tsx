@@ -455,15 +455,18 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
     const handleCreateLabel = async () => {
         if (!selectedOption || !manualCEP) return;
 
-        // Segurança: Verificar saldo antes de tentar criar
         const price = parseFloat(selectedOption.price);
         const provider = selectedOption.provider;
-        const balance = provider === 'frenet' ? (companyProfile?.frenet_balance || 0) : (companyProfile?.wallet_balance || 0);
 
-        if (balance < price) {
-            showError(`Saldo insuficiente na carteira ${provider === 'frenet' ? 'Frenet' : 'SuperFrete'}. Você tem ${formatCurrency(balance)} mas a etiqueta custa ${formatCurrency(price)}.`);
-            setShowRechargeModal(true);
-            return;
+        // Para SuperFrete: verificar saldo local antes de tentar criar
+        // Para Frenet: a verificação de saldo é feita pela própria API da Frenet
+        if (provider !== 'frenet') {
+            const balance = companyProfile?.wallet_balance || 0;
+            if (balance < price) {
+                showError(`Saldo insuficiente na carteira SuperFrete. Você tem ${formatCurrency(balance)} mas a etiqueta custa ${formatCurrency(price)}.`);
+                setShowRechargeModal(true);
+                return;
+            }
         }
 
         setLoading(true);
@@ -525,6 +528,13 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
                         .join(' | ');
                     errorMessage += ` (${errorDetails})`;
                 }
+                // Se for Frenet, mostrar mensagem amigável sobre saldo
+                if (provider === 'frenet') {
+                    showError('Não foi possível gerar a etiqueta. Confira se sua carteira no Frenet tem saldo suficiente.');
+                    window.open('https://painel.frenet.com.br', '_blank');
+                    setLoading(false);
+                    return;
+                }
                 throw new Error(errorMessage);
             }
 
@@ -579,15 +589,18 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
     const handleCheckout = async () => {
         if (!labelId || !selectedOption) return;
 
-        // Segurança Extra: Verificar saldo novamente antes de emitir
         const price = parseFloat(selectedOption.price);
         const provider = selectedOption.provider;
-        const balance = provider === 'frenet' ? (companyProfile?.frenet_balance || 0) : (companyProfile?.wallet_balance || 0);
 
-        if (balance < price) {
-            showError(`Saldo insuficiente na carteira ${provider === 'frenet' ? 'Frenet' : 'SuperFrete'} para emitir a etiqueta. Por favor, recarregue.`);
-            setShowRechargeModal(true);
-            return;
+        // Para SuperFrete: verificar saldo local antes de emitir
+        // Para Frenet: a verificação é feita pela API da Frenet
+        if (provider !== 'frenet') {
+            const balance = companyProfile?.wallet_balance || 0;
+            if (balance < price) {
+                showError(`Saldo insuficiente na carteira SuperFrete para emitir a etiqueta. Por favor, recarregue.`);
+                setShowRechargeModal(true);
+                return;
+            }
         }
 
         setLoading(true);
@@ -616,6 +629,13 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
 
             const data = await response.json();
             if (data.error) {
+                // Se for Frenet, mostrar mensagem amigável sobre saldo
+                if (provider === 'frenet') {
+                    showError('Não foi possível emitir a etiqueta. Confira se sua carteira no Frenet tem saldo suficiente.');
+                    window.open('https://painel.frenet.com.br', '_blank');
+                    setLoading(false);
+                    return;
+                }
                 const detailsStr = data.details ? (typeof data.details === 'object' ? JSON.stringify(data.details) : String(data.details)) : '';
                 throw new Error(`${data.message}${detailsStr ? ` (${detailsStr})` : ''}`);
             }
@@ -788,23 +808,45 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
                         <div className="bg-primary/10 p-2 rounded-lg">
                             <CreditCard className="h-5 w-5 text-primary" />
                         </div>
-                        <div>
-                            <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-tight">
-                                Saldo {companyProfile?.logistics_provider === 'frenet' ? 'Frenet' : 'SuperFrete'}
-                            </p>
-                            <p className="text-lg font-black text-primary leading-none mt-0.5">
-                                {companyProfile ? formatCurrency(companyProfile.logistics_provider === 'frenet' ? (companyProfile.frenet_balance || 0) : (companyProfile.wallet_balance || 0)) : 'R$ 0,00'}
-                            </p>
-                        </div>
+                        {companyProfile?.logistics_provider === 'frenet' ? (
+                            <div>
+                                <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-tight">
+                                    Carteira Frenet
+                                </p>
+                                <p className="text-xs font-bold text-muted-foreground mt-0.5">
+                                    Gerencie seu saldo diretamente no painel Frenet
+                                </p>
+                            </div>
+                        ) : (
+                            <div>
+                                <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-tight">
+                                    Saldo SuperFrete
+                                </p>
+                                <p className="text-lg font-black text-primary leading-none mt-0.5">
+                                    {companyProfile ? formatCurrency(companyProfile.wallet_balance || 0) : 'R$ 0,00'}
+                                </p>
+                            </div>
+                        )}
                     </div>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowRechargeModal(true)}
-                        className="h-8 text-[11px] font-bold gap-1.5 border-primary/20 hover:bg-primary hover:text-white transition-all rounded-lg"
-                    >
-                        <Zap className="h-3.5 w-3.5" /> Recarregar
-                    </Button>
+                    {companyProfile?.logistics_provider === 'frenet' ? (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => window.open('https://painel.frenet.com.br', '_blank')}
+                            className="h-8 text-[11px] font-bold gap-1.5 border-primary/20 hover:bg-primary hover:text-white transition-all rounded-lg"
+                        >
+                            <ExternalLink className="h-3.5 w-3.5" /> Ver Saldo
+                        </Button>
+                    ) : (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowRechargeModal(true)}
+                            className="h-8 text-[11px] font-bold gap-1.5 border-primary/20 hover:bg-primary hover:text-white transition-all rounded-lg"
+                        >
+                            <Zap className="h-3.5 w-3.5" /> Recarregar
+                        </Button>
+                    )}
                 </div>
 
                 {!labelId && (

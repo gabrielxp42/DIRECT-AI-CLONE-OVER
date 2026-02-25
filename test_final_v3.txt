@@ -1,0 +1,21 @@
+Testing with REAL proxy logic...
+
+--- https://api.frenet.com.br/v1/wallet ---
+Status: 404
+Failed. Body snippet: <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-str
+
+--- https://api.frenet.com.br/v1/user/wallet ---
+Status: 404
+Failed. Body snippet: <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-str
+
+--- https://api.frenet.com.br/v1/customer/wallet ---
+Status: 404
+Failed. Body snippet: <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-str
+
+--- https://api.frenet.com.br/v2/wallet ---
+Status: 404
+Failed. Body snippet: <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-str
+
+--- http://api.frenet.com.br/v1/wallet ---
+Status: 404
+Failed. Body snippet: <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-str

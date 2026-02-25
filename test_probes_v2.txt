@@ -1,0 +1,55 @@
+
+--- Testing Calculate (Token Validation) ---
+URL: https://api.frenet.com.br/v1/shipping/quote (POST)
+Status: 404 Not Found
+Response is NOT JSON. Raw (first 200 chars): <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"> <html xmlns="http://www.w3.org/1999/xhtml"> <head> <meta http-equiv="Content-Type" cont
+
+--- Testing Probe /user/wallet ---
+URL: https://api.frenet.com.br/v1/user/wallet (GET)
+Status: 404 Not Found
+Response is NOT JSON. Raw (first 200 chars): <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"> <html xmlns="http://www.w3.org/1999/xhtml"> <head> <meta http-equiv="Content-Type" cont
+
+--- Testing Probe /customer/wallet ---
+URL: https://api.frenet.com.br/v1/customer/wallet (GET)
+Status: 404 Not Found
+Response is NOT JSON. Raw (first 200 chars): <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"> <html xmlns="http://www.w3.org/1999/xhtml"> <head> <meta http-equiv="Content-Type" cont
+
+--- Testing Probe /wallet/info ---
+URL: https://api.frenet.com.br/v1/wallet/info (GET)
+Status: 404 Not Found
+Response is NOT JSON. Raw (first 200 chars): <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"> <html xmlns="http://www.w3.org/1999/xhtml"> <head> <meta http-equiv="Content-Type" cont
+
+--- Testing Probe /wallet/data ---
+URL: https://api.frenet.com.br/v1/wallet/data (GET)
+Status: 404 Not Found
+Response is NOT JSON. Raw (first 200 chars): <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"> <html xmlns="http://www.w3.org/1999/xhtml"> <head> <meta http-equiv="Content-Type" cont
+
+--- Testing Probe /wallet/status ---
+URL: https://api.frenet.com.br/v1/wallet/status (GET)
+Status: 404 Not Found
+Response is NOT JSON. Raw (first 200 chars): <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"> <html xmlns="http://www.w3.org/1999/xhtml"> <head> <meta http-equiv="Content-Type" cont
+
+--- Testing Probe /user/wallet ---
+URL: https://api.frenet.com.br/user/wallet (GET)
+Status: 404 Not Found
+Response is NOT JSON. Raw (first 200 chars): <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"> <html xmlns="http://www.w3.org/1999/xhtml"> <head> <meta http-equiv="Content-Type" cont
+
+--- Testing Probe /customer/wallet ---
+URL: https://api.frenet.com.br/customer/wallet (GET)
+Status: 404 Not Found
+Response is NOT JSON. Raw (first 200 chars): <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"> <html xmlns="http://www.w3.org/1999/xhtml"> <head> <meta http-equiv="Content-Type" cont
+
+--- Testing Probe /wallet/info ---
+URL: https://api.frenet.com.br/wallet/info (GET)
+Status: 404 Not Found
+Response is NOT JSON. Raw (first 200 chars): <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"> <html xmlns="http://www.w3.org/1999/xhtml"> <head> <meta http-equiv="Content-Type" cont
+
+--- Testing Probe /wallet/data ---
+URL: https://api.frenet.com.br/wallet/data (GET)
+Status: 404 Not Found
+Response is NOT JSON. Raw (first 200 chars): <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"> <html xmlns="http://www.w3.org/1999/xhtml"> <head> <meta http-equiv="Content-Type" cont
+
+--- Testing Probe /wallet/status ---
+URL: https://api.frenet.com.br/wallet/status (GET)
+Status: 404 Not Found
+Response is NOT JSON. Raw (first 200 chars): <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"> <html xmlns="http://www.w3.org/1999/xhtml"> <head> <meta http-equiv="Content-Type" cont

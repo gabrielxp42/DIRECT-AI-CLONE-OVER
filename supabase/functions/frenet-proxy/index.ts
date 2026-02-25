@@ -160,14 +160,40 @@ Deno.serve(async (req: Request) => {
             return new Response(JSON.stringify(result), { headers: corsHeaders, status: 200 });
 
         } else if (action === 'balance') {
-            const response = await fetch(`${baseUrl}/wallet`, {
+            console.log("[frenet-proxy] Fetching wallet balance for:", profile.email);
+            console.log("[frenet-proxy] Using baseUrl:", baseUrl);
+            console.log("[frenet-proxy] Has partner token:", !!profile.frenet_partner_token);
+
+            const walletUrl = `${baseUrl}/wallet`;
+            console.log("[frenet-proxy] Full wallet URL:", walletUrl);
+
+            const response = await fetch(walletUrl, {
+                method: 'GET',
                 headers: commonHeaders
             });
-            const result = await response.json();
 
-            // Sync balance with profiles table for local UI speed
-            // Using AvailableAmount because it's the real spendable balance
-            const balanceToSync = typeof result.AvailableAmount === 'number' ? result.AvailableAmount : result.Amount;
+            console.log("[frenet-proxy] Wallet response status:", response.status);
+
+            // Handle non-JSON responses (HTML 404 pages from Frenet)
+            const contentType = response.headers.get('content-type') || '';
+            if (!contentType.includes('application/json')) {
+                const rawBody = await response.text();
+                console.log("[frenet-proxy] NON-JSON response! Content-Type:", contentType);
+                console.log("[frenet-proxy] Raw body (first 300 chars):", rawBody.substring(0, 300));
+                return new Response(JSON.stringify({
+                    error: true,
+                    message: `Frenet retornou status ${response.status}. Verifique se o Token e o Token de Parceiro estão configurados corretamente.`,
+                    debug: { status: response.status, contentType, hasPartnerToken: !!profile.frenet_partner_token }
+                }), { headers: corsHeaders, status: 200 });
+            }
+
+            const result = await response.json();
+            console.log("[frenet-proxy] Wallet full response:", JSON.stringify(result));
+
+            // Frenet returns: Balance, BlockedBalance, AvailableBalanceForDeposit, LabelLimit, WalletLimit
+            const balanceToSync = typeof result.Balance === 'number' ? result.Balance : undefined;
+
+            console.log("[frenet-proxy] Balance to sync:", balanceToSync);
 
             if (response.ok && !result.error && typeof balanceToSync === 'number') {
                 const adminClient = createClient(
@@ -178,12 +204,10 @@ Deno.serve(async (req: Request) => {
                     .from('profiles')
                     .update({ frenet_balance: balanceToSync })
                     .eq('id', user.id);
+                console.log("[frenet-proxy] Balance synced to DB:", balanceToSync);
             }
 
-            return new Response(JSON.stringify({
-                ...result,
-                Balance: balanceToSync // Keep Balance field for frontend compatibility if needed
-            }), { headers: corsHeaders, status: 200 });
+            return new Response(JSON.stringify(result), { headers: corsHeaders, status: 200 });
 
         } else if (action === 'deposit') {
             // params: { amount: number, payment_method: 'PIX' | 'BOLETO' }

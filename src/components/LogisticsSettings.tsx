@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { MapPin, Save, Loader2, Home, History, ArrowDownLeft, ArrowUpRight, PackageOpen, Download, Filter, Copy, Truck, RefreshCw } from 'lucide-react';
+import { MapPin, Save, Loader2, Home, History, ArrowDownLeft, ArrowUpRight, PackageOpen, Download, Filter, Copy, Truck, RefreshCw, ExternalLink } from 'lucide-react';
 import { useCompanyProfile } from '@/hooks/useCompanyProfile';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { SUPABASE_URL, SUPABASE_ANON_KEY, supabase } from '@/integrations/supabase/client';
@@ -34,7 +34,7 @@ export const LogisticsSettings: React.FC = () => {
     const { session } = useSession();
     const userId = session?.user?.id;
     const queryClient = useQueryClient();
-    const { companyProfile, updateProfileAsync, isUpdating, syncFrenetBalance } = useCompanyProfile();
+    const { companyProfile, updateProfileAsync, isUpdating } = useCompanyProfile();
     const [saving, setSaving] = useState(false);
     const [showRechargeModal, setShowRechargeModal] = useState(false);
     const [activeProvider, setActiveProvider] = useState<'superfrete' | 'frenet' | null>(null);
@@ -73,12 +73,8 @@ export const LogisticsSettings: React.FC = () => {
         }
     }, [profileData]);
 
-    // Handle Frenet balance sync
-    React.useEffect(() => {
-        if (activeProvider === 'frenet' && tokens.frenet) {
-            syncFrenetBalance();
-        }
-    }, [activeProvider, tokens.frenet]);
+    // Frenet balance sync removed - requires x-partner-token (Frenet partnership)
+    // Users should check their balance directly on painel.frenet.com.br
 
     const handleSaveProviderSettings = async () => {
         setSaving(true);
@@ -185,10 +181,21 @@ export const LogisticsSettings: React.FC = () => {
                                         {!activeProvider ? "Ambas plataformas são consultadas" : activeProvider === 'superfrete' && !tokens.superfrete ? "Modo Direct AI (Taxa Reduzida)" : "API Key Própria Ativa"}
                                     </p>
                                     <div className="h-4 w-[1px] bg-border" />
-                                    <p className="text-[10px] font-black uppercase text-primary tracking-tighter italic flex items-center gap-1">
-                                        Saldo {activeProvider === 'frenet' ? 'Frenet' : 'SuperFrete'}: {formatCurrency(activeProvider === 'frenet' ? (companyProfile?.frenet_balance || 0) : (companyProfile?.wallet_balance || 0))}
-                                        {activeProvider === 'frenet' && <RefreshCw className="h-2 w-2 animate-pulse text-zinc-400" />}
-                                    </p>
+                                    {activeProvider === 'frenet' ? (
+                                        <a
+                                            href="https://painel.frenet.com.br"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-[10px] font-black uppercase text-primary tracking-tighter italic flex items-center gap-1 hover:underline cursor-pointer"
+                                        >
+                                            <ExternalLink className="h-3 w-3" />
+                                            Ver saldo no Painel Frenet
+                                        </a>
+                                    ) : (
+                                        <p className="text-[10px] font-black uppercase text-primary tracking-tighter italic flex items-center gap-1">
+                                            Saldo SuperFrete: {formatCurrency(companyProfile?.wallet_balance || 0)}
+                                        </p>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -260,6 +267,7 @@ export const LogisticsSettings: React.FC = () => {
                                                         onChange={(e) => setTokens(prev => ({ ...prev, frenet: e.target.value }))}
                                                     />
                                                 </div>
+
                                                 <div className="space-y-4">
                                                     <div className="grid grid-cols-2 gap-3">
                                                         <div className="space-y-2">

@@ -61,6 +61,7 @@ export interface CompanyProfileUpdate {
     wallet_balance?: number;
     frenet_balance?: number;
     frenet_token?: string;
+    frenet_partner_token?: string;
     superfrete_token?: string;
     frenet_access_key?: string;
     frenet_access_password?: string;

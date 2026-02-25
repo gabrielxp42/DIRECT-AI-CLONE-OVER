@@ -1,0 +1,12 @@
+
+--- Testing https://api.frenet.com.br/v1/Customer/Wallet ---
+Status: 404
+
+--- Testing https://api.frenet.com.br/v1/customer/Wallet ---
+Status: 404
+
+--- Testing https://api.frenet.com.br/v1/Customer/wallet ---
+Status: 404
+
+--- Testing https://api.frenet.com.br/v1/wallet ---
+Status: 404
