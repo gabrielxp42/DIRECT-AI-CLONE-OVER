@@ -457,10 +457,11 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
 
         // Segurança: Verificar saldo antes de tentar criar
         const price = parseFloat(selectedOption.price);
-        const balance = companyProfile?.wallet_balance || 0;
+        const provider = selectedOption.provider;
+        const balance = provider === 'frenet' ? (companyProfile?.frenet_balance || 0) : (companyProfile?.wallet_balance || 0);
 
         if (balance < price) {
-            showError(`Saldo insuficiente. Você tem ${formatCurrency(balance)} mas a etiqueta custa ${formatCurrency(price)}.`);
+            showError(`Saldo insuficiente na carteira ${provider === 'frenet' ? 'Frenet' : 'SuperFrete'}. Você tem ${formatCurrency(balance)} mas a etiqueta custa ${formatCurrency(price)}.`);
             setShowRechargeModal(true);
             return;
         }
@@ -580,10 +581,11 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
 
         // Segurança Extra: Verificar saldo novamente antes de emitir
         const price = parseFloat(selectedOption.price);
-        const balance = companyProfile?.wallet_balance || 0;
+        const provider = selectedOption.provider;
+        const balance = provider === 'frenet' ? (companyProfile?.frenet_balance || 0) : (companyProfile?.wallet_balance || 0);
 
         if (balance < price) {
-            showError("Saldo insuficiente para emitir a etiqueta. Por favor, recarregue.");
+            showError(`Saldo insuficiente na carteira ${provider === 'frenet' ? 'Frenet' : 'SuperFrete'} para emitir a etiqueta. Por favor, recarregue.`);
             setShowRechargeModal(true);
             return;
         }
@@ -787,9 +789,11 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
                             <CreditCard className="h-5 w-5 text-primary" />
                         </div>
                         <div>
-                            <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-tight">Saldo em Carteira</p>
+                            <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-tight">
+                                Saldo {companyProfile?.logistics_provider === 'frenet' ? 'Frenet' : 'SuperFrete'}
+                            </p>
                             <p className="text-lg font-black text-primary leading-none mt-0.5">
-                                {companyProfile ? formatCurrency(companyProfile.wallet_balance || 0) : 'R$ 0,00'}
+                                {companyProfile ? formatCurrency(companyProfile.logistics_provider === 'frenet' ? (companyProfile.frenet_balance || 0) : (companyProfile.wallet_balance || 0)) : 'R$ 0,00'}
                             </p>
                         </div>
                     </div>
@@ -1260,7 +1264,8 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
             <WalletRechargeModal
                 open={showRechargeModal}
                 onOpenChange={setShowRechargeModal}
-                currentBalance={companyProfile?.wallet_balance || 0}
+                currentBalance={companyProfile?.logistics_provider === 'frenet' ? (companyProfile?.frenet_balance || 0) : (companyProfile?.wallet_balance || 0)}
+                provider={companyProfile?.logistics_provider || 'superfrete'}
             />
         </Card>
     );

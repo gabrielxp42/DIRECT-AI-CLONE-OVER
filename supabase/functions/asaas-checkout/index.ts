@@ -18,7 +18,7 @@ serve(async (req) => {
 
     try {
         const payload = await req.json();
-        const { userId, email, name, paymentMethod, creditCard, creditCardHolderInfo, productType, amount, cpfCnpj } = payload;
+        const { userId, email, name, paymentMethod, creditCard, creditCardHolderInfo, productType, amount, cpfCnpj, provider } = payload;
 
         if (!userId || !email) {
             throw new Error("Missing userId or email");
@@ -160,8 +160,8 @@ serve(async (req) => {
                 billingType: billingType,
                 value: selectedPrice,
                 dueDate: isoDate,
-                description: `Recarga de Créditos Logística - ${userId}`,
-                externalReference: `REFILL:${userId}`,
+                description: `Recarga de Créditos Logística (${provider === 'frenet' ? 'Frenet' : 'SuperFrete'}) - ${userId}`,
+                externalReference: `REFILL:${userId}${provider ? `:${provider}` : ''}`,
                 ...(paymentMethod === 'CREDIT_CARD' && creditCard ? { creditCard, creditCardHolderInfo } : {})
             };
 

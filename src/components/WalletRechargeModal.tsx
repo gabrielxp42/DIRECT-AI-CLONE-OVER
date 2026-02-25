@@ -29,6 +29,7 @@ interface WalletRechargeModalProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     currentBalance?: number;
+    provider?: 'superfrete' | 'frenet';
 }
 
 const RECHARGE_OPTIONS = [
@@ -38,7 +39,7 @@ const RECHARGE_OPTIONS = [
     { amount: 500, label: "R$ 500", popular: false },
 ];
 
-export const WalletRechargeModal = ({ open, onOpenChange, currentBalance = 0 }: WalletRechargeModalProps) => {
+export const WalletRechargeModal = ({ open, onOpenChange, currentBalance = 0, provider }: WalletRechargeModalProps) => {
     const { session } = useSession();
     const [step, setStep] = useState<'amount' | 'method' | 'cpf' | 'processing' | 'pix' | 'success'>('amount');
     const [amount, setAmount] = useState<number | ''>('');
@@ -47,7 +48,14 @@ export const WalletRechargeModal = ({ open, onOpenChange, currentBalance = 0 }: 
     const [pixData, setPixData] = useState<any>(null);
     const [cpfCnpj, setCpfCnpj] = useState('');
     const [userProfile, setUserProfile] = useState<any>(null);
-    const [activeProvider, setActiveProvider] = useState<'superfrete' | 'frenet' | null>(null);
+    const [activeProvider, setActiveProvider] = useState<'superfrete' | 'frenet' | null>(provider || null);
+
+    // Sincronizar provider prop com estado interno
+    useEffect(() => {
+        if (provider) {
+            setActiveProvider(provider);
+        }
+    }, [provider]);
 
     // Buscar perfil do usuário para verificar CPF
     useEffect(() => {
@@ -140,7 +148,8 @@ export const WalletRechargeModal = ({ open, onOpenChange, currentBalance = 0 }: 
                     paymentMethod: paymentMethod,
                     productType: 'REFILL',
                     amount: amount,
-                    cpfCnpj: cpfCnpj
+                    cpfCnpj: cpfCnpj,
+                    provider: activeProvider
                 }
             });
 
@@ -215,7 +224,7 @@ export const WalletRechargeModal = ({ open, onOpenChange, currentBalance = 0 }: 
                                         </div>
                                         <div>
                                             <h3 className="text-xl font-black text-white tracking-tight uppercase italic">Recarregar Saldo</h3>
-                                            <p className="text-xs text-zinc-400 font-medium">Seu saldo atual: <span className="text-white font-bold">{formatCurrency(currentBalance)}</span></p>
+                                            <p className="text-xs text-zinc-400 font-medium">Saldo {activeProvider === 'frenet' ? 'Frenet' : 'SuperFrete'}: <span className="text-white font-bold">{formatCurrency(currentBalance)}</span></p>
                                         </div>
                                     </div>
 

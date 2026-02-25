@@ -44,17 +44,20 @@ serve(async (req) => {
                 // --- LÓGICA DE RECARGA DE CRÉDITOS ---
                 if (externalReference.startsWith('REFILL:')) {
                     if (event === 'PAYMENT_CONFIRMED' || event === 'PAYMENT_RECEIVED') {
-                        const userId = externalReference.split(':')[1];
+                        const referenceParts = externalReference.split(':');
+                        const userId = referenceParts[1];
+                        const provider = referenceParts[2] || 'superfrete';
                         const amount = payment?.value || 0;
 
-                        console.log(`RECARGA DETECTADA: User=${userId} | Valor=${amount} | Pagamento=${payment?.id}`);
+                        console.log(`RECARGA DETECTADA: User=${userId} | Provider=${provider} | Valor=${amount} | Pagamento=${payment?.id}`);
 
                         // Usar RPC para garantir Atomicidade e Idempotência (Trava de pagamento duplicado)
                         const { data: rpcResult, error: rpcError } = await supabaseAdmin.rpc('process_wallet_recharge', {
                             p_user_id: userId,
                             p_amount: amount,
                             p_asaas_payment_id: payment?.id,
-                            p_description: `Recarga via Asaas (Pagamento ${payment?.id})`
+                            p_description: `Recarga via Asaas (${provider === 'frenet' ? 'Frenet' : 'SuperFrete'})`,
+                            p_provider: provider
                         });
 
                         if (rpcError) {

@@ -73,6 +73,20 @@ export const useRealtimeSync = () => {
             .on(
                 'postgres_changes',
                 {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'profiles',
+                    filter: `id=eq.${userId}`
+                },
+                (payload) => {
+                    console.log('[Realtime] Alteração em Perfil (Balance/Settings) detectada:', payload.eventType);
+                    queryClient.invalidateQueries({ queryKey: ['companyProfile'] });
+                    queryClient.invalidateQueries({ queryKey: ['profile_logistics_settings'] });
+                }
+            )
+            .on(
+                'postgres_changes',
+                {
                     event: '*',
                     schema: 'public',
                     table: 'ai_agent_training'

@@ -27,8 +27,10 @@ export interface CompanyProfile {
     gabi_templates: Record<string, string> | null;
     company_business_hours: string | null;
     wallet_balance: number | null;
+    frenet_balance: number | null; // Novo campo separado
     logistics_provider: 'superfrete' | 'frenet' | null;
     frenet_token: string | null;
+    superfrete_token: string | null; // Novo campo
     frenet_access_key: string | null;
     frenet_access_password: string | null;
 }
@@ -56,9 +58,13 @@ export interface CompanyProfileUpdate {
     gabi_templates?: Record<string, string>;
     company_business_hours?: string;
     logistics_provider?: 'superfrete' | 'frenet';
+    wallet_balance?: number;
+    frenet_balance?: number;
     frenet_token?: string;
+    superfrete_token?: string;
     frenet_access_key?: string;
     frenet_access_password?: string;
+    sync_frenet_balance?: boolean;
 }
 
 // Helper to format full address
@@ -116,7 +122,7 @@ export const useCompanyProfile = () => {
                 const token = await getValidToken();
                 if (!token) return null;
 
-                const url = `${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}&select=company_name,company_slogan,company_phone,company_whatsapp,company_email,company_website,company_address_street,company_address_number,company_address_neighborhood,company_address_city,company_address_state,company_address_zip,company_address_complement,company_pix_key,company_pix_key_type,company_logo_url,sidebar_shortcuts,company_primary_color,gabi_templates,company_business_hours,wallet_balance,logistics_provider,frenet_token,frenet_access_key,frenet_access_password`;
+                const url = `${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}&select=company_name,company_slogan,company_phone,company_whatsapp,company_email,company_website,company_address_street,company_address_number,company_address_neighborhood,company_address_city,company_address_state,company_address_zip,company_address_complement,company_pix_key,company_pix_key_type,company_logo_url,sidebar_shortcuts,company_primary_color,gabi_templates,company_business_hours,wallet_balance,frenet_balance,logistics_provider,frenet_token,superfrete_token,frenet_access_key,frenet_access_password`;
 
                 const response = await fetch(url, {
                     method: 'GET',
@@ -299,6 +305,20 @@ export const useCompanyProfile = () => {
         updateProfile: updateProfileMutation.mutate,
         updateProfileAsync: updateProfileMutation.mutateAsync,
         isUpdating: updateProfileMutation.isPending,
+        syncFrenetBalance: async () => {
+            if (!userId) return;
+            try {
+                const { data, error } = await supabase.functions.invoke('frenet-proxy', {
+                    body: { action: 'balance' }
+                });
+                if (error) throw error;
+                queryClient.invalidateQueries({ queryKey: ['companyProfile', userId] });
+                return data;
+            } catch (err) {
+                console.error('Error syncing Frenet balance:', err);
+                throw err;
+            }
+        },
         uploadLogo,
         removeLogo,
         getCompanyInfoForPDF: () => getCompanyInfoForPDF(companyProfile),

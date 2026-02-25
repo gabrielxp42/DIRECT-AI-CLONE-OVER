@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { MapPin, Save, Loader2, Home, History, ArrowDownLeft, ArrowUpRight, PackageOpen, Download, Filter, Copy, Truck } from 'lucide-react';
+import { MapPin, Save, Loader2, Home, History, ArrowDownLeft, ArrowUpRight, PackageOpen, Download, Filter, Copy, Truck, RefreshCw } from 'lucide-react';
 import { useCompanyProfile } from '@/hooks/useCompanyProfile';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { SUPABASE_URL, SUPABASE_ANON_KEY, supabase } from '@/integrations/supabase/client';
@@ -34,7 +34,7 @@ export const LogisticsSettings: React.FC = () => {
     const { session } = useSession();
     const userId = session?.user?.id;
     const queryClient = useQueryClient();
-    const { companyProfile, updateProfileAsync, isUpdating } = useCompanyProfile();
+    const { companyProfile, updateProfileAsync, isUpdating, syncFrenetBalance } = useCompanyProfile();
     const [saving, setSaving] = useState(false);
     const [showRechargeModal, setShowRechargeModal] = useState(false);
     const [activeProvider, setActiveProvider] = useState<'superfrete' | 'frenet' | null>(null);
@@ -73,22 +73,25 @@ export const LogisticsSettings: React.FC = () => {
         }
     }, [profileData]);
 
+    // Handle Frenet balance sync
+    React.useEffect(() => {
+        if (activeProvider === 'frenet' && tokens.frenet) {
+            syncFrenetBalance();
+        }
+    }, [activeProvider, tokens.frenet]);
+
     const handleSaveProviderSettings = async () => {
         setSaving(true);
         const loading = toast.loading("Sincronizando plataforma...");
         try {
-            const { error } = await supabase
-                .from('profiles')
-                .update({
-                    logistics_provider: activeProvider,
-                    superfrete_token: tokens.superfrete,
-                    frenet_token: tokens.frenet,
-                    frenet_access_key: tokens.frenet_key,
-                    frenet_access_password: tokens.frenet_password
-                })
-                .eq('id', userId!);
+            await updateProfileAsync({
+                logistics_provider: activeProvider!,
+                superfrete_token: tokens.superfrete,
+                frenet_token: tokens.frenet,
+                frenet_access_key: tokens.frenet_key,
+                frenet_access_password: tokens.frenet_password
+            });
 
-            if (error) throw error;
             toast.success("Plataforma configurada com sucesso!", { id: loading });
             queryClient.invalidateQueries({ queryKey: ['profile_logistics_settings'] });
             setIsModalOpen(false);
@@ -176,10 +179,17 @@ export const LogisticsSettings: React.FC = () => {
                                     <Globe className="h-4 w-4" />
                                     Plataforma Ativa: <span className="text-zinc-600 ml-1">{activeProvider === 'superfrete' ? "SuperFrete" : activeProvider === 'frenet' ? "Frenet" : "Ambos"}</span>
                                 </h3>
-                                <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-tight mt-1 flex items-center gap-1">
-                                    <ShieldCheck className="h-3 w-3 text-green-500" />
-                                    {!activeProvider ? "Ambas plataformas são consultadas" : activeProvider === 'superfrete' && !tokens.superfrete ? "Modo Direct AI (Taxa Reduzida)" : "API Key Própria Ativa"}
-                                </p>
+                                <div className="mt-1 flex items-center gap-3">
+                                    <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-tight flex items-center gap-1">
+                                        <ShieldCheck className="h-3 w-3 text-green-500" />
+                                        {!activeProvider ? "Ambas plataformas são consultadas" : activeProvider === 'superfrete' && !tokens.superfrete ? "Modo Direct AI (Taxa Reduzida)" : "API Key Própria Ativa"}
+                                    </p>
+                                    <div className="h-4 w-[1px] bg-border" />
+                                    <p className="text-[10px] font-black uppercase text-primary tracking-tighter italic flex items-center gap-1">
+                                        Saldo {activeProvider === 'frenet' ? 'Frenet' : 'SuperFrete'}: {formatCurrency(activeProvider === 'frenet' ? (companyProfile?.frenet_balance || 0) : (companyProfile?.wallet_balance || 0))}
+                                        {activeProvider === 'frenet' && <RefreshCw className="h-2 w-2 animate-pulse text-zinc-400" />}
+                                    </p>
+                                </div>
                             </div>
                         </div>
 
@@ -435,6 +445,13 @@ export const LogisticsSettings: React.FC = () => {
                     </div>
                 </CardContent>
             </Card>
+
+            <WalletRechargeModal
+                open={showRechargeModal}
+                onOpenChange={setShowRechargeModal}
+                currentBalance={activeProvider === 'frenet' ? (companyProfile?.frenet_balance || 0) : (companyProfile?.wallet_balance || 0)}
+                provider={activeProvider || 'superfrete'}
+            />
         </div>
     );
 };

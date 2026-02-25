@@ -29,6 +29,7 @@ type UserWalletInfo = {
     email: string | null;
     company_name: string | null;
     wallet_balance: number;
+    frenet_balance: number | null;
 };
 
 const formatCurrency = (value: number) => {
@@ -43,6 +44,7 @@ export function AdminWalletManager() {
     const [users, setUsers] = useState<UserWalletInfo[]>([]);
     const [selectedUser, setSelectedUser] = useState<UserWalletInfo | null>(null);
     const [amount, setAmount] = useState('');
+    const [balanceType, setBalanceType] = useState<'superfrete' | 'frenet'>('superfrete');
     const [description, setDescription] = useState('');
     const [isSearching, setIsSearching] = useState(false);
     const [isAdding, setIsAdding] = useState(false);
@@ -55,7 +57,7 @@ export function AdminWalletManager() {
         try {
             const { data, error } = await supabase
                 .from('profiles')
-                .select('id, email, company_name, wallet_balance')
+                .select('id, email, company_name, wallet_balance, frenet_balance')
                 .or(`email.ilike.%${searchTerm}%,company_name.ilike.%${searchTerm}%`)
                 .order('company_name', { ascending: true })
                 .limit(20);
@@ -103,11 +105,14 @@ export function AdminWalletManager() {
 
         setIsAdding(true);
         try {
-            // 1. Update wallet_balance
-            const newBalance = (selectedUser.wallet_balance || 0) + numAmount;
+            const fieldToUpdate = balanceType === 'frenet' ? 'frenet_balance' : 'wallet_balance';
+            const currentBalance = balanceType === 'frenet' ? (selectedUser.frenet_balance || 0) : (selectedUser.wallet_balance || 0);
+
+            // 1. Update balance
+            const newBalance = currentBalance + numAmount;
             const { error: updateError } = await supabase
                 .from('profiles')
-                .update({ wallet_balance: newBalance })
+                .update({ [fieldToUpdate]: newBalance })
                 .eq('id', selectedUser.id);
 
             if (updateError) throw updateError;
@@ -119,23 +124,28 @@ export function AdminWalletManager() {
                     user_id: selectedUser.id,
                     type: 'credit',
                     amount: numAmount,
-                    description: description.trim() || `Crédito adicionado pelo admin`,
+                    description: description.trim() || `Crédito ${balanceType === 'frenet' ? 'Frenet' : 'SuperFrete'} adicionado pelo admin`,
+                    provider: balanceType
                 });
 
             if (txError) throw txError;
 
             // 3. Update local state
-            setSelectedUser({ ...selectedUser, wallet_balance: newBalance });
+            const updatedUser = {
+                ...selectedUser,
+                [fieldToUpdate]: newBalance
+            };
+            setSelectedUser(updatedUser);
             setUsers(prev => prev.map(u =>
-                u.id === selectedUser.id ? { ...u, wallet_balance: newBalance } : u
+                u.id === selectedUser.id ? updatedUser : u
             ));
             setAmount('');
             setDescription('');
 
             // 4. Refresh transactions
-            handleSelectUser({ ...selectedUser, wallet_balance: newBalance });
+            handleSelectUser(updatedUser);
 
-            toast.success(`${formatCurrency(numAmount)} adicionado à carteira de ${selectedUser.company_name || selectedUser.email}!`);
+            toast.success(`${formatCurrency(numAmount)} adicionado à carteira ${balanceType === 'frenet' ? 'Frenet' : 'SuperFrete'} de ${selectedUser.company_name || selectedUser.email}!`);
         } catch (err: any) {
             toast.error('Erro ao adicionar crédito: ' + err.message);
         } finally {
@@ -179,25 +189,39 @@ export function AdminWalletManager() {
                                 key={user.id}
                                 onClick={() => handleSelectUser(user)}
                                 className={`w-full text-left p-3 rounded-xl transition-all duration-200 ${selectedUser?.id === user.id
-                                        ? 'bg-primary/10 border border-primary/30 shadow-sm'
-                                        : 'hover:bg-muted/50 border border-transparent'
+                                    ? 'bg-primary/10 border border-primary/30 shadow-sm'
+                                    : 'hover:bg-muted/50 border border-transparent'
                                     }`}
                             >
                                 <p className="text-sm font-black italic uppercase leading-none mb-1 truncate">
                                     {user.company_name || 'Sem Nome'}
                                 </p>
                                 <p className="text-[10px] text-muted-foreground font-medium truncate">{user.email}</p>
-                                <div className="mt-2 flex items-center justify-between">
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Saldo</span>
-                                    <Badge
-                                        variant="outline"
-                                        className={`font-black text-xs tabular-nums ${(user.wallet_balance || 0) > 0
-                                                ? 'text-emerald-600 border-emerald-200 bg-emerald-50 dark:bg-emerald-900/20 dark:border-emerald-800'
+                                <div className="mt-2 space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">SuperFrete</span>
+                                        <Badge
+                                            variant="outline"
+                                            className={`font-black text-[10px] tabular-nums ${(user.wallet_balance || 0) > 0
+                                                ? 'text-emerald-600 border-emerald-200 bg-emerald-50'
                                                 : 'text-zinc-500 border-zinc-200'
-                                            }`}
-                                    >
-                                        {formatCurrency(user.wallet_balance || 0)}
-                                    </Badge>
+                                                }`}
+                                        >
+                                            {formatCurrency(user.wallet_balance || 0)}
+                                        </Badge>
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Frenet</span>
+                                        <Badge
+                                            variant="outline"
+                                            className={`font-black text-[10px] tabular-nums ${(user.frenet_balance || 0) > 0
+                                                ? 'text-blue-600 border-blue-200 bg-blue-50'
+                                                : 'text-zinc-500 border-zinc-200'
+                                                }`}
+                                        >
+                                            {formatCurrency(user.frenet_balance || 0)}
+                                        </Badge>
+                                    </div>
                                 </div>
                             </button>
                         ))}
@@ -219,17 +243,38 @@ export function AdminWalletManager() {
                                         </CardTitle>
                                         <CardDescription className="text-xs font-medium">{selectedUser.email}</CardDescription>
                                     </div>
-                                    <div className="text-right">
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1">Saldo Atual</p>
-                                        <p className={`text-2xl font-black italic tracking-tighter ${(selectedUser.wallet_balance || 0) > 0 ? 'text-emerald-600' : 'text-zinc-400'
-                                            }`}>
-                                            {formatCurrency(selectedUser.wallet_balance || 0)}
-                                        </p>
+                                    <div className="text-right space-y-1">
+                                        <div>
+                                            <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">SuperFrete</p>
+                                            <p className={`text-sm font-black italic tracking-tighter ${(selectedUser.wallet_balance || 0) > 0 ? 'text-emerald-600' : 'text-zinc-400'}`}>
+                                                {formatCurrency(selectedUser.wallet_balance || 0)}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Frenet</p>
+                                            <p className={`text-sm font-black italic tracking-tighter ${(selectedUser.frenet_balance || 0) > 0 ? 'text-blue-600' : 'text-zinc-400'}`}>
+                                                {formatCurrency(selectedUser.frenet_balance || 0)}
+                                            </p>
+                                        </div>
                                     </div>
                                 </div>
                             </CardHeader>
                             <CardContent className="p-6 space-y-4">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="space-y-2">
+                                        <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                                            Carteira Destino
+                                        </Label>
+                                        <Select value={balanceType} onValueChange={(val: any) => setBalanceType(val)}>
+                                            <SelectTrigger className="h-12 rounded-xl font-bold italic">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="superfrete" className="font-bold italic">SUPERFRETE</SelectItem>
+                                                <SelectItem value="frenet" className="font-bold italic">FRENET</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
                                     <div className="space-y-2">
                                         <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
                                             Valor do Crédito (R$)
@@ -299,8 +344,8 @@ export function AdminWalletManager() {
                                                 <TableRow key={tx.id} className="hover:bg-muted/20 border-zinc-50 dark:border-zinc-900">
                                                     <TableCell className="p-4">
                                                         <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase ${tx.type === 'credit'
-                                                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-                                                                : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                                                            : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
                                                             }`}>
                                                             {tx.type === 'credit' ? <ArrowDownLeft className="h-3 w-3" /> : <ArrowUpRight className="h-3 w-3" />}
                                                             {tx.type === 'credit' ? 'Crédito' : 'Débito'}

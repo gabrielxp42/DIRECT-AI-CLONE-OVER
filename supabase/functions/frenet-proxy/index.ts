@@ -106,10 +106,10 @@ Deno.serve(async (req: Request) => {
                 );
 
                 if (finalPrice > 0) {
-                    const currentBalance = profile.wallet_balance || 0;
+                    const currentBalance = profile.frenet_balance || 0;
                     await adminClient
                         .from('profiles')
-                        .update({ wallet_balance: currentBalance - finalPrice })
+                        .update({ frenet_balance: currentBalance - finalPrice })
                         .eq('id', user.id);
 
                     await adminClient
@@ -169,7 +169,7 @@ Deno.serve(async (req: Request) => {
                 );
                 await adminClient
                     .from('profiles')
-                    .update({ wallet_balance: result.Balance })
+                    .update({ frenet_balance: result.Balance })
                     .eq('id', user.id);
             }
 
