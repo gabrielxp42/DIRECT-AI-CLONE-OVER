@@ -230,7 +230,8 @@ REGRAS IMPORTANTES:
                 direction: 'sent',
                 status: 'delivered',
                 analyzed: true,
-                analysis_result: { source: "gabi-executiva", version: "1.0" }
+                analysis_result: { source: "gabi-executiva", version: "1.0" },
+                external_id: sendResult.key?.id || sendResult.messageId || null
             });
 
             return new Response(JSON.stringify({ success: true, messageId: sendResult.key?.id || sendResult.messageId }), {

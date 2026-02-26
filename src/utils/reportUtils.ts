@@ -14,7 +14,9 @@ export interface SalesReport {
     recentOrders: Array<{ id: string; cliente_nome: string; valor_total: number; status: string; created_at: string; }>;
     monthlyGrowth: { revenue: number; orders: number; customers: number; profit: number; };
     totalProfit: number;
+    estimatedProfit: number;
     profitMargin: number;
+    targetProfitMargin: number;
     servicesReport: {
         totalServicesRevenue: number;
         totalServicesCount: number;
@@ -202,7 +204,8 @@ export const fetchReportData = async (
         previousMonthStats,
         totalCustomersCount,
         totalProductsCount,
-        insumos
+        insumos,
+        profileData
     ] = await Promise.all([
         // Main Orders: Enable fetchAll (pagination) and server-side filtering for both start and end dates
         doFetch('pedidos', (() => {
@@ -256,6 +259,13 @@ export const fetchReportData = async (
         doFetch('insumos', (() => {
             const params = new URLSearchParams({ select: 'id,custo_unitario' });
             if (userId) params.append('user_id', `eq.${userId}`);
+            return params;
+        })(), effectiveToken),
+
+        // 6. User Profile for target profit margin
+        doFetch('profiles', (() => {
+            const params = new URLSearchParams({ select: 'target_profit_margin' });
+            if (userId) params.append('id', `eq.${userId}`);
             return params;
         })(), effectiveToken)
     ]);
@@ -392,6 +402,12 @@ export const fetchReportData = async (
         }
     });
 
+    const userTargetMargin = (profileData && profileData[0]?.target_profit_margin !== undefined)
+        ? profileData[0].target_profit_margin
+        : 0.3; // Default 30%
+
+    // Lucro Estimado baseado na margem que o usuário definiu (útil quando não há custos cadastrados)
+    const estimatedProfit = totalRevenue * userTargetMargin;
     const totalProfit = totalRevenue - totalCost;
     const profitMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
     const totalOrders = periodOrders.length;
@@ -645,7 +661,9 @@ export const fetchReportData = async (
         recentOrders,
         monthlyGrowth,
         totalProfit,
+        estimatedProfit,
         profitMargin,
+        targetProfitMargin: userTargetMargin,
         revenueByPeriod,
         metersReport: {
             totalMeters,

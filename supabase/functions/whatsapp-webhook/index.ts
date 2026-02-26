@@ -66,7 +66,8 @@ Deno.serve(async (req: Request) => {
                 message: msgText || (audioBase64 ? "[Mensagem de Voz]" : "[Mídia]"),
                 direction: fromMe ? 'sent' : 'received',
                 status: 'delivered',
-                client_name: data.pushName || null
+                client_name: data.pushName || null,
+                external_id: data.key?.id || null
             }).select('id').single();
 
             // AI Logic: ONLY respond if it's NOT from me AND AI is enabled AND it's the Boss's number

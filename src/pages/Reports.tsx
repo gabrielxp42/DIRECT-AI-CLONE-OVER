@@ -1,6 +1,8 @@
 import React, { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/contexts/SessionProvider";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import {
   Card,
   CardContent,
@@ -62,7 +64,10 @@ import {
   Palette,
   Bike,
   Star,
-  Zap
+  Zap,
+  Edit2,
+  Save,
+  X
 } from "lucide-react";
 
 import { MetersBarChart } from '@/components/MetersBarChart';
@@ -95,6 +100,33 @@ const Reports: React.FC = () => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
 
   const { isTourOpen, currentStep, steps, startTour, nextStep, prevStep, closeTour } = useTour(REPORTS_TOUR, 'reports_page_tour');
+  const queryClient = useQueryClient();
+
+  const [isEditingMargin, setIsEditingMargin] = useState(false);
+  const [tempMargin, setTempMargin] = useState("");
+
+  // Mutação para atualizar a margem alvo
+  const updateMarginMutation = useMutation({
+    mutationFn: async (newMargin: number) => {
+      if (!session?.user?.id) throw new Error("Usuário não autenticado");
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({ target_profit_margin: newMargin / 100 })
+        .eq('id', session.user.id);
+
+      if (error) throw error;
+      return newMargin;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["comprehensive-report"] });
+      setIsEditingMargin(false);
+      toast.success("Margem de lucro atualizada!");
+    },
+    onError: (err: any) => {
+      toast.error(`Erro ao atualizar: ${err.message}`);
+    }
+  });
 
 
 
@@ -362,9 +394,23 @@ _Gerado por Direct AI_`;
           </Card>
 
           {/* Lucro Estimado (Movido para cima para agrupar co Receita) */}
-          <Card id="reports-profit-card" className="hover:shadow-md transition-all border-l-4 border-l-emerald-600 shadow-sm bg-emerald-50/30 dark:bg-emerald-950/10">
+          <Card id="reports-profit-card" className="hover:shadow-md transition-all border-l-4 border-l-emerald-600 shadow-sm bg-emerald-50/30 dark:bg-emerald-950/10 relative overflow-hidden">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
-              <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Lucro Estimado</CardTitle>
+              <CardTitle className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-2">
+                Lucro Estimado
+                {reportData && !isEditingMargin && (
+                  <button
+                    onClick={() => {
+                      setIsEditingMargin(true);
+                      setTempMargin((reportData.targetProfitMargin * 100).toFixed(0));
+                    }}
+                    className="flex items-center gap-1.5 px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/50 hover:bg-emerald-200 dark:hover:bg-emerald-800 rounded-full transition-all text-[10px] font-bold text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+                  >
+                    <Edit2 className="h-2.5 w-2.5" />
+                    AJUSTAR MARGEM
+                  </button>
+                )}
+              </CardTitle>
               <div className="bg-emerald-100 dark:bg-emerald-900/50 p-1 rounded-full">
                 <DollarSign className="h-3 w-3 text-emerald-700 dark:text-emerald-400" />
               </div>
@@ -373,10 +419,50 @@ _Gerado por Direct AI_`;
               {isLoading ? <Skeleton className="h-8 w-3/4" /> : (
                 <>
                   <div className="text-xl sm:text-2xl font-black text-emerald-700 dark:text-emerald-400">
-                    {formatCurrency(reportData?.totalProfit || 0)}
+                    {formatCurrency(reportData?.estimatedProfit || 0)}
                   </div>
-                  <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                    Margem: <Badge variant="outline" className="h-5 px-1.5 font-bold border-emerald-200 text-emerald-700 bg-emerald-50 dark:bg-transparent dark:text-emerald-400">{reportData?.profitMargin.toFixed(0)}%</Badge>
+                  <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1 min-h-[24px]">
+                    {isEditingMargin ? (
+                      <div className="flex items-center gap-1 animate-in fade-in slide-in-from-left-2 duration-200 bg-white dark:bg-slate-900 p-1 rounded-md border border-emerald-200 dark:border-emerald-800 shadow-sm">
+                        <span className="font-bold text-emerald-700 dark:text-emerald-400 ml-1">Sua Margem:</span>
+                        <div className="relative flex items-center">
+                          <input
+                            type="number"
+                            className="w-14 h-7 px-1 text-center bg-emerald-50 dark:bg-emerald-950 border-none rounded font-black text-emerald-700 dark:text-emerald-400 focus:outline-none focus:ring-0"
+                            value={tempMargin}
+                            onChange={(e) => setTempMargin(e.target.value)}
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') updateMarginMutation.mutate(Number(tempMargin));
+                              if (e.key === 'Escape') setIsEditingMargin(false);
+                            }}
+                          />
+                          <span className="ml-0.5 text-emerald-700/70 font-bold">%</span>
+                        </div>
+                        <button
+                          onClick={() => updateMarginMutation.mutate(Number(tempMargin))}
+                          disabled={updateMarginMutation.isPending}
+                          className="p-1 px-2.5 bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-1 text-[10px] font-bold"
+                        >
+                          {updateMarginMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                          SALVAR
+                        </button>
+                        <button
+                          onClick={() => setIsEditingMargin(false)}
+                          className="p-1 text-slate-400 hover:text-slate-500"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-0.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-emerald-600/70">Calculado sobre</span>
+                          <Badge variant="outline" className="h-5 px-1.5 font-bold border-emerald-200 text-emerald-700 bg-emerald-50 dark:bg-transparent dark:text-emerald-400">{(reportData?.targetProfitMargin ? reportData.targetProfitMargin * 100 : 30).toFixed(0)}%</Badge>
+                          <span className="text-emerald-600/70">de margem</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </>
               )}
