@@ -115,29 +115,8 @@ export const WalletRechargeModal = ({ open, onOpenChange, currentBalance = 0, pr
         setStep('processing');
 
         try {
-            // Se for Frenet, usamos o proxy da Frenet para depósito direto (Wallet API)
-            if (activeProvider === 'frenet' && paymentMethod === 'PIX') {
-                const { data, error } = await supabase.functions.invoke('frenet-proxy', {
-                    body: {
-                        action: 'deposit',
-                        params: {
-                            amount: amount,
-                            payment_method: 'PIX'
-                        }
-                    }
-                });
-
-                if (error) throw error;
-                // A Frenet retorna dados do PIX de forma diferente
-                if (data.PixQrCode || data.PixelPayload) {
-                    setPixData({
-                        payload: data.PixelPayload || data.PixQrCode,
-                        encodedImage: data.PixBase64 // Se vier base64 direto
-                    });
-                    setStep('pix');
-                    return;
-                }
-            }
+            // Sempre usamos o Asaas para recargas, pois ele atualiza o saldo local (SuperFrete ou Frenet) adequadamente.
+            // O webhook do Asaas chama o RPC process_wallet_recharge que cuida da separação de saldos.
 
             // Fallback para Asaas (padrão Direct AI / SuperFrete)
             const { data, error } = await supabase.functions.invoke('asaas-checkout', {

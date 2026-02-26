@@ -119,9 +119,21 @@ export const LogisticsOverview: React.FC = () => {
         }
 
         if (label.provider === 'frenet') {
-            // For Frenet, we try to refresh tracking to get the URL if it's not present
             toast.info("Buscando link da etiqueta Frenet...");
             await handleRefreshTracking(label);
+
+            // Re-check after refresh
+            const { data } = await supabase
+                .from('shipping_labels')
+                .select('pdf_url')
+                .eq('id', label.id)
+                .single();
+
+            if (data?.pdf_url) {
+                window.open(data.pdf_url, '_blank');
+            } else {
+                toast.error("O link da etiqueta ainda não está disponível na Frenet. Tente novamente em alguns segundos.");
+            }
             return;
         }
 

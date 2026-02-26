@@ -232,7 +232,7 @@ export const LogisticsSettings: React.FC = () => {
                                 </DialogHeader>
 
                                 <div className="space-y-6 pt-2">
-                                    <div className="flex gap-4">
+                                    <div className="flex gap-2">
                                         <Button
                                             variant="ghost"
                                             className={`flex-1 h-24 rounded-2xl transition-all flex flex-col gap-2 group ${activeProvider === 'superfrete' ? 'bg-primary/5 border-2 border-primary ring-4 ring-primary/5' : 'hover:bg-muted grayscale opacity-60'}`}
@@ -240,6 +240,21 @@ export const LogisticsSettings: React.FC = () => {
                                         >
                                             <img src="/logo - superfrete.png" alt="SuperFrete" className="h-8 object-contain group-hover:scale-110 transition-transform" />
                                             <span className="text-[10px] font-black uppercase tracking-widest text-primary">SuperFrete</span>
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            className={`flex-1 h-24 rounded-2xl transition-all flex flex-col gap-2 group ${activeProvider === null ? 'bg-primary/5 border-2 border-primary ring-4 ring-primary/5' : 'hover:bg-muted grayscale opacity-60'}`}
+                                            onClick={() => setActiveProvider(null)}
+                                        >
+                                            <div className="flex items-center -space-x-2">
+                                                <div className="h-8 w-8 rounded-full bg-background border border-primary/20 flex items-center justify-center p-1 shadow-sm z-10 transition-transform hover:scale-110">
+                                                    <img src="/logo - superfrete.png" alt="SuperFrete" className="h-full w-full object-contain" />
+                                                </div>
+                                                <div className="h-8 w-8 rounded-full bg-background border border-primary/20 flex items-center justify-center p-1 shadow-sm z-0 transition-transform hover:scale-110">
+                                                    <img src="/logo - fre net.png" alt="Frenet" className="h-full w-full object-contain" />
+                                                </div>
+                                            </div>
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-primary">Ambos</span>
                                         </Button>
                                         <Button
                                             variant="ghost"

@@ -245,10 +245,10 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
 
     // Calcular frete automaticamente se o CEP for preenchido via clientId
     useEffect(() => {
-        if (manualCEP && manualCEP.length === 8 && options.length === 0 && !loading) {
+        if (manualCEP && manualCEP.length === 8 && options.length === 0 && !loading && !labelId) {
             handleCalculate(manualCEP);
         }
-    }, [manualCEP]);
+    }, [manualCEP, labelId]);
 
     const handleSelectClient = (cliente: Cliente) => {
         setSelectedClient(cliente);
@@ -300,10 +300,13 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
         try {
             const token = await getValidToken();
 
-            const provider = companyProfile?.logistics_provider || null;
+            const provider = companyProfile?.logistics_provider &&
+                (companyProfile.logistics_provider === 'superfrete' || companyProfile.logistics_provider === 'frenet')
+                ? companyProfile.logistics_provider
+                : 'both';
 
-            // 1. Promessa para SuperFrete (só se provider for superfrete ou null)
-            const superFretePromise = (!provider || provider === 'superfrete')
+            // 1. Promessa para SuperFrete (se provider 'superfrete' ou 'both')
+            const superFretePromise = (provider === 'both' || provider === 'superfrete')
                 ? fetch(`${SUPABASE_URL}/functions/v1/superfrete-proxy`, {
                     method: 'POST',
                     headers: {
@@ -320,12 +323,16 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
                             services: "1,2,17"
                         }
                     })
-                }).then(res => res.json())
-                    .catch((err: any) => ({ error: true, message: `SuperFrete offline: ${err.message}` }))
+                }).then(async res => {
+                    const data = await res.json();
+                    if (data.error && data.needs_config) return { sf_needs_config: true, ...data };
+                    return data;
+                })
+                    .catch((err: any) => ({ error: true, message: `SuperFrete indisponível: ${err.message}` }))
                 : Promise.resolve(null);
 
-            // 2. Promessa para Frenet (só se provider for frenet ou null)
-            const frenetPromise = (!provider || provider === 'frenet')
+            // 2. Promessa para Frenet (se provider 'frenet' ou 'both')
+            const frenetPromise = (provider === 'both' || provider === 'frenet')
                 ? fetch(`${SUPABASE_URL}/functions/v1/frenet-proxy`, {
                     method: 'POST',
                     headers: {
@@ -348,8 +355,12 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
                             }]
                         }
                     })
-                }).then(res => res.json())
-                    .catch((err: any) => ({ error: true, message: `Frenet offline: ${err.message}` }))
+                }).then(async res => {
+                    const data = await res.json();
+                    if (data.error && data.needs_config) return { fr_needs_config: true, ...data };
+                    return data;
+                })
+                    .catch((err: any) => ({ error: true, message: `Frenet indisponível: ${err.message}` }))
                 : Promise.resolve(null);
 
             // Executar em paralelo
@@ -439,13 +450,27 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
             } else {
                 // Montar mensagem de erro detalhada
                 const errorParts: string[] = [];
-                if (sfData?.error) errorParts.push(`SuperFrete: ${sfData.message || 'erro desconhecido'}`);
-                if (frData?.error) errorParts.push(`Frenet: ${frData.message || 'erro desconhecido'}`);
+                if (sfData?.error) {
+                    if (sfData.sf_needs_config) {
+                        console.log("[ShippingSection] SuperFrete requer configuração");
+                    } else {
+                        errorParts.push(`SuperFrete: ${sfData.message || 'erro desconhecido'}`);
+                    }
+                }
+                if (frData?.error) {
+                    if (frData.fr_needs_config) {
+                        console.log("[ShippingSection] Frenet requer configuração");
+                    } else {
+                        errorParts.push(`Frenet: ${frData.message || 'erro desconhecido'}`);
+                    }
+                }
 
                 if (errorParts.length > 0) {
                     showError(errorParts.join(' | '));
+                } else if ((sfData?.sf_needs_config || !superFretePromise) && (frData?.fr_needs_config || !frenetPromise)) {
+                    showError("Configuração logística pendente. Acesse Configurações > Logística para ativar.");
                 } else {
-                    showError("Nenhuma opção de frete encontrada. Verifique o CEP e dimensões do pacote.");
+                    showError("Nenhuma opção de frete disponível para este destino com as dimensões informadas.");
                 }
             }
         } catch (error: any) {
@@ -474,7 +499,8 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
         }
 
         setLoading(true);
-        const proxy = selectedOption.provider === 'frenet' ? 'frenet-proxy' : 'superfrete-proxy';
+        const providerSlug = selectedOption.provider === 'frenet' ? 'frenet' : 'superfrete';
+        const proxy = `${providerSlug}-proxy`;
 
         try {
             const token = await getValidToken();
@@ -505,7 +531,12 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
                     },
                     invoice_value: valorTotal || 1,
                     service: selectedOption.id,
-                    volumes: [packageDimensions],
+                    volumes: [{
+                        weight: packageDimensions.weight || 0.5,
+                        height: Math.max(packageDimensions.height || 0, 2),
+                        width: Math.max(packageDimensions.width || 0, 11),
+                        length: Math.max(packageDimensions.length || 0, 16)
+                    }],
                     options: { non_commercial: true }
                 }
             };
@@ -550,10 +581,6 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
             // Salvar no pedido
             const { supabase } = await import('@/integrations/supabase/client');
 
-            // Se for cotação direta por checkout, já temos o tracking_code?
-            // A API de cart às vezes retorna tracking_code se já estiver disponível, 
-            // mas geralmente é só após o checkout. No entanto, o label_id é essencial.
-
             await supabase
                 .from('pedidos')
                 .update({
@@ -570,9 +597,6 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
             // PERSISTÊNCIA: Se o CEP ou Endereço do cliente mudou/foi preenchido agora, salva no registro dele
             if (clientId) {
                 const currentCEP = (manualCEP || "").replace(/\D/g, '');
-                const currentAddressSnippet = manualDestAddress;
-
-                // Só atualiza se tiver dados úteis e for diferente do que já tínhamos
                 if (currentCEP && (selectedClient?.cep !== currentCEP || selectedClient?.endereco !== manualDestAddress)) {
                     console.log("[ShippingSection] Atualizando dados de envio do cliente...");
                     await supabase
@@ -609,7 +633,8 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
         }
 
         setLoading(true);
-        const proxy = selectedOption.provider === 'frenet' ? 'frenet-proxy' : 'superfrete-proxy';
+        const providerSlug = selectedOption.provider === 'frenet' ? 'frenet' : 'superfrete';
+        const proxy = `${providerSlug}-proxy`;
 
         try {
             const token = await getValidToken();
@@ -685,7 +710,8 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
                             action: 'tracking',
                             params: {
                                 orders: [labelId],
-                                id: labelId
+                                id: labelId,
+                                order_id: labelId
                             }
                         })
                     });
