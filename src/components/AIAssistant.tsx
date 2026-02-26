@@ -146,7 +146,7 @@ export const AIAssistant = () => {
           intermediateMessages.push({
             role: 'function',
             name: step.tool,
-            content: JSON.stringify(step.result)
+            content: step.result
           });
 
           // Lógica especial de efeitos colaterais no frontend
