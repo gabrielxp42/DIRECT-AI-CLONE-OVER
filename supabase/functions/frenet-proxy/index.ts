@@ -18,6 +18,7 @@ Deno.serve(async (req: Request) => {
     try {
         const body = await req.json().catch(() => ({}));
         const { action, params, isSandbox = false } = body;
+        console.log(`[Frenet Proxy] Action: ${action}`, JSON.stringify({ params, isSandbox }));
 
         // 1. Authenticate User
         const authHeader = req.headers.get('Authorization')!;
@@ -33,7 +34,7 @@ Deno.serve(async (req: Request) => {
         // 2. Get User Token and Provider Details
         const { data: profile, error: profileError } = await supabase
             .from('profiles')
-            .select('frenet_token, frenet_partner_token, email, wallet_balance, frenet_access_key, frenet_access_password')
+            .select('frenet_token, frenet_partner_token, email, wallet_balance, frenet_balance, frenet_access_key, frenet_access_password')
             .eq('id', user.id)
             .single();
 
@@ -43,12 +44,11 @@ Deno.serve(async (req: Request) => {
         if (!token) {
             token = Deno.env.get('FRENET_MASTER_TOKEN'); // Fallback to master if admin configured
             if (!token) {
-                // Return a structured error so the frontend knows to ask for credentials
                 return new Response(JSON.stringify({
                     error: true,
                     message: "Configuração da Frenet não encontrada.",
                     needs_config: true
-                }), { status: 200, headers: corsHeaders });
+                }), { status: 401, headers: corsHeaders });
             }
         }
 
@@ -71,13 +71,12 @@ Deno.serve(async (req: Request) => {
             const requestBody = {
                 SellerCEP: params.seller_cep || params.SellerCEP,
                 RecipientCEP: params.recipient_cep || params.RecipientCEP,
-                ShipmentInvoiceValue: params.ShipmentInvoiceValue || params.invoice_value || "100",
-                ShippingItemArray: params.items || params.ShippingItemArray || params.ShipmentItemArray || [],
+                ShipmentInvoiceValue: params.ShipmentInvoiceValue || params.invoice_value || "0",
+                ShippingItemArray: params.ShippingItemArray || params.ShipmentItemArray || params.items || [],
                 RecipientCountry: "BR"
             };
 
-            console.log("[frenet-proxy] Calculate request:", JSON.stringify(requestBody));
-
+            console.log("[Frenet Proxy] Requesting /shipping/quote with:", JSON.stringify(requestBody));
             const response = await fetch(`${baseUrl}/shipping/quote`, {
                 method: 'POST',
                 headers: commonHeaders,
@@ -85,14 +84,15 @@ Deno.serve(async (req: Request) => {
             });
 
             const result = await response.json();
-            console.log("[frenet-proxy] Calculate response status:", response.status);
-            console.log("[frenet-proxy] Calculate response:", JSON.stringify(result).substring(0, 500));
-            return new Response(JSON.stringify(result), { headers: corsHeaders, status: 200 });
+            console.log("[Frenet Proxy] Response from /shipping/quote:", JSON.stringify(result));
+            return new Response(JSON.stringify(result), { headers: corsHeaders, status: response.ok ? 200 : 400 });
 
         } else if (action === 'cart') {
-            // Frenet order creation usually involves a specific endpoint for purchasing or creating shipping orders
-            // Note: Different partners use different Frenet endpoints (some use /shipping/order)
-            // We use the standard shipping purchase logic.
+            // In Frenet, we usually purchase directly. 
+            // To maintain compatibility with the two-step UI (cart -> checkout),
+            // we'll perform the purchase here if it's the final intent, 
+            // or just validate if needed.
+
             const response = await fetch(`${baseUrl}/shipping/purchase`, {
                 method: 'POST',
                 headers: commonHeaders,
@@ -126,7 +126,6 @@ Deno.serve(async (req: Request) => {
                             metadata: { action, result, pedido_id: params.pedido_id }
                         });
 
-                    // 4. Persistence: Create record in shipping_labels
                     const frenetLabelId = result.ShippingServiceId || result.ServiceCode || `FRN-${Date.now()}`;
                     await adminClient
                         .from('shipping_labels')
@@ -143,7 +142,6 @@ Deno.serve(async (req: Request) => {
                             provider: 'frenet'
                         });
 
-                    // 5. Update Pedido if linked
                     if (params.pedido_id) {
                         await adminClient
                             .from('pedidos')
@@ -157,43 +155,57 @@ Deno.serve(async (req: Request) => {
                 }
             }
 
-            return new Response(JSON.stringify(result), { headers: corsHeaders, status: 200 });
+            return new Response(JSON.stringify(result), { headers: corsHeaders, status: response.ok ? 200 : 400 });
+
+        } else if (action === 'checkout') {
+            // Alias for finalizing or retrieving a previously created 'cart' purchase
+            // In the current Frenet flow, 'cart' already buys it. 
+            // This handler ensures the frontend doesn't break and can retrieve the PDF if it missed it.
+            const adminClient = createClient(
+                Deno.env.get('SUPABASE_URL') ?? '',
+                Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+            );
+
+            const { data: label } = await adminClient
+                .from('shipping_labels')
+                .select('*')
+                .eq('external_id', String(params.id))
+                .eq('user_id', user.id)
+                .maybeSingle();
+
+            if (label) {
+                return new Response(JSON.stringify({
+                    success: true,
+                    status: 'released',
+                    pdf: label.pdf_url,
+                    url: label.pdf_url,
+                    tracking_code: label.tracking_code,
+                    id: label.external_id
+                }), { headers: corsHeaders, status: 200 });
+            }
+
+            return new Response(JSON.stringify({
+                error: true,
+                message: "Etiqueta não encontrada ou ainda não emitida."
+            }), { headers: corsHeaders, status: 404 });
 
         } else if (action === 'balance') {
-            console.log("[frenet-proxy] Fetching wallet balance for:", profile.email);
-            console.log("[frenet-proxy] Using baseUrl:", baseUrl);
-            console.log("[frenet-proxy] Has partner token:", !!profile.frenet_partner_token);
-
-            const walletUrl = `${baseUrl}/wallet`;
-            console.log("[frenet-proxy] Full wallet URL:", walletUrl);
-
-            const response = await fetch(walletUrl, {
+            const response = await fetch(`${baseUrl}/wallet`, {
                 method: 'GET',
                 headers: commonHeaders
             });
 
-            console.log("[frenet-proxy] Wallet response status:", response.status);
-
-            // Handle non-JSON responses (HTML 404 pages from Frenet)
             const contentType = response.headers.get('content-type') || '';
             if (!contentType.includes('application/json')) {
-                const rawBody = await response.text();
-                console.log("[frenet-proxy] NON-JSON response! Content-Type:", contentType);
-                console.log("[frenet-proxy] Raw body (first 300 chars):", rawBody.substring(0, 300));
                 return new Response(JSON.stringify({
                     error: true,
-                    message: `Frenet retornou status ${response.status}. Verifique se o Token e o Token de Parceiro estão configurados corretamente.`,
-                    debug: { status: response.status, contentType, hasPartnerToken: !!profile.frenet_partner_token }
+                    message: "Dificuldade ao conectar com a carteira Frenet. Verifique suas credenciais.",
+                    details: { status: response.status }
                 }), { headers: corsHeaders, status: 200 });
             }
 
             const result = await response.json();
-            console.log("[frenet-proxy] Wallet full response:", JSON.stringify(result));
-
-            // Frenet returns: Balance, BlockedBalance, AvailableBalanceForDeposit, LabelLimit, WalletLimit
             const balanceToSync = typeof result.Balance === 'number' ? result.Balance : undefined;
-
-            console.log("[frenet-proxy] Balance to sync:", balanceToSync);
 
             if (response.ok && !result.error && typeof balanceToSync === 'number') {
                 const adminClient = createClient(
@@ -204,13 +216,11 @@ Deno.serve(async (req: Request) => {
                     .from('profiles')
                     .update({ frenet_balance: balanceToSync })
                     .eq('id', user.id);
-                console.log("[frenet-proxy] Balance synced to DB:", balanceToSync);
             }
 
             return new Response(JSON.stringify(result), { headers: corsHeaders, status: 200 });
 
         } else if (action === 'deposit') {
-            // params: { amount: number, payment_method: 'PIX' | 'BOLETO' }
             const response = await fetch(`${baseUrl}/wallet/deposit`, {
                 method: 'POST',
                 headers: commonHeaders,
@@ -221,7 +231,7 @@ Deno.serve(async (req: Request) => {
             });
 
             const result = await response.json();
-            return new Response(JSON.stringify(result), { headers: corsHeaders, status: 200 });
+            return new Response(JSON.stringify(result), { headers: corsHeaders, status: response.ok ? 200 : 400 });
 
         } else if (action === 'tracking') {
             const adminClient = createClient(
@@ -232,7 +242,6 @@ Deno.serve(async (req: Request) => {
             let serviceCode = params.service_code;
             let trackingNum = params.tracking_num;
 
-            // If only id is provided, fetch from DB
             if (params.id && (!serviceCode || !trackingNum)) {
                 const { data: label } = await adminClient
                     .from('shipping_labels')
@@ -241,15 +250,13 @@ Deno.serve(async (req: Request) => {
                     .single();
 
                 if (label) {
-                    // Frenet specifically needs service code for tracking info in some cases, 
-                    // but often the PDF URL is already enough. 
-                    // If we have pdf_url, we can return it directly.
-                    if (label.pdf_url) {
+                    if (label.pdf_url && !params.force_refresh) {
                         return new Response(JSON.stringify({
                             success: true,
                             url: label.pdf_url,
                             pdf: label.pdf_url,
-                            tracking_code: label.tracking_code
+                            tracking_code: label.tracking_code,
+                            status: 'released'
                         }), { headers: corsHeaders, status: 200 });
                     }
                     serviceCode = label.external_id;
@@ -260,11 +267,11 @@ Deno.serve(async (req: Request) => {
             if (!serviceCode || !trackingNum) {
                 return new Response(JSON.stringify({
                     error: true,
-                    message: "Informações de rastreio (ServiceCode/TrackingNumber) não encontradas."
-                }), { status: 200, headers: corsHeaders });
+                    message: "Informações de rastreio não encontradas."
+                }), { status: 400, headers: corsHeaders });
             }
 
-            const response = await fetch(`${baseUrl}/tracking/trackinginfo`, {
+            const response = await fetch(`${baseUrl}/shipping/trackinginfo`, {
                 method: 'POST',
                 headers: commonHeaders,
                 body: JSON.stringify({
@@ -286,13 +293,13 @@ Deno.serve(async (req: Request) => {
             }), { headers: corsHeaders, status: 200 });
 
         } else {
-            throw new Error(`Ação '${action}' não implementada para Frenet.`);
+            throw new Error(`Ação '${action}' não implementada.`);
         }
 
     } catch (error: any) {
         return new Response(JSON.stringify({
             error: true,
             message: error.message || "Erro interno no servidor Frenet Proxy"
-        }), { status: 200, headers: corsHeaders });
+        }), { status: error.message === "Unauthorized" ? 401 : 400, headers: corsHeaders });
     }
 });

@@ -73,8 +73,23 @@ export const LogisticsSettings: React.FC = () => {
         }
     }, [profileData]);
 
-    // Frenet balance sync removed - requires x-partner-token (Frenet partnership)
-    // Users should check their balance directly on painel.frenet.com.br
+    const handleSyncFrenetBalance = async () => {
+        const loading = toast.loading("Sincronizando saldo Frenet...");
+        try {
+            const { data, error } = await supabase.functions.invoke('frenet-proxy', {
+                body: { action: 'balance' }
+            });
+
+            if (error) throw error;
+            if (data.error) throw new Error(data.message || "Erro na Frenet");
+
+            toast.success("Saldo sincronizado!", { id: loading });
+            queryClient.invalidateQueries({ queryKey: ['profile_logistics_settings'] });
+        } catch (error: any) {
+            console.error("Erro sync Frenet:", error);
+            toast.error("Erro ao sincronizar: " + error.message, { id: loading });
+        }
+    };
 
     const handleSaveProviderSettings = async () => {
         setSaving(true);
@@ -182,15 +197,13 @@ export const LogisticsSettings: React.FC = () => {
                                     </p>
                                     <div className="h-4 w-[1px] bg-border" />
                                     {activeProvider === 'frenet' ? (
-                                        <a
-                                            href="https://painel.frenet.com.br"
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="text-[10px] font-black uppercase text-primary tracking-tighter italic flex items-center gap-1 hover:underline cursor-pointer"
+                                        <button
+                                            onClick={handleSyncFrenetBalance}
+                                            className="text-[10px] font-black uppercase text-primary tracking-tighter italic flex items-center gap-1 hover:underline cursor-pointer group"
                                         >
-                                            <ExternalLink className="h-3 w-3" />
-                                            Ver saldo no Painel Frenet
-                                        </a>
+                                            <RefreshCw className="h-3 w-3 group-hover:rotate-180 transition-transform duration-500" />
+                                            Saldo: {formatCurrency(companyProfile?.frenet_balance || 0)} (Sync)
+                                        </button>
                                     ) : (
                                         <p className="text-[10px] font-black uppercase text-primary tracking-tighter italic flex items-center gap-1">
                                             Saldo SuperFrete: {formatCurrency(companyProfile?.wallet_balance || 0)}

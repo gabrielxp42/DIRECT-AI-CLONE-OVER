@@ -19,6 +19,27 @@ window.addEventListener('error', (event) => {
   }
 });
 
+// SISTEMA DE ATUALIZAÇAO FORÇADA (PREVINE CACHE ANTIGO NO PWA)
+const CURRENT_VERSION = import.meta.env.VITE_APP_VERSION;
+const LAST_VERSION = localStorage.getItem('app_version');
+
+if (CURRENT_VERSION && LAST_VERSION && CURRENT_VERSION !== LAST_VERSION) {
+  console.log(`[Update] Nova versão detectada: ${CURRENT_VERSION}. Limpando cache e recarregando...`);
+  localStorage.setItem('app_version', CURRENT_VERSION);
+  // Limpar caches específicos se necessário, ou apenas recarregar
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then(registrations => {
+      for (let registration of registrations) {
+        registration.update();
+      }
+    });
+  }
+  // Pequeno delay para garantir que o SW receba o sinal antes do reload
+  setTimeout(() => window.location.reload(), 500);
+} else if (CURRENT_VERSION) {
+  localStorage.setItem('app_version', CURRENT_VERSION);
+}
+
 // CRÍTICO: Forçar a remoção de quaisquer Service Workers ativos em desenvolvimento
 // para evitar que cache antigo interfira com as credenciais novas.
 if (import.meta.env.DEV && 'serviceWorker' in navigator) {

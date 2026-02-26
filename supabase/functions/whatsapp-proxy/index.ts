@@ -17,8 +17,20 @@ Deno.serve(async (req: Request) => {
         if (userError || !user) throw new Error("Unauthorized");
 
         const supabaseAdmin = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '');
-        const { data: adminProfile } = await supabaseAdmin.from('profiles').select('whatsapp_api_url, whatsapp_api_key').eq('is_admin', true).limit(1).single();
-        if (!adminProfile) throw new Error("System API not configured");
+        // Busca um admin que tenha as configurações da Evolution API preenchidas
+        const { data: adminProfile } = await supabaseAdmin
+            .from('profiles')
+            .select('whatsapp_api_url, whatsapp_api_key')
+            .eq('is_admin', true)
+            .not('whatsapp_api_url', 'is', null)
+            .not('whatsapp_api_key', 'is', null)
+            .limit(1)
+            .maybeSingle();
+
+        if (!adminProfile?.whatsapp_api_url || !adminProfile?.whatsapp_api_key) {
+            console.error("[Proxy] Configurações da Evolution API não encontradas em nenhum admin.");
+            throw new Error("Sistema WhatsApp não configurado. O administrador precisa configurar a URL e API Key nas Configurações.");
+        }
 
         const EVOLUTION_URL = adminProfile.whatsapp_api_url.replace(/\/$/, "");
         const EVOLUTION_KEY = adminProfile.whatsapp_api_key;
@@ -55,10 +67,15 @@ Deno.serve(async (req: Request) => {
                 token: user.id.replace(/-/g, ""),
                 qrcode: true,
                 integration: "WHATSAPP-BAILEYS",
-                webhook: webhookUrl,
-                webhook_by_events: true,
-                events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE", "CHATS_SET", "CONTACTS_SET"]
+                webhook: {
+                    url: webhookUrl,
+                    byEvents: true,
+                    base64: false,
+                    events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE", "CHATS_SET", "CONTACTS_SET"]
+                }
             };
+
+            console.log(`[Proxy] Creating instance: ${instanceId}`);
 
             let resp = await fetchWithTimeout(`${EVOLUTION_URL}/instance/create`, {
                 method: 'POST',
@@ -68,17 +85,33 @@ Deno.serve(async (req: Request) => {
 
             let data = await safeJson(resp);
 
-            // Se já existe, apenas tenta conectar
             if (resp.status === 403 || resp.status === 409 || data.error) {
-                const conn = await fetchWithTimeout(`${EVOLUTION_URL}/instance/connect/${instanceId}`, { headers: { 'apikey': EVOLUTION_KEY } });
-                data = await safeJson(conn);
-            }
-            result = data;
+                console.log(`[Proxy] Instance might exist (${resp.status}), checking state before connect...`);
+                // Primeiro vê se já está conectada
+                const stateResp = await fetchWithTimeout(`${EVOLUTION_URL}/instance/connectionState/${instanceId}`, { headers: { 'apikey': EVOLUTION_KEY } }).catch(() => null);
+                const stateData = stateResp?.ok ? await stateResp.json() : null;
+                const rawState = stateData?.instance?.state || stateData?.instance?.status;
 
-            // Normalize base64 QR
-            if (result.qrcode?.base64 || result.base64) {
-                const b64 = result.qrcode?.base64 || result.base64;
-                result.qrcode = { base64: b64.startsWith('data:image') ? b64 : `data:image/png;base64,${b64}`, count: 1 };
+                if (rawState === 'open' || rawState === 'CONNECTED') {
+                    console.log(`[Proxy] Instance ${instanceId} is already OPEN.`);
+                    result = { instance: { state: 'open' }, status: 'connected' };
+                } else {
+                    console.log(`[Proxy] Instance ${instanceId} is NOT open (${rawState}), attempting /connect...`);
+                    const conn = await fetchWithTimeout(`${EVOLUTION_URL}/instance/connect/${instanceId}`, { headers: { 'apikey': EVOLUTION_KEY } });
+                    data = await safeJson(conn);
+                    result = data;
+                }
+            } else {
+                result = data;
+            }
+
+            // Normalize base64 QR (Evolution v2 structure)
+            const b64 = result.qrcode?.base64 || result.base64 || result.code;
+            if (b64) {
+                result.qrcode = {
+                    base64: b64.startsWith('data:image') ? b64 : `data:image/png;base64,${b64}`,
+                    count: 1
+                };
             }
 
             const isConnected = (result.status === 'connected' || result.instance?.state === 'open' || result.instance?.status === 'open');
@@ -100,10 +133,10 @@ Deno.serve(async (req: Request) => {
                     const stateData = await stateResp.json();
                     const rawState = stateData.instance?.state || stateData.instance?.status;
 
-                    if (rawState === 'open') {
+                    if (rawState === 'open' || rawState === 'CONNECTED') {
                         await supabaseAdmin.from('profiles').update({ whatsapp_status: 'connected', whatsapp_qr_cache: null }).eq('id', user.id);
                         result = { connected: true, state: 'open' };
-                    } else if (rawState === 'connecting') {
+                    } else if (rawState === 'connecting' || rawState === 'CONNECTING') {
                         // MANTÉM O HANDSHAKE: Não chama /connect. Apenas retorna o cache.
                         result = { connected: false, state: 'connecting', qrcode: profile.whatsapp_qr_cache };
                     } else {
@@ -124,9 +157,16 @@ Deno.serve(async (req: Request) => {
         } else if (body.action === 'delete') {
             const { data: p } = await supabaseAdmin.from('profiles').select('whatsapp_instance_id').eq('id', user.id).single();
             if (p?.whatsapp_instance_id) {
+                console.log(`[Proxy] Deep cleaning instance: ${p.whatsapp_instance_id}`);
+                // v2: Tenta logout e depois delete
                 await fetchWithTimeout(`${EVOLUTION_URL}/instance/logout/${p.whatsapp_instance_id}`, { method: 'DELETE', headers: { 'apikey': EVOLUTION_KEY } }).catch(() => { });
                 await fetchWithTimeout(`${EVOLUTION_URL}/instance/delete/${p.whatsapp_instance_id}`, { method: 'DELETE', headers: { 'apikey': EVOLUTION_KEY } }).catch(() => { });
-                await supabaseAdmin.from('profiles').update({ whatsapp_instance_id: null, whatsapp_status: 'disconnected', whatsapp_qr_cache: null }).eq('id', user.id);
+
+                await supabaseAdmin.from('profiles').update({
+                    whatsapp_instance_id: null,
+                    whatsapp_status: 'disconnected',
+                    whatsapp_qr_cache: null
+                }).eq('id', user.id);
             }
             result = { success: true };
         } else if (body.action === 'send-text') {

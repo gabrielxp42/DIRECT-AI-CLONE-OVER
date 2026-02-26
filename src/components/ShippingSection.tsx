@@ -202,10 +202,6 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
         if (clientAddress && !manualCEP) {
             const cep = extractCEP(clientAddress);
             setManualCEP(cep);
-            // Se o CEP foi extraído automaticamente, tenta calcular direto
-            if (cep.length === 8) {
-                setTimeout(() => handleCalculate(cep), 500);
-            }
         }
     }, [clientAddress]);
 
@@ -262,7 +258,6 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
             const cep = extractCEP(cliente.endereco);
             if (cep) {
                 setManualCEP(cep);
-                handleCalculate(cep);
             }
 
             // Tenta quebrar o endereço se possível (assumindo formato Rua, Numero - Bairro, Cidade - UF)
@@ -290,7 +285,15 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
         const originCEP = companyProfile?.company_address_zip?.replace(/\D/g, '') || "04571010";
         const destinationCEP = cepToUse.replace(/\D/g, '');
 
-        console.log("[ShippingSection] Calculando frete multi-provedor:", { originCEP, destinationCEP });
+        // Validação de dimensões mínimas
+        const validatedPackage = {
+            weight: packageDimensions.weight || 0.5,
+            height: Math.max(packageDimensions.height || 0, 2),
+            width: Math.max(packageDimensions.width || 0, 11),
+            length: Math.max(packageDimensions.length || 0, 16)
+        };
+
+        console.log("[ShippingSection] Calculando frete multi-provedor:", { originCEP, destinationCEP, validatedPackage });
         setLoading(true);
         setOptions([]);
 
@@ -313,7 +316,7 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
                         params: {
                             from: { postal_code: originCEP },
                             to: { postal_code: destinationCEP },
-                            package: packageDimensions,
+                            package: validatedPackage,
                             services: "1,2,17"
                         }
                     })
@@ -335,11 +338,12 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
                         params: {
                             seller_cep: originCEP,
                             recipient_cep: destinationCEP,
+                            invoice_value: valorTotal || 0,
                             items: [{
-                                Weight: packageDimensions.weight,
-                                Height: packageDimensions.height,
-                                Width: packageDimensions.width,
-                                Length: packageDimensions.length,
+                                Weight: validatedPackage.weight,
+                                Height: validatedPackage.height,
+                                Width: validatedPackage.width,
+                                Length: validatedPackage.length,
                                 Quantity: 1
                             }]
                         }
@@ -499,6 +503,7 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
                         state_abbr: manualDestState || "UF",
                         complement: manualDestComplement
                     },
+                    invoice_value: valorTotal || 1,
                     service: selectedOption.id,
                     volumes: [packageDimensions],
                     options: { non_commercial: true }
@@ -669,7 +674,7 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
 
                 // Tenta buscar o link da etiqueta/rastreio para registrar
                 try {
-                    const trackingResponse = await fetch(`${SUPABASE_URL}/functions/v1/superfrete-proxy`, {
+                    const trackingResponse = await fetch(`${SUPABASE_URL}/functions/v1/${proxy}`, {
                         method: 'POST',
                         headers: {
                             'apikey': SUPABASE_ANON_KEY,
@@ -678,7 +683,10 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
                         },
                         body: JSON.stringify({
                             action: 'tracking',
-                            params: { orders: [labelId] }
+                            params: {
+                                orders: [labelId],
+                                id: labelId
+                            }
                         })
                     });
                     let trackingData;

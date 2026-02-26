@@ -55,7 +55,8 @@ export const LogisticsOverview: React.FC = () => {
     const [localTrackingUpdates, setLocalTrackingUpdates] = React.useState<Record<string, string>>({});
     const [isAutoSyncing, setIsAutoSyncing] = React.useState(false);
     const syncQueueRef = React.useRef<Set<string>>(new Set());
-    const isSyncingRef = React.useRef(false); // Lock de execução do robô
+    const isSyncingRef = React.useRef(false);
+    const lastSyncAttemptRef = React.useRef<Record<string, number>>({}); // Timestamp do último sync por label
 
     const { data: labels, isLoading: loadingLabels, refetch: refetchLabels } = useQuery({
         queryKey: ['shipping_labels_all', userId],
@@ -114,6 +115,13 @@ export const LogisticsOverview: React.FC = () => {
     const handleDownloadLabel = async (label: ShippingLabel) => {
         if (label.pdf_url) {
             window.open(label.pdf_url, '_blank');
+            return;
+        }
+
+        if (label.provider === 'frenet') {
+            // For Frenet, we try to refresh tracking to get the URL if it's not present
+            toast.info("Buscando link da etiqueta Frenet...");
+            await handleRefreshTracking(label);
             return;
         }
 
@@ -289,17 +297,24 @@ export const LogisticsOverview: React.FC = () => {
     React.useEffect(() => {
         if (!labels || labels.length === 0 || isAutoSyncing || isSyncingRef.current) return;
 
-        // Limpar o cache de sincronização a cada 30 minutos para permitir novas tentativas automáticas
-        const clearTimer = setInterval(() => {
+        // Limpar o cache de sincronização a cada 30 minutos
+        const interval = 1000 * 60 * 30;
+        const lastClear = (window as any)._lastSyncClear || 0;
+        if (Date.now() - lastClear > interval) {
             console.log("🔄 [Logistics] Limpando fila de sync para nova rodada automática...");
             syncQueueRef.current.clear();
-            queryClient.invalidateQueries({ queryKey: ['shipping_labels_all'] });
-        }, 1000 * 60 * 30);
+            (window as any)._lastSyncClear = Date.now();
+        }
 
-        const labelsToSync = labels.filter(label =>
-            (!label.tracking_code || label.tracking_code.startsWith('ADI')) &&
-            !syncQueueRef.current.has(label.id)
-        ).slice(0, 5); // Tentar 5 por vez
+        const now = Date.now();
+        const labelsToSync = labels.filter(label => {
+            const hasNoTracking = !label.tracking_code || label.tracking_code.startsWith('ADI');
+            const inQueue = syncQueueRef.current.has(label.id);
+            const lastAttempt = lastSyncAttemptRef.current[label.id] || 0;
+            const isCooldownOver = now - lastAttempt > 1000 * 60 * 2; // 2 minutos de cooldown
+
+            return hasNoTracking && !inQueue && isCooldownOver;
+        }).slice(0, 5); // Tentar 5 por vez
 
         if (labelsToSync.length > 0) {
             const runAutoSync = async () => {
@@ -312,6 +327,7 @@ export const LogisticsOverview: React.FC = () => {
                 try {
                     for (const label of labelsToSync) {
                         syncQueueRef.current.add(label.id);
+                        lastSyncAttemptRef.current[label.id] = Date.now();
                         await handleRefreshTracking(label, true);
                         // Pausa entre chamadas para evitar Rate Limit
                         await new Promise(r => setTimeout(r, 1500));
@@ -327,7 +343,7 @@ export const LogisticsOverview: React.FC = () => {
             runAutoSync();
         }
 
-        return () => clearInterval(clearTimer);
+        return () => { };
     }, [labels, isAutoSyncing, queryClient]);
 
     return (
@@ -498,13 +514,18 @@ export const LogisticsOverview: React.FC = () => {
                                                                             <button
                                                                                 onClick={() => handleRefreshTracking(label)}
                                                                                 className="p-1.5 text-muted-foreground hover:text-primary transition-colors rounded-md hover:bg-background"
-                                                                                title="Sincronizar com SuperFrete"
+                                                                                title={`Sincronizar com ${label.provider === 'frenet' ? 'Frenet' : 'SuperFrete'}`}
                                                                             >
                                                                                 <Navigation className="h-3.5 w-3.5" />
                                                                             </button>
                                                                             <div className="w-[1px] h-3 bg-border mx-0.5" />
                                                                             <button
-                                                                                onClick={() => window.open(`https://rastreamento.correios.com.br/app/index.php?objeto=${displayTracking}`, '_blank')}
+                                                                                onClick={() => {
+                                                                                    const trackingUrl = label.provider === 'frenet'
+                                                                                        ? `https://rastreamento.correios.com.br/app/index.php?objeto=${displayTracking}`
+                                                                                        : `https://rastreamento.correios.com.br/app/index.php?objeto=${displayTracking}`;
+                                                                                    window.open(trackingUrl, '_blank');
+                                                                                }}
                                                                                 className="p-1.5 text-muted-foreground hover:text-blue-500 transition-colors rounded-md hover:bg-background"
                                                                                 title="Rastrear nos Correios"
                                                                             >

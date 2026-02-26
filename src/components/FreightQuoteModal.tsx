@@ -58,6 +58,14 @@ export const FreightQuoteModal = ({ open, onOpenChange, onSelectQuote, defaultCE
         const provider = companyProfile?.logistics_provider || null;
         const proxyUrl = provider === 'frenet' ? 'frenet-proxy' : 'superfrete-proxy';
 
+        // Validação de dimensões mínimas para evitar erro na Frenet
+        const validatedDimensions = {
+            weight: dimensions.weight || 0.1,
+            height: Math.max(dimensions.height || 0, 2),
+            width: Math.max(dimensions.width || 0, 11),
+            length: Math.max(dimensions.length || 0, 16)
+        };
+
         setLoading(true);
         try {
             const token = await getValidToken();
@@ -66,18 +74,24 @@ export const FreightQuoteModal = ({ open, onOpenChange, onSelectQuote, defaultCE
                 params: provider === 'frenet' ? {
                     SellerCEP: originCEP,
                     RecipientCEP: destinationCEP,
+                    ShipmentInvoiceValue: "0",
                     ShipmentItemArray: [{
-                        Weight: dimensions.weight,
-                        Height: dimensions.height,
-                        Width: dimensions.width,
-                        Length: dimensions.length,
+                        Weight: validatedDimensions.weight,
+                        Height: validatedDimensions.height,
+                        Width: validatedDimensions.width,
+                        Length: validatedDimensions.length,
                         Quantity: 1
                     }],
                     RecipientCountry: "BR"
                 } : {
                     from: { postal_code: originCEP },
                     to: { postal_code: destinationCEP },
-                    package: dimensions,
+                    params: {
+                        weight: validatedDimensions.weight,
+                        height: validatedDimensions.height,
+                        width: validatedDimensions.width,
+                        length: validatedDimensions.length,
+                    },
                     services: "1,2,17" // PAC, SEDEX, Mini Envios
                 }
             };

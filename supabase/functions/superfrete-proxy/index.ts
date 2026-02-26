@@ -64,6 +64,16 @@ Deno.serve(async (req: Request) => {
         switch (action) {
             case 'calculate':
                 endpoint = "/api/v0/calculator";
+                // Superfrete expects package: { ... } but the UI sends params: { ... } or package: { ... }
+                // Let's normalize it here to be safe
+                const calcPackage = params.package || params.params || params;
+                requestParams = {
+                    from: params.from || { postal_code: params.originCEP },
+                    to: params.to || { postal_code: params.destinationCEP },
+                    package: calcPackage,
+                    services: params.services || "1,2,17"
+                };
+                console.log("[Superfrete Proxy] Normalized Calculate Payload:", JSON.stringify(requestParams));
                 break;
             case 'cart':
                 endpoint = "/api/v0/cart";

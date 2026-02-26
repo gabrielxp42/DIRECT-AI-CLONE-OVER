@@ -94,15 +94,17 @@ export function WhatsAppConnection() {
             // Prioritize the existing instance ID from the database if available
             const savedInstanceId = profile?.whatsapp_instance_id;
 
-            // Fallback generation logic - matching the proxy's sanitization pattern
-            const generatedId = (profile?.company_name || `user_${profile?.id?.substring(0, 8)}`)
+            // Fallback generation logic - UNIQUE per user to avoid clashes (company + short id)
+            const cleanName = (profile?.company_name || 'user')
                 .normalize("NFD")
                 .replace(/[\u0300-\u036f]/g, "")
                 .toLowerCase()
-                .replace(/[^a-z0-9_]/g, "_")
-                .replace(/^_+|_+$/g, "");
+                .replace(/[^a-z0-9]/g, "")
+                .substring(0, 15);
 
-            const instanceId = savedInstanceId || generatedId;
+            const generatedId = `${cleanName}${profile?.id?.substring(0, 4)}`;
+
+            const instanceId = force ? generatedId : (savedInstanceId || generatedId);
 
             const { data, error } = await supabase.functions.invoke('whatsapp-proxy', {
                 body: { action: 'create', instanceName: instanceId, force }
@@ -132,9 +134,12 @@ export function WhatsAppConnection() {
                     });
                 } else {
                     let errorMsg = "Falha ao obter QR Code";
-                    if (typeof data?.message === 'string') errorMsg = data.message;
-                    else if (typeof data?.error === 'string') errorMsg = data.error;
-                    else errorMsg = JSON.stringify(data);
+                    if (data?.message && typeof data.message === 'string') errorMsg = data.message;
+                    else if (data?.error && typeof data.error === 'string') errorMsg = data.error;
+                    else if (data?.error?.message) errorMsg = data.error.message;
+                    else if (typeof data === 'string' && data.length > 3) errorMsg = data;
+                    else errorMsg = "A API da Evolution recusou a criação. Tente o botão 'Reset Total' abaixo para limpar a conta.";
+
                     toast.error(`Não foi possível obter o QR Code.`, {
                         description: errorMsg
                     });
@@ -205,8 +210,19 @@ export function WhatsAppConnection() {
             });
             if (error) throw error;
 
+            // Explicit local cleanup
             setStatus('disconnected');
             setQrCode(null);
+
+            // Sync with profile if possible
+            if (profile?.id) {
+                await supabase.from('profiles').update({
+                    whatsapp_status: 'disconnected',
+                    whatsapp_qr_cache: null,
+                    whatsapp_instance_id: null
+                }).eq('id', profile.id);
+            }
+
             toast.success("Desconectado com sucesso.");
         } catch (error: any) {
             toast.error("Erro ao desconectar.");
@@ -444,6 +460,15 @@ export function WhatsAppConnection() {
                                             )}
                                         </Button>
 
+                                        {!loading && status !== 'connecting' && (
+                                            <button
+                                                onClick={() => handleConnect(true)}
+                                                className="text-[9px] text-zinc-500 hover:text-red-500 uppercase font-bold tracking-tighter transition-colors mt-4 flex items-center gap-2"
+                                            >
+                                                <RefreshCcw className="w-3 h-3" />
+                                                Instância travada? Tentar Reset Total
+                                            </button>
+                                        )}
                                         {status === 'connecting' && (
                                             <div className="flex flex-col items-center space-y-2">
                                                 <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest italic animate-pulse">
