@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { MessageSquare, Send, X, Bot, Sparkles, Mic, Paperclip, Share2, Calculator, Settings, Volume2, Maximize2, Minimize2, Image as ImageIcon, User, Check, ShoppingBag, Loader2, LayoutGrid, CheckCircle2, Zap } from 'lucide-react';
+import { MessageSquare, Send, X, Bot, Sparkles, Mic, Paperclip, Share2, Calculator, Settings, Volume2, Maximize2, Minimize2, Image as ImageIcon, User, Check, ShoppingBag, Loader2, LayoutGrid, CheckCircle2, Zap, MessageCircle, ExternalLink } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { getOpenAIClient, type ChatMessage } from '@/integrations/openai/client';
 import { openAIFunctions, callOpenAIFunction } from '@/integrations/openai/aiTools';
@@ -321,224 +321,262 @@ export const AIAssistant = () => {
                 ) : (
                   <>
                     <CardContent className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-white/10 backdrop-blur-40">
-                      {messages.map((msg, idx) => (
-                        <div key={idx} className={cn("flex flex-col gap-2", msg.role === 'user' ? "items-end" : "items-start")}>
-                          {msg.role === 'user' ? (
-                            <div className="max-w-[85%] p-3 rounded-2xl bg-primary text-primary-foreground font-bold rounded-br-none shadow-lg animate-in slide-in-from-right-4 fade-in duration-300">
-                              <div className="flex items-start gap-2">
-                                <div className="flex-1">
-                                  {msg.audioUrl ? (
-                                    <AudioMessageDisplay
-                                      audioUrl={typeof msg.audioUrl === 'string' ? msg.audioUrl : ''}
-                                      transcription={typeof msg.content === 'string' ? msg.content : ''}
-                                      isUserMessage={true}
-                                    />
-                                  ) : (
+                      {messages.map((msg, idx) => {
+                        return (
+                          <div key={idx} className={cn("flex flex-col gap-2", msg.role === 'user' ? "items-end" : "items-start")}>
+                            {msg.role === 'user' ? (
+                              <div className="flex flex-col gap-2 w-full items-end">
+                                <div className="flex items-center gap-2 max-w-[85%] group">
+                                  <div className="relative p-4 rounded-2xl bg-yellow-400 text-black font-bold shadow-lg rounded-tr-none animate-in slide-in-from-right-4 fade-in duration-300">
+                                    {msg.audioUrl ? (
+                                      <AudioMessageDisplay
+                                        audioUrl={typeof msg.audioUrl === 'string' ? msg.audioUrl : ''}
+                                        transcription={typeof msg.content === 'string' ? msg.content : ''}
+                                        isUserMessage={true}
+                                      />
+                                    ) : (
+                                      <div dangerouslySetInnerHTML={{ __html: formatMessage(typeof msg.content === 'string' ? msg.content : '') }} />
+                                    )}
+                                  </div>
+                                  <User className="h-4 w-4 flex-shrink-0 mt-0.5 opacity-70" />
+                                </div>
+                              </div>
+                            ) : msg.role === 'assistant' && msg.content ? (
+                              <div className="flex flex-col gap-2 w-full items-start">
+                                <div className="flex items-center gap-2 mb-1 px-1">
+                                  <div className="h-5 w-5 rounded-full bg-gradient-to-tr from-[#FF6B6B] to-[#6c5ce7] flex items-center justify-center p-[1px] shadow-lg shadow-purple-500/20">
+                                    <div className="w-full h-full rounded-full bg-slate-900 flex items-center justify-center">
+                                      <Sparkles className="h-2.5 w-2.5 text-primary" strokeWidth={3} />
+                                    </div>
+                                  </div>
+                                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Gabi Intelligence</span>
+                                </div>
+                                <div className="relative max-w-[90%] rounded-2xl p-[1px] bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] shadow-[0_10px_40px_rgba(0,0,0,0.3)] animate-in slide-in-from-left-4 fade-in duration-300 group">
+                                  <div className="absolute inset-0 bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] opacity-10 blur-xl group-hover:opacity-25 transition-opacity duration-700" />
+                                  <div className="relative bg-slate-950/95 backdrop-blur-2xl rounded-[15px] p-4 text-sm leading-relaxed text-slate-100 shadow-inner">
                                     <div dangerouslySetInnerHTML={{ __html: formatMessage(typeof msg.content === 'string' ? msg.content : '') }} />
-                                  )}
+                                  </div>
                                 </div>
-                                <User className="h-4 w-4 flex-shrink-0 mt-0.5 opacity-70" />
                               </div>
-                            </div>
-                          ) : msg.role === 'assistant' && msg.content ? (
-                            <div className="max-w-[85%] rounded-2xl p-[1px] bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] shadow-lg shadow-purple-500/5 animate-in slide-in-from-left-4 fade-in duration-300">
-                              <div className="bg-slate-900/95 backdrop-blur-xl rounded-[15px] p-3">
-                                <div className="flex items-center gap-1.5 mb-1 opacity-60">
-                                  <Bot className="w-3 h-3 text-orange-400" />
-                                  <span className="text-[10px] font-black uppercase tracking-widest text-white">GABI AI</span>
-                                </div>
-                                <div
-                                  className="text-sm text-slate-200 leading-relaxed font-medium space-y-1"
-                                  dangerouslySetInnerHTML={{ __html: formatMessage(typeof msg.content === 'string' ? msg.content : '') }}
-                                />
-                              </div>
-                            </div>
-                          ) : msg.role === 'function' ? (
-                            <div className="w-full max-w-[85%]">
-                              {msg.name === 'create_order_draft' ? (
-                                (() => {
-                                  try {
-                                    const content = typeof msg.content === 'string' ? msg.content : '';
-                                    const result = JSON.parse(content);
-                                    if (result.type === 'order_draft') {
-                                      return (
-                                        <div className="mt-2 border rounded-lg p-4 bg-white dark:bg-slate-950 shadow-sm">
-                                          <div className="flex items-center gap-2 mb-3 border-b pb-2">
-                                            <ShoppingBag className="h-5 w-5 text-primary" />
-                                            <span className="font-semibold">Rascunho de Pedido</span>
-                                          </div>
-                                          <div className="space-y-2 text-sm mb-4">
-                                            <div className="flex justify-between">
-                                              <span className="text-muted-foreground">Cliente:</span>
-                                              <span className="font-medium">{result.data.client?.nome || 'Não identificado'}</span>
-                                            </div>
-                                            {result.data.items.map((item: any, idx: number) => (
-                                              <div key={idx} className="flex justify-between border-t pt-1 mt-1">
-                                                <span>{item.quantity}x {item.productName}</span>
+                            ) : ((msg.role as string) === 'function' || (msg.role as string) === 'tool') ? (
+                              <div className="w-full max-w-[90%]">
+                                {msg.name === 'calculate_dtf_packing' ? (
+                                  (() => {
+                                    try {
+                                      const content = typeof msg.content === 'string' ? msg.content : '';
+                                      const resultData = JSON.parse(content);
+                                      if (resultData.type === 'dtf_calculation') {
+                                        const { imageWidth, imageHeight, results, quantity } = resultData.data;
+                                        // results pode ser objeto ou array dependendo da versão
+                                        const totalMeters = typeof results === 'object' && !Array.isArray(results) ? results.totalMeters : results?.[0]?.totalMeters ?? 0;
+
+                                        return (
+                                          <div className="mt-2 w-full max-w-[360px] animate-in zoom-in-95 duration-500 font-sans">
+                                            <div className="bg-[#111] rounded-[40px] p-6 shadow-2xl border border-white/5 space-y-6">
+                                              {/* Header Estilo Direct */}
+                                              <div className="flex justify-center">
+                                                <div className="bg-[#f2e635] px-10 py-2 rounded-full shadow-lg transform -rotate-1">
+                                                  <span className="text-black font-black uppercase italic tracking-tighter text-lg">CALCULADORA DIRECT</span>
+                                                </div>
                                               </div>
-                                            ))}
-                                          </div>
-                                          <Button className="w-full gap-2" onClick={() => handleCreateOrder(result)} disabled={isLoading || !result.data.client?.id}>
-                                            {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                                            Confirmar e Criar
-                                          </Button>
-                                        </div>
-                                      );
-                                    }
-                                  } catch (e) { return null; }
-                                })()
-                              ) : msg.name === 'calculate_dtf_packing' ? (
-                                (() => {
-                                  try {
-                                    const content = typeof msg.content === 'string' ? msg.content : '';
-                                    const result = JSON.parse(content);
-                                    if (result.type === 'dtf_calculation') {
-                                      return (
-                                        <div className="mt-2 bg-white dark:bg-slate-900 border-2 border-primary/20 rounded-xl shadow-lg overflow-hidden">
-                                          <div className="bg-primary/5 p-3 border-b border-primary/10 flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                              <Calculator className="h-4 w-4 text-primary" />
-                                              <span className="font-bold text-sm">Orçamento DTF</span>
+
+                                              {/* Grid de Informações */}
+                                              <div className="grid grid-cols-2 gap-4 text-center">
+                                                <div className="space-y-2">
+                                                  <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">Quantidade</span>
+                                                  <div className="bg-[#f2e635] rounded-[30px] p-6 flex flex-col items-center justify-center shadow-inner group transition-transform hover:scale-105 duration-300">
+                                                    <span className="text-4xl font-black text-black leading-none">{quantity}</span>
+                                                    <span className="text-xs font-black text-black/60 uppercase">UNDS</span>
+                                                  </div>
+                                                </div>
+                                                <div className="space-y-2">
+                                                  <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">Tamanho :</span>
+                                                  <div className="bg-[#f2e635] rounded-[30px] p-6 flex flex-col items-center justify-center shadow-inner group transition-transform hover:scale-105 duration-300">
+                                                    <span className="text-4xl font-black text-black leading-none">{Number(totalMeters).toFixed(1)}</span>
+                                                    <span className="text-xs font-black text-black/60 uppercase">METR</span>
+                                                  </div>
+                                                </div>
+                                              </div>
+
+                                              {/* Botão de Ação */}
+                                              <button
+                                                onClick={() => { setCalcData(resultData.data); setIsCalcOpen(true); }}
+                                                className="w-full bg-[#f2e635] hover:bg-white text-black font-black uppercase italic py-4 rounded-full transition-all duration-300 shadow-[0_10px_30px_rgba(242,230,53,0.3)] hover:shadow-white/20 active:scale-95 flex items-center justify-center gap-2 group"
+                                              >
+                                                <span className="tracking-tight text-lg">VER VISUALIZAÇÃO</span>
+                                                <div className="w-6 h-6 rounded-full bg-black/10 flex items-center justify-center transition-transform group-hover:rotate-12">
+                                                  <Zap className="w-3 h-3 text-black" />
+                                                </div>
+                                              </button>
                                             </div>
                                           </div>
-                                          <div className="p-4 space-y-3">
-                                            <div className="grid grid-cols-2 gap-2">
-                                              <div className="bg-muted/50 p-2 rounded-lg text-center">
-                                                <p className="text-[9px] uppercase font-bold text-muted-foreground">Total Metros</p>
-                                                <p className="text-xl font-black text-primary">{result.data.results.totalMeters.toFixed(2)}m</p>
-                                              </div>
-                                              <div className="bg-muted/50 p-2 rounded-lg text-center">
-                                                <p className="text-[9px] uppercase font-bold text-muted-foreground">Rendimento/m</p>
-                                                <p className="text-xl font-black text-primary">{result.data.results.imagesPerMeter} un</p>
-                                              </div>
+                                        );
+                                      }
+                                    } catch (e) { return null; }
+                                    return null;
+                                  })()
+                                ) : msg.name === 'create_order_draft' ? (
+                                  (() => {
+                                    try {
+                                      const content = typeof msg.content === 'string' ? msg.content : '';
+                                      const resultData = JSON.parse(content);
+                                      if (resultData.type === 'order_draft') {
+                                        return (
+                                          <div className="mt-2 border rounded-xl p-4 bg-zinc-950 shadow-xl border-white/10 animate-in zoom-in-95">
+                                            <div className="flex items-center gap-2 mb-3 border-b border-white/5 pb-2">
+                                              <ShoppingBag className="h-5 w-5 text-primary" />
+                                              <span className="font-bold text-white uppercase tracking-tighter">Rascunho de Pedido</span>
                                             </div>
-                                            <Button className="w-full gap-2 h-9 text-xs" onClick={() => { setCalcData(result.data); setIsCalcOpen(true); }}>
-                                              <LayoutGrid className="h-4 w-4" />
-                                              Ver Preview e Detalhes
+                                            <div className="space-y-2 text-xs mb-4">
+                                              <div className="flex justify-between">
+                                                <span className="text-zinc-500 font-bold uppercase tracking-widest">Cliente:</span>
+                                                <span className="font-black text-white italic">{resultData.data.client?.nome || 'Não identificado'}</span>
+                                              </div>
+                                              {resultData.data.items.map((item: any, idx: number) => (
+                                                <div key={idx} className="flex justify-between border-t border-white/5 pt-1.5 mt-1.5">
+                                                  <span className="text-slate-300">{item.quantity}x {item.productName}</span>
+                                                  <span className="font-bold text-primary italic">R$ {item.price}</span>
+                                                </div>
+                                              ))}
+                                            </div>
+                                            <Button className="w-full gap-2 bg-primary text-primary-foreground font-black uppercase tracking-widest h-11 rounded-xl shadow-lg shadow-primary/20" onClick={() => handleCreateOrder(resultData)} disabled={isLoading}>
+                                              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                                              Confirmar e Criar Pedido
                                             </Button>
                                           </div>
-                                        </div>
-                                      );
-                                    }
-                                  } catch (e) { return null; }
-                                  return <div dangerouslySetInnerHTML={{ __html: formatMessage(typeof msg.content === 'string' ? msg.content : '') }} />;
-                                })()
-                              ) : msg.name === 'send_whatsapp_message' ? (
-                                (() => {
-                                  try {
-                                    const content = typeof msg.content === 'string' ? msg.content : '';
-                                    const result = JSON.parse(content);
-                                    if (result.type === 'whatsapp_action' || result.type === 'whatsapp_direct_sent') {
-                                      const isSent = result.type === 'whatsapp_direct_sent';
+                                        );
+                                      }
+                                    } catch (e) { return null; }
+                                    return null;
+                                  })()
+                                ) : msg.name === 'send_whatsapp_message' ? (
+                                  (() => {
+                                    try {
+                                      const content = typeof msg.content === 'string' ? msg.content : '';
+                                      const resultData = JSON.parse(content);
+                                      if (resultData.type === 'whatsapp_action' || resultData.type === 'whatsapp_direct_sent') {
+                                        const isSent = resultData.type === 'whatsapp_direct_sent';
+                                        const { clientName, phone, message, link } = resultData.data;
 
-                                      return (
-                                        <div className="mt-2 w-full max-w-[340px] animate-in zoom-in-95 duration-300">
-                                          <div className="relative rounded-2xl overflow-hidden shadow-2xl ring-1 ring-white/10">
-                                            <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-xl" />
-                                            <div className="relative h-1 w-full bg-gradient-to-r from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7]" />
+                                        return (
+                                          <div className="mt-2 w-full max-w-[350px] animate-in zoom-in-95 group">
+                                            <div className="flex items-center gap-2 mb-2 px-1">
+                                              <div className="h-5 w-5 rounded-full bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                                                <MessageCircle className="h-2.5 w-2.5 text-white" />
+                                              </div>
+                                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">WhatsApp Skill</span>
+                                            </div>
 
-                                            <div className="relative p-4 space-y-4">
-                                              <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-2">
-                                                  <div className={cn(
-                                                    "p-1.5 rounded-lg",
-                                                    isSent ? "bg-emerald-500/10 text-emerald-500" : "bg-primary/10 text-primary"
-                                                  )}>
-                                                    {isSent ? <CheckCircle2 className="w-4 h-4" /> : <Share2 className="w-4 h-4" />}
+                                            <div className="relative rounded-3xl overflow-hidden shadow-2xl ring-1 ring-white/10 bg-slate-950/60 backdrop-blur-xl border border-white/5">
+                                              <div className="relative h-1.5 w-full bg-gradient-to-r from-emerald-400 via-green-500 to-emerald-600 shadow-[0_0_20px_rgba(16,185,129,0.4)]" />
+
+                                              <div className="relative p-6 space-y-5">
+                                                <div className="flex items-center justify-between">
+                                                  <div className="space-y-1">
+                                                    <h4 className="text-[10px] font-black text-emerald-400 uppercase tracking-[0.2em]">Envio de Mensagem</h4>
+                                                    <p className="text-xl font-black text-white italic tracking-tighter">{clientName || 'Cliente'}</p>
                                                   </div>
-                                                  <span className="text-[11px] font-black uppercase tracking-widest text-slate-200">
-                                                    {isSent ? "Envio Realizado" : "Pronto para Enviar"}
-                                                  </span>
+                                                  <div className="h-10 w-10 rounded-2xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
+                                                    <User className="w-5 h-5 text-emerald-400" />
+                                                  </div>
                                                 </div>
-                                                {result.data.isPlus && (
-                                                  <Badge className="bg-[#ffd93d]/10 text-[#ffd93d] border-[#ffd93d]/20 text-[8px] font-black h-4 px-1.5 uppercase tracking-tighter">
-                                                    Plus Mode
-                                                  </Badge>
+
+                                                <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/5 space-y-3">
+                                                  <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-500">
+                                                    <span>Telefone</span>
+                                                    <span className="text-white italic">{phone}</span>
+                                                  </div>
+                                                  <div className="h-px bg-white/5 w-full" />
+                                                  <div className="space-y-1.5">
+                                                    <span className="block text-[8px] font-black text-slate-500 uppercase tracking-widest">Conteúdo Proposto</span>
+                                                    <p className="text-xs text-slate-300 leading-relaxed italic">"{message}"</p>
+                                                  </div>
+                                                </div>
+
+                                                {!isSent ? (
+                                                  <Button
+                                                    className="w-full h-14 bg-emerald-500 hover:bg-emerald-600 text-white font-black uppercase tracking-[0.2em] text-[11px] gap-3 shadow-[0_15px_35px_rgba(16,185,129,0.3)] border-none rounded-2xl transition-all hover:scale-[1.02] active:scale-95"
+                                                    onClick={() => window.open(link, '_blank')}
+                                                  >
+                                                    <ExternalLink className="w-4 h-4" />
+                                                    Confirmar e Enviar
+                                                  </Button>
+                                                ) : (
+                                                  <div className="w-full h-14 flex items-center justify-center gap-3 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl text-emerald-400 font-black uppercase tracking-widest text-[10px]">
+                                                    <CheckCircle2 className="w-5 h-5" />
+                                                    Mensagem Enviada
+                                                  </div>
                                                 )}
                                               </div>
-
-                                              <div className="space-y-1">
-                                                <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest">Mensagem Preparada</p>
-                                                <div className="p-3 bg-white/5 rounded-xl border border-white/5">
-                                                  <p className="text-xs text-slate-300 italic leading-relaxed">
-                                                    "{result.data.message}"
-                                                  </p>
-                                                </div>
-                                              </div>
-
-                                              <div className="flex items-center justify-between text-[10px] text-zinc-500 font-medium pb-1 border-b border-white/5">
-                                                <span>Destinatário:</span>
-                                                <span className="font-black text-slate-200 truncate ml-2">
-                                                  {result.data.clientName || result.data.phone || 'Cliente'}
-                                                </span>
-                                              </div>
-
-                                              {!isSent ? (
-                                                <Button
-                                                  className={cn(
-                                                    "w-full h-11 transition-all hover:scale-[1.02] active:scale-[0.98] font-black uppercase tracking-widest text-[11px] gap-2 shadow-lg",
-                                                    result.data.canSendDirectly
-                                                      ? "bg-gradient-to-r from-[#FF6B6B] to-[#ffd93d] text-slate-950"
-                                                      : "bg-emerald-500 hover:bg-emerald-600 text-white"
-                                                  )}
-                                                  disabled={isLoading}
-                                                  onClick={async () => {
-                                                    if (isLoading) return;
-                                                    if (result.data.canSendDirectly && result.data.cleanPhone) {
-                                                      setIsLoading(true);
-                                                      setLoadingStatus("Gabi está enviando...");
-                                                      try {
-                                                        const { data: proxyResult, error: proxyError } = await supabase.functions.invoke('whatsapp-proxy', {
-                                                          body: {
-                                                            action: 'send-text',
-                                                            phone: result.data.cleanPhone,
-                                                            message: result.data.message
-                                                          }
-                                                        });
-
-                                                        if (!proxyError && proxyResult?.success) {
-                                                          toast({ title: "Mensagem enviada!", description: `Sua mensagem para ${result.data.clientName || 'o cliente'} foi enviada.` });
-                                                          setMessages(prev => [...prev, {
-                                                            role: 'assistant',
-                                                            content: `✅ Acabei de enviar a mensagem para **${result.data.clientName || result.data.phone}**! Tudo certinho. 🚀`
-                                                          }]);
-                                                        } else {
-                                                          throw new Error(proxyError?.message || "Erro no envio");
-                                                        }
-                                                      } catch (err) {
-                                                        console.error("Erro no envio:", err);
-                                                        toast({ title: "Erro no envio direto", description: "Tentando abrir o WhatsApp Web...", variant: "destructive" });
-                                                        window.open(result.data.link, '_blank');
-                                                      } finally {
-                                                        setIsLoading(false);
-                                                      }
-                                                    } else {
-                                                      window.open(result.data.link, '_blank');
-                                                    }
-                                                  }}
-                                                >
-                                                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4 fill-current" />}
-                                                  {result.data.canSendDirectly ? 'Confirmar Envio Direto' : 'Enviar via Link'}
-                                                </Button>
-                                              ) : (
-                                                <div className="flex items-center justify-center gap-1.5 py-2 text-[10px] text-emerald-500 font-black uppercase tracking-widest">
-                                                  <Bot className="h-4 w-4" />
-                                                  Processado por Gabi AI
-                                                </div>
-                                              )}
                                             </div>
                                           </div>
-                                        </div>
-                                      );
-                                    }
-                                  } catch (e) { return null; }
-                                  return null;
-                                })()
-                              ) : null}
-                            </div>
-                          ) : null}
-                        </div>
-                      ))}
+                                        );
+                                      }
+                                    } catch (e) { return null; }
+                                    return null;
+                                  })()
+                                ) : msg.name === 'calculate_shipping' ? (
+                                  (() => {
+                                    try {
+                                      const content = typeof msg.content === 'string' ? msg.content : '';
+                                      const resultData = JSON.parse(content);
+                                      if (resultData.options && Array.isArray(resultData.options)) {
+                                        return (
+                                          <div className="mt-2 w-full max-w-[350px] animate-in zoom-in-95">
+                                            <div className="flex items-center gap-2 mb-2 px-1">
+                                              <div className="h-5 w-5 rounded-full bg-sky-500 flex items-center justify-center shadow-lg shadow-sky-500/20">
+                                                <Calculator className="h-2.5 w-2.5 text-white" />
+                                              </div>
+                                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Shipping Skill</span>
+                                            </div>
+
+                                            <div className="relative rounded-3xl overflow-hidden shadow-2xl ring-1 ring-white/10 bg-slate-950/60 backdrop-blur-xl border border-white/5">
+                                              <div className="relative h-1.5 w-full bg-gradient-to-r from-sky-400 to-blue-600 shadow-[0_0_20px_rgba(56,189,248,0.4)]" />
+
+                                              <div className="relative p-6 space-y-5">
+                                                <div className="space-y-1">
+                                                  <h4 className="text-[10px] font-black text-sky-400 uppercase tracking-[0.2em]">Cotação de Frete</h4>
+                                                  <p className="text-xl font-black text-white italic tracking-tighter uppercase">Opções Disponíveis</p>
+                                                </div>
+
+                                                <div className="space-y-2.5">
+                                                  {resultData.options.map((opt: any, i: number) => (
+                                                    <div key={i} className="flex items-center justify-between p-3.5 rounded-2xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.08] hover:border-sky-500/30 transition-all cursor-pointer group/opt">
+                                                      <div className="flex items-center gap-3">
+                                                        <div className="w-8 h-8 rounded-full bg-sky-500/10 flex items-center justify-center text-sky-400 border border-sky-500/20">
+                                                          <ShoppingBag className="w-4 h-4" />
+                                                        </div>
+                                                        <div>
+                                                          <span className="block text-[10px] font-black text-white uppercase tracking-tight">{opt.name}</span>
+                                                          <span className="block text-[8px] font-bold text-slate-500 uppercase">{opt.delivery_time} dias úteis</span>
+                                                        </div>
+                                                      </div>
+                                                      <div className="text-right">
+                                                        <span className="block text-sm font-black text-sky-400 italic">R$ {opt.price}</span>
+                                                      </div>
+                                                    </div>
+                                                  ))}
+                                                </div>
+
+                                                <div className="p-3 bg-sky-500/10 border border-sky-500/20 rounded-2xl text-[9px] text-sky-200/70 text-center font-bold tracking-tight">
+                                                  Valores baseados em pacote padrão (0.5kg)
+                                                </div>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        );
+                                      }
+                                    } catch (e) { return null; }
+                                    return null;
+                                  })()
+                                ) : (
+                                  <div dangerouslySetInnerHTML={{ __html: formatMessage(typeof msg.content === 'string' ? msg.content : '') }} />
+                                )}
+                              </div>
+                            ) : null}
+                          </div>
+                        );
+                      })}
                       {isLoading && (
                         <div className="flex gap-3 justify-start animate-in fade-in slide-in-from-left-2 duration-300">
                           <div className="p-0.5 rounded-full bg-gradient-to-br from-[#FF6B6B] to-[#6c5ce7]">

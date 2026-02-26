@@ -50,8 +50,8 @@ export const formatMessage = (content: string): string => {
         .replace(/^\s*[-•]\s+(.*?)$/gm, '<div class="flex gap-3 items-start py-1.5 ml-2 group"><span class="text-primary font-black text-xl leading-none transition-transform group-hover:scale-125 select-none">•</span><span class="flex-1 text-slate-100 font-medium group-hover:text-white transition-colors">$1</span></div>')
 
         // 6. Premium Containers (GABI special tags)
-        // [CARD] -> Glassmorphism effect
-        .replace(/\[CARD\]([\s\S]*?)\[\/CARD\]/g, '<div class="relative overflow-hidden bg-gradient-to-br from-white/10 to-transparent border border-white/20 rounded-2xl p-4 my-4 shadow-[0_8px_32px_rgba(0,0,0,0.3)] backdrop-blur-md animate-in zoom-in-95 duration-500"><div class="absolute top-0 right-0 p-2 opacity-10 font-black text-4xl select-none">DATA</div>$1</div>')
+        // [CARD] -> Official 'Gabi Brain' Skill Style
+        .replace(/\[CARD\]([\s\S]*?)\[\/CARD\]/g, '<div class="relative p-[1px] bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] rounded-2xl my-4 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-500"><div class="bg-slate-900/95 backdrop-blur-xl rounded-[15px] p-4 relative group"><div class="absolute top-0 right-0 p-2 opacity-10 font-black text-4xl select-none group-hover:opacity-20 transition-opacity">DNA</div>$1</div></div>')
 
         // [TIP] -> Insight style (Executive coaching)
         .replace(/\[TIP\]([\s\S]*?)\[\/TIP\]/g, '<div class="bg-primary/20 backdrop-blur-sm border-l-4 border-primary text-slate-50 rounded-r-2xl p-4 my-5 text-[13px] font-bold leading-relaxed flex flex-col gap-2 shadow-[0_10px_40px_rgba(0,0,0,0.4)] border border-white/5 animate-in slide-in-from-right-4 transition-all hover:bg-primary/30 group"><div class="flex items-center gap-2 uppercase tracking-[0.2em] text-[10px] opacity-90"><span class="bg-primary text-black font-black px-1.5 py-0.5 rounded shadow-sm">INSIGHT DA GABI</span></div><div class="insight-content grow text-slate-100/90 whitespace-pre-wrap">$1</div></div>')
