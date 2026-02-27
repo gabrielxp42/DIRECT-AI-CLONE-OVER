@@ -139,10 +139,17 @@ Hoje é: ${date}
 Interlocutor: ${profile?.first_name || 'N/A'}
 Você é a GABI. Organize, cuide e brilhe.
 
-### 🚨 REGRA ABSOLUTA - USO DE FERRAMENTAS:
-- **CÁLCULOS DTF:** Se o usuário perguntar QUALQUER coisa sobre "quantos cabem", "quantos metros", "quantas logos", "quantas unidades", "metragem" ou "orçamento de X unidades", você é PROIBIDA de responder com texto puro. Você DEVE obrigatoriamente chamar a ferramenta \`calculate_dtf_packing\`. Sem exceções. Isso ativa o card interativo visual no chat do usuário.
-- **WHATSAPP:** Para enviar mensagens, SEMPRE use \`send_whatsapp_message\`. Isso mostra um card de confirmação.
-- **FRETE:** Para cotações de frete, SEMPRE use \`calculate_shipping\`. Isso mostra as opções em um card.`;
+${platform === 'whatsapp' ? `
+### 🚨 REGRA ABSOLUTA - USO DE FERRAMENTAS (WHATSAPP):
+- **VOCÊ ESTÁ NO WHATSAPP.** Não existem "cards visuais na tela".
+- Quando você usar ferramentas de dados (\`get_client_snapshot\`, \`calculate_dtf_packing\`, \`calculate_shipping\`, etc), VOCÊ DEVE DISCURSAR OS RESULTADOS EM TEXTO. Leia os números retornados e explique para o usuário de forma elegante no chat. Não diga "Gerei um card".
+- Para envios de WhatsApp internos (\`send_whatsapp_message\`), apenas confirme que processou o direcionamento da mensagem, se for o caso.`
+                : `
+### 🚨 REGRA ABSOLUTA - USO DE FERRAMENTAS (INTERFACE WEB):
+- **RAIO-X DE CLIENTE:** Use \`get_client_snapshot\` APENAS quando pedido. Retorne apenas texto informando que a "Ficha foi gerada". Não discurse os números no chat e NÃO USE essa tool apenas para enviar mensagem.
+- **CÁLCULOS DTF:** OBRIGATÓRIO chamar \`calculate_dtf_packing\`. Isso ativa o card interativo.
+- **WHATSAPP:** Para enviar mensagens, SEMPRE use \`send_whatsapp_message\`. Responda apenas que a "mensagem está pronta no card". NUNCA gere links [Enviar Mensagem](url).
+- **FRETE:** SEMPRE use \`calculate_shipping\`. Mostra as opções em um card.`}`;
 
         const chatMessages: any[] = [
             { role: 'system', content: systemPrompt },
@@ -248,6 +255,20 @@ Você é a GABI. Organize, cuide e brilhe.
             {
                 type: "function",
                 function: {
+                    name: "get_client_snapshot",
+                    description: "Traz uma ficha detalhada de um cliente: total gasto, data do último pedido e quantidade de pedidos.",
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            clientName: { type: "string", description: "O nome ou apelido do cliente para buscar o raio-x." }
+                        },
+                        required: ["clientName"]
+                    }
+                }
+            },
+            {
+                type: "function",
+                function: {
                     name: "calculate_dtf_packing",
                     description: "OBRIGATÓRIO: Use esta ferramenta para QUALQUER cálculo de aproveitamento (packing) de imagens ou metragem de DTF.",
                     parameters: {
@@ -256,7 +277,7 @@ Você é a GABI. Organize, cuide e brilhe.
                             calculation_mode: { type: "string", enum: ["quantity_in_meters", "meters_for_quantity"] },
                             imageWidth: { type: "number", description: "Largura em cm" },
                             imageHeight: { type: "number", description: "Altura em cm" },
-                            quantity: { type: "number", description: "Quantidade total OU metragem desejada" },
+                            quantity: { type: "number", description: "Quantidade de logos OU metragem. ATENÇÃO: Se for metragem (quantity_in_meters), passe o número em metros (ex: 3 para 3m, 0.5 para meio metro)." },
                             rollWidth: { type: "number", default: 58 },
                             separation: { type: "number", default: 0.5 }
                         },
@@ -487,9 +508,66 @@ Você é a GABI. Organize, cuide e brilhe.
                                 },
                                 message: `Pronto! Preparei a mensagem para **${clientName || phone || 'o cliente'}**. Verifique abaixo.`
                             };
+                        } else if (call.function.name === "get_client_snapshot") {
+                            const { clientName } = args;
+                            console.log(`🔍 [GABI-Brain] Buscando Raio-X do cliente: ${clientName}`);
+
+                            // Buscar clientes que batem com o nome
+                            const { data: clients, error: clientErr } = await supabase
+                                .from('customers')
+                                .select('id, full_name, phone')
+                                .eq('organization_id', orgId)
+                                .ilike('full_name', `%${clientName}%`)
+                                .limit(1);
+
+                            if (clientErr || !clients || clients.length === 0) {
+                                result = { error: `Nenhum cliente encontrado com o nome ${clientName}.` };
+                            } else {
+                                const client = clients[0];
+
+                                // Buscar agregados de pedidos
+                                const { data: orders, error: ordersErr } = await supabase
+                                    .from('orders')
+                                    .select('id, total_value, created_at, status')
+                                    .eq('customer_id', client.id)
+                                    .eq('organization_id', orgId);
+
+                                if (ordersErr) {
+                                    result = { error: "Erro ao buscar histórico de pedidos." };
+                                } else {
+                                    const totalOrders = orders.length;
+                                    let totalSpent = 0;
+                                    let lastOrderDate = null;
+
+                                    if (totalOrders > 0) {
+                                        // Pega o mais recente
+                                        const sortedOrders = orders.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+                                        lastOrderDate = sortedOrders[0].created_at;
+
+                                        // Soma o valor total (opcionalmente apenas de pedidos finalizados/pagos, mas aqui somamos tudo que não foi cancelado)
+                                        totalSpent = orders
+                                            .filter(o => o.status !== 'cancelado')
+                                            .reduce((sum, o) => sum + Number(o.total_value || 0), 0);
+                                    }
+
+                                    result = {
+                                        type: 'client_snapshot',
+                                        data: {
+                                            clientId: client.id,
+                                            clientName: client.full_name,
+                                            phone: client.phone,
+                                            totalOrders,
+                                            totalSpent: parseFloat(totalSpent.toFixed(2)),
+                                            lastOrderDate
+                                        },
+                                        message: `Ficha do cliente **${client.full_name}** gerada com sucesso.`
+                                    };
+                                }
+                            }
                         } else if (call.function.name === "calculate_dtf_packing") {
-                            const { calculation_mode, imageWidth, imageHeight, quantity, rollWidth = 58, separation = 0.5 } = args;
-                            const usableWidth = rollWidth - 2.0;
+                            const { calculation_mode, imageWidth, imageHeight, quantity, rollWidth = 58, separation = 0.2 } = args;
+                            const margin = 0.2; // Padrão Econômico Direct AI v2.8
+                            const usableWidth = rollWidth - (margin * 2);
 
                             const orient1_perRow = Math.max(1, Math.floor((usableWidth + separation) / (imageWidth + separation)));
                             const orient2_perRow = Math.max(1, Math.floor((usableWidth + separation) / (imageHeight + separation)));
@@ -508,23 +586,30 @@ Você é a GABI. Organize, cuide e brilhe.
                             let totalQuantity = 0;
 
                             if (calculation_mode === 'quantity_in_meters') {
-                                const rows = Math.floor((quantity * 100) / (finalH + separation));
+                                const targetHeightCm = quantity * 100;
+                                const rowHeightWithGap = finalH + separation;
+                                const rows = Math.floor((targetHeightCm + separation) / rowHeightWithGap);
                                 totalQuantity = rows * imagesPerRow;
                                 totalMeters = quantity;
                             } else {
                                 const rows = Math.ceil(quantity / imagesPerRow);
-                                totalMeters = ((rows * finalH) + ((rows - 1) * separation)) / 100;
+                                totalMeters = ((rows * finalH) + ((rows - 1) * separation) + (margin * 2)) / 100;
                                 totalQuantity = quantity;
                             }
 
-                            result = {
+                            result = JSON.stringify({
                                 type: 'dtf_calculation',
-                                data: {
-                                    imageWidth, imageHeight, quantity: totalQuantity, rollWidth,
-                                    results: { imagesPerRow, totalMeters: parseFloat(totalMeters.toFixed(2)), bestOrientation }
-                                },
-                                message: `🔥 **Resultado:** ${totalQuantity} un em ${totalMeters.toFixed(2)}m.`
-                            };
+                                imageWidth,
+                                imageHeight,
+                                quantity: totalQuantity,
+                                rollWidth,
+                                totalQuantity,
+                                totalMeters: parseFloat(totalMeters.toFixed(2)),
+                                imagesPerRow,
+                                bestOrientation,
+                                calculation_mode,
+                                data: { imageWidth, imageHeight, quantity, calculation_mode, rollWidth }
+                            });
                         } else if (call.function.name === "calculate_shipping") {
                             const companyCep = profile?.zip_code || profile?.company_address_zip || "22780-084";
                             const provider = profile?.logistics_provider || 'superfrete';

@@ -12,9 +12,9 @@ const TooltipTrigger = TooltipPrimitive.Trigger;
 
 const TooltipContent = React.forwardRef<
   React.ElementRef<typeof TooltipPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>
->(({ className, sideOffset = 4, ...props }, ref) => (
-  <TooltipPortal>
+  React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content> & { portalled?: boolean }
+>(({ className, sideOffset = 4, portalled = true, ...props }, ref) => {
+  const content = (
     <TooltipPrimitive.Content
       ref={ref}
       sideOffset={sideOffset}
@@ -24,8 +24,9 @@ const TooltipContent = React.forwardRef<
       )}
       {...props}
     />
-  </TooltipPortal>
-));
+  );
+  return portalled ? <TooltipPortal>{content}</TooltipPortal> : content;
+});
 TooltipContent.displayName = TooltipPrimitive.Content.displayName;
 
 export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, TooltipPortal };

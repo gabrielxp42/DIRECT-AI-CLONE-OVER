@@ -19,6 +19,7 @@ import { toPng, toBlob } from 'html-to-image';
 import { supabase } from "@/integrations/supabase/client";
 import { useIsPlusMode } from "@/hooks/useIsPlusMode";
 import { GabiActionDialog } from "@/components/GabiActionDialog";
+import { packItems2D } from "@/utils/binPacking";
 import { WhatsAppButton } from "./WhatsAppButton";
 import {
     DropdownMenu,
@@ -56,6 +57,7 @@ interface DTFCalculatorModalProps {
         imageHeight?: number;
         quantity?: number;
         rollWidth?: number;
+        calculation_mode?: 'quantity_in_meters' | 'fixed_quantity';
     };
 }
 
@@ -65,7 +67,7 @@ const GlassTooltip = ({ children, content }: { children: React.ReactNode, conten
     <TooltipProvider>
         <Tooltip delayDuration={0}>
             <TooltipTrigger asChild>{children}</TooltipTrigger>
-            <TooltipContent className="bg-slate-950/80 backdrop-blur-2xl border border-white/10 text-white text-[10px] font-black px-4 py-2 rounded-2xl shadow-2xl animate-in fade-in zoom-in slide-in-from-bottom-2 duration-300">
+            <TooltipContent portalled={false} className="bg-slate-950/80 backdrop-blur-2xl border border-white/10 text-white text-[10px] font-black px-4 py-2 rounded-2xl shadow-2xl animate-in fade-in zoom-in slide-in-from-bottom-2 duration-300">
                 <div className="flex items-center gap-2.5">
                     <div className="w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_8px_var(--primary-custom)]/60" />
                     <span className="tracking-tight uppercase">{content}</span>
@@ -113,7 +115,7 @@ const InfoTooltip = ({
                     )} />
                 </div>
             </TooltipTrigger>
-            <TooltipContent side="top" className="max-w-[200px] bg-slate-950/80 backdrop-blur-2xl border border-white/10 text-white text-[11px] font-medium px-4 py-2.5 rounded-2xl shadow-2xl animate-in fade-in zoom-in slide-in-from-bottom-2 duration-300">
+            <TooltipContent portalled={false} side="top" className="max-w-[200px] bg-slate-950/80 backdrop-blur-2xl border border-white/10 text-white text-[11px] font-medium px-4 py-2.5 rounded-2xl shadow-2xl animate-in fade-in zoom-in slide-in-from-bottom-2 duration-300">
                 <div className="flex items-start gap-2.5">
                     <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1 shadow-[0_0_8px_var(--primary-custom)]/60 shrink-0" />
                     <span className="leading-relaxed tracking-tight">{content}</span>
@@ -211,7 +213,7 @@ const NumberInput = ({
     return (
         <div
             className={cn(
-                "relative flex flex-col items-center border rounded-xl transition-all duration-300 overflow-hidden backdrop-blur-sm shadow-sm hover:shadow-md dark:shadow-none",
+                "relative flex flex-col items-center border rounded-lg transition-all duration-300 overflow-hidden backdrop-blur-sm shadow-sm hover:shadow-md dark:shadow-none",
                 "bg-[var(--primary-custom)]/20 dark:bg-zinc-900/60",
                 highlight ? "border-primary/40 shadow-[0_0_12px_rgba(255,242,0,0.15)] ring-1 ring-primary/5" : "border-zinc-200/60 dark:border-zinc-800/60",
                 "focus-within:border-primary/60 focus-within:shadow-[0_0_15px_rgba(255,242,0,0.2)]",
@@ -225,9 +227,9 @@ const NumberInput = ({
                     type="button"
                     onClick={increment}
                     disabled={value !== undefined && value !== null && value >= max}
-                    className="w-full h-8 flex items-center justify-center text-zinc-400 dark:text-zinc-500 hover:text-primary hover:bg-primary/5 transition-colors disabled:opacity-20 active:scale-95 touch-manipulation z-20"
+                    className="w-full h-6 flex items-center justify-center text-zinc-400 dark:text-zinc-500 hover:text-primary hover:bg-primary/5 transition-colors disabled:opacity-20 active:scale-95 touch-manipulation z-20"
                 >
-                    <ChevronUp className="h-4 w-4 stroke-[1.5px]" />
+                    <ChevronUp className="h-3.5 w-3.5 stroke-[1.5px]" />
                 </button>
             )}
 
@@ -245,8 +247,8 @@ const NumberInput = ({
                     }}
                     onBlur={handleBlur}
                     className={cn(
-                        "h-9 text-center font-black text-lg bg-transparent border-none focus-visible:ring-0 shadow-none selection:bg-primary/20 placeholder:text-zinc-400 dark:placeholder:text-zinc-600 !bg-transparent",
-                        showButtons ? "py-0" : "py-1.5"
+                        "h-8 text-center font-black text-base bg-transparent border-none focus-visible:ring-0 shadow-none selection:bg-primary/20 placeholder:text-zinc-400 dark:placeholder:text-zinc-600 !bg-transparent",
+                        showButtons ? "py-0" : "py-1"
                     )}
                 />
                 {suffix && (
@@ -261,9 +263,9 @@ const NumberInput = ({
                     type="button"
                     onClick={decrement}
                     disabled={value !== undefined && value !== null && value <= min}
-                    className="w-full h-8 flex items-center justify-center text-zinc-400 dark:text-zinc-500 hover:text-primary hover:bg-primary/5 transition-colors disabled:opacity-20 active:scale-95 touch-manipulation z-20"
+                    className="w-full h-6 flex items-center justify-center text-zinc-400 dark:text-zinc-500 hover:text-primary hover:bg-primary/5 transition-colors disabled:opacity-20 active:scale-95 touch-manipulation z-20"
                 >
-                    <ChevronDown className="h-4 w-4 stroke-[1.5px]" />
+                    <ChevronDown className="h-3.5 w-3.5 stroke-[1.5px]" />
                 </button>
             )}
         </div>
@@ -280,12 +282,30 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
     const [quickMetersInput, setQuickMetersInput] = useState(1);
 
     // Inputs (Modo Rápido/Simples)
-    const [rollWidth, setRollWidth] = useState(initialData?.rollWidth || 58);
-    const [imageWidth, setImageWidth] = useState(initialData?.imageWidth || 10);
-    const [imageHeight, setImageHeight] = useState(initialData?.imageHeight || 10);
+    const [rollWidth, setRollWidth] = useState(58);
+    const [imageWidth, setImageWidth] = useState(10);
+    const [imageHeight, setImageHeight] = useState(10);
     const [separation, setSeparation] = useState(0.2);
     const [margin, setMargin] = useState(0.2);
-    const [quantity, setQuantity] = useState(initialData?.quantity || 50);
+    const [quantity, setQuantity] = useState(50);
+
+    // Sync initialData when modal opens
+    useEffect(() => {
+        if (isOpen && initialData) {
+            if (initialData.rollWidth) setRollWidth(initialData.rollWidth);
+            if (initialData.imageWidth) setImageWidth(initialData.imageWidth);
+            if (initialData.imageHeight) setImageHeight(initialData.imageHeight);
+            if (initialData.quantity) {
+                if (initialData.calculation_mode === 'quantity_in_meters') {
+                    setQuickGoal('quantity');
+                    setQuickMetersInput(initialData.quantity);
+                } else {
+                    setQuickGoal('meters');
+                    setQuantity(initialData.quantity);
+                }
+            }
+        }
+    }, [isOpen, initialData]);
 
     // --- MULTI-ITEM MODE ---
     interface MultiItem {
@@ -440,91 +460,61 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
         };
     }, [rollWidth, imageWidth, imageHeight, separation, margin, quantity, mode, quickGoal, quickMetersInput]);
 
-    // Multi-Item Results calculation
+    // Multi-Item Results calculation (2D Bin Packing Engine)
     const multiResults = useMemo(() => {
         const usableWidth = rollWidth - (margin * 2);
-        const previewLimit = 200;
-        let renderedCount = 0;
+        const previewLimit = 200; // Limit rendering for performance
 
-        const itemsCalculated = items.map(item => {
-            const totalImageWidth = item.width + separation;
-            const imagesPerRow = Math.max(1, Math.floor((usableWidth + separation) / (item.width + separation)));
-            const totalRows = Math.ceil(item.quantity / imagesPerRow);
+        // Mapeia os itens do formato local para o formato do algoritmo
+        const itemsToPack = items.map((i, index) => ({
+            ...i,
+            allowRotation: false, // Disabling auto-rotation to preserve row alignment
+            originalIndex: index // Keep track to assign colors later
+        }));
 
-            // Altura do bloco sem a margem final de separação
-            const contentHeight = totalRows > 0
-                ? (totalRows * item.height) + ((totalRows - 1) * separation)
-                : 0;
-
-            // Altura ocupada no rolo (inclui a separação APÓS o bloco para o próximo item)
-            const heightCm = totalRows > 0 ? contentHeight + separation : 0;
-            const meters = heightCm / 100;
-
-            const isOverflowing = item.width > usableWidth;
-
-            // Rotation Logic: Check if swapping W/H is more efficient
-            const swapW = item.height;
-            const swapH = item.width;
-            const currentImagesPerRow = imagesPerRow;
-            const swapImagesPerRow = Math.max(1, Math.floor((usableWidth + separation) / (swapW + separation)));
-            const shouldRotate = swapImagesPerRow > currentImagesPerRow && !(swapW + (margin * 2) > rollWidth);
-
-            // Preview calc - we limit based on TOTAL items rendered in preview
-            const remainingPreviewSpace = Math.max(0, previewLimit - renderedCount);
-            const previewQuantity = Math.min(item.quantity, remainingPreviewSpace);
-            renderedCount += previewQuantity;
-
-            const previewRows = Math.ceil(previewQuantity / imagesPerRow);
-            const previewContentHeight = previewQuantity > 0
-                ? (previewRows * item.height) + ((previewRows - 1) * separation)
-                : 0;
-            const previewHeightCm = previewQuantity > 0 ? previewContentHeight + separation : 0;
-
-            return {
-                ...item,
-                imagesPerRow,
-                totalRows,
-                meters,
-                heightCm,
-                contentHeight,
-                previewContentHeight,
-                previewHeightCm,
-                previewQuantity,
-                isOverflowing,
-                shouldRotate,
-                label: `${item.width}x${item.height}cm`
-            };
-        });
+        // Executa o empacotamento cirúrgico 2D MaxRects
+        const packedData = packItems2D(usableWidth, separation, itemsToPack);
 
         const totalQuantity = items.reduce((acc, item) => acc + item.quantity, 0);
         const hasWarning = totalQuantity > previewLimit;
-        const totalItemsOverflowing = itemsCalculated.filter(i => i.isOverflowing).length;
-        const itemsToOptimize = itemsCalculated.filter(i => i.shouldRotate).length;
 
-        // Total heights
-        const totalContentHeight = itemsCalculated.reduce((acc, item) => acc + item.heightCm, 0) - (itemsCalculated.length > 0 ? separation : 0);
-        const totalHeightCm = totalContentHeight + (margin * 2);
-        const totalMeters = totalHeightCm / 100;
+        // Preview rendering limit (para não explodir a DOM React)
+        const previewPlacedItems = packedData.placedItems.slice(0, previewLimit);
 
-        // Preview Total
-        const previewContentHeight = itemsCalculated.reduce((acc, item) => acc + item.previewHeightCm, 0) - (renderedCount > 0 ? separation : 0);
-        const previewTotalHeightCm = previewContentHeight + (margin * 2);
+        // Calcular a altura ocupada especificamente pelos itens visualizados
+        let previewContentHeightCm = 0;
+        if (previewPlacedItems.length > 0) {
+            previewContentHeightCm = Math.max(...previewPlacedItems.map(i => i.y + i.packHeight)) - separation;
+            if (previewContentHeightCm < 0) previewContentHeightCm = 0;
+        }
+
+        const totalHeightCm = packedData.totalHeightCm + (margin * 2);
+        const previewTotalHeightCm = previewContentHeightCm > 0 ? previewContentHeightCm + (margin * 2) : 0;
+        const totalMeters = packedData.totalHeightCm / 100;
 
         // Efficiency (Area-based)
         const totalInkArea = items.reduce((acc, item) => acc + (item.width * item.height * item.quantity), 0);
         const totalMaterialArea = rollWidth * totalHeightCm;
         const efficiency = totalMaterialArea > 0 ? (totalInkArea / totalMaterialArea) * 100 : 0;
 
+        // Legado compatibility (para handleTargetMeters não dar quebra inesperada)
+        const itemsWithLegacyProps = items.map(item => {
+            const imagesPerRow = Math.max(1, Math.floor((usableWidth + separation) / (item.width + separation)));
+            return { ...item, imagesPerRow };
+        });
+
         return {
-            items: itemsCalculated,
+            items: itemsWithLegacyProps,
+            placedItems: packedData.placedItems,
+            previewPlacedItems,
             totalMeters: Math.max(0, totalMeters),
             totalQuantity,
             totalHeightCm,
             previewTotalHeightCm,
             usableWidth,
             hasWarning,
-            totalItemsOverflowing,
-            itemsToOptimize,
+            totalItemsOverflowing: packedData.totalItemsOverflowing,
+            itemsToOptimize: packedData.itemsToOptimize,
             efficiency: Math.round(efficiency)
         };
     }, [rollWidth, margin, separation, items]);
@@ -661,71 +651,72 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                         "border border-white/40 dark:border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.3)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.5)]",
                         // Internal Gloss
                         "before:absolute before:inset-0 before:bg-gradient-to-tr before:from-white/10 before:to-transparent before:pointer-events-none",
-                        isMobile ? "max-w-[100vw] w-full p-3 pb-safe rounded-t-[2.5rem] rounded-b-none bottom-0 top-auto translate-y-0 h-[95vh]" : "max-w-[95vw] lg:max-w-6xl w-full h-[90vh] p-8 rounded-[2rem]"
-                    )}>
-                    <DialogHeader>
+                        isMobile ? "max-w-[100vw] w-full p-3 pb-safe rounded-[2rem] h-[95vh]" : "max-w-[95vw] w-[1152px] h-[850px] [@media(min-width:1024px)_and_(max-height:950px)]:[zoom:0.9] [@media(min-width:1024px)_and_(max-height:850px)]:[zoom:0.85] [@media(min-width:1024px)_and_(max-height:750px)]:[zoom:0.8] p-4 lg:p-5 rounded-3xl"
+                    )}
+                >
+                    <DialogHeader className="space-y-1.5">
                         <div id="calculator-title" className="flex items-center justify-between w-full">
                             <div className="flex items-center gap-2">
-                                <Calculator className="h-6 w-6 text-primary" />
-                                <DialogTitle className="text-2xl font-bold tracking-tight text-slate-950 dark:text-primary">Calculadora de Orçamento DTF</DialogTitle>
+                                <Calculator className="h-5 w-5 text-primary" />
+                                <DialogTitle className="text-xl font-bold tracking-tight text-slate-950 dark:text-primary">Calculadora de Orçamento DTF</DialogTitle>
                             </div>
                             <Button
                                 variant="ghost"
                                 size="sm"
                                 onClick={startTour}
-                                className="text-[10px] font-black uppercase tracking-widest text-primary hover:bg-primary/10 gap-1.5 rounded-full px-3 py-1 h-8 animate-in fade-in slide-in-from-right-2 duration-700">
+                                className="text-[9px] font-black uppercase tracking-widest text-primary hover:bg-primary/10 gap-1.5 rounded-full px-2.5 py-1 h-7 animate-in fade-in slide-in-from-right-2 duration-700">
                                 <HelpCircle className="h-3.5 w-3.5" /> Aprenda a usar
                             </Button>
                         </div>
-                        <DialogDescription className="text-slate-600 dark:text-slate-400">
+                        <DialogDescription className="text-slate-600 dark:text-slate-400 text-[10px] hidden lg:block">
                             Simule o aproveitamento das suas imagens no rolo e calcule a metragem necessária.
                         </DialogDescription>
-                        <div className="flex items-center gap-2 mt-2 bg-slate-100 dark:bg-slate-800/80 px-3 py-2 rounded-full w-fit border border-slate-200 dark:border-slate-700/50 shadow-sm animate-in slide-in-from-bottom-2 duration-500">
-                            <Sparkles className="h-4 w-4 text-primary flex-shrink-0 animate-pulse" />
-                            <span className="text-xs text-slate-700 dark:text-slate-200 font-semibold" key={currentTipIndex}>
+                        <div className="flex items-center gap-1.5 mt-1.5 bg-slate-100 dark:bg-slate-800/80 px-2.5 py-1.5 rounded-full w-fit border border-slate-200 dark:border-slate-700/50 shadow-sm animate-in slide-in-from-bottom-2 duration-500">
+                            <Sparkles className="h-3.5 w-3.5 text-primary flex-shrink-0 animate-pulse" />
+                            <span className="text-[10px] text-slate-700 dark:text-slate-200 font-bold" key={currentTipIndex}>
                                 {aiTips[currentTipIndex]}
                             </span>
                         </div>
                     </DialogHeader>
 
                     {/* Mode Toggle */}
-                    <div id="calculator-mode-switch" className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800/50 rounded-xl w-fit mt-2">
+                    <div id="calculator-mode-switch" className="flex items-center gap-1 p-0.5 bg-slate-100 dark:bg-slate-800/50 rounded-lg w-fit mt-1.5">
                         <button
                             onClick={() => {
                                 setMode('quick');
                             }}
                             className={cn(
-                                "px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2",
+                                "px-3 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-1.5",
                                 mode === 'quick'
-                                    ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
+                                    ? "bg-primary text-primary-foreground shadow-sm shadow-primary/20"
                                     : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
                             )}>
-                            <Sparkles className="h-4 w-4" /> Modo Rápido
+                            <Sparkles className="h-3.5 w-3.5" /> Modo Rápido
                         </button>
                         <button
                             onClick={() => setMode('multi')}
                             className={cn(
-                                "px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2",
+                                "px-3 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-1.5",
                                 mode === 'multi'
-                                    ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
+                                    ? "bg-primary text-primary-foreground shadow-sm shadow-primary/20"
                                     : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
                             )}>
-                            <Layers className="h-4 w-4" /> Múltiplos Itens
+                            <Layers className="h-3.5 w-3.5" /> Múltiplos Itens
                         </button>
                     </div>
 
-                    <div className="flex-1 overflow-hidden mt-6">
-                        <div className="grid grid-cols-1 md:grid-cols-12 gap-6 lg:gap-8 h-full items-start overflow-y-auto md:overflow-visible custom-scrollbar pr-1 -mr-1">
+                    <div className="flex-1 overflow-hidden mt-2">
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 lg:gap-4 h-full items-start overflow-y-auto md:overflow-hidden custom-scrollbar pr-1 -mr-1">
                             {/* Formulário - 5 colunas */}
-                            <div id="calculator-material-settings" className="md:col-span-5 space-y-6 md:sticky md:top-0 md:max-h-full md:overflow-y-auto custom-scrollbar md:pr-4">
+                            <div id="calculator-material-settings" className="md:col-span-4 lg:col-span-5 space-y-3 md:max-h-[calc(92vh-120px)] md:overflow-y-auto custom-scrollbar md:pr-1.5">
                                 {mode === 'quick' ? (
                                     <Card className="border-primary/20 bg-white/40 dark:bg-primary/5 backdrop-blur-md shadow-sm flex flex-col overflow-hidden">
-                                        <div className="p-4 flex-1 space-y-6">
+                                        <div className="p-3 lg:p-4 flex-1 space-y-3">
                                             {/* SEÇÃO 1: Largura do Material */}
-                                            <div className="space-y-3">
-                                                <div className="space-y-1">
-                                                    <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
-                                                        <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center font-black">1</div>
+                                            <div className="space-y-1.5">
+                                                <div className="space-y-0.5">
+                                                    <h3 className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                                                        <div className="w-4 h-4 rounded-full bg-primary text-primary-foreground text-[9px] flex items-center justify-center font-black">1</div>
                                                         Largura da Folha (Rolo)
                                                     </h3>
                                                 </div>
@@ -764,14 +755,14 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                             <Separator className="bg-primary/5" />
 
                                             {/* SEÇÃO 2: Tamanho da Logo */}
-                                            <div className="space-y-3">
-                                                <div className="space-y-1">
-                                                    <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
-                                                        <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center font-black">2</div>
+                                            <div className="space-y-1.5">
+                                                <div className="space-y-0.5">
+                                                    <h3 className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                                                        <div className="w-4 h-4 rounded-full bg-primary text-primary-foreground text-[9px] flex items-center justify-center font-black">2</div>
                                                         Tamanho do Adesivo
                                                     </h3>
                                                 </div>
-                                                <div className="grid grid-cols-2 gap-3">
+                                                <div className="grid grid-cols-2 gap-2">
                                                     <div className="space-y-1.5">
                                                         <Label className="text-[9px] uppercase font-black text-slate-400">Largura (cm)</Label>
                                                         <NumberInput
@@ -811,7 +802,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                         setImageWidth(imageHeight);
                                                         setImageHeight(tmp);
                                                     }}
-                                                    className="w-full h-8 text-[9px] font-black uppercase tracking-widest text-primary/60 hover:text-primary hover:bg-primary/5 rounded-lg border border-primary/10 gap-2">
+                                                    className="w-full h-7 text-[9px] font-black uppercase tracking-widest text-primary/60 hover:text-primary hover:bg-primary/5 rounded-lg border border-primary/10 gap-1.5">
                                                     <RefreshCw className="h-3 w-3" /> Girar 90°
                                                 </Button>
                                             </div>
@@ -819,10 +810,10 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                             <Separator className="bg-primary/5" />
 
                                             {/* SEÇÃO 3: Objetivo */}
-                                            <div className="space-y-3 pb-2">
-                                                <div className="space-y-1">
-                                                    <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
-                                                        <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center font-black">3</div>
+                                            <div className="space-y-1.5 pb-1">
+                                                <div className="space-y-0.5">
+                                                    <h3 className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                                                        <div className="w-4 h-4 rounded-full bg-primary text-primary-foreground text-[9px] flex items-center justify-center font-black">3</div>
                                                         O que deseja calcular?
                                                     </h3>
                                                 </div>
@@ -831,11 +822,11 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                     <button
                                                         onClick={() => setQuickGoal('meters')}
                                                         className={cn(
-                                                            "p-3 rounded-xl border-2 transition-all flex flex-col items-center text-center gap-1 min-h-[80px] justify-center",
+                                                            "p-2 rounded-xl border-2 transition-all flex flex-col items-center text-center gap-1 min-h-[60px] justify-center",
                                                             quickGoal === 'meters' ? "border-primary bg-primary/10" : "border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900"
                                                         )}>
                                                         <Ruler className={cn("h-4 w-4", quickGoal === 'meters' ? "text-primary" : "text-slate-400")} />
-                                                        <div className={cn("font-black text-[10px] leading-tight", quickGoal === 'meters' ? "text-slate-900 dark:text-white" : "text-slate-500")}>Saber quanto material vou usar</div>
+                                                        <div className={cn("font-black text-[9px] leading-tight", quickGoal === 'meters' ? "text-slate-900 dark:text-white" : "text-slate-500")}>Saber metragem de material</div>
                                                     </button>
 
                                                     <button
@@ -845,7 +836,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                             quickGoal === 'quantity' ? "border-primary bg-primary/10" : "border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900"
                                                         )}>
                                                         <Layers className={cn("h-4 w-4", quickGoal === 'quantity' ? "text-primary" : "text-slate-400")} />
-                                                        <div className={cn("font-black text-[10px] leading-tight", quickGoal === 'quantity' ? "text-slate-900 dark:text-white" : "text-slate-500")}>Saber quantas logos cabem no metro</div>
+                                                        <div className={cn("font-black text-[9px] leading-tight", quickGoal === 'quantity' ? "text-slate-900 dark:text-white" : "text-slate-500")}>Saber quantas logos no metro</div>
                                                     </button>
                                                 </div>
 
@@ -861,7 +852,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                                 max={10000}
                                                                 step={10}
                                                                 fieldId="quantity"
-                                                                className="w-full text-2xl font-black"
+                                                                className="w-full text-xl font-black"
                                                                 setHoveredField={setHoveredField}
                                                             />
                                                         </div>
@@ -877,7 +868,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                                 step={0.5}
                                                                 fieldId="meters"
                                                                 suffix="m"
-                                                                className="w-full text-2xl font-black"
+                                                                className="w-full text-xl font-black"
                                                                 setHoveredField={setHoveredField}
                                                             />
                                                         </div>
@@ -926,8 +917,8 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                     </Card>
                                 ) : (
                                     <Card className="border-primary/20 bg-white/40 dark:bg-primary/5 backdrop-blur-md shadow-sm">
-                                        <CardContent className="p-4 space-y-4">
-                                            <div className="space-y-2">
+                                        <CardContent className="p-3 space-y-3">
+                                            <div className="space-y-1.5">
                                                 <Label className="text-[10px] font-bold uppercase text-slate-500 dark:text-muted-foreground flex items-center justify-between tracking-wider">
                                                     <div className="flex items-center gap-1">
                                                         <Settings2 className="h-3 w-3 text-primary" /> Configurações do Rolo
@@ -956,9 +947,9 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                         ))}
                                                     </div>
                                                 </Label>
-                                                <div className="grid grid-cols-2 gap-4">
-                                                    <div className="space-y-1.5 p-0.5">
-                                                        <div className="min-h-[32px] flex items-end pb-1">
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div className="space-y-1 p-0.5">
+                                                        <div className="min-h-[28px] flex items-end pb-1">
                                                             <InfoTooltip
                                                                 id="rollWidth"
                                                                 fieldId="rollWidth"
@@ -993,8 +984,8 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                         </div>
                                                     </div>
                                                     {/* Configuração de Margens de Segurança */}
-                                                    <div className="space-y-1.5 p-0.5">
-                                                        <div className="min-h-[32px] flex items-end pb-1">
+                                                    <div className="space-y-1 p-0.5">
+                                                        <div className="min-h-[28px] flex items-end pb-1">
                                                             <InfoTooltip
                                                                 id="margin"
                                                                 fieldId="margin"
@@ -1040,12 +1031,12 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                 </Label>
 
                                                 {/* Item List */}
-                                                <div className="space-y-4 max-h-[400px] overflow-y-auto pr-1 custom-scrollbar">
+                                                <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
                                                     {multiResults.items.map((item, index) => (
                                                         <div
                                                             key={item.id}
                                                             className={cn(
-                                                                "p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border space-y-4 shadow-sm transition-all duration-300",
+                                                                "p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border space-y-2 shadow-sm transition-all duration-300",
                                                                 item.isOverflowing ? "border-red-500/50 bg-red-500/5" : "border-slate-200 dark:border-slate-700",
                                                                 item.shouldRotate ? "ring-2 ring-primary/30 border-primary/40" : ""
                                                             )}>
@@ -1097,7 +1088,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                                 </div>
                                                             )}
 
-                                                            <div className="grid grid-cols-2 gap-4">
+                                                            <div className="grid grid-cols-2 gap-2">
                                                                 {/* Tamanho */}
                                                                 <div className="space-y-1">
                                                                     <Label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Tamanho (cm)</Label>
@@ -1170,7 +1161,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                         <Button
                                                             variant="outline"
                                                             size="sm"
-                                                            className="flex-1 h-10 text-xs border-dashed border-primary/30 text-primary hover:bg-primary/5 font-bold rounded-xl"
+                                                            className="flex-1 h-9 text-xs border-dashed border-primary/30 text-primary hover:bg-primary/5 font-bold rounded-xl"
                                                             onClick={addItem}>
                                                             <Plus className="h-4 w-4 mr-1" /> Adicionar Item
                                                         </Button>
@@ -1212,35 +1203,35 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                 )}
 
                                 {/* Resultados Rápidos - Layout Grid Profissional */}
-                                <div className="space-y-4 pt-2">
-                                    <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-2.5 pt-1">
+                                    <div className="grid grid-cols-2 gap-2">
                                         <div className={cn(
-                                            "p-4 bg-primary text-primary-foreground rounded-2xl shadow-xl shadow-primary/20 ring-4 ring-primary/10 flex flex-col items-center justify-center text-center transition-all hover:scale-[1.02]",
+                                            "p-3 bg-primary text-primary-foreground rounded-2xl shadow-xl shadow-primary/20 ring-4 ring-primary/10 flex flex-col items-center justify-center text-center transition-all hover:scale-[1.02]",
                                         )}>
-                                            <span className="text-[10px] uppercase font-bold opacity-90 tracking-wider">
+                                            <span className="text-[9px] uppercase font-bold opacity-90 tracking-wider">
                                                 {mode === 'quick' && quickGoal === 'quantity' ? "Metragem Alvo" : "Metragem total"}
                                             </span>
-                                            <span className={cn("font-black tracking-tight", isMobile ? "text-2xl" : "text-3xl")}>
+                                            <span className={cn("font-black tracking-tight", isMobile ? "text-xl" : "text-xl")}>
                                                 {(mode === 'quick' ? results.totalMeters : multiResults.totalMeters).toFixed(2)}m
                                             </span>
-                                            <span className="text-[8px] font-black opacity-60 uppercase tracking-tighter mt-1">
+                                            <span className="text-[8px] font-black opacity-60 uppercase tracking-tighter mt-0.5">
                                                 Custo Est: R${((mode === 'quick' ? results.totalMeters : multiResults.totalMeters) * 50).toFixed(2)}
                                             </span>
                                         </div>
 
                                         {mode === 'quick' && quickGoal === 'quantity' ? (
-                                            <div className="p-3 bg-emerald-500 text-white rounded-xl shadow-lg shadow-emerald-500/20 ring-4 ring-emerald-500/10 flex flex-col items-center justify-center text-center animate-in zoom-in duration-300">
-                                                <span className="text-[10px] uppercase font-bold opacity-90 tracking-wider">Total de Itens</span>
-                                                <span className={cn("font-black tracking-tight", isMobile ? "text-2xl" : "text-3xl")}>
+                                            <div className="p-2.5 bg-emerald-500 text-white rounded-xl shadow-lg shadow-emerald-500/20 ring-4 ring-emerald-500/10 flex flex-col items-center justify-center text-center animate-in zoom-in duration-300">
+                                                <span className="text-[9px] uppercase font-bold opacity-90 tracking-wider">Total de Itens</span>
+                                                <span className={cn("font-black tracking-tight", isMobile ? "text-2xl" : "text-2xl")}>
                                                     {results.finalQuantity} <span className="text-sm font-bold opacity-70">un</span>
                                                 </span>
                                             </div>
                                         ) : (
-                                            <div id="calculator-efficiency-badge" className="p-3 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-xl shadow-sm border border-slate-200 dark:border-white/5 flex flex-col items-center justify-center text-center">
-                                                <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 tracking-wider">
+                                            <div id="calculator-efficiency-badge" className="p-2.5 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-xl shadow-sm border border-slate-200 dark:border-white/5 flex flex-col items-center justify-center text-center">
+                                                <span className="text-[9px] uppercase font-bold text-slate-500 dark:text-slate-400 tracking-wider">
                                                     Eficiência
                                                 </span>
-                                                <span className={cn("font-black tracking-tight", isMobile ? "text-xl" : "text-2xl")}>
+                                                <span className={cn("font-black tracking-tight", isMobile ? "text-xl" : "text-xl")}>
                                                     {mode === 'quick' ? results.efficiency : multiResults.efficiency}%
                                                 </span>
                                             </div>
@@ -1248,14 +1239,14 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                     </div>
 
                                     {/* Resumo da Gabi - Estilo Oficial do Dashboard */}
-                                    <div className="relative group rounded-xl p-[1px] bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] shadow-lg shadow-purple-500/10 animate-in slide-in-from-bottom-2 duration-500">
-                                        <div className="absolute inset-0 bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] opacity-20 blur-md rounded-xl" />
-                                        <div className="relative bg-slate-950/90 backdrop-blur-xl rounded-[10px] p-4 flex gap-4 items-start">
-                                            <div className="h-10 w-10 rounded-full bg-gradient-to-br from-[#FF6B6B] to-[#ffd93d] flex items-center justify-center shrink-0 shadow-lg shadow-orange-500/20">
-                                                <Bot className="h-5 w-5 text-white" />
+                                    <div className="relative group rounded-xl p-[1px] bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] shadow-sm shadow-purple-500/10 animate-in slide-in-from-bottom-2 duration-500">
+                                        <div className="absolute inset-0 bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] opacity-20 blur-sm rounded-xl" />
+                                        <div className="relative bg-slate-950/90 backdrop-blur-xl rounded-[10px] p-2.5 flex gap-2.5 items-start">
+                                            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-[#FF6B6B] to-[#ffd93d] flex items-center justify-center shrink-0 shadow-sm shadow-orange-500/20">
+                                                <Bot className="h-4 w-4 text-white" />
                                             </div>
-                                            <div className="space-y-1">
-                                                <div className="text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent flex items-center gap-2">
+                                            <div className="space-y-0.5">
+                                                <div className="text-[9px] font-black uppercase tracking-wider bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent flex items-center gap-2">
                                                     Resumo da Gabi
                                                     <span className="bg-white/10 px-1.5 py-0.5 rounded text-[8px] text-white/60">GABI AI</span>
                                                 </div>
@@ -1287,22 +1278,22 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                             message={generateQuoteSummary()}
                                             label="COMPARTILHAR NO WHATSAPP"
                                             disabled={mode === 'quick' ? imageWidth + (margin * 2) > rollWidth : multiResults.totalItemsOverflowing > 0}
-                                            className="w-full h-12 text-xs rounded-xl font-black"
-                                            size="lg"
+                                            className="w-full h-10 text-[10px] rounded-xl font-black"
+                                            size="sm"
                                         />
 
                                         <div className="grid grid-cols-2 gap-2">
                                             <Button
                                                 variant="outline"
                                                 size="sm"
-                                                className="h-10 text-[9px] font-black uppercase tracking-widest border-primary/20 text-primary hover:bg-primary/5 rounded-xl gap-2"
+                                                className="h-9 text-[9px] font-black uppercase tracking-widest border-primary/20 text-primary hover:bg-primary/5 rounded-xl gap-2"
                                                 onClick={handleCopyToClipboard}>
                                                 <Copy className="h-3.5 w-3.5" /> Copiar Resumo
                                             </Button>
                                             <Button
                                                 variant="outline"
                                                 size="sm"
-                                                className="h-10 text-[9px] font-black uppercase tracking-widest border-primary/20 text-primary hover:bg-primary/5 rounded-xl gap-2"
+                                                className="h-9 text-[9px] font-black uppercase tracking-widest border-primary/20 text-primary hover:bg-primary/5 rounded-xl gap-2"
                                                 onClick={handleDownloadImage}>
                                                 <Download className="h-3.5 w-3.5" /> Baixar Imagem
                                             </Button>
@@ -1331,7 +1322,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                     )}
 
                                     {/* Header Minimalista (Ruler Externo Tipo Imagem 3) */}
-                                    <div className="bg-slate-900 border-b border-slate-800 p-6 flex flex-col items-center justify-center relative overflow-hidden group">
+                                    <div className="bg-slate-900 border-b border-slate-800 p-2.5 lg:p-3 flex flex-col items-center justify-center relative overflow-hidden group">
                                         {!isFullscreenPreview && (
                                             <Button
                                                 variant="ghost"
@@ -1355,8 +1346,8 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                 </div>
                                             </div>
 
-                                            <div className="w-full h-12 flex flex-col items-center justify-end relative">
-                                                <div className="text-[11px] font-mono font-bold text-slate-300 mb-3 flex items-center gap-3 tracking-widest">
+                                            <div className="w-full h-10 flex flex-col items-center justify-end relative">
+                                                <div className="text-[10px] font-mono font-bold text-slate-300 mb-2 flex items-center gap-3 tracking-widest">
                                                     <span className="text-slate-600">←</span>
                                                     <span className={cn(
                                                         "transition-colors duration-300",
@@ -1380,7 +1371,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                     </div>
 
                                     {/* Scrollable Canvas Area */}
-                                    <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 custom-scrollbar relative flex flex-col">
+                                    <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 custom-scrollbar relative flex flex-col">
                                         <div
                                             ref={previewRef}
                                             id="dtf-preview-paper"
@@ -1401,12 +1392,12 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                 </div>
                                             )}
                                             {/* Regua de Medida do Topo (Ruler) */}
-                                            <div className="absolute top-0 inset-x-0 h-10 flex flex-col items-center pointer-events-none z-30 opacity-60">
+                                            <div className="absolute top-0 inset-x-0 h-8 flex flex-col items-center pointer-events-none z-30 opacity-60">
                                                 <div className="w-full h-px bg-slate-300 relative mt-4">
                                                     <div className="absolute -top-1 left-0 w-[1px] h-3 bg-slate-400" />
                                                     <div className="absolute -top-1 right-0 w-[1px] h-3 bg-slate-400" />
                                                     <div className="absolute inset-0 flex items-center justify-center">
-                                                        <span className="bg-white px-2 py-0.5 text-[8px] font-mono font-bold text-slate-500 tracking-tighter">
+                                                        <span className="bg-white px-1.5 py-0.5 text-[7px] font-mono font-bold text-slate-500 tracking-tighter">
                                                             ← {rollWidth} cm →
                                                         </span>
                                                     </div>
@@ -1470,46 +1461,41 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                             </div>
                                                         </div>
                                                     ) : (
-                                                        <div className="w-full h-full flex flex-col items-center">
-                                                            {multiResults.items.map((item, itemIdx) => {
-                                                                const groupContentWidthCm = (item.width * item.imagesPerRow) + (separation * (item.imagesPerRow - 1));
-                                                                const isLast = itemIdx === multiResults.items.length - 1;
+                                                        <div className="relative w-full h-full">
+                                                            {(isExporting ? multiResults.placedItems : multiResults.previewPlacedItems).map((placedItem, idx) => {
+                                                                const originalIndex = placedItem.originalIndex as number;
+                                                                const color = itemColors[originalIndex % itemColors.length];
+
+                                                                // Calcula área livre do container
+                                                                const heightContext = isExporting
+                                                                    ? (multiResults.totalHeightCm - (margin * 2))
+                                                                    : (multiResults.previewTotalHeightCm - (margin * 2));
+
+                                                                // Se rodou, visualmente inverte largura por altura no desenho
+                                                                const drawWidth = placedItem.rotated ? placedItem.height : placedItem.width;
+                                                                const drawHeight = placedItem.rotated ? placedItem.width : placedItem.height;
+
                                                                 return (
-                                                                    <div key={item.id}
-                                                                        className="flex flex-col items-center"
+                                                                    <div key={`packed-${idx}`}
+                                                                        className={cn(
+                                                                            "absolute border rounded-sm flex items-center justify-center transition-all duration-300",
+                                                                            color.bg,
+                                                                            color.border,
+                                                                            (hoveredField === 'itemWidth' || hoveredField === 'itemHeight' || hoveredField === 'itemQuantity') ? "scale-[1.05] shadow-[0_0_12px_rgba(30,150,255,0.6)] z-20" : ""
+                                                                        )}
                                                                         style={{
-                                                                            width: `${(groupContentWidthCm / multiResults.usableWidth) * 100}%`,
-                                                                            marginBottom: isLast ? 0 : `${(separation / multiResults.usableWidth) * 100}%`
+                                                                            left: `${(placedItem.x / multiResults.usableWidth) * 100}%`,
+                                                                            top: `${(placedItem.y / heightContext) * 100}%`,
+                                                                            width: `${(drawWidth / multiResults.usableWidth) * 100}%`,
+                                                                            height: `${(drawHeight / heightContext) * 100}%`,
                                                                         }}>
-                                                                        <div
-                                                                            className={cn(
-                                                                                "grid content-start w-full transition-all duration-300",
-                                                                                hoveredField === 'separation' ? "bg-purple-500/5 ring-1 ring-purple-500/20" : ""
-                                                                            )}
-                                                                            style={{
-                                                                                gridTemplateColumns: `repeat(${item.imagesPerRow}, 1fr)`,
-                                                                                columnGap: `${(separation / groupContentWidthCm) * 100}%`,
-                                                                                rowGap: `${(separation / (isExporting ? item.contentHeight : item.previewContentHeight)) * 100}%`,
-                                                                                aspectRatio: `${groupContentWidthCm} / ${isExporting ? item.contentHeight : item.previewContentHeight}`
-                                                                            }}>
-                                                                            {Array.from({ length: isExporting ? item.quantity : item.previewQuantity }).map((_, i) => {
-                                                                                const color = itemColors[itemIdx % itemColors.length];
-                                                                                return (
-                                                                                    <div key={`item-${item.id}-${i}`}
-                                                                                        className={cn(
-                                                                                            "border rounded-sm flex items-center justify-center transition-all duration-300",
-                                                                                            color.bg,
-                                                                                            color.border,
-                                                                                            (hoveredField === 'itemWidth' || hoveredField === 'itemHeight' || hoveredField === 'itemQuantity') ? "scale-[1.05] shadow-[0_0_12px_rgba(30,150,255,0.6)] z-20" : ""
-                                                                                        )}
-                                                                                        style={{
-                                                                                            aspectRatio: `${item.width} / ${item.height}`
-                                                                                        }}>
-                                                                                        <span className={cn("text-[5px] font-bold opacity-40", color.text)}>{itemIdx + 1}</span>
-                                                                                    </div>
-                                                                                );
-                                                                            })}
-                                                                        </div>
+                                                                        <span className={cn(
+                                                                            "font-bold opacity-40 select-none",
+                                                                            drawWidth < 5 || drawHeight < 5 ? "text-[5px]" : "text-[5px] sm:text-[6px]",
+                                                                            color.text
+                                                                        )}>
+                                                                            {placedItem.rotated ? <RefreshCw className="w-2 h-2 mr-0.5 inline-block opacity-70" /> : ''}{originalIndex + 1}
+                                                                        </span>
                                                                     </div>
                                                                 );
                                                             })}
@@ -1566,31 +1552,31 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                     }
 
                                     {/* Legenda e Status (Estilo Imagem 4) */}
-                                    <div className="px-4 py-3 border-t border-slate-200 bg-slate-900 flex flex-wrap items-center justify-between rounded-b-xl gap-4">
-                                        <div className="flex flex-wrap gap-x-6 gap-y-2">
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-3 h-3 bg-primary rounded-sm shadow-[0_0_5px_var(--primary-custom)]" />
-                                                <span className="text-[10px] text-slate-400 font-black uppercase tracking-wider">Logos</span>
+                                    <div className="px-3 py-2.5 border-t border-slate-200 bg-slate-900 flex flex-wrap items-center justify-between rounded-b-xl gap-3">
+                                        <div className="flex flex-wrap gap-x-5 gap-y-2">
+                                            <div className="flex items-center gap-1.5">
+                                                <div className="w-2.5 h-2.5 bg-primary rounded-sm shadow-[0_0_5px_var(--primary-custom)]" />
+                                                <span className="text-[9px] text-slate-400 font-black uppercase tracking-wider">Logos</span>
                                             </div>
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-3 h-3 bg-white border border-slate-700 rounded-sm" />
-                                                <span className="text-[10px] text-slate-400 font-black uppercase tracking-wider">Área Útil</span>
+                                            <div className="flex items-center gap-1.5">
+                                                <div className="w-2.5 h-2.5 bg-white border border-slate-700 rounded-sm" />
+                                                <span className="text-[9px] text-slate-400 font-black uppercase tracking-wider">Área Útil</span>
                                             </div>
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-3 h-3 bg-emerald-500 rounded-sm" />
+                                            <div className="flex items-center gap-1.5">
+                                                <div className="w-2.5 h-2.5 bg-emerald-500 rounded-sm" />
                                                 <span className="text-[10px] text-slate-400 font-black uppercase tracking-wider">Margem (M)</span>
                                             </div>
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-3 h-3 bg-purple-500 rounded-sm" />
-                                                <span className="text-[10px] text-slate-400 font-black uppercase tracking-wider">Espaço (S)</span>
+                                            <div className="flex items-center gap-1.5">
+                                                <div className="w-2.5 h-2.5 bg-purple-500 rounded-sm" />
+                                                <span className="text-[9px] text-slate-400 font-black uppercase tracking-wider">Espaço (S)</span>
                                             </div>
                                         </div>
 
-                                        <div className="flex items-center gap-2 px-3 py-1 bg-slate-800/50 rounded-full border border-slate-700/50 ml-auto">
-                                            <Badge variant="outline" className="bg-transparent text-slate-300 font-bold text-[9px] border-slate-700 px-2 py-0">
+                                        <div className="flex items-center gap-1.5 px-2 py-0.5 bg-slate-800/50 rounded-full border border-slate-700/50 ml-auto">
+                                            <Badge variant="outline" className="bg-transparent text-slate-300 font-bold text-[8.5px] border-slate-700 px-1.5 py-0">
                                                 TOTAL: {(mode === 'quick' ? results.totalHeightCm : multiResults.totalHeightCm).toFixed(1)}cm
                                             </Badge>
-                                            <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 font-black text-[9px] border-emerald-500/20 px-2 py-0">
+                                            <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 font-black text-[8.5px] border-emerald-500/20 px-1.5 py-0">
                                                 EST. R$ {((mode === 'quick' ? results.totalMeters : multiResults.totalMeters) * 50).toFixed(2)}
                                             </Badge>
                                         </div>
@@ -1602,29 +1588,29 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
 
                     {/* Footer profissional */}
                     <div className={cn(
-                        "flex justify-between items-center mt-auto pt-4 border-t bg-background/50 backdrop-blur-sm pb-2",
-                        isMobile && "flex-col gap-4"
+                        "flex justify-between items-center mt-auto pt-3 border-t bg-background/50 backdrop-blur-sm pb-1",
+                        isMobile && "flex-col gap-3"
                     )}>
                         {!isMobile && (
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center border border-emerald-100 dark:bg-emerald-500/10 dark:border-emerald-500/20">
-                                    <Calculator className="h-5 w-5 text-emerald-600" />
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center border border-emerald-100 dark:bg-emerald-500/10 dark:border-emerald-500/20">
+                                    <Calculator className="h-4 w-4 text-emerald-600" />
                                 </div>
                                 <div>
-                                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-tighter leading-none">Cálculo Preciso</div>
-                                    <div className="text-xs font-bold text-slate-900 dark:text-slate-100">DIRECT-AI ENGINE v2.8</div>
+                                    <div className="text-[9px] font-black text-slate-400 uppercase tracking-tighter leading-none">Cálculo Preciso</div>
+                                    <div className="text-[11px] font-bold text-slate-900 dark:text-slate-100">DIRECT-AI ENGINE v2.8</div>
                                 </div>
                             </div>
                         )}
-                        <div id="calculator-finalize" className={cn("flex gap-3", isMobile ? "w-full" : "")}>
-                            <Button variant="ghost" size="sm" onClick={onClose} className="font-bold text-slate-500 rounded-xl">Voltar</Button>
+                        <div id="calculator-finalize" className={cn("flex gap-2.5", isMobile ? "w-full" : "")}>
+                            <Button variant="ghost" size="sm" onClick={onClose} className="h-8 text-[11px] font-bold text-slate-500 rounded-xl">Voltar</Button>
                         </div>
                     </div>
-                </DialogContent>
-            </Dialog>
+                </DialogContent >
+            </Dialog >
 
             {/* Custom Liquid Glass Fill Dialog */}
-            <Dialog open={isFillDialogOpen} onOpenChange={setIsFillDialogOpen}>
+            < Dialog open={isFillDialogOpen} onOpenChange={setIsFillDialogOpen} >
                 <DialogContent className="max-w-[320px] p-0 border-none bg-transparent shadow-none overflow-hidden">
                     <div className="relative p-6 bg-slate-900/40 backdrop-blur-2xl border border-white/10 rounded-3xl shadow-2xl overflow-hidden group">
                         <div className="absolute -top-10 -right-10 w-32 h-32 bg-primary/20 rounded-full blur-3xl group-hover:bg-primary/30 transition-colors duration-500" />
@@ -1676,7 +1662,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                         </div>
                     </div>
                 </DialogContent>
-            </Dialog>
+            </Dialog >
 
             <TutorialGuide
                 steps={CALCULADORA_TOUR}

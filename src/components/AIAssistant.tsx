@@ -335,7 +335,7 @@ export const AIAssistant = () => {
                                         isUserMessage={true}
                                       />
                                     ) : (
-                                      <div dangerouslySetInnerHTML={{ __html: formatMessage(typeof msg.content === 'string' ? msg.content : '') }} />
+                                      <div className="whitespace-pre-wrap">{typeof msg.content === 'string' ? msg.content : ''}</div>
                                     )}
                                   </div>
                                   <User className="h-4 w-4 flex-shrink-0 mt-0.5 opacity-70" />
@@ -371,43 +371,41 @@ export const AIAssistant = () => {
                                         const totalMeters = typeof results === 'object' && !Array.isArray(results) ? results.totalMeters : results?.[0]?.totalMeters ?? 0;
 
                                         return (
-                                          <div className="mt-2 w-full max-w-[360px] animate-in zoom-in-95 duration-500 font-sans">
-                                            <div className="bg-[#111] rounded-[40px] p-6 shadow-2xl border border-white/5 space-y-6">
-                                              {/* Header Estilo Direct */}
-                                              <div className="flex justify-center">
-                                                <div className="bg-[#f2e635] px-10 py-2 rounded-full shadow-lg transform -rotate-1">
-                                                  <span className="text-black font-black uppercase italic tracking-tighter text-lg">CALCULADORA DIRECT</span>
-                                                </div>
+                                          <div className="mt-2 w-full max-w-[320px] animate-in zoom-in-95 duration-500 group">
+                                            <div className="flex items-center gap-2 mb-2 px-1">
+                                              <div className="h-5 w-5 rounded-full bg-[#f2e635] flex items-center justify-center shadow-lg shadow-[#f2e635]/20">
+                                                <Calculator className="h-2.5 w-2.5 text-black" />
                                               </div>
+                                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Calculadora Skill</span>
+                                            </div>
 
-                                              {/* Grid de Informações */}
-                                              <div className="grid grid-cols-2 gap-4 text-center">
-                                                <div className="space-y-2">
-                                                  <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">Quantidade</span>
-                                                  <div className="bg-[#f2e635] rounded-[30px] p-6 flex flex-col items-center justify-center shadow-inner group transition-transform hover:scale-105 duration-300">
-                                                    <span className="text-4xl font-black text-black leading-none">{quantity}</span>
-                                                    <span className="text-xs font-black text-black/60 uppercase">UNDS</span>
+                                            <div className="relative rounded-3xl overflow-hidden shadow-2xl ring-1 ring-white/10 bg-slate-950/60 backdrop-blur-xl border border-white/5">
+                                              <div className="relative h-1.5 w-full bg-gradient-to-r from-yellow-400 via-[#f2e635] to-amber-500 shadow-[0_0_20px_rgba(242,230,53,0.4)]" />
+
+                                              <div className="relative p-5 space-y-4">
+                                                <div className="flex items-center justify-between">
+                                                  <div className="space-y-1">
+                                                    <h4 className="text-[10px] font-black text-[#f2e635] uppercase tracking-[0.2em]">Orçamento DTF</h4>
+                                                    <p className="text-xl font-black text-white italic tracking-tighter uppercase">{quantity} Unds</p>
+                                                  </div>
+                                                  <div className="h-10 w-10 rounded-2xl bg-[#f2e635]/10 flex items-center justify-center border border-[#f2e635]/20">
+                                                    <LayoutGrid className="w-5 h-5 text-[#f2e635]" />
                                                   </div>
                                                 </div>
-                                                <div className="space-y-2">
-                                                  <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">Tamanho :</span>
-                                                  <div className="bg-[#f2e635] rounded-[30px] p-6 flex flex-col items-center justify-center shadow-inner group transition-transform hover:scale-105 duration-300">
-                                                    <span className="text-4xl font-black text-black leading-none">{Number(totalMeters).toFixed(1)}</span>
-                                                    <span className="text-xs font-black text-black/60 uppercase">METR</span>
-                                                  </div>
-                                                </div>
-                                              </div>
 
-                                              {/* Botão de Ação */}
-                                              <button
-                                                onClick={() => { setCalcData(resultData.data); setIsCalcOpen(true); }}
-                                                className="w-full bg-[#f2e635] hover:bg-white text-black font-black uppercase italic py-4 rounded-full transition-all duration-300 shadow-[0_10px_30px_rgba(242,230,53,0.3)] hover:shadow-white/20 active:scale-95 flex items-center justify-center gap-2 group"
-                                              >
-                                                <span className="tracking-tight text-lg">VER VISUALIZAÇÃO</span>
-                                                <div className="w-6 h-6 rounded-full bg-black/10 flex items-center justify-center transition-transform group-hover:rotate-12">
-                                                  <Zap className="w-3 h-3 text-black" />
+                                                <div className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/5 flex justify-between items-center">
+                                                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Metragem Prevista</span>
+                                                  <span className="text-white font-black italic">{Number(totalMeters).toFixed(1)} ML</span>
                                                 </div>
-                                              </button>
+
+                                                <Button
+                                                  className="w-full h-12 bg-[#f2e635] hover:bg-white text-black font-black uppercase tracking-widest text-[11px] gap-2 shadow-[0_15px_35px_rgba(242,230,53,0.3)] border-none rounded-xl transition-all hover:scale-[1.02] active:scale-95"
+                                                  onClick={() => { setCalcData(resultData.data); setIsCalcOpen(true); }}
+                                                >
+                                                  <Zap className="w-4 h-4" />
+                                                  Abrir Visualização
+                                                </Button>
+                                              </div>
                                             </div>
                                           </div>
                                         );
@@ -569,8 +567,68 @@ export const AIAssistant = () => {
                                     } catch (e) { return null; }
                                     return null;
                                   })()
+                                ) : msg.name === 'get_client_snapshot' ? (
+                                  (() => {
+                                    try {
+                                      const content = typeof msg.content === 'string' ? msg.content : '';
+                                      const resultData = JSON.parse(content);
+                                      if (resultData.type === 'client_snapshot') {
+                                        const snap = resultData.data;
+                                        return (
+                                          <div className="mt-2 w-full max-w-[350px] animate-in zoom-in-95 group">
+                                            <div className="flex items-center gap-2 mb-2 px-1">
+                                              <div className="h-5 w-5 rounded-full bg-violet-500 flex items-center justify-center shadow-lg shadow-violet-500/20">
+                                                <User className="h-2.5 w-2.5 text-white" />
+                                              </div>
+                                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Snapshot Skill</span>
+                                            </div>
+
+                                            <div className="relative rounded-3xl overflow-hidden shadow-2xl ring-1 ring-white/10 bg-slate-950/60 backdrop-blur-xl border border-white/5">
+                                              <div className="relative h-1.5 w-full bg-gradient-to-r from-violet-400 via-fuchsia-500 to-indigo-500 shadow-[0_0_20px_rgba(139,92,246,0.4)]" />
+
+                                              <div className="relative p-5 space-y-4">
+                                                <div className="flex justify-between items-start">
+                                                  <div className="space-y-1">
+                                                    <h4 className="text-[10px] font-black text-violet-400 uppercase tracking-[0.2em]">Raio-X do Cliente</h4>
+                                                    <p className="text-xl font-black text-white italic tracking-tighter uppercase leading-none">{snap.clientName}</p>
+                                                    <p className="text-[10px] font-bold text-slate-400">{snap.phone}</p>
+                                                  </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-2 gap-3 pb-2 border-b border-white/5">
+                                                  <div className="p-3 bg-white/[0.03] rounded-2xl border border-white/5">
+                                                    <span className="block text-[9px] font-black uppercase text-slate-500 mb-1">Total Pedidos</span>
+                                                    <span className="text-xl font-black text-white">{snap.totalOrders}</span>
+                                                  </div>
+                                                  <div className="p-3 bg-violet-500/10 rounded-2xl border border-violet-500/20">
+                                                    <span className="block text-[9px] font-black uppercase text-violet-400/70 mb-1">Gasto Total</span>
+                                                    <span className="text-xl font-black text-violet-400 italic">R$ {snap.totalSpent.toFixed(2)}</span>
+                                                  </div>
+                                                </div>
+
+                                                <div className="flex justify-between items-center px-1">
+                                                  <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Último Pedido</span>
+                                                  <span className="text-xs text-white font-bold">{snap.lastOrderDate ? new Date(snap.lastOrderDate).toLocaleDateString('pt-BR') : 'Sem dados'}</span>
+                                                </div>
+
+                                                <Button
+                                                  onClick={() => window.open(`https://wa.me/55${snap.phone.replace(/\D/g, '')}?text=Oi%20${encodeURIComponent(snap.clientName.split(' ')[0])},%20Gabi%20da%20Direct%20aqui!%20Saudade%20dos%20seus%20pedidos.%20Bora%20rodar%20um%20DTF%20hoje?`, '_blank')}
+                                                  className="w-full h-12 bg-violet-600 hover:bg-violet-500 text-white font-black uppercase tracking-widest text-[10px] gap-2 shadow-[0_15px_35px_rgba(139,92,246,0.3)] border-none rounded-xl transition-all hover:scale-[1.02] active:scale-95"
+                                                >
+                                                  <MessageCircle className="w-4 h-4" />
+                                                  Reativar Cliente
+                                                </Button>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        );
+                                      }
+                                    } catch (e) { return null; }
+                                    return null;
+                                  })()
                                 ) : (
-                                  <div dangerouslySetInnerHTML={{ __html: formatMessage(typeof msg.content === 'string' ? msg.content : '') }} />
+                                  ['calculate_dtf_packing', 'create_order_draft', 'send_whatsapp_message', 'calculate_shipping', 'get_client_snapshot'].includes(msg.name || '') ?
+                                    <div dangerouslySetInnerHTML={{ __html: formatMessage(typeof msg.content === 'string' ? msg.content : '') }} /> : null
                                 )}
                               </div>
                             ) : null}

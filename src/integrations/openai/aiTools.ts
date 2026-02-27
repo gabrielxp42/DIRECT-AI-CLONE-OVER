@@ -1191,8 +1191,22 @@ export const openAIFunctions = [
     }
   },
   {
+    name: "get_client_snapshot",
+    description: "Traz uma ficha detalhada de um cliente: total gasto, data do último pedido e quantidade de pedidos.",
+    parameters: {
+      type: "object",
+      properties: {
+        clientName: {
+          type: "string",
+          description: "O nome ou apelido do cliente para buscar o raio-x."
+        }
+      },
+      required: ["clientName"]
+    }
+  },
+  {
     name: "send_whatsapp_message",
-    description: "Prepara uma mensagem para ser enviada via WhatsApp. Se você não tiver o telefone real, informe o nome do cliente no parâmetro clientName que eu buscarei o número no banco de dados automaticamente.",
+    description: "Prepara uma mensagem para ser enviada via WhatsApp. Se não tiver o telefone real, informe o nome do cliente no parâmetro clientName. IMPORTANTE: Após usar esta ferramenta, responda apenas dizendo que a mensagem foi preparada. NUNCA gere ou retorne links em markdown (ex: [Enviar Mensagem]) na sua resposta de texto, pois o sistema renderizará automaticamente um Card visual com o botão de envio.",
     parameters: {
       type: "object",
       properties: {
