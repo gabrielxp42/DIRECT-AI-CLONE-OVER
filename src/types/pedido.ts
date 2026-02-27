@@ -60,6 +60,7 @@ export interface Pedido {
   created_at: string;
 
   pago_at: string | null;
+  metodo_pagamento: string | null;
   order_number: number;
   clientes: Cliente;
   pedido_items: PedidoItem[];
@@ -95,6 +96,7 @@ export interface NewPedido {
   total_metros_vinil: number;
   status: PedidoStatus; // Status de pagamento/geral
   pago_at?: string | null;
+  metodo_pagamento?: string | null;
   observacoes?: string;
   tipo_entrega?: 'frete' | 'retirada';
   valor_frete?: number;

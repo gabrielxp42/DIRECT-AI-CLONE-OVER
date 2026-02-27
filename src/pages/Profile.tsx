@@ -25,12 +25,15 @@ import {
     Settings,
     Zap,
     ShieldCheck,
-    ArrowRight
+    ArrowRight,
+    Copy,
+    Check,
+    QrCode
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { SubscriptionModal } from "@/components/SubscriptionModal";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
@@ -41,6 +44,8 @@ export default function Profile() {
     const navigate = useNavigate();
     const subscription = useSubscription();
     const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+    const [pixData, setPixData] = useState<any>(null);
+    const [isCheckingRenewal, setIsCheckingRenewal] = useState(false);
 
     if (isLoading) {
         return (
@@ -51,6 +56,39 @@ export default function Profile() {
             </div>
         );
     }
+
+    const checkPendingRenewal = async () => {
+        if (!session?.access_token || !profile?.asaas_subscription_id) return;
+
+        try {
+            setIsCheckingRenewal(true);
+            const response = await fetch('https://zdbjzrpgliqicwvncfpc.supabase.co/functions/v1/verify-subscription', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`
+                },
+                body: JSON.stringify({
+                    subscriptionId: profile.asaas_subscription_id
+                })
+            });
+
+            const data = await response.json();
+            if (data.status === 'PENDING_RENEWAL' && data.pix) {
+                setPixData(data.pix);
+            }
+        } catch (error) {
+            console.error("Erro ao verificar renovação:", error);
+        } finally {
+            setIsCheckingRenewal(false);
+        }
+    };
+
+    useEffect(() => {
+        if (profile?.asaas_subscription_id) {
+            checkPendingRenewal();
+        }
+    }, [profile?.asaas_subscription_id]);
 
     const formatDate = (date: Date | null | string) => {
         if (!date) return "N/A";
@@ -71,6 +109,18 @@ export default function Profile() {
 
     const handleManageSubscription = async () => {
         if (!session?.access_token) return;
+
+        // Se for usuário Asaas, redirecionar para o WhatsApp de suporte (pois Asaas não tem portal nativo como Stripe)
+        if (profile?.asaas_customer_id) {
+            toast.info("Para gerenciar sua assinatura Asaas, entre em contato com nosso suporte.");
+            setTimeout(() => handleWhatsAppSupport(), 2000);
+            return;
+        }
+
+        if (!profile?.stripe_customer_id) {
+            toast.error("Nenhum dado de cobrança encontrado.");
+            return;
+        }
 
         try {
             toast.loading("Redirecionando para o portal de pagamento...", { id: 'portal-loader' });
@@ -99,6 +149,12 @@ export default function Profile() {
         }
     };
 
+    const handleCopyPix = () => {
+        if (!pixData?.payload) return;
+        navigator.clipboard.writeText(pixData.payload);
+        toast.success("Código PIX Copiado!");
+    };
+
     return (
         <div className="relative min-h-screen pb-20 overflow-x-hidden pt-safe selection:bg-primary selection:text-black bg-background text-foreground transition-colors duration-300">
             {/* Background Identity: Adaptive and subtle */}
@@ -108,6 +164,61 @@ export default function Profile() {
             </div>
 
             <div className="container max-w-4xl pt-8 md:pt-14 px-5 md:px-8">
+
+                {/* 🚨 PENDING RENEWAL CARD 🚨 */}
+                <AnimatePresence>
+                    {pixData && (
+                        <motion.div
+                            initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+                            animate={{ opacity: 1, height: 'auto', marginBottom: 32 }}
+                            exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+                            className="overflow-hidden"
+                        >
+                            <Card className="border-2 border-primary bg-primary/5 shadow-[0_0_30px_rgba(255,242,0,0.1)] rounded-[2rem] overflow-hidden">
+                                <CardContent className="p-6 md:p-8 flex flex-col md:flex-row items-center gap-8">
+                                    <div className="bg-white p-3 rounded-2xl shadow-xl shrink-0">
+                                        <img
+                                            src={`data:image/png;base64,${pixData.encodedImage}`}
+                                            alt="QR Code PIX"
+                                            className="w-40 h-40 md:w-48 md:h-48"
+                                        />
+                                    </div>
+
+                                    <div className="flex-1 space-y-4 text-center md:text-left">
+                                        <div>
+                                            <Badge className="bg-primary text-black font-black uppercase mb-2">Renovação Pendente</Badge>
+                                            <h3 className="text-2xl md:text-3xl font-black italic uppercase tracking-tighter">
+                                                Pagar Assinatura (PIX)
+                                            </h3>
+                                            <p className="text-muted-foreground font-bold text-sm">
+                                                Escaneie o QR Code ou copie a chave abaixo para renovar sua licença.
+                                                <br />
+                                                <strong>Valor: R$ {pixData.value?.toFixed(2)}</strong> | Vencimento: {formatDate(pixData.dueDate)}
+                                            </p>
+                                        </div>
+
+                                        <div className="flex flex-col sm:flex-row gap-3">
+                                            <Button
+                                                onClick={handleCopyPix}
+                                                className="bg-black text-white hover:bg-zinc-800 font-bold rounded-xl h-12 px-6 gap-2 shrink-0"
+                                            >
+                                                <Copy className="w-4 h-4" />
+                                                COPIAR CHAVE PIX
+                                            </Button>
+                                            <div className="flex-1 max-w-xs truncate bg-black/5 dark:bg-white/5 border border-primary/20 rounded-xl h-12 flex items-center px-4 text-xs font-mono text-muted-foreground overflow-hidden">
+                                                {pixData.payload}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="hidden lg:flex items-center justify-center p-6 bg-primary/10 rounded-3xl">
+                                        <QrCode className="w-12 h-12 text-primary opacity-50" />
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
 
                 {/* Header: Adaptive Design */}
                 <motion.div

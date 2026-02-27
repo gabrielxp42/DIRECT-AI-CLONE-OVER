@@ -72,7 +72,7 @@ Deno.serve(async (req: Request) => {
             .from('whatsapp_messages')
             .select('role:direction, content:message')
             .eq('user_id', user_id)
-            .eq('phone', customer_phone)
+            .eq('phone', customer_phone.split('@')[0])
             .order('created_at', { ascending: false })
             .limit(10);
 
@@ -149,7 +149,7 @@ Deno.serve(async (req: Request) => {
         // --- 5. Log Sent Message ---
         await supabase.from('whatsapp_messages').insert({
             user_id,
-            phone: customer_phone,
+            phone: customer_phone.split('@')[0],
             message: finalResponse,
             direction: 'sent',
             analyzed: true,

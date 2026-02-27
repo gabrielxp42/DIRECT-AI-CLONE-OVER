@@ -35,6 +35,15 @@ export const SubscriptionAlert = () => {
             };
         }
 
+        if (diffDays <= 6) {
+            return {
+                type: 'info',
+                message: `Lembrete: Sua assinatura vence em ${diffDays} dias.`,
+                color: "bg-blue-600",
+                textColor: "text-white"
+            };
+        }
+
         return null;
     }, [profile]);
 

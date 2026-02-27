@@ -36,6 +36,8 @@ import {
     Gift,
     Star,
     Copy,
+    Mail,
+    Send,
     Brain,
     Wallet
 } from "lucide-react";
@@ -50,6 +52,7 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
+    DialogTrigger,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -121,6 +124,7 @@ type AffiliateStat = {
     commission: number;
     pixKey?: string;
     pixType?: string;
+    referredUsersProfiles: { id: string, email: string, company_name: string, subscription_status: string }[];
 };
 
 export default function Admin() {
@@ -144,6 +148,10 @@ export default function Admin() {
     const [selectedUser, setSelectedUser] = useState<AdminProfile | null>(null);
     const [isDetailOpen, setIsDetailOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
+    const [isRecoveryModalOpen, setIsRecoveryModalOpen] = useState(false);
+    const [sendingEmailToId, setSendingEmailToId] = useState<string | null>(null);
+    const [customRecoveryEmail, setCustomRecoveryEmail] = useState("");
+    const [customRecoveryName, setCustomRecoveryName] = useState("");
 
     const [editForm, setEditForm] = useState<Partial<AdminProfile>>({});
     const [userStats, setUserStats] = useState<{ pedidos: number, clientes: number } | null>(null);
@@ -267,17 +275,36 @@ export default function Admin() {
 
             usersData.forEach((u: any) => {
                 const rawCode = u.partner_code;
-                if (rawCode && u.subscription_status === 'active' && !u.is_gifted_plan) {
+                if (rawCode) {
                     const code = rawCode.toUpperCase();
-                    let price = u.subscription_tier === 'pro_max' ? 137.00 : 97.00;
+                    let price = 0;
 
-                    // Support the fixed 15% discount for partner codes
-                    // (All internal affiliates currently grant this discount)
-                    price = Number((price * 0.85).toFixed(2));
+                    if (u.subscription_status === 'active' && !u.is_gifted_plan) {
+                        price = u.subscription_tier === 'pro_max' ? 137.00 : 97.00;
+                        // Support the fixed 15% discount for partner codes
+                        price = Number((price * 0.85).toFixed(2));
+                    }
 
-                    const existing = affMap.get(code) || { code, users: 0, revenue: 0, commission: 0 };
-                    existing.users += 1;
-                    existing.revenue += price;
+                    const existing = affMap.get(code) || {
+                        code,
+                        users: 0,
+                        revenue: 0,
+                        commission: 0,
+                        referredUsersProfiles: []
+                    };
+
+                    if (price > 0) {
+                        existing.users += 1;
+                        existing.revenue += price;
+                    }
+
+                    // Always add to referred list if they used the code
+                    existing.referredUsersProfiles.push({
+                        id: u.id,
+                        email: u.email || '',
+                        company_name: u.company_name || 'Usuário',
+                        subscription_status: u.subscription_status
+                    });
 
                     // Get specific rate or fallback to 10%
                     const config = affiliatesConfig.get(code);
@@ -384,6 +411,36 @@ export default function Admin() {
             fetchData();
         } catch (error: any) {
             toast.error('Erro ao salvar: ' + error.message);
+        }
+    };
+
+    const handleSendRecoveryEmail = async (userId: string, email: string, name: string) => {
+        try {
+            setSendingEmailToId(userId);
+            const response = await fetch('/email-templates/recovery-30-days.html');
+            let htmlContent = await response.text();
+
+            htmlContent = htmlContent.replace(/\[NOME\]/g, name || 'Parceiro');
+
+            const { data, error } = await supabase.functions.invoke('send-recovery-email', {
+                body: {
+                    to: email,
+                    subject: '30 Dias Grátis na Direct AI (Presente do Gabriel)',
+                    htmlContent: htmlContent
+                }
+            });
+
+            if (error) throw error;
+            if (data && data.success === false) {
+                throw new Error(data.error || "Erro desconhecido na API.");
+            }
+
+            toast.success("E-mail enviado com sucesso!");
+        } catch (error: any) {
+            console.error(error);
+            toast.error("Erro ao enviar e-mail. Verifique o console.");
+        } finally {
+            setSendingEmailToId(null);
         }
     };
 
@@ -593,14 +650,24 @@ export default function Admin() {
                                     <CardTitle className="text-xl md:text-2xl font-black uppercase italic tracking-tighter">Lista de Operadores</CardTitle>
                                     <CardDescription className="text-sm font-medium">Gerenciamento total de contas e acessos.</CardDescription>
                                 </div>
-                                <div className="relative w-full md:w-80">
-                                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                                    <Input
-                                        placeholder="Buscar por email ou ID..."
-                                        className="pl-10 h-10 rounded-xl"
-                                        value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
-                                    />
+                                <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
+                                    <Button
+                                        onClick={() => setIsRecoveryModalOpen(true)}
+                                        className="w-full md:w-auto border-emerald-500/20 text-emerald-500 hover:bg-emerald-500/10 rounded-xl font-bold italic bg-emerald-500/5 hover:text-emerald-500"
+                                        variant="outline"
+                                    >
+                                        <Mail className="w-4 h-4 mr-2" />
+                                        Recuperar Leads
+                                    </Button>
+                                    <div className="relative w-full md:w-80">
+                                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                                        <Input
+                                            placeholder="Buscar por email ou ID..."
+                                            className="pl-10 h-10 rounded-xl"
+                                            value={searchTerm}
+                                            onChange={(e) => setSearchTerm(e.target.value)}
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         </CardHeader>
@@ -697,6 +764,101 @@ export default function Admin() {
                             </Table>
                         </CardContent>
                     </Card>
+
+                    {/* MODAL DE RECUPERAÇÃO DE LEADS */}
+                    <Dialog open={isRecoveryModalOpen} onOpenChange={setIsRecoveryModalOpen}>
+                        <DialogContent className="sm:max-w-[700px] bg-white dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800 rounded-3xl max-h-[90vh] overflow-hidden flex flex-col">
+                            <DialogHeader>
+                                <DialogTitle className="text-2xl font-black uppercase italic flex items-center gap-2">
+                                    <div className="p-2 bg-emerald-500/10 rounded-xl text-emerald-500">
+                                        <Mail size={24} />
+                                    </div>
+                                    Recuperação de Leads
+                                </DialogTitle>
+                                <DialogDescription>
+                                    Envie o e-mail de 30 dias grátis direto para os leads inativos pelo Resend API.
+                                </DialogDescription>
+                            </DialogHeader>
+
+                            <div className="flex-1 overflow-y-auto pr-2 space-y-4">
+                                {/* CUSTOM EMAIL SENDER */}
+                                <div className="flex flex-col gap-3 p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-900/50 border border-emerald-500/20 mb-6">
+                                    <div className="flex items-center gap-2">
+                                        <Mail className="w-4 h-4 text-emerald-500" />
+                                        <p className="font-bold text-sm text-zinc-900 dark:text-white">Envio Manual Avulso</p>
+                                    </div>
+                                    <div className="flex flex-col sm:flex-row items-center gap-3">
+                                        <Input
+                                            placeholder="Nome do Lead (Opcional)"
+                                            className="h-10 rounded-xl bg-white dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800"
+                                            value={customRecoveryName}
+                                            onChange={(e) => setCustomRecoveryName(e.target.value)}
+                                        />
+                                        <Input
+                                            placeholder="E-mail"
+                                            className="h-10 rounded-xl bg-white dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800"
+                                            value={customRecoveryEmail}
+                                            onChange={(e) => setCustomRecoveryEmail(e.target.value)}
+                                        />
+                                        <Button
+                                            size="sm"
+                                            disabled={sendingEmailToId === 'custom' || !customRecoveryEmail}
+                                            onClick={() => handleSendRecoveryEmail('custom', customRecoveryEmail, customRecoveryName)}
+                                            className="w-full sm:w-auto rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold shrink-0 h-10 px-6"
+                                        >
+                                            {sendingEmailToId === 'custom' ? (
+                                                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                                            ) : (
+                                                <Send className="w-4 h-4 mr-2" />
+                                            )}
+                                            Enviar 30 Dias
+                                        </Button>
+                                    </div>
+                                </div>
+
+                                <Separator className="my-6 opacity-30" />
+
+                                <p className="font-bold text-sm text-muted-foreground mb-4 uppercase tracking-widest">Leads Cadastrados</p>
+
+                                {users.filter((u) => u.subscription_status !== 'active' && u.email).length === 0 && (
+                                    <div className="text-center text-muted-foreground py-8 font-medium">Nenhum lead inativo encontrado com email cadastrado.</div>
+                                )}
+                                {users
+                                    .filter((u) => u.subscription_status !== 'active' && u.email)
+                                    .map((lead) => (
+                                        <div key={lead.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-100 dark:border-zinc-800 gap-4">
+                                            <div className="flex items-center gap-4">
+                                                <Avatar className="h-10 w-10 border-2 border-emerald-500/20">
+                                                    <AvatarFallback className="bg-emerald-500/10 text-emerald-500 font-black">
+                                                        {lead.company_name?.substring(0, 2).toUpperCase() || 'L'}
+                                                    </AvatarFallback>
+                                                </Avatar>
+                                                <div>
+                                                    <p className="font-black text-sm uppercase italic text-zinc-900 dark:text-white leading-none mb-1">
+                                                        {lead.company_name || 'Sem Nome'}
+                                                    </p>
+                                                    <p className="text-xs text-muted-foreground font-medium">{lead.email}</p>
+                                                </div>
+                                            </div>
+                                            <Button
+                                                size="sm"
+                                                disabled={sendingEmailToId === lead.id}
+                                                onClick={() => lead.email && handleSendRecoveryEmail(lead.id, lead.email, lead.company_name || '')}
+                                                className="w-full sm:w-auto rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold shrink-0"
+                                            >
+                                                {sendingEmailToId === lead.id ? (
+                                                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                                                ) : (
+                                                    <Send className="w-4 h-4 mr-2" />
+                                                )}
+                                                Enviar 30 Dias
+                                            </Button>
+                                        </div>
+                                    ))
+                                }
+                            </div>
+                        </DialogContent>
+                    </Dialog>
                 </TabsContent>
 
                 {/* ABA DE LOGS DO SISTEMA */}
@@ -943,23 +1105,53 @@ export default function Admin() {
                                 <TableBody>
                                     {affiliateStats.length > 0 ? affiliateStats.map((aff) => (
                                         <TableRow key={aff.code} className="hover:bg-muted/20 border-zinc-50 dark:border-zinc-900">
-                                            <TableCell className="p-6 font-black italic uppercase tracking-tighter">{aff.code}</TableCell>
+                                            <TableCell className="p-6 font-black italic uppercase tracking-tighter">
+                                                <div className="flex flex-col">
+                                                    <span>{aff.code}</span>
+                                                    <Dialog>
+                                                        <DialogTrigger asChild>
+                                                            <Button variant="link" className="p-0 h-auto text-[10px] text-primary self-start font-bold uppercase italic">
+                                                                Ver {aff.referredUsersProfiles.length} Indicados
+                                                            </Button>
+                                                        </DialogTrigger>
+                                                        <DialogContent className="max-w-md rounded-3xl">
+                                                            <DialogHeader>
+                                                                <DialogTitle className="font-black italic uppercase">Indicados: {aff.code}</DialogTitle>
+                                                                <DialogDescription>Lista de usuários que utilizaram este código.</DialogDescription>
+                                                            </DialogHeader>
+                                                            <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 mt-4">
+                                                                {aff.referredUsersProfiles.map(u => (
+                                                                    <div key={u.id} className="flex justify-between items-center p-3 rounded-xl bg-muted/50 border border-zinc-100 dark:border-zinc-800">
+                                                                        <div className="flex flex-col">
+                                                                            <span className="text-xs font-black uppercase italic">{u.company_name}</span>
+                                                                            <span className="text-[10px] text-muted-foreground">{u.email}</span>
+                                                                        </div>
+                                                                        <Badge className={u.subscription_status === 'active' ? "bg-emerald-500/10 text-emerald-500" : "bg-zinc-500/10 text-zinc-500"}>
+                                                                            {u.subscription_status}
+                                                                        </Badge>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </DialogContent>
+                                                    </Dialog>
+                                                </div>
+                                            </TableCell>
                                             <TableCell className="p-6 text-center">
                                                 <Badge variant="outline" className="font-black tabular-nums border-zinc-200 dark:border-zinc-800">
                                                     {aff.users}
                                                 </Badge>
                                             </TableCell>
-                                            <TableCell className="p-6 text-center font-black tabular-nums">
+                                            <TableCell className="p-6 text-center font-black tabular-nums text-emerald-600">
                                                 R$ {aff.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                             </TableCell>
-                                            <TableCell className="p-6 text-right font-black tabular-nums text-emerald-500">
+                                            <TableCell className="p-6 text-right font-black tabular-nums text-primary">
                                                 <div className="flex flex-col items-end">
                                                     <span>R$ {aff.commission.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                                                     {aff.pixKey ? (
                                                         <Button
                                                             variant="ghost"
                                                             size="sm"
-                                                            className="h-6 text-[9px] uppercase font-black hover:bg-emerald-500/10 text-emerald-600 p-0 px-2 mt-1"
+                                                            className="h-6 text-[9px] uppercase font-black hover:bg-primary/10 text-primary p-0 px-2 mt-1"
                                                             onClick={() => {
                                                                 navigator.clipboard.writeText(aff.pixKey!);
                                                                 toast.success(`Chave ${aff.pixType?.toUpperCase()} Copiada!`);
@@ -1167,13 +1359,14 @@ export default function Admin() {
                                             />
                                         </div>
                                         <div className="space-y-2">
-                                            <label className="text-[10px] uppercase font-black text-muted-foreground">Comissão (%)</label>
+                                            <label className="text-[10px] uppercase font-black text-muted-foreground">Comissão do Afiliado (%)</label>
                                             <Input
                                                 type="number"
                                                 value={editForm.commission_rate}
                                                 onChange={(e) => setEditForm(p => ({ ...p, commission_rate: Number(e.target.value) }))}
                                                 className="rounded-xl border-zinc-200 font-black h-10"
                                             />
+                                            <p className="text-[9px] text-muted-foreground italic">O desconto do cliente é fixo em 15% (Cupom).</p>
                                         </div>
                                         <div className="space-y-2">
                                             <label className="text-[10px] uppercase font-black text-muted-foreground">Chave PIX (Para Pagamento)</label>

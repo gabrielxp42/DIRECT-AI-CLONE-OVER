@@ -372,7 +372,7 @@ const PedidosPage: React.FC = () => {
     const formattedPhone = phone.startsWith('55') ? phone : `55${phone}`;
 
     // Fecha o modal imediatamente
-    setWhatsAppDialog({ open: false, pedido: null, summary: '' });
+    setWhatsAppDialog({ open: false, loading: false, pedido: null, summary: '' });
 
     // Define os steps baseados no que foi selecionado
     const steps = [];
@@ -569,77 +569,68 @@ const PedidosPage: React.FC = () => {
     }
   };
   // --- Fim Funções de Compartilhamento ---
-
-
   // --- Mutações ---
 
   const updateStatusMutation = useMutation({
-    mutationFn: async ({ id, newStatus, observacao, statusAnterior, pedidoFull, markAsPaid }: { id: string, newStatus: string, observacao?: string, statusAnterior: string, pedidoFull?: Pedido, markAsPaid?: boolean }) => {
-      const validToken = await getValidToken();
-      if (!validToken || !session) throw new Error("Sessão expirada. Por favor, recarregue a página.");
+    mutationFn: async ({
+      id,
+      newStatus,
+      observacao,
+      statusAnterior,
+      pedidoFull,
+      markAsPaid,
+      metodo_pagamento
+    }: {
+      id: string,
+      newStatus: string,
+      observacao?: string,
+      statusAnterior: string,
+      pedidoFull?: Pedido,
+      markAsPaid?: boolean,
+      metodo_pagamento?: string
+    }) => {
+      const shouldMarkAsPaid = newStatus === 'pago' || markAsPaid;
 
-      const headers = {
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${validToken}`,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=representation'
-      };
+      const pago_at = shouldMarkAsPaid
+        ? new Date().toISOString()
+        : (['pendente', 'cancelado'].includes(newStatus) ? null : undefined);
 
-      // Atualizar status do pedido e data de pagamento se necessário
-      // Lógica Persistente e Flexível:
-      // 1. Se for 'pago', 'entregue' ou o usuário forçou 'markAsPaid' -> Define pago_at.
-      // 2. Se for 'pendente' ou 'cancelado' -> Limpa pago_at (o pedido deixou de ser válido financeiramente).
-      // 3. Caso contrário -> Mantém o que já estava (undefined no payload do PATCH não sobrescreve no Supabase).
-      let pago_at: string | null | undefined = undefined;
+      const updateData: any = { status: newStatus };
+      if (pago_at !== undefined) updateData.pago_at = pago_at;
+      if (metodo_pagamento) updateData.metodo_pagamento = metodo_pagamento;
+      else if (shouldMarkAsPaid && observacao) updateData.metodo_pagamento = observacao.trim();
 
-      if (newStatus === 'pago' || newStatus === 'entregue' || markAsPaid) {
-        pago_at = new Date().toISOString();
-      } else if (['pendente', 'cancelado'].includes(newStatus)) {
-        pago_at = null;
+      // Adicionar tracking_code se o status for enviado e tiver no pedidoFull
+      if (newStatus === 'enviado' && pedidoFull?.tracking_code) {
+        updateData.tracking_code = pedidoFull.tracking_code;
       }
 
-      const updateUrl = `${SUPABASE_URL}/rest/v1/pedidos?id=eq.${id}`;
-      const updateBody: any = { status: newStatus };
-      if (pago_at !== undefined) updateBody.pago_at = pago_at;
+      const { error: updateError } = await supabase
+        .from('pedidos')
+        .update(updateData)
+        .eq('id', id);
 
-      const updateResponse = await fetch(updateUrl, {
-        method: 'PATCH',
-        headers,
-        body: JSON.stringify(updateBody)
-      });
+      if (updateError) throw updateError;
 
-      if (!updateResponse.ok) {
-        const errorText = await updateResponse.text();
-        throw new Error(`Erro ao atualizar status: ${updateResponse.status} ${updateResponse.statusText} - ${errorText}`);
-      }
-
-      // Inserir histórico se necessário
-      if (newStatus !== statusAnterior || observacao) {
-        const historyUrl = `${SUPABASE_URL}/rest/v1/pedido_status_history`;
-        const historyResponse = await fetch(historyUrl, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify([{
+      // Inserir histórico
+      if (newStatus !== statusAnterior || (observacao && observacao.trim())) {
+        const { error: historyError } = await supabase
+          .from('pedido_status_history')
+          .insert([{
             pedido_id: id,
             status_anterior: statusAnterior,
             status_novo: newStatus,
             observacao: observacao?.trim() || null,
-            user_id: session.user.id
-          }])
-        });
+            user_id: session?.user.id
+          }]);
 
-        if (!historyResponse.ok) {
-          const errorText = await historyResponse.text();
-          console.warn('Aviso: Erro ao salvar histórico:', errorText);
+        if (historyError) {
+          console.warn('Aviso: Erro ao salvar histórico:', historyError);
         }
       }
 
       // --- Lógica de Inventário Unificada ---
       if (pedidoFull) {
-        // Se o status for enviado e tiver rastreio, atualizar no banco junto com o status
-        if (newStatus === 'enviado' && (pedidoFull as any).tracking_code) {
-          // A mutação já vai cuidar do status, mas precisamos garantir que o rastreio acompanhe
-        }
         const wasConsuming = isInventoryConsumingStatus(statusAnterior);
         const isNowConsuming = isInventoryConsumingStatus(newStatus);
 
@@ -674,7 +665,14 @@ const PedidosPage: React.FC = () => {
     }
   });
 
-  const handleSubmitStatusChange = (newStatus: string, observacao?: string, notifyClient?: boolean, trackingCode?: string, markAsPaid?: boolean) => {
+  const handleSubmitStatusChange = (
+    newStatus: string,
+    observacao?: string,
+    notifyClient?: boolean,
+    trackingCode?: string,
+    markAsPaid?: boolean,
+    metodo_pagamento?: string
+  ) => {
     if (!statusChangePedido) return;
     updateStatusMutation.mutate({
       id: statusChangePedido.id,
@@ -682,7 +680,8 @@ const PedidosPage: React.FC = () => {
       observacao,
       statusAnterior: statusChangePedido.status,
       pedidoFull: { ...statusChangePedido, tracking_code: trackingCode },
-      markAsPaid
+      markAsPaid,
+      metodo_pagamento
     } as any);
 
     // Auto-Notify Client via Gabi AI (WhatsApp)

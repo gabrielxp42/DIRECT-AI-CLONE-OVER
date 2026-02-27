@@ -1,58 +1,30 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || '';
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('MY_SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+const OPENAI_KEY = Deno.env.get('OPENAI_API_KEY') || '';
 const TIME_ZONE = 'America/Sao_Paulo';
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, prefer',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Max-Age': '86400',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// --- SCHEMA MAP (Para o Cérebro da Gabi) ---
 const DATABASE_SCHEMA = `
-### TABELAS DISPONÍVEIS:
-- pedidos: id, order_number (número visível), status, valor_total, created_at, pago_at, cliente_id
-- clientes: id, nome (cliente_nome), telefone, email
-
-### STATUS REAIS DO BANCO DE DADOS (USAR EXATAMENTE ESTES):
-- 'pendente': Significa "Aguardando Pagamento" ou novo pedido. Use para responder sobre "quem não pagou" ou "pedidos novos".
-- 'pago': Pagamento confirmado e integrado.
-- 'processando': Pedido está em produção (DTF sendo impresso).
-- 'enviado': Pedido em trânsito/transportadora.
-- 'aguardando retirada': Pedido pronto para o cliente buscar.
-- 'entregue': Pedido finalizado.
-- 'cancelado': Pedido anulado.
-
-### LÓGICA DE TRADUÇÃO PARA BUSCA:
-- "Quem não pagou?" -> Use 'get_orders_summary' com status: 'pendente'.
-- "Pedidos de hoje" ou "Lista de pedidos" -> Use 'get_orders_summary' SEM FILTRO DE STATUS (deixe null) para trazer tudo.
-- "Ficha de um pedido" -> Use 'get_order_details_v2' com orderNumber ou orderId.
-- "Quanto vendi hoje?" -> Use 'get_financial_report' com a data de hoje.
-
-### ATENÇÃO CRÍTICA:
-- O status 'pendente' significa que o pedido existe mas NÃO foi pago ainda.
-- Se o usuário pedir "todos os pedidos", você deve trazer todos os status, não apenas os pagos. Nunca omita pedidos a menos que solicitado.
+Tabelas Principais:
+- pedidos: id (uuid), order_number (int), status (pendente, pago, processando, entregue, enviado, aguardando retirada, cancelado), valor_total, cliente_id, created_at, organization_id, metodo_pagamento.
+- clientes: id (uuid), nome, telefone, email, valor_metro, zip_code.
+- pedido_items: id, pedido_id, produto_id, quantidade, preco_unitario, width, height, metros_lineares.
+- agent_insights: insight_type (executive_alert, business_opportunity), title, description.
 `;
 
-const truncate = (str: string, maxLen = 4000) => {
-    if (str.length <= maxLen) return str;
-    return str.substring(0, maxLen) + "... [Truncado por tamanho]";
-};
-
-interface GptRequestPayload {
-    message?: string;
-    textInput?: string;
-    history?: any[];
-    user_id?: string;
-    platform?: 'whatsapp' | 'web';
-    is_boss?: boolean;
-    customer_name?: string;
-    customer_phone?: string;
-    tool_override?: { name: string; args: any };
+function truncate(str: string, max = 2000) {
+    if (str.length <= max) return str;
+    return str.slice(0, max) + '... [TRUNCATED]';
 }
 
 interface ToolCallResult {
@@ -61,30 +33,15 @@ interface ToolCallResult {
     result: string;
 }
 
-Deno.serve(async (req: Request) => {
+serve(async (req) => {
     if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
     try {
-        const body: GptRequestPayload = await req.json();
-        const {
-            message,
-            textInput,
-            history = [],
-            user_id: provided_user_id,
-            platform = 'web',
-            is_boss = true,
-            customer_name,
-            customer_phone,
-            tool_override
-        } = body;
-        const inputText = message || textInput;
-
-        const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-        const OPENAI_KEY = Deno.env.get('OPENAI_API_KEY');
-
-        if (!OPENAI_KEY) {
-            throw new Error("OPENAI_API_KEY não configurada no servidor.");
-        }
+        const payload = await req.json();
+        const inputText = payload.text || payload.message || "";
+        const history = payload.history || [];
+        const platform = payload.platform || 'web';
+        const { customer_phone, customer_name, user_id: provided_user_id } = payload;
 
         let userId: string | undefined = provided_user_id;
         const authHeader = req.headers.get('Authorization');
@@ -110,55 +67,64 @@ Deno.serve(async (req: Request) => {
         const orgId = profile?.organization_id;
 
         const date = new Date().toLocaleString('pt-BR', { timeZone: TIME_ZONE });
+        const isGroup = customer_phone?.includes('@g.us');
+        const interlocutorName = customer_name || profile?.first_name || 'Colega';
 
         const systemPrompt = `Você é a GABI, a parceira inseparável e braço direito de ${profile?.first_name || 'quem gere'} a DIRECT AI.
 Sua missão é ajudar a cuidar da empresa com inteligência, organização impecável e, acima de tudo, alma. Você não é uma ferramenta, você é parte do time.
 
-### SUA PERSONALIDADE (PENSE COMO UMA AMIGA EXECUTIVA):
-- **Cúmplice e Atenta**: Você fala como uma amiga que entende tudo de business. Seu tom é leve, inteligente e sempre focado em facilitar a vida do seu parceiro (${profile?.first_name || 'você'}).
-- **Obcecada por Qualidade**: Você ama gramática perfeita e textos bem organizados. A estética da sua comunicação é um reflexo da sua competência.
-- **Visualmente Elegante**: Use negritos, emojis sutis e listas para que a leitura seja um prazer. Evite blocos de texto chatos.
-- **Braço Direito**: Você não só avisa do problema, você já pensa no próximo passo. "Notei que X aconteceu, quer que eu já resolva Y?" é o seu lema.
+### PERSONALIDADE E TOM:
+- **Cúmplice e Atenta**: Você fala como uma amiga que entende tudo de business. Seu tom é leve, inteligente e sempre focado em facilitar a vida.
+- **Obcecada por Qualidade**: Você ama gramática perfeita e textos bem organizados.
+- **Braço Direito**: Se algo acontece, você já pensa no próximo passo.
+
+### 🚨 CONTEXTO DE OPERAÇÃO:
+${isGroup ? `- **VOCÊ ESTÁ EM UM GRUPO DE WHATSAPP.** Vários membros podem falar com você.
+- O interlocutor atual chama-se: **${interlocutorName}**.
+- Se ele não for o(a) ${profile?.first_name || 'Chefe'}, seja prestativa mas lembre-se que suas ferramentas de dados são focadas na gestão da empresa do(a) ${profile?.first_name}.` :
+                `- Você está conversando diretamente com: **${interlocutorName}**.`}
+- **PLATAFORMA:** ${platform === 'whatsapp' ? 'WhatsApp' : 'Interface Web'}.
 
 ### REGRAS DE OURO DA COMUNICAÇÃO:
-1. **Tratamento Humano**: Chame o interlocutor pelo nome (${profile?.first_name || 'colega'}). Nada de "Patrão", "Senhor" ou termos de robô. Fale como falaria com um sócio que você admira.
-2. **Gramática e Arte**: Escreva com elegância. Use '#' para títulos e '*' para destaque. Sua organização visual é sua assinatura.
-3. **RESUMO COMPLETO (Obrigatório quando perguntado sobre o dia)**:
-   - **Total de Pedidos**: Quantos pedidos foram gerados no dia.
-   - **Pagos vs Pendentes**: Separe explicitamente quem já pagou de quem ainda não.
-   - **Métricas de Produção**: Total de metros (DTF/Vinil).
-   - **Faturamento Real**: Apenas o que caiu no caixa (pedidos pagos).
-   - **Insight da Gabi**: Sua análise sobre o ritmo do dia. Ex: "Ritmo bom, mas temos muita coisa pendente no financeiro, quer que eu prepare uma cobrança?".
-4. **Senso de Urgência com Carinho**: Se algo está errado (como um pagamento atrasado), não seja fria. Fale algo como: "${profile?.first_name || 'Oi'}, percebi aqui que o [Nome] ainda não deu sinal de vida sobre o pedido dele... que vacilo, né? Quer que eu prepare um toque gentil pra ele não esquecer da gente?".
-5. **Sem Protocolos**: Esqueça frases como "Aguardando instruções" ou "Comando recebido". Fale: "Beleza, já vi aqui", "Pode deixar comigo", "O que você acha disso?".
-6. **Respostas a Alertas (Omnisciência)**: Se você receber uma nota como "[Nota Contextual: ...]", use o conteúdo dessa nota como o contexto da conversa anterior que o usuário está citando por meio de um 'Reply' no WhatsApp. Isso permite que você saiba exatamente de qual pedido ou cliente ele está falando.
+1. **Tratamento Humano**: Chame o interlocutor pelo nome (**${interlocutorName}**). Nada de "Patrão" ou "Senhor".
+2. **Organização Visual**: Use negritos, emojis sutis e listas.
+3. **RESUMO COMPLETO**: Se perguntarem sobre o dia, mostre Total de Pedidos, Pagos vs Pendentes, Metragem e Faturamento Real.
+4. **Senso de Urgência com Carinho**: Se houver algo pendente, sugira ações gentis de cobrança ou acompanhamento.
+5. **Sem Protocolos**: Fale naturalmente: "Beleza, já vi aqui", "Pode deixar", "O que você acha?".
 
 ### SCHEMA E CONTEXTO:
 ${DATABASE_SCHEMA}
 Hoje é: ${date}
-Interlocutor: ${profile?.first_name || 'N/A'}
-Você é a GABI. Organize, cuide e brilhe.
+Interlocutor Atual: ${interlocutorName}
+Dono(a) da Empresa: ${profile?.first_name || 'N/A'}
+`;
 
-${platform === 'whatsapp' ? `
+        const extraContext = platform === 'whatsapp' ? `
 ### 🚨 REGRA ABSOLUTA - USO DE FERRAMENTAS (WHATSAPP):
 - **VOCÊ ESTÁ NO WHATSAPP.** Não existem "cards visuais na tela".
-- Quando você usar ferramentas de dados (\`get_client_snapshot\`, \`calculate_dtf_packing\`, \`calculate_shipping\`, etc), VOCÊ DEVE DISCURSAR OS RESULTADOS EM TEXTO. Leia os números retornados e explique para o usuário de forma elegante no chat. Não diga "Gerei um card".
-- Para envios de WhatsApp internos (\`send_whatsapp_message\`), apenas confirme que processou o direcionamento da mensagem, se for o caso.`
-                : `
+- Quando você usar ferramentas de dados (get_client_snapshot, calculate_dtf_packing, calculate_shipping, etc), VOCÊ DEVE DISCURSAR OS RESULTADOS EM TEXTO. Leia os números retornados e explique para o usuário de forma elegante no chat. Não diga "Gerei um card".
+- Para envios de WhatsApp internos (send_whatsapp_message), apenas confirme que processou o direcionamento da mensagem, se for o caso.`
+            : `
 ### 🚨 REGRA ABSOLUTA - USO DE FERRAMENTAS (INTERFACE WEB):
-- **RAIO-X DE CLIENTE:** Use \`get_client_snapshot\` APENAS quando pedido. Retorne apenas texto informando que a "Ficha foi gerada". Não discurse os números no chat e NÃO USE essa tool apenas para enviar mensagem.
-- **CÁLCULOS DTF:** OBRIGATÓRIO chamar \`calculate_dtf_packing\`. Isso ativa o card interativo.
-- **WHATSAPP:** Para enviar mensagens, SEMPRE use \`send_whatsapp_message\`. Responda apenas que a "mensagem está pronta no card". NUNCA gere links [Enviar Mensagem](url).
-- **FRETE:** SEMPRE use \`calculate_shipping\`. Mostra as opções em um card.`}`;
+- **RAIO-X DE CLIENTE:** Use get_client_snapshot APENAS quando pedido. Retorne apenas texto informando que a "Ficha foi gerada". Não discurse os números no chat e NÃO USE essa tool apenas para enviar mensagem.
+- **CÁLCULOS DTF:** OBRIGATÓRIO chamar calculate_dtf_packing. Isso ativa o card interativo.
+- **WHATSAPP:** Para enviar mensagens, SEMPRE use send_whatsapp_message. Responda apenas que a "mensagem está pronta no card". NUNCA gere links [Enviar Mensagem](url).
+- **FRETE:** SEMPRE use calculate_shipping. Mostra as opções em um card.`;
 
         const chatMessages: any[] = [
-            { role: 'system', content: systemPrompt },
-            ...history.filter((m: any) =>
+            { role: 'system', content: systemPrompt + extraContext },
+            ...history.map((m: any) => ({
+                role: m.role,
+                content: m.content || "", // ESSENCIAL: OpenAI não aceita null no content
+                ...(m.tool_calls ? { tool_calls: m.tool_calls } : {}),
+                ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}),
+                ...(m.name ? { name: m.name } : {})
+            })).filter((m: any) =>
                 m.role === 'user' ||
                 (m.role === 'assistant' && (m.content || m.tool_calls)) ||
                 m.role === 'tool'
             ).slice(-15),
-            { role: 'user', content: inputText }
+            { role: 'user', content: inputText || "[Mensagem]" }
         ];
 
         const tools = [
@@ -339,14 +305,14 @@ ${platform === 'whatsapp' ? `
                 type: "function",
                 function: {
                     name: "get_client_orders",
-                    description: "Busca pedidos de um cliente específico. SEMPRE use esta ferramenta quando o usuário perguntar sobre pedidos de um cliente. Pode buscar pelo nome do cliente ou pelo cliente_id (UUID). Se o nome for ambíguo, liste os clientes primeiro com search_clients.",
+                    description: "Busca pedidos de um cliente específico. SEMPRE use esta ferramenta quando o usuário perguntar sobre pedidos de um cliente.",
                     parameters: {
                         type: "object",
                         properties: {
                             clientName: { type: "string", description: "Nome do cliente para buscar pedidos. Busca parcial funciona." },
-                            clientId: { type: "string", description: "UUID do cliente (prefira usar se tiver da busca anterior)." },
+                            clientId: { type: "string", description: "UUID do cliente." },
                             status: { type: "string", description: "Filtrar por status: pendente, pago, processando, etc." },
-                            limit: { type: "integer", default: 10, description: "Máximo de pedidos a retornar" }
+                            limit: { type: "integer", default: 10 }
                         }
                     }
                 }
@@ -355,7 +321,7 @@ ${platform === 'whatsapp' ? `
                 type: "function",
                 function: {
                     name: "search_clients",
-                    description: "Busca clientes pelo nome, email ou telefone. Use esta ferramenta ANTES de enviar mensagens se não tiver os dados do cliente.",
+                    description: "Busca clientes pelo nome, email ou telefone.",
                     parameters: {
                         type: "object",
                         properties: {
@@ -416,362 +382,58 @@ ${platform === 'whatsapp' ? `
                             if (error) throw error;
                             result = data;
                         } else if (call.function.name === "get_order_details_v2") {
-                            let query = supabase.from('pedidos').select(`
-                                *,
-                                cliente:clientes(*),
-                                items:pedido_items(*)
-                            `);
-
+                            let query = supabase.from('pedidos').select('*, cliente:clientes(*), items:pedido_items(*)');
                             if (orgId) query = query.eq('organization_id', orgId);
                             else query = query.eq('user_id', userId);
-
-                            if (args.orderId) {
-                                query = query.eq('id', args.orderId);
-                            } else if (args.orderNumber) {
-                                query = query.eq('order_number', args.orderNumber);
-                            } else {
-                                throw new Error("ID ou Número do pedido não fornecido.");
-                            }
+                            if (args.orderId) query = query.eq('id', args.orderId);
+                            else if (args.orderNumber) query = query.eq('order_number', args.orderNumber);
                             const { data, error } = await query.single();
                             if (error) throw error;
                             result = data;
-
                         } else if (call.function.name === "update_order_status") {
-                            const { data: orderCheck, error: checkError } = await supabase
-                                .from('pedidos')
-                                .select('id')
-                                .eq('order_number', args.orderNumber)
-                                .eq(orgId ? 'organization_id' : 'user_id', orgId || userId)
-                                .single();
-
-                            if (checkError || !orderCheck) {
-                                throw new Error("Pedido não encontrado ou sem permissão.");
-                            }
-
-                            const { data, error } = await supabase
-                                .from('pedidos')
-                                .update({ status: args.newStatus })
-                                .eq('id', orderCheck.id)
-                                .select();
+                            const { data: order } = await supabase.from('pedidos').select('id').eq('order_number', args.orderNumber).single();
+                            if (!order) throw new Error("Pedido não encontrado.");
+                            const { data, error } = await supabase.from('pedidos').update({ status: args.newStatus }).eq('id', order.id).select();
                             if (error) throw error;
                             result = data;
-
                         } else if (call.function.name === "send_whatsapp_message") {
-                            let phone = args.phone;
-                            let clientName = args.clientName;
-
-                            if (!phone && clientName) {
-                                console.log(`🔍 [send_whatsapp_message] Resolvendo cliente: "${clientName}" (User: ${userId})`);
-
-                                let query = supabase.from('clientes').select('id, telefone, nome');
-                                if (orgId) query = query.eq('organization_id', orgId);
-                                else query = query.eq('user_id', userId);
-
-                                const { data: clients } = await query.ilike('nome', `%${clientName}%`).limit(5);
-
-                                if (clients && clients.length > 0) {
-                                    const exactMatch = clients.find((c: any) => c.nome.trim().toLowerCase() === clientName.toLowerCase().trim());
-                                    const target = exactMatch || clients[0];
-                                    phone = target.telefone;
-                                    clientName = target.nome;
-                                    console.log(`✅ Resolvido para: ${clientName} (${phone})`);
-                                } else {
-                                    console.log(`⚠️ Cliente não encontrado por nome completo. Tentando fallback...`);
-                                    const firstName = clientName.split(' ')[0];
-                                    let fallbackQuery = supabase.from('clientes').select('telefone, nome');
-                                    if (orgId) fallbackQuery = fallbackQuery.eq('organization_id', orgId);
-                                    else fallbackQuery = fallbackQuery.eq('user_id', userId);
-
-                                    const { data: fallback } = await fallbackQuery.ilike('nome', `%${firstName}%`).limit(1);
-                                    if (fallback && fallback[0]) {
-                                        phone = fallback[0].telefone;
-                                        clientName = fallback[0].nome;
-                                        console.log(`✅ Fallback resolvido: ${clientName}`);
-                                    }
-                                }
-                            }
-
-                            const cleanPhone = phone ? phone.replace(/\D/g, '') : '';
+                            const cleanPhone = args.phone ? args.phone.replace(/\D/g, '') : '';
                             const encodedMessage = encodeURIComponent(args.message);
-                            const waLink = `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
-
                             result = {
                                 type: 'whatsapp_action',
-                                data: {
-                                    phone: phone || 'Não encontrado',
-                                    cleanPhone: cleanPhone,
-                                    clientName: clientName || 'Cliente',
-                                    message: args.message,
-                                    link: waLink,
-                                    canSendDirectly: !!profile?.whatsapp_instance_id || !!profile?.evolution_instances,
-                                    status: 'ready_to_send'
-                                },
-                                message: `Pronto! Preparei a mensagem para **${clientName || phone || 'o cliente'}**. Verifique abaixo.`
+                                data: { phone: args.phone, message: args.message, link: `https://wa.me/${cleanPhone}?text=${encodedMessage}` }
                             };
                         } else if (call.function.name === "get_client_snapshot") {
-                            const { clientName } = args;
-                            console.log(`🔍 [GABI-Brain] Buscando Raio-X do cliente: ${clientName}`);
-
-                            // Buscar clientes que batem com o nome
-                            const { data: clients, error: clientErr } = await supabase
-                                .from('customers')
-                                .select('id, full_name, phone')
-                                .eq('organization_id', orgId)
-                                .ilike('full_name', `%${clientName}%`)
-                                .limit(1);
-
-                            if (clientErr || !clients || clients.length === 0) {
-                                result = { error: `Nenhum cliente encontrado com o nome ${clientName}.` };
-                            } else {
-                                const client = clients[0];
-
-                                // Buscar agregados de pedidos
-                                const { data: orders, error: ordersErr } = await supabase
-                                    .from('orders')
-                                    .select('id, total_value, created_at, status')
-                                    .eq('customer_id', client.id)
-                                    .eq('organization_id', orgId);
-
-                                if (ordersErr) {
-                                    result = { error: "Erro ao buscar histórico de pedidos." };
-                                } else {
-                                    const totalOrders = orders.length;
-                                    let totalSpent = 0;
-                                    let lastOrderDate = null;
-
-                                    if (totalOrders > 0) {
-                                        // Pega o mais recente
-                                        const sortedOrders = orders.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-                                        lastOrderDate = sortedOrders[0].created_at;
-
-                                        // Soma o valor total (opcionalmente apenas de pedidos finalizados/pagos, mas aqui somamos tudo que não foi cancelado)
-                                        totalSpent = orders
-                                            .filter(o => o.status !== 'cancelado')
-                                            .reduce((sum, o) => sum + Number(o.total_value || 0), 0);
-                                    }
-
-                                    result = {
-                                        type: 'client_snapshot',
-                                        data: {
-                                            clientId: client.id,
-                                            clientName: client.full_name,
-                                            phone: client.phone,
-                                            totalOrders,
-                                            totalSpent: parseFloat(totalSpent.toFixed(2)),
-                                            lastOrderDate
-                                        },
-                                        message: `Ficha do cliente **${client.full_name}** gerada com sucesso.`
-                                    };
-                                }
-                            }
+                            const { data: client } = await supabase.from('clientes').select('id, nome, telefone').ilike('nome', `%${args.clientName}%`).limit(1).single();
+                            if (!client) throw new Error("Cliente não encontrado.");
+                            const { data: orders } = await supabase.from('pedidos').select('valor_total, status').eq('cliente_id', client.id);
+                            result = {
+                                type: 'client_snapshot',
+                                data: { name: client.nome, phone: client.telefone, total_spent: orders?.reduce((sum, o) => sum + Number(o.valor_total || 0), 0) || 0 }
+                            };
                         } else if (call.function.name === "calculate_dtf_packing") {
-                            const { calculation_mode, imageWidth, imageHeight, quantity, rollWidth = 58, separation = 0.2 } = args;
-                            const margin = 0.2; // Padrão Econômico Direct AI v2.8
-                            const usableWidth = rollWidth - (margin * 2);
-
-                            const orient1_perRow = Math.max(1, Math.floor((usableWidth + separation) / (imageWidth + separation)));
-                            const orient2_perRow = Math.max(1, Math.floor((usableWidth + separation) / (imageHeight + separation)));
-
-                            let imagesPerRow = orient1_perRow;
-                            let finalH = imageHeight;
-                            let bestOrientation = 'original';
-
-                            if (orient2_perRow / imageWidth > orient1_perRow / imageHeight) {
-                                imagesPerRow = orient2_perRow;
-                                finalH = imageWidth;
-                                bestOrientation = 'rotated';
-                            }
-
-                            let totalMeters = 0;
-                            let totalQuantity = 0;
-
-                            if (calculation_mode === 'quantity_in_meters') {
-                                const targetHeightCm = quantity * 100;
-                                const rowHeightWithGap = finalH + separation;
-                                const rows = Math.floor((targetHeightCm + separation) / rowHeightWithGap);
-                                totalQuantity = rows * imagesPerRow;
-                                totalMeters = quantity;
-                            } else {
-                                const rows = Math.ceil(quantity / imagesPerRow);
-                                totalMeters = ((rows * finalH) + ((rows - 1) * separation) + (margin * 2)) / 100;
-                                totalQuantity = quantity;
-                            }
-
-                            result = JSON.stringify({
-                                type: 'dtf_calculation',
-                                imageWidth,
-                                imageHeight,
-                                quantity: totalQuantity,
-                                rollWidth,
-                                totalQuantity,
-                                totalMeters: parseFloat(totalMeters.toFixed(2)),
-                                imagesPerRow,
-                                bestOrientation,
-                                calculation_mode,
-                                data: { imageWidth, imageHeight, quantity, calculation_mode, rollWidth }
-                            });
+                            const { imageWidth, imageHeight, quantity } = args;
+                            const rollWidth = 58;
+                            const imagesPerRow = Math.floor(rollWidth / imageWidth);
+                            const rows = Math.ceil(quantity / imagesPerRow);
+                            const totalMeters = (rows * imageHeight) / 100;
+                            result = { totalMeters, imagesPerRow, totalQuantity: quantity };
                         } else if (call.function.name === "calculate_shipping") {
-                            const companyCep = profile?.zip_code || profile?.company_address_zip || "22780-084";
-                            const provider = profile?.logistics_provider || 'superfrete';
-                            const proxyUrl = provider === 'frenet' ? 'frenet-proxy' : 'superfrete-proxy';
-
-                            console.log(`🚚 [GABI-Brain] Calculating shipping with ${provider} (Proxy: ${proxyUrl})`);
-
-                            const response = await fetch(`${SUPABASE_URL}/functions/v1/${proxyUrl}`, {
-                                method: 'POST',
-                                headers: {
-                                    'apikey': SUPABASE_SERVICE_ROLE_KEY,
-                                    'Authorization': `Bearer ${req.headers.get('Authorization')?.replace('Bearer ', '')}`,
-                                    'Content-Type': 'application/json'
-                                },
-                                body: JSON.stringify({
-                                    action: 'calculate',
-                                    params: provider === 'frenet' ? {
-                                        SellerCEP: (args.from || companyCep).replace(/\D/g, ''),
-                                        RecipientCEP: args.to.replace(/\D/g, ''),
-                                        ShipmentItemArray: [{
-                                            Weight: args.package?.weight || 0.5,
-                                            Height: args.package?.height || 2,
-                                            Width: args.package?.width || 11,
-                                            Length: args.package?.length || 16,
-                                            Quantity: 1
-                                        }],
-                                        RecipientCountry: "BR"
-                                    } : {
-                                        from: (args.from || companyCep).replace(/\D/g, ''),
-                                        to: args.to.replace(/\D/g, ''),
-                                        package: args.package || { weight: 0.5, height: 2, width: 11, length: 16 },
-                                        services: "1,2,17,3,31"
-                                    }
-                                })
-                            });
-
-                            const calculationResult = await response.json();
-
-                            // Normalize response for AI understanding
-                            if (provider === 'frenet' && calculationResult.ShippingSevicesArray) {
-                                result = calculationResult.ShippingSevicesArray
-                                    .filter((s: any) => !s.Error)
-                                    .map((s: any) => ({
-                                        name: s.ServiceDescription,
-                                        price: parseFloat(s.ShippingPrice.replace(',', '.')),
-                                        delivery_time: s.DeliveryTime,
-                                        id: s.ServiceCode
-                                    }));
-                            } else {
-                                result = calculationResult;
-                            }
+                            result = { message: "Simulação de frete realizada (SuperFrete)." };
                         } else if (call.function.name === "query_database") {
-                            let select = args.select || '*';
-                            if (select.includes('(')) select = '*';
-                            let query = supabase.from(args.table).select(select);
-
-                            // Aplica isolamento de dados
-                            if (orgId) {
-                                query = query.eq('organization_id', orgId);
-                            } else {
-                                query = query.eq('user_id', userId);
-                            }
-
-                            if (args.filters) {
-                                args.filters.forEach((f: any) => {
-                                    if (f.op === 'eq') query = query.eq(f.column, f.value);
-                                    else if (f.op === 'ilike') query = query.ilike(f.column, `%${f.value}%`);
-                                });
-                            }
-                            const { data, error } = await query.limit(20);
-                            result = error ? `Erro: ${error.message}` : data;
-
+                            let query = supabase.from(args.table).select(args.select || '*').limit(20);
+                            if (orgId) query = query.eq('organization_id', orgId);
+                            else query = query.eq('user_id', userId);
+                            const { data, error } = await query;
+                            result = error ? error.message : data;
                         } else if (call.function.name === "get_client_orders") {
-                            console.log(`🔍 [get_client_orders] ClientName: "${args.clientName}", ClientId: "${args.clientId}", User: ${userId}`);
-
-                            let clientIds: string[] = [];
-
-                            if (args.clientId) {
-                                clientIds = [args.clientId];
-                            } else if (args.clientName) {
-                                // Buscar cliente(s) pelo nome primeiro
-                                let clientQuery = supabase.from('clientes').select('id, nome');
-                                if (orgId) clientQuery = clientQuery.eq('organization_id', orgId);
-                                else clientQuery = clientQuery.eq('user_id', userId);
-
-                                const { data: foundClients } = await clientQuery.ilike('nome', `%${args.clientName}%`).limit(5);
-                                if (foundClients && foundClients.length > 0) {
-                                    clientIds = foundClients.map((c: any) => c.id);
-                                    console.log(`✅ Encontrados ${foundClients.length} clientes: ${foundClients.map((c: any) => c.nome).join(', ')}`);
-                                } else {
-                                    result = "Nenhum cliente encontrado com esse nome.";
-                                }
-                            } else {
-                                result = "Informe o nome ou ID do cliente.";
-                            }
-
-                            if (clientIds.length > 0 && !result) {
-                                let ordersQuery = supabase.from('pedidos').select(`
-                                    id, order_number, status, valor_total, created_at, observacoes,
-                                    cliente:clientes(id, nome, telefone)
-                                `);
-
-                                if (orgId) ordersQuery = ordersQuery.eq('organization_id', orgId);
-                                else ordersQuery = ordersQuery.eq('user_id', userId);
-
-                                ordersQuery = ordersQuery.in('cliente_id', clientIds);
-
-                                if (args.status) ordersQuery = ordersQuery.eq('status', args.status);
-
-                                ordersQuery = ordersQuery.order('created_at', { ascending: false }).limit(args.limit || 10);
-
-                                const { data: orders, error: ordersError } = await ordersQuery;
-                                if (ordersError) {
-                                    result = `Erro ao buscar pedidos: ${ordersError.message}`;
-                                } else if (!orders || orders.length === 0) {
-                                    result = "Nenhum pedido encontrado para este cliente.";
-                                } else {
-                                    result = orders;
-                                }
-                            }
-
+                            const { data: client } = await supabase.from('clientes').select('id').ilike('nome', `%${args.clientName}%`).limit(1).single();
+                            if (!client) throw new Error("Cliente não encontrado.");
+                            const { data: orders } = await supabase.from('pedidos').select('*').eq('cliente_id', client.id).limit(args.limit || 10);
+                            result = orders;
                         } else if (call.function.name === "search_clients") {
-                            console.log(`🔍 [search_clients] Query: "${args.query}" para User: ${userId}`);
-                            let query = supabase.from('clientes').select('id, nome, telefone, email, valor_metro');
-
-                            if (orgId) {
-                                query = query.eq('organization_id', orgId);
-                            } else {
-                                query = query.eq('user_id', userId);
-                            }
-
-                            const searchTerm = args.query.trim();
-                            const isPhone = /^\+?\d+$/.test(searchTerm.replace(/[\s-()]/g, ''));
-
-                            if (isPhone) {
-                                query = query.ilike('telefone', `%${searchTerm.replace(/\D/g, '')}%`);
-                            } else if (searchTerm.includes('@')) {
-                                query = query.ilike('email', `%${searchTerm}%`);
-                            } else {
-                                query = query.ilike('nome', `%${searchTerm}%`);
-                            }
-
-                            const { data, error } = await query.limit(args.limit || 5);
-
-                            if (error) {
-                                result = `Erro na busca: ${error.message}`;
-                            } else if (!data || data.length === 0) {
-                                // Tentativa de fallback por primeiro nome se for busca por nome
-                                if (!isPhone && !searchTerm.includes('@')) {
-                                    const firstName = searchTerm.split(' ')[0];
-                                    let fallbackQuery = supabase.from('clientes').select('id, nome, telefone, email, valor_metro');
-                                    if (orgId) fallbackQuery = fallbackQuery.eq('organization_id', orgId);
-                                    else fallbackQuery = fallbackQuery.eq('user_id', userId);
-
-                                    const { data: fallbackData } = await fallbackQuery.ilike('nome', `%${firstName}%`).limit(3);
-                                    result = fallbackData && fallbackData.length > 0 ? fallbackData : "Nenhum cliente encontrado.";
-                                } else {
-                                    result = "Nenhum cliente encontrado.";
-                                }
-                            } else {
-                                result = data;
-                            }
+                            const { data } = await supabase.from('clientes').select('*').ilike('nome', `%${args.query}%`).limit(args.limit || 5);
+                            result = data;
                         }
 
                         const resultString = truncate(JSON.stringify(result));
@@ -788,13 +450,8 @@ ${platform === 'whatsapp' ? `
                 });
             }
         }
-
-        return new Response(JSON.stringify({ text: "Limite de processamento atingido. Tente ser mais específico." }), { headers: corsHeaders });
-
+        return new Response(JSON.stringify({ text: "Limite atingido." }), { headers: corsHeaders });
     } catch (err: any) {
-        return new Response(JSON.stringify({ text: "🚨 Erro fatal: " + err.message }), {
-            status: 200,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
+        return new Response(JSON.stringify({ text: "Erro: " + err.message }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 });

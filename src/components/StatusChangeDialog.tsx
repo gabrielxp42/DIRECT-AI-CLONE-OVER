@@ -37,7 +37,7 @@ interface StatusChangeDialogProps {
   isLoading?: boolean;
   orderNumber?: number;
   initialTrackingCode?: string | null;
-  onStatusChange: (newStatus: string, observacao?: string, notifyClient?: boolean, trackingCode?: string, markAsPaid?: boolean) => void;
+  onStatusChange: (newStatus: string, observacao?: string, notifyClient?: boolean, trackingCode?: string, markAsPaid?: boolean, metodo_pagamento?: string) => void;
   pedidoId?: string;
   clientAddress?: string;
   clientName?: string;
@@ -72,6 +72,7 @@ export const StatusChangeDialog = ({
 }: StatusChangeDialogProps) => {
   const [selectedStatus, setSelectedStatus] = useState(currentStatus);
   const [observacao, setObservacao] = useState("");
+  const [selectedMethodLabel, setSelectedMethodLabel] = useState<string | null>(null);
   const [notifyClient, setNotifyClient] = useState(false);
   const [trackingCode, setTrackingCode] = useState(initialTrackingCode || "");
   const [paymentDecision, setPaymentDecision] = useState<"paid" | "pending" | null>(null);
@@ -83,6 +84,7 @@ export const StatusChangeDialog = ({
     if (isOpen) {
       setTrackingCode(initialTrackingCode || "");
       setSelectedStatus(currentStatus);
+      setSelectedMethodLabel(null);
 
       // PEGAR PREFERÊNCIA DO DISPOSITIVO (Independente para cada usuário/aparelho)
       const stored = localStorage.getItem(`gabi_notify_pref_${currentStatus}`);
@@ -97,34 +99,37 @@ export const StatusChangeDialog = ({
     }
   }, [isOpen, initialTrackingCode, currentStatus]);
 
+  const hIsStatusChanged = selectedStatus !== currentStatus;
   const isAdvancedStatus = ['processando', 'aguardando retirada', 'enviado'].includes(selectedStatus);
   const needsPaymentDecision = !pagoAt && isAdvancedStatus && selectedStatus !== currentStatus;
 
   const handleSubmit = () => {
-    if (selectedStatus === currentStatus) {
+    // Permitir submeter se o status mudou OU se há uma observação ou método selecionado
+    const hasChanges = selectedStatus !== currentStatus || observacao.trim() || selectedMethodLabel;
+
+    if (!hasChanges) {
       onOpenChange(false);
       return;
     }
 
     if (needsPaymentDecision && paymentDecision === null) {
       setShowError(true);
-      // Feedback visual: vibração/shake poderia ser adicionado aqui
       return;
     }
 
     const markAsPaid = paymentDecision === 'paid';
+
+    // O metodo_pagamento final será o label do botão ou o que estiver na observação se clicado
+    const finalMetodo = selectedMethodLabel || (markAsPaid || selectedStatus === 'pago' ? observacao.trim() : undefined);
+
     onStatusChange(
       selectedStatus,
       observacao.trim() || undefined,
       notifyClient,
       trackingCode.trim() || undefined,
-      markAsPaid
+      markAsPaid,
+      finalMetodo || undefined
     );
-
-    // Se o pedido foi marcado como PAGO agora e é do tipo frete, convidar para gerar etiqueta
-    if (selectedStatus === 'pago' && tipoEntrega === 'frete' && !currentTrackingCode) {
-      // O PedidoDetails vai detectar o novo status via refetch ou estado local e mostrar o botão
-    }
 
     onOpenChange(false);
   };
@@ -347,6 +352,7 @@ export const StatusChangeDialog = ({
                         onClick={() => {
                           const separator = observacao.trim() ? ' | ' : '';
                           setObservacao(prev => prev.trim() + separator + method.label);
+                          setSelectedMethodLabel(method.label);
                           if (needsPaymentDecision) {
                             setPaymentDecision('paid');
                             setShowError(false);
@@ -371,10 +377,10 @@ export const StatusChangeDialog = ({
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={isLoading || (isStatusChanged && false)} // Deixando sempre clicável quando mudar
+            disabled={isLoading}
             className={cn(
               "h-11 px-8 rounded-xl font-bold uppercase tracking-wider text-xs transition-all",
-              isStatusChanged
+              (hIsStatusChanged || selectedMethodLabel || observacao.trim())
                 ? "bg-primary hover:shadow-lg hover:shadow-primary/20 shadow-md"
                 : "opacity-50 pointer-events-none"
             )}

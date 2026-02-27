@@ -47,8 +47,13 @@ type Profile = {
   affiliate_pix_key: string | null;
   affiliate_pix_key_type: string | null;
   whatsapp_boss_notifications_enabled?: boolean;
+  whatsapp_boss_group_id?: string | null;
   whatsapp_boss_alert_types?: string[];
   whatsapp_qr_cache?: string | null;
+  gabi_templates?: any;
+  asaas_customer_id?: string | null;
+  asaas_subscription_id?: string | null;
+  stripe_customer_id?: string | null;
 };
 
 

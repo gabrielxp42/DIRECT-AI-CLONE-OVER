@@ -86,7 +86,27 @@ serve(async (req) => {
         const totalFirstPayment = selectedPrice;
         const setupFee = 0; // Taxa única removida em favor de planos mensais
 
-        console.log(`Processando checkout: ${email} | Produto: ${productType} | Cupom: ${hasDiscount ? profile?.partner_code : 'Nenhum'} | Total Inicial: ${totalFirstPayment} | Recorrente: ${productType === 'REFILL' ? 'N/A' : selectedPrice}`);
+        // Determinar se o desconto deve ser fixo ou via objeto de desconto (1 ciclo)
+        const isPermanentDiscount = email.toLowerCase() === 'jnnnior@gmail.com';
+
+        // Valor da assinatura para o Asaas (recorrente)
+        // Se for permanente, o 'value' já é o com desconto. 
+        // Se for 1 ciclo, o 'value' deve ser o cheio, e o desconto vai no objeto 'discount'.
+        let subscriptionValue = selectedPrice;
+        let discountObj = null;
+
+        if (hasDiscount && !isPermanentDiscount && productType !== 'REFILL') {
+            // Reverter selectedPrice para o valor cheio para a recorrência
+            subscriptionValue = amount || PLAN_PRICES[productType as keyof typeof PLAN_PRICES] || PLAN_PRICES['PRO'];
+            discountObj = {
+                type: 'PERCENTAGE',
+                value: 15,
+                dueDateLimitDays: 0,
+                cycles: 1
+            };
+        }
+
+        console.log(`Processando checkout: ${email} | Produto: ${productType} | Cupom: ${hasDiscount ? profile?.partner_code : 'Nenhum'} | Total Inicial: ${totalFirstPayment} | Recorrente: ${productType === 'REFILL' ? 'N/A' : subscriptionValue} | Desconto 1 Mês: ${!!discountObj}`);
 
         const headers = {
             'Content-Type': 'application/json',
@@ -197,11 +217,12 @@ serve(async (req) => {
                 customer: customerId,
                 billingType: billingType,
                 nextDueDate: isoDate,
-                value: selectedPrice,
+                value: subscriptionValue,
                 cycle: "MONTHLY",
                 description: productType === 'PRO_MAX' ? "Plano DTF PRO MAX" : "Plano DTF PRO",
                 updatePendingPayments: true,
                 externalReference: userId,
+                ...(discountObj ? { discount: discountObj } : {}),
                 ...(setupFee > 0 ? { setupFeeValue: setupFee } : {}),
                 ...(paymentMethod === 'CREDIT_CARD' && creditCard ? { creditCard, creditCardHolderInfo } : {})
             };

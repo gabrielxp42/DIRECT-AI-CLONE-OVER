@@ -272,16 +272,38 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
   };
 
 
-  const handleSubmitStatusChange = async (newStatus: string, observacao?: string, notifyClient?: boolean, trackingCode?: string) => {
+  const handleSubmitStatusChange = async (
+    newStatus: string,
+    observacao?: string,
+    notifyClient?: boolean,
+    trackingCode?: string,
+    markAsPaid?: boolean,
+    metodo_pagamento?: string
+  ) => {
     if (!pedido || !supabase) return;
 
     try {
       const statusAnterior = pedido.status;
-      const pago_at = newStatus === 'pago' ? new Date().toISOString() : (statusAnterior === 'pago' ? null : undefined);
+      const shouldMarkAsPaid = newStatus === 'pago' || markAsPaid;
+
+      // Lógica de pago_at:
+      // 1. Se estamos marcando como pago AGORA, setamos data atual.
+      // 2. Se o status era pago e mudou para algo não pago (pendente/cancelado), removemos a data.
+      // 3. Caso contrário, mantemos o que estava (pago_at anterior).
+      const pago_at = shouldMarkAsPaid
+        ? new Date().toISOString()
+        : (['pendente', 'cancelado'].includes(newStatus) ? null : undefined);
 
       const updatePayload: any = { status: newStatus };
       if (pago_at !== undefined) updatePayload.pago_at = pago_at;
       if (trackingCode) updatePayload.tracking_code = trackingCode;
+
+      // Se for pagamento, salvar o método - prioriza o metodo_pagamento explícito
+      if (metodo_pagamento) {
+        updatePayload.metodo_pagamento = metodo_pagamento;
+      } else if (shouldMarkAsPaid && observacao) {
+        updatePayload.metodo_pagamento = observacao.trim();
+      }
 
       const { error } = await supabase
         .from('pedidos')
@@ -302,7 +324,7 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
         await restoreInsumosFromPedido(pedido);
       }
 
-      // Se houver observação, adicionar ao histórico
+      // Se houver observação, adicionar ao histórico (sempre, independente de ser pagamento ou não)
       if (observacao && observacao.trim()) {
         const { error: historyError } = await supabase
           .from('pedido_status_history')
@@ -319,7 +341,7 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
         }
       }
 
-      if (newStatus === 'pago' && pedido.tipo_entrega === 'frete' && !pedido.tracking_code) {
+      if (shouldMarkAsPaid && pedido.tipo_entrega === 'frete' && !pedido.tracking_code) {
         toast.success("Pagamento confirmado!", {
           description: "Deseja gerar a etiqueta de envio agora?",
           action: {
@@ -338,7 +360,8 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
           ...prev,
           status: newStatus as any,
           tracking_code: trackingCode || prev.tracking_code,
-          pago_at: newStatus === 'pago' ? new Date().toISOString() : (newStatus === 'pendente' ? null : prev.pago_at)
+          pago_at: shouldMarkAsPaid ? new Date().toISOString() : (['pendente', 'cancelado'].includes(newStatus) ? null : prev.pago_at),
+          metodo_pagamento: shouldMarkAsPaid ? (metodo_pagamento || observacao?.trim() || prev.metodo_pagamento) : prev.metodo_pagamento
         };
       });
       // Recarregar histórico

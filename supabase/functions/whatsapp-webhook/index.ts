@@ -70,12 +70,12 @@ Deno.serve(async (req: Request) => {
                 external_id: data.key?.id || null
             }).select('id').single();
 
-            // AI Logic: ONLY respond if it's NOT from me AND AI is enabled AND it's the Boss's number
-            const customerPhone = remoteJid.split('@')[0];
-            const isBoss = (profile.whatsapp_boss_group_id && profile.whatsapp_boss_group_id.includes(customerPhone));
+            // AI Logic: Respond if it's NOT from me AND AI is enabled AND it's the Boss's conversation (private or group)
+            const isGroup = remoteJid.includes('@g.us');
+            const isBoss = (profile.whatsapp_boss_group_id && remoteJid.includes(profile.whatsapp_boss_group_id.split('@')[0]));
 
             if (!fromMe && profile.ai_auto_reply_enabled && isBoss) {
-                console.log(`[Webhook] AI trigger for BOSS ${customerPhone}`);
+                console.log(`[Webhook] AI trigger for BOSS conversation: ${remoteJid}`);
                 fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/ai-response-generator`, {
                     method: 'POST',
                     headers: { 'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`, 'Content-Type': 'application/json' },
@@ -83,20 +83,21 @@ Deno.serve(async (req: Request) => {
                         user_id: profile.id,
                         message: msgText,
                         audio_base64: audioBase64,
-                        quoted_message: quotedText, // Pass along for context
+                        quoted_message: quotedText,
                         db_message_id: insertedMsg?.id,
-                        customer_phone: customerPhone,
-                        customer_name: data.pushName || 'Boss',
+                        customer_phone: remoteJid, // Pass full JID (with @g.us) for delivery
+                        customer_name: data.pushName || (isGroup ? 'Membro do Grupo' : 'Boss'),
                         is_boss: true
                     })
                 }).catch((err) => { console.error("[Webhook] AI fetch failed:", err); });
             } else if (!fromMe && !isBoss) {
-                console.log(`[Webhook] Message from customer (${customerPhone}) ignored for AI logic.`);
+                console.log(`[Webhook] Message from outside ignored for AI logic.`);
             }
         }
 
         return new Response('ok', { headers: corsHeaders });
     } catch (e) {
+        console.error("[Webhook Error]", e);
         return new Response('error', { headers: corsHeaders, status: 500 });
     }
 });

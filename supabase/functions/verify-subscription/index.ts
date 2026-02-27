@@ -142,7 +142,29 @@ serve(async (req) => {
             }
         }
 
-        // 5. Atualizar Supabase
+        // 5. Determinar o ID da assinatura final e checar se há PIX pendente para renovação
+        const { data: profile } = await supabase.from('profiles').select('asaas_subscription_id, asaas_customer_id').eq('id', user.id).single();
+        const subId = subscriptionId || profile?.asaas_subscription_id || authorizationId || activeSubscription?.id;
+
+        let pendingPix = null;
+        if (!paymentConfirmed && subId) {
+            console.log("Checking for pending renewal payments for sub:", subId);
+            const pStatusResp = await fetch(`${ASAAS_API_URL}/payments?subscription=${subId}&status=PENDING`, { headers });
+            const pStatusData = await pStatusResp.json();
+            const latestPending = pStatusData.data?.[0];
+
+            if (latestPending && latestPending.billingType === 'PIX') {
+                const pixResp = await fetch(`${ASAAS_API_URL}/payments/${latestPending.id}/pixQrCode`, { headers });
+                if (pixResp.ok) {
+                    pendingPix = await pixResp.json();
+                    pendingPix.value = latestPending.value;
+                    pendingPix.dueDate = latestPending.dueDate;
+                    pendingPix.id = latestPending.id;
+                }
+            }
+        }
+
+        // 6. Atualizar Supabase
         if (paymentConfirmed) {
             let isExpired = false;
             let nextDueDate = null;
@@ -184,17 +206,22 @@ serve(async (req) => {
 
             if (nextDueDate) updateData.next_due_date = nextDueDate;
             if (activeSubscription?.customer) updateData.asaas_customer_id = activeSubscription.customer;
-            if (subscriptionId) updateData.asaas_subscription_id = subscriptionId;
-            if (authorizationId) updateData.asaas_subscription_id = authorizationId;
+            if (subId) updateData.asaas_subscription_id = subId;
 
             await supabase.from('profiles').update(updateData).eq('id', user.id);
 
             return new Response(JSON.stringify({
                 success: true,
                 status: updateData.subscription_status.toUpperCase(),
-                subscriptionId: subscriptionId || authorizationId || activeSubscription?.id,
+                subscriptionId: subId || activeSubscription?.id,
                 tier: tier,
                 nextDueDate: nextDueDate
+            }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
+        } else if (pendingPix) {
+            return new Response(JSON.stringify({
+                success: false,
+                status: 'PENDING_RENEWAL',
+                pix: pendingPix
             }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
         } else {
             return new Response(JSON.stringify({ success: false, status: 'PENDING' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });

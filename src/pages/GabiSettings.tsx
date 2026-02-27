@@ -799,14 +799,14 @@ STATUS: {{status}}
                                             <div className="relative">
                                                 <Smartphone className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                                 <Input
-                                                    placeholder="Ex: 12345678@g.us ou 551199999999"
+                                                    placeholder="Ex: 12036312345678@g.us (ou apenas o número longo)"
                                                     className="pl-11 h-14 rounded-2xl border-2"
                                                     value={bossConfig.group_id}
                                                     onChange={e => setBossConfig(p => ({ ...p, group_id: e.target.value }))}
                                                 />
                                             </div>
                                             <p className="text-[10px] text-muted-foreground ml-2 italic">
-                                                Dica: Crie um grupo apenas com você e a Gabi e pegue o ID dele nos logs ou me pergunte!
+                                                Dica: O ID de grupo no WhatsApp costuma ser bem longo e terminar em @g.us. Você pode encontrá-lo nos logs da Evolution API ou me perguntar!
                                             </p>
                                         </div>
 
