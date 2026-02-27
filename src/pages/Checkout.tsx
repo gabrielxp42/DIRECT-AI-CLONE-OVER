@@ -118,12 +118,13 @@ const Checkout = () => {
     const [isApplyingCode, setIsApplyingCode] = useState(false);
     const [isBoostUnlocked, setIsBoostUnlocked] = useState(false);
 
-    // Auto-polling for PIX payment status
+    // Auto-polling for payment status
     useEffect(() => {
         let intervalId: NodeJS.Timeout;
 
-        if (paymentMethod === 'PIX_AUTOMATIC' && paymentData?.pix && !isSuccess) {
-            // Polling a cada 3 segundos
+        // Poll when paymentData exists and we have a subscription ID or payment ID (waiting for success)
+        if (paymentData && !isSuccess) {
+            // Polling a cada 4 segundos
             intervalId = setInterval(async () => {
                 // Verificação silenciosa (sem toast de loading)
                 if (!session?.access_token) return;
@@ -137,7 +138,8 @@ const Checkout = () => {
                         },
                         body: JSON.stringify({
                             subscriptionId: paymentData.subscriptionId,
-                            authorizationId: (paymentData as any).authorizationId
+                            authorizationId: (paymentData as any).authorizationId,
+                            paymentId: (paymentData as any).paymentId
                         })
                     });
 
@@ -152,13 +154,13 @@ const Checkout = () => {
                     console.error("Polling error", err);
                     // Não mostra erro pro usuário pra não poluir
                 }
-            }, 3000);
+            }, 4000);
         }
 
         return () => {
             if (intervalId) clearInterval(intervalId);
         };
-    }, [paymentMethod, paymentData, isSuccess, session]);
+    }, [paymentData, isSuccess, session]);
 
     // Detect URL parameter for partner code (Affiliate links)
     useEffect(() => {
@@ -575,11 +577,13 @@ const Checkout = () => {
                                 if (session) {
                                     await supabase.auth.signOut();
                                     toast.info("Aguardando novo login...");
+                                    window.location.reload();
+                                } else {
+                                    setIsLoginMode(true);
+                                    setStep(1);
+                                    setEmail('');
+                                    setPassword('');
                                 }
-                                setIsLoginMode(true);
-                                setStep(1);
-                                setEmail('');
-                                setPassword('');
                             }}
                             className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-600 hover:text-[#FFF200] transition-all hover:scale-105 flex items-center gap-2 group/login"
                         >
