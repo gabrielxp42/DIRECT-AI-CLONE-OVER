@@ -2244,6 +2244,57 @@ const update_client_details = async (args: {
   }
 };
 
+// Function to get a quick snapshot of client performance
+export const get_client_snapshot = async (args: { clientName: string }) => {
+  const { clientName } = args;
+  try {
+    const foundClients = await findClientWithMultipleStrategies(clientName);
+    if (!foundClients || foundClients.length === 0) {
+      return { message: `❌ Não encontrei o cliente "${clientName}".` };
+    }
+
+    const client = foundClients[0];
+    const ctx = await getUserContext();
+    if (!ctx) throw new Error("Contexto inválido");
+
+    const token = await getValidToken();
+    if (!token) throw new Error("Token inválido");
+
+    const orgFilter = ctx.organization_id ? `organization_id=eq.${ctx.organization_id}` : `user_id=eq.${ctx.user_id}`;
+
+    // Fetch orders to calculate quick stats
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?select=valor_total,created_at&cliente_id=eq.${client.id}&${orgFilter}&order=created_at.desc`, {
+      method: 'GET',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) throw new Error("Erro ao buscar pedidos para o snapshot.");
+    const orders = await response.json();
+
+    const totalSpent = orders.reduce((sum: number, o: any) => sum + (o.valor_total || 0), 0);
+    const lastOrderDate = orders.length > 0 ? new Date(orders[0].created_at).toLocaleDateString('pt-BR') : 'N/A';
+
+    return {
+      success: true,
+      data: {
+        name: client.nome,
+        total_orders: orders.length,
+        total_spent: totalSpent,
+        last_order: lastOrderDate,
+        memory: client.observacoes || 'Sem notas.'
+      },
+      message: `📊 **Snapshot de ${client.nome}:**\n💰 Total gasto: **R$ ${totalSpent.toFixed(2)}**\n📦 Total de pedidos: **${orders.length}**\n🗓️ Último pedido: **${lastOrderDate}**\n🧠 Memória: *${client.observacoes || 'Nenhuma nota especial.'}*`
+    };
+  } catch (err: any) {
+    console.error("❌ [get_client_snapshot] Erro:", err);
+    return { error: true, message: `Erro ao gerar raio-x do cliente: ${err.message}` };
+  }
+};
+
 export const callOpenAIFunction = async (functionCall: { name: string; arguments: any }) => {
   console.log(`🎯 [callOpenAIFunction] INÍCIO - Função chamada:`, functionCall.name);
   console.log(`📋 [callOpenAIFunction] Argumentos recebidos:`, functionCall.arguments);
@@ -2300,6 +2351,10 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
 
   if (name === "update_client_details") {
     return update_client_details(args);
+  }
+
+  if (name === "get_client_snapshot") {
+    return get_client_snapshot(args);
   }
 
   if (name === "get_client_orders") {
@@ -2926,7 +2981,6 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
     let { calculation_mode, imageWidth, imageHeight, quantity, rollWidth = 58, separation = 0.5, margin = 1.0 } = args;
 
     try {
-      // 1. Garantir que as dimensões são números válidos e maiores que zero
       imageWidth = Math.abs(parseFloat(imageWidth as any));
       imageHeight = Math.abs(parseFloat(imageHeight as any));
       const usableWidth = rollWidth - (margin * 2);
@@ -2935,98 +2989,59 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
         throw new Error(`❌ Imagem muito larga! As dimensões (${imageWidth}x${imageHeight}cm) excedem a largura útil do rolo de ${usableWidth}cm.`);
       }
 
-      // 2. Tentar as duas orientações para ver qual cabe mais na largura
-      const orient1_imagesPerRow = Math.max(1, Math.floor((usableWidth + separation) / (imageWidth + separation))); // Added Math.max(1) to always fit at least one if it fits width
+      // Calcula encaixe na orientação original
+      const fit1_PerRow = Math.floor((usableWidth + separation) / (imageWidth + separation));
+      const density1 = fit1_PerRow / (imageHeight + separation);
 
-      // Orientação Rotacionada
-      const orient2_imagesPerRow = Math.max(1, Math.floor((usableWidth + separation) / (imageHeight + separation)));
+      // Calcula encaixe na orientação rotacionada
+      const fit2_PerRow = Math.floor((usableWidth + separation) / (imageHeight + separation));
+      const density2 = fit2_PerRow / (imageWidth + separation);
 
-      let finalImagesPerRow = orient1_imagesPerRow;
+      let finalPerRow = Math.max(1, fit1_PerRow);
       let finalImgH = imageHeight;
       let finalImgW = imageWidth;
-      let bestOrientation = 'original';
+      let orientation = 'original';
 
-      // Verificar rotação apenas se a imagem rodada couber no papel
-      // Se width > usableWidth, nem tenta. Mas já checamos isso acima para ambos.
-      // O que precisamos ver é: qual rende mais por METRO (menor altura vertical gasta por linha) ?
-      // Per row A vs Per row B.
-
-      // Logic Simplification:
-      // Option A (Original): Width used: imageWidth. Height used: imageHeight.
-      // Option B (Rotated): Width used: imageHeight. Height used: imageWidth.
-
-      // Per Row A: floor(usable / W_A)
-      // Per Row B: floor(usable / W_B)
-
-      // Total Density A = PerRowA / H_A
-      // Total Density B = PerRowB / H_B
-
-      const densityA = orient1_imagesPerRow / (imageHeight + separation);
-      const densityB = orient2_imagesPerRow / (imageWidth + separation); // Rotated height is Width
-
-      if (densityB > densityA) {
-        if (imageHeight <= usableWidth) { // Can only rotate if height fits in width
-          finalImagesPerRow = orient2_imagesPerRow;
-          finalImgH = imageWidth;
-          finalImgW = imageHeight;
-          bestOrientation = 'rotated';
-          console.log(`🔄 [calculate_dtf_packing] Rotacionando logo para melhor encaixe: ${finalImgW}x${finalImgH}`);
-        }
-      }
-
-      if (finalImagesPerRow <= 0) {
-        throw new Error(`❌ A logo é maior que a largura útil (${usableWidth}cm).`);
+      // Decide se rotacionar é melhor (apenas se couber rotacionado)
+      if (density2 > density1 && imageHeight <= usableWidth) {
+        finalPerRow = Math.max(1, fit2_PerRow);
+        finalImgH = imageWidth;
+        finalImgW = imageHeight;
+        orientation = 'rotated';
       }
 
       let totalMeters = 0;
       let totalQuantity = 0;
 
-      // 3. SELECTION MODE based on 'calculation_mode' parameter (or inference fallback)
-      // If user didn't supply mode (legacy/mistake), try to infer from quantity magnitude?
-      // No, let's trust the input or default to meters_for_quantity.
-
-      // If mode is 'quantity_in_meters', input 'quantity' IS the meterage.
       if (calculation_mode === 'quantity_in_meters') {
-        const requestedMeters = quantity;
-        const availableHeightCm = (requestedMeters * 100);
-        // Rows fitting in this height
-        const rows = Math.floor(availableHeightCm / (finalImgH + separation));
-        totalQuantity = Math.max(0, rows * finalImagesPerRow);
+        const requestedMeters = Math.max(0.1, quantity);
+        const rows = Math.floor((requestedMeters * 100 + separation) / (finalImgH + separation));
+        totalQuantity = rows * finalPerRow;
         totalMeters = requestedMeters;
       } else {
-        // Default: 'meters_for_quantity'
-        const requestedQuantity = quantity;
+        const requestedQuantity = Math.max(1, quantity);
         totalQuantity = requestedQuantity;
-        const rowsNeeded = Math.ceil(requestedQuantity / finalImagesPerRow);
+        const rowsNeeded = Math.ceil(requestedQuantity / finalPerRow);
         const totalHeightCm = (rowsNeeded * finalImgH) + ((rowsNeeded - 1) * separation);
-        totalMeters = Math.max(0.1, totalHeightCm / 100);
+        totalMeters = totalHeightCm / 100;
       }
 
-      const efficiency = ((finalImagesPerRow * finalImgW) / usableWidth) * 100;
-      const imagesPerMeter = Math.floor((100 + separation) / (finalImgH + separation)) * finalImagesPerRow;
-
-      const message = calculation_mode === 'quantity_in_meters'
-        ? `🔥 **Resultado:** Em **${totalMeters}m** lineares cabem aproximadamente **${totalQuantity}** unidades!\n\n` +
-        `ℹ️ *Detalhes: ${finalImagesPerRow} por linha • ${Math.floor(imagesPerMeter)} un/m*`
-        : `🔥 **Resultado:** Para **${totalQuantity}** unidades, você vai precisar de **${totalMeters.toFixed(2)}m** lineares.\n\n` +
-        `ℹ️ *Detalhes: ${finalImagesPerRow} por linha • Aproveitamento ${efficiency.toFixed(1)}%*`;
+      const efficiency = ((finalPerRow * finalImgW) / usableWidth) * 100;
 
       return {
         type: 'dtf_calculation',
         data: {
-          imageWidth,
-          imageHeight,
-          quantity: totalQuantity,
-          rollWidth,
+          imageWidth, imageHeight, quantity: totalQuantity, rollWidth,
           results: {
-            imagesPerRow: finalImagesPerRow,
+            imagesPerRow: finalPerRow,
             totalMeters: parseFloat(totalMeters.toFixed(2)),
-            imagesPerMeter: Math.floor(imagesPerMeter),
             efficiency: Math.round(efficiency),
-            bestOrientation
+            orientation
           }
         },
-        message
+        message: calculation_mode === 'quantity_in_meters'
+          ? `🔥 **Resultado:** Em **${totalMeters}m** lineares cabem aproximadamente **${totalQuantity}** unidades!\n(Encaixe: ${finalPerRow} por linha, orientado: ${orientation})`
+          : `🔥 **Resultado:** Para **${totalQuantity}** unidades, você vai precisar de **${totalMeters.toFixed(2)}m** lineares.\n(Encaixe: ${finalPerRow} por linha, aproveitamento: ${efficiency.toFixed(1)}%)`
       };
     } catch (error: any) {
       console.error("❌ Erro no cálculo de packing:", error);

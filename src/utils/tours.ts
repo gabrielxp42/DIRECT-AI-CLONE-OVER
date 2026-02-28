@@ -205,10 +205,22 @@ export const PRODUTOS_GENERAL_TOUR: TutorialStep[] = [
 
 export const PRODUTOS_PRODUCAO_TOUR: TutorialStep[] = [
     {
-        targetId: 'tab-producao',
-        title: 'Tipos de Produção',
-        description: 'Configure seus processos (DTF, Vinil, etc.). Você pode definir cores e ícones para facilitar a identificação visual em toda a plataforma.',
+        targetId: 'tipos-heading',
+        title: 'Categorias de Materiais',
+        description: 'Aqui você define os materiais que sua empresa trabalha, como DTF, DTF UV, Adesivo Vinil ou Acrílico. Isso permite organizar seu catálogo e automatizar cálculos.',
         position: 'bottom'
+    },
+    {
+        targetId: 'btn-novo-tipo',
+        title: 'Personalize seu Fluxo',
+        description: 'Clique aqui para cadastrar um novo material. Você pode escolher ícones e cores diferentes para cada tipo, facilitando a identificação visual em todo o sistema.',
+        position: 'bottom'
+    },
+    {
+        targetId: 'tipos-table, tipos-cards',
+        title: 'Gestão Inteligente',
+        description: 'Mantenha seus materiais atualizados aqui. Para cada tipo, você pode vincular "Insumos Globais" (como verniz ou cola) para que o sistema desconte o custo automaticamente de cada venda.',
+        position: 'top'
     }
 ];
 

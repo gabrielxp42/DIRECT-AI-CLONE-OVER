@@ -187,7 +187,7 @@ export const TipoProducaoManager = () => {
     return (
         <div className="space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="space-y-1">
+                <div className="space-y-1" id="tipos-heading">
                     <h2 className="text-xl font-semibold tracking-tight">Tipos de Produtos</h2>
                     <p className="text-xs sm:text-sm text-muted-foreground max-w-[300px] sm:max-w-none">
                         Configure as categorias de produtos e suas unidades de medida.
@@ -234,14 +234,14 @@ export const TipoProducaoManager = () => {
                         <Wrench className="mr-2 h-4 w-4" />
                         Corrigir Duplicados
                     </Button>
-                    <Button onClick={handleOpenAdd} size="sm" className="flex-1 sm:flex-initial">
+                    <Button id="btn-novo-tipo" onClick={handleOpenAdd} size="sm" className="flex-1 sm:flex-initial">
                         <Plus className="mr-2 h-4 w-4" />
                         Novo Tipo
                     </Button>
                 </div>
             </div>
 
-            <div className="rounded-md border hidden sm:block">
+            <div id="tipos-table" className="rounded-md border hidden sm:block">
                 <Table>
                     <TableHeader>
                         <TableRow>
@@ -293,7 +293,7 @@ export const TipoProducaoManager = () => {
             </div>
 
             {/* Mobile Cards View */}
-            <div className="space-y-4 block sm:hidden">
+            <div id="tipos-cards" className="space-y-4 block sm:hidden">
                 {tipos?.map((tipo) => (
                     <Card key={tipo.id} className="touch-manipulation">
                         <CardHeader className="pb-3 flex flex-row items-start justify-between space-y-0">

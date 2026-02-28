@@ -642,6 +642,25 @@ const PedidosPage: React.FC = () => {
           await restoreInsumosFromPedido(pedidoFull);
         }
       }
+
+      // --- Lógica de Alerta de Pagamento (Gabi Executiva - Dinheiro no Bolso) ---
+      if ((newStatus === 'pago' || markAsPaid) && statusAnterior !== 'pago' && pedidoFull) {
+        try {
+          // A inserção do agent_insight ativa o trigger process_new_insight que envia a msg pro WhatsApp
+          // O Gabi Executiva Agent agora vai ignorar se o 'payment' estiver desligado? 
+          // Correção: O agente gabi-executiva-agent tem config e manda alertas. Vamos inserir e deixar que lá ele decida,
+          // Ou melhor: checa lá e aqui. Aqui inserimos com description específica.
+          await supabase.from('agent_insights').insert({
+            user_id: session?.user.id,
+            insight_type: 'executive_alert',
+            title: '💰 Pagamento Recebido!',
+            description: `Um pedido acaba de ser marcado como PAGO! 🎉\n\nDetalhes:\n- Pedido: #${pedidoFull.order_number}\n- Cliente: ${pedidoFull.clientes?.nome || 'Cliente'}\n- Valor: R$ ${(pedidoFull.valor_total || 0).toFixed(2)}\n\nMantenha o bom trabalho!`,
+            metadata: { type: 'payment', order_id: pedidoFull.id }
+          });
+        } catch (e) {
+          console.error("Erro ao gerar insight de pagamento:", e);
+        }
+      }
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["pedidos"] });

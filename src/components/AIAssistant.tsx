@@ -40,8 +40,14 @@ export const AIAssistant = () => {
   const [isLive, setIsLive] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesRef = useRef<ChatMessage[]>(messages);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Keep messagesRef in sync
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -89,12 +95,6 @@ export const AIAssistant = () => {
   // Listener para eventos externos (ex: clique no Dashboard para cobrar)
   useEffect(() => {
     const handleTrigger = (event: CustomEvent<string>) => {
-      if (!isOpen) {
-        // Se estiver fechado, não conseguimos abrir daqui pois quem controla o isOpen é o Contexto.
-        // Mas quem dispara o evento (Widget) deve chamar open() antes.
-        // Apenas garantimos que vamos processar.
-      }
-
       const message = event.detail;
       if (message) {
         handleSendMessage(message);
@@ -105,12 +105,16 @@ export const AIAssistant = () => {
     return () => {
       window.removeEventListener('trigger-ai-message' as any, handleTrigger as any);
     };
-  }, [isOpen]); // Dependência isOpen para garantir contexto atualizado, embora handleSendMessage seja estável
+  }, []); // Remove dependency on isOpen to avoid re-registering unnecessarily
 
   const handleSendMessage = async (content: string) => {
     if (!content.trim() || isLoading) return;
 
     const userMessage: ChatMessage = { role: 'user', content };
+
+    // Use the latest messages from the ref for the history
+    const currentHistory = messagesRef.current;
+
     setMessages(prev => [...prev, userMessage]);
     setInput("");
     setIsLoading(true);
@@ -121,7 +125,7 @@ export const AIAssistant = () => {
       const { data, error: invokeError } = await supabase.functions.invoke('gabi-brain', {
         body: {
           message: content,
-          history: messages.slice(-10) // Limitar histórico para performance
+          history: currentHistory.slice(-10) // Use the snapped history
         }
       });
 

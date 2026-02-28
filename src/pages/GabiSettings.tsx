@@ -690,20 +690,20 @@ STATUS: {{status}}
             </div>
 
             <Tabs defaultValue="pago" className="w-full">
-                <TabsList className="grid grid-cols-4 w-full h-16 p-1.5 bg-muted/50 rounded-3xl border-2 mb-8">
-                    <TabsTrigger value="pago" className="rounded-2xl font-black gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-lg data-[state=active]:text-primary transition-all uppercase tracking-tighter">
+                <TabsList className="flex flex-wrap w-full h-auto min-h-[64px] p-1.5 bg-muted/50 rounded-3xl border-2 mb-8 gap-2">
+                    <TabsTrigger value="pago" className="flex-1 min-w-[120px] rounded-2xl font-black gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-lg data-[state=active]:text-primary transition-all uppercase tracking-tighter py-2.5">
                         <CheckCircle className="h-4 w-4" /> Pago
                     </TabsTrigger>
-                    <TabsTrigger value="aguardando retirada" className="rounded-2xl font-black gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-lg data-[state=active]:text-primary transition-all uppercase tracking-tighter">
+                    <TabsTrigger value="aguardando retirada" className="flex-1 min-w-[120px] rounded-2xl font-black gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-lg data-[state=active]:text-primary transition-all uppercase tracking-tighter py-2.5">
                         <Smartphone className="h-4 w-4" /> Retirada
                     </TabsTrigger>
-                    <TabsTrigger value="enviado" className="rounded-2xl font-black gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-lg data-[state=active]:text-primary transition-all uppercase tracking-tighter">
+                    <TabsTrigger value="enviado" className="flex-1 min-w-[120px] rounded-2xl font-black gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-lg data-[state=active]:text-primary transition-all uppercase tracking-tighter py-2.5">
                         <Truck className="h-4 w-4" /> Enviado
                     </TabsTrigger>
-                    <TabsTrigger value="order_summary" className="rounded-2xl font-black gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-lg data-[state=active]:text-primary transition-all uppercase tracking-tighter">
+                    <TabsTrigger value="order_summary" className="flex-1 min-w-[120px] rounded-2xl font-black gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-lg data-[state=active]:text-primary transition-all uppercase tracking-tighter py-2.5">
                         <List className="h-4 w-4" /> Resumo
                     </TabsTrigger>
-                    <TabsTrigger value="gabi_executiva" className="rounded-2xl font-black gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-lg data-[state=active]:text-primary transition-all uppercase tracking-tighter">
+                    <TabsTrigger value="gabi_executiva" className="flex-1 min-w-[120px] rounded-2xl font-black gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-lg data-[state=active]:text-primary transition-all uppercase tracking-tighter py-2.5">
                         <ShieldCheck className="h-4 w-4" /> Executiva
                     </TabsTrigger>
                 </TabsList>
@@ -818,7 +818,6 @@ STATUS: {{status}}
                                                 {[
                                                     { id: 'payment', label: 'Dinheiro no Bolso', desc: 'Notifica quando um cliente paga o pedido.', icon: DollarSign },
                                                     { id: 'inactivity', label: 'Vendas Perdidas', desc: 'Notifica se alguém ficar sem resposta por mais de 2h.', icon: Clock },
-                                                    { id: 'error', label: 'Falhas Técnicas', desc: 'Te avisa se alguma integração (Stripe, WhatsApp) der erro.', icon: AlertTriangle },
                                                     { id: 'sales', label: 'Resumo Diário', desc: 'Um pequeno dashboard do dia enviado à noite.', icon: Activity },
                                                 ].map(type => (
                                                     <div key={type.id} className="flex items-start gap-4 p-3 rounded-xl hover:bg-background transition-colors cursor-pointer"

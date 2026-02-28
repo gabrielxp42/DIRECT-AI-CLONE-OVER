@@ -67,7 +67,8 @@ import {
   Zap,
   Edit2,
   Save,
-  X
+  X,
+  RotateCcw
 } from "lucide-react";
 
 import { MetersBarChart } from '@/components/MetersBarChart';
@@ -236,15 +237,30 @@ const Reports: React.FC = () => {
             <BarChart3 className="h-6 w-6 md:h-8 md:w-8 text-primary" />
             <h1 className="text-xl md:text-3xl font-bold">Relatórios</h1>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={startTour}
-            className="flex items-center gap-2 text-muted-foreground hover:text-primary"
-          >
-            <HelpCircle className="h-4 w-4" />
-            <span className="hidden sm:inline">Como ler os dados</span>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                localStorage.removeItem('app_version');
+                window.location.reload();
+              }}
+              className="flex items-center gap-2 text-muted-foreground hover:text-primary"
+              title="Forçar atualização do aplicativo e limpar cache"
+            >
+              <RotateCcw className="h-4 w-4" />
+              <span className="hidden sm:inline">Sincronizar App</span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={startTour}
+              className="flex items-center gap-2 text-muted-foreground hover:text-primary"
+            >
+              <HelpCircle className="h-4 w-4" />
+              <span className="hidden sm:inline">Como ler os dados</span>
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -371,8 +387,8 @@ _Gerado por Direct AI_`;
       {/* Bento Grid - Layout Inteligente */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-        {/* Coluna da Esquerda: KPIs Financeiros e de Vendas (2x2) */}
-        <div className="lg:col-span-2 grid grid-cols-2 gap-4">
+        {/* Coluna da Esquerda: KPIs Financeiros e de Vendas (2x2 no Desktop, 1x1 no Mobile) */}
+        <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
 
           {/* Receita Total */}
           <Card id="reports-revenue-card" className="hover:shadow-md transition-all border-l-4 border-l-green-500 shadow-sm">
@@ -405,9 +421,11 @@ _Gerado por Direct AI_`;
                       setTempMargin((reportData.targetProfitMargin * 100).toFixed(0));
                     }}
                     className="flex items-center gap-1.5 px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/50 hover:bg-emerald-200 dark:hover:bg-emerald-800 rounded-full transition-all text-[10px] font-bold text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+                    title="Ajustar Margem de Lucro"
                   >
                     <Edit2 className="h-2.5 w-2.5" />
-                    AJUSTAR MARGEM
+                    <span className="hidden sm:inline">AJUSTAR MARGEM</span>
+                    <span className="sm:hidden">AJUSTAR</span>
                   </button>
                 )}
               </CardTitle>

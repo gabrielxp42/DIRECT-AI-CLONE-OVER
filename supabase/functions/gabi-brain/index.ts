@@ -278,6 +278,59 @@ Dono(a) da Empresa: ${profile?.first_name || 'N/A'}
             {
                 type: "function",
                 function: {
+                    name: "create_shipping_label",
+                    description: "Gera um rascunho de etiqueta de envio na transportadora selecionada (SuperFrete ou Frenet).",
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            orderNumber: { type: "integer", description: "Número do pedido." },
+                            to: { type: "string", description: "CEP de destino." },
+                            service: { type: "string", description: "ID do serviço (ex: '1' para PAC, '2' para SEDEX)." },
+                            package: {
+                                type: "object",
+                                properties: {
+                                    weight: { type: "number" },
+                                    height: { type: "number" },
+                                    width: { type: "number" },
+                                    length: { type: "number" }
+                                }
+                            }
+                        },
+                        required: ["orderNumber", "to", "service"]
+                    }
+                }
+            },
+            {
+                type: "function",
+                function: {
+                    name: "checkout_shipping_label",
+                    description: "Efetua o pagamento e emissão definitiva de uma etiqueta de envio.",
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            labelId: { type: "string", description: "ID da etiqueta (gerado na criação)." }
+                        },
+                        required: ["labelId"]
+                    }
+                }
+            },
+            {
+                type: "function",
+                function: {
+                    name: "get_shipping_label_link",
+                    description: "Retorna o link para impressão e o código de rastreio de uma etiqueta já emitida.",
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            labelId: { type: "string", description: "ID da etiqueta." }
+                        },
+                        required: ["labelId"]
+                    }
+                }
+            },
+            {
+                type: "function",
+                function: {
                     name: "query_database",
                     description: "Busca dados brutos de tabelas caso precise de detalhes adicionais.",
                     parameters: {
@@ -404,22 +457,145 @@ Dono(a) da Empresa: ${profile?.first_name || 'N/A'}
                                 data: { phone: args.phone, message: args.message, link: `https://wa.me/${cleanPhone}?text=${encodedMessage}` }
                             };
                         } else if (call.function.name === "get_client_snapshot") {
-                            const { data: client } = await supabase.from('clientes').select('id, nome, telefone').ilike('nome', `%${args.clientName}%`).limit(1).single();
+                            const { data: client } = await supabase.from('clientes').select('id, nome, telefone, observacoes').ilike('nome', `%${args.clientName}%`).limit(1).single();
                             if (!client) throw new Error("Cliente não encontrado.");
-                            const { data: orders } = await supabase.from('pedidos').select('valor_total, status').eq('cliente_id', client.id);
+                            const { data: orders } = await supabase.from('pedidos').select('valor_total, status, created_at').eq('cliente_id', client.id).order('created_at', { ascending: false });
+
+                            const totalSpent = orders?.reduce((sum, o) => sum + Number(o.valor_total || 0), 0) || 0;
+                            const lastOrderDate = orders && orders.length > 0 ? new Date(orders[0].created_at).toLocaleDateString('pt-BR') : 'N/A';
+
                             result = {
                                 type: 'client_snapshot',
-                                data: { name: client.nome, phone: client.telefone, total_spent: orders?.reduce((sum, o) => sum + Number(o.valor_total || 0), 0) || 0 }
+                                data: {
+                                    name: client.nome,
+                                    phone: client.telefone,
+                                    total_spent: totalSpent,
+                                    total_orders: orders?.length || 0,
+                                    last_order: lastOrderDate,
+                                    memory: client.observacoes || 'Sem notas.'
+                                }
                             };
                         } else if (call.function.name === "calculate_dtf_packing") {
-                            const { imageWidth, imageHeight, quantity } = args;
-                            const rollWidth = 58;
-                            const imagesPerRow = Math.floor(rollWidth / imageWidth);
-                            const rows = Math.ceil(quantity / imagesPerRow);
-                            const totalMeters = (rows * imageHeight) / 100;
-                            result = { totalMeters, imagesPerRow, totalQuantity: quantity };
+                            let { calculation_mode, imageWidth, imageHeight, quantity, rollWidth = 58, separation = 0.5, margin = 1.0 } = args;
+
+                            imageWidth = Math.abs(parseFloat(imageWidth as any));
+                            imageHeight = Math.abs(parseFloat(imageHeight as any));
+                            const usableWidth = rollWidth - (margin * 2);
+
+                            if (imageWidth > usableWidth && imageHeight > usableWidth) {
+                                throw new Error(`❌ Imagem muito larga! As dimensões (${imageWidth}x${imageHeight}cm) excedem a largura útil do rolo de ${usableWidth}cm.`);
+                            }
+
+                            const fit1_PerRow = Math.floor((usableWidth + separation) / (imageWidth + separation));
+                            const density1 = fit1_PerRow / (imageHeight + separation);
+
+                            const fit2_PerRow = Math.floor((usableWidth + separation) / (imageHeight + separation));
+                            const density2 = fit2_PerRow / (imageWidth + separation);
+
+                            let finalPerRow = Math.max(1, fit1_PerRow);
+                            let finalImgH = imageHeight;
+                            let finalImgW = imageWidth;
+                            let orientation = 'original';
+
+                            if (density2 > density1 && imageHeight <= usableWidth) {
+                                finalPerRow = Math.max(1, fit2_PerRow);
+                                finalImgH = imageWidth;
+                                finalImgW = imageHeight;
+                                orientation = 'rotated';
+                            }
+
+                            let totalMeters = 0;
+                            let totalQuantity = 0;
+
+                            if (calculation_mode === 'quantity_in_meters') {
+                                const requestedMeters = Math.max(0.1, quantity);
+                                const rows = Math.floor((requestedMeters * 100 + separation) / (finalImgH + separation));
+                                totalQuantity = rows * finalPerRow;
+                                totalMeters = requestedMeters;
+                            } else {
+                                const requestedQuantity = Math.max(1, quantity);
+                                totalQuantity = requestedQuantity;
+                                const rowsNeeded = Math.ceil(requestedQuantity / finalPerRow);
+                                const totalHeightCm = (rowsNeeded * finalImgH) + ((rowsNeeded - 1) * separation);
+                                totalMeters = totalHeightCm / 100;
+                            }
+
+                            const efficiency = ((finalPerRow * finalImgW) / usableWidth) * 100;
+
+                            result = {
+                                type: 'dtf_calculation',
+                                data: {
+                                    imageWidth, imageHeight, quantity: totalQuantity, rollWidth,
+                                    results: {
+                                        imagesPerRow: finalPerRow,
+                                        totalMeters: parseFloat(totalMeters.toFixed(2)),
+                                        efficiency: Math.round(efficiency),
+                                        orientation
+                                    }
+                                }
+                            };
                         } else if (call.function.name === "calculate_shipping") {
-                            result = { message: "Simulação de frete realizada (SuperFrete)." };
+                            const { to, from, package: pkg } = args;
+                            const response = await fetch(`${SUPABASE_URL}/functions/v1/superfrete-proxy`, {
+                                method: 'POST',
+                                headers: {
+                                    'apikey': Deno.env.get('SUPABASE_ANON_KEY') || '',
+                                    'Authorization': req.headers.get('Authorization') || '',
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({
+                                    action: 'calculate',
+                                    params: { to: to.replace(/\D/g, ''), from: from?.replace(/\D/g, ''), package: pkg || { weight: 0.5, height: 2, width: 11, length: 16 } }
+                                })
+                            });
+                            result = await response.json();
+                        } else if (call.function.name === "create_shipping_label") {
+                            const { orderNumber, to, service, package: pkg } = args;
+                            const { data: order } = await supabase.from('pedidos').select('id, valor_total').eq('order_number', orderNumber).single();
+                            if (!order) throw new Error("Pedido não encontrado.");
+
+                            const response = await fetch(`${SUPABASE_URL}/functions/v1/superfrete-proxy`, {
+                                method: 'POST',
+                                headers: {
+                                    'apikey': Deno.env.get('SUPABASE_ANON_KEY') || '',
+                                    'Authorization': req.headers.get('Authorization') || '',
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({
+                                    action: 'cart',
+                                    params: {
+                                        pedido_id: order.id,
+                                        to: { postal_code: to.replace(/\D/g, '') },
+                                        service,
+                                        volumes: [pkg || { weight: 0.5, height: 2, width: 11, length: 16 }],
+                                        invoice_value: order.valor_total || 1,
+                                        options: { non_commercial: true }
+                                    }
+                                })
+                            });
+                            result = await response.json();
+                        } else if (call.function.name === "checkout_shipping_label") {
+                            const response = await fetch(`${SUPABASE_URL}/functions/v1/superfrete-proxy`, {
+                                method: 'POST',
+                                headers: {
+                                    'apikey': Deno.env.get('SUPABASE_ANON_KEY') || '',
+                                    'Authorization': req.headers.get('Authorization') || '',
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({ action: 'checkout', params: { id: args.labelId } })
+                            });
+                            result = await response.json();
+                        } else if (call.function.name === "get_shipping_label_link") {
+                            const response = await fetch(`${SUPABASE_URL}/functions/v1/superfrete-proxy`, {
+                                method: 'POST',
+                                headers: {
+                                    'apikey': Deno.env.get('SUPABASE_ANON_KEY') || '',
+                                    'Authorization': req.headers.get('Authorization') || '',
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({ action: 'tracking', params: { id: args.labelId } })
+                            });
+                            result = await response.json();
                         } else if (call.function.name === "query_database") {
                             let query = supabase.from(args.table).select(args.select || '*').limit(20);
                             if (orgId) query = query.eq('organization_id', orgId);

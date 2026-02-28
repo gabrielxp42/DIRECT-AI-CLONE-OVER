@@ -66,6 +66,7 @@ import { motion } from "framer-motion";
 import { AdminGeminiConfig } from "@/components/AdminGeminiConfig";
 import { AdminAIMonitoring } from "@/components/AdminAIMonitoring";
 import { AdminWalletManager } from "@/components/AdminWalletManager";
+import { AdminUserRadar } from "@/components/AdminUserRadar";
 
 type AdminProfile = {
     id: string;
@@ -145,6 +146,7 @@ export default function Admin() {
     const [affiliateStats, setAffiliateStats] = useState<AffiliateStat[]>([]);
     const [pendingWithdrawals, setPendingWithdrawals] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [onlineUsersCount, setOnlineUsersCount] = useState(0);
     const [selectedUser, setSelectedUser] = useState<AdminProfile | null>(null);
     const [isDetailOpen, setIsDetailOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
@@ -196,10 +198,11 @@ export default function Admin() {
 
             setUsers(usersWithStats as AdminProfile[]);
 
-            // Fetch Logs (Recent 50)
+            // Fetch Logs (Recent 50) excluding page_view for standard logs
             const { data: logsData, error: logsError } = await supabase
                 .from('system_logs')
                 .select('*, profile:profiles(company_name, email)')
+                .neq('category', 'page_view')
                 .order('created_at', { ascending: false })
                 .limit(50);
 
@@ -285,7 +288,7 @@ export default function Admin() {
                         price = Number((price * 0.85).toFixed(2));
                     }
 
-                    const existing = affMap.get(code) || {
+                    const existing: AffiliateStat = affMap.get(code) || {
                         code,
                         users: 0,
                         revenue: 0,
@@ -363,6 +366,25 @@ export default function Admin() {
     useEffect(() => {
         if (profile?.is_admin) {
             fetchData();
+
+            // Real-time Presence for Online Users
+            const presenceChannel = supabase.channel('global-presence');
+            presenceChannel
+                .on('presence', { event: 'sync' }, () => {
+                    const newState = presenceChannel.presenceState();
+                    const uniqueUsers = new Set();
+                    Object.values(newState).forEach((presenceArray: any) => {
+                        presenceArray.forEach((p: any) => {
+                            if (p.user_id) uniqueUsers.add(p.user_id);
+                        });
+                    });
+                    setOnlineUsersCount(uniqueUsers.size);
+                })
+                .subscribe();
+
+            return () => {
+                supabase.removeChannel(presenceChannel);
+            };
         }
     }, [profile]);
 
@@ -414,6 +436,21 @@ export default function Admin() {
         }
     };
 
+    const getFormattedName = (companyName: string | null | undefined, email: string | null | undefined) => {
+        const name = companyName || '';
+        const isGeneric = !name ||
+            name.toLowerCase() === 'minha empresa' ||
+            name.toLowerCase() === 'sem nome' ||
+            name.trim() === '';
+
+        if (isGeneric && email) {
+            // Pega a parte antes do @ e coloca em uppercase
+            return email.split('@')[0].toUpperCase();
+        }
+
+        return name || 'LEAD';
+    };
+
     const handleSendRecoveryEmail = async (userId: string, email: string, name: string) => {
         try {
             setSendingEmailToId(userId);
@@ -438,7 +475,7 @@ export default function Admin() {
             toast.success("E-mail enviado com sucesso!");
         } catch (error: any) {
             console.error(error);
-            toast.error("Erro ao enviar e-mail. Verifique o console.");
+            toast.error(error.message || "Erro ao enviar e-mail. Verifique o console.");
         } finally {
             setSendingEmailToId(null);
         }
@@ -547,20 +584,26 @@ export default function Admin() {
                     </CardContent>
                 </Card>
 
-                <Card className="bg-white dark:bg-zinc-900 border-none shadow-xl rounded-[2rem] overflow-hidden">
+                <Card className="bg-white dark:bg-zinc-900 border-none shadow-xl rounded-[2rem] overflow-hidden relative">
                     <CardContent className="p-8">
                         <div className="flex items-center gap-4 mb-4">
-                            <div className="p-3 bg-indigo-500/10 rounded-2xl text-indigo-500">
+                            <div className="p-3 bg-indigo-500/10 rounded-2xl text-indigo-500 relative">
                                 <Activity size={24} />
+                                {onlineUsersCount > 0 && (
+                                    <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-500 border-2 border-white dark:border-zinc-900"></span>
+                                    </span>
+                                )}
                             </div>
-                            <span className="text-xs font-black uppercase tracking-widest text-muted-foreground">Usuários Ativos (30d)</span>
+                            <span className="text-xs font-black uppercase tracking-widest text-muted-foreground">Conectados Agora</span>
                         </div>
                         <div className="space-y-1">
-                            <h3 className="text-3xl font-black italic tracking-tighter">
-                                {stats.activeUsers30d}
+                            <h3 className="text-3xl font-black italic tracking-tighter text-indigo-500">
+                                {onlineUsersCount} <span className="text-sm font-medium text-muted-foreground mr-2">Dispositivos</span>
                             </h3>
-                            <p className="text-indigo-500 text-xs font-bold flex items-center gap-1">
-                                <Users size={12} /> Operando a plataforma
+                            <p className="text-zinc-500 text-xs font-bold flex items-center gap-1">
+                                <Users size={12} /> {stats.activeUsers30d} contas operando nos últimos 30d
                             </p>
                         </div>
                     </CardContent>
@@ -626,6 +669,9 @@ export default function Admin() {
             <Tabs defaultValue="users" className="w-full">
                 <TabsList className="bg-muted/50 p-1 rounded-2xl mb-8 flex overflow-x-auto scrollbar-hide w-full md:w-auto">
                     <TabsTrigger value="users" className="rounded-xl px-4 md:px-8 font-black uppercase tracking-widest text-[11px] flex-1 md:flex-none shrink-0">Usuários</TabsTrigger>
+                    <TabsTrigger value="radar" className="rounded-xl px-4 md:px-8 font-black uppercase tracking-widest text-[11px] flex-1 md:flex-none shrink-0 flex items-center gap-2 text-indigo-500">
+                        <Activity size={14} /> Radar
+                    </TabsTrigger>
                     <TabsTrigger value="logs" className="rounded-xl px-4 md:px-8 font-black uppercase tracking-widest text-[11px] flex-1 md:flex-none shrink-0">Logs</TabsTrigger>
                     <TabsTrigger value="ai-monitoring" className="rounded-xl px-4 md:px-8 font-black uppercase tracking-widest text-[11px] flex-1 md:flex-none shrink-0 flex items-center gap-2">
                         <Brain size={14} /> Monitoramento IA
@@ -640,6 +686,11 @@ export default function Admin() {
                         <Wallet size={14} /> Carteira
                     </TabsTrigger>
                 </TabsList>
+
+                {/* ABA DE RADAR */}
+                <TabsContent value="radar">
+                    <AdminUserRadar />
+                </TabsContent>
 
                 {/* ABA DE USUÁRIOS */}
                 <TabsContent value="users">
@@ -830,12 +881,12 @@ export default function Admin() {
                                             <div className="flex items-center gap-4">
                                                 <Avatar className="h-10 w-10 border-2 border-emerald-500/20">
                                                     <AvatarFallback className="bg-emerald-500/10 text-emerald-500 font-black">
-                                                        {lead.company_name?.substring(0, 2).toUpperCase() || 'L'}
+                                                        {getFormattedName(lead.company_name, lead.email).substring(0, 2)}
                                                     </AvatarFallback>
                                                 </Avatar>
                                                 <div>
                                                     <p className="font-black text-sm uppercase italic text-zinc-900 dark:text-white leading-none mb-1">
-                                                        {lead.company_name || 'Sem Nome'}
+                                                        {getFormattedName(lead.company_name, lead.email)}
                                                     </p>
                                                     <p className="text-xs text-muted-foreground font-medium">{lead.email}</p>
                                                 </div>
@@ -843,7 +894,7 @@ export default function Admin() {
                                             <Button
                                                 size="sm"
                                                 disabled={sendingEmailToId === lead.id}
-                                                onClick={() => lead.email && handleSendRecoveryEmail(lead.id, lead.email, lead.company_name || '')}
+                                                onClick={() => lead.email && handleSendRecoveryEmail(lead.id, lead.email, getFormattedName(lead.company_name, lead.email))}
                                                 className="w-full sm:w-auto rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold shrink-0"
                                             >
                                                 {sendingEmailToId === lead.id ? (

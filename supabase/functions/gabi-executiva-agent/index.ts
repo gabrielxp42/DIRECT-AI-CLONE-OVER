@@ -59,6 +59,17 @@ Deno.serve(async (req: Request) => {
             });
         }
 
+        const alertTypes = profile.whatsapp_boss_alert_types || [];
+        const msgType = record.metadata?.type;
+
+        // If the insight came with a specific type (e.g., 'payment'), check if it's enabled.
+        if (msgType && !alertTypes.includes(msgType)) {
+            console.log(`[Executive Agent] Alert type '${msgType}' is disabled for user ${userId}. Skipping.`);
+            return new Response(JSON.stringify({ sent: false, reason: `Alert type disabled: ${msgType}` }), {
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+        }
+
         let bossTarget = profile.whatsapp_boss_group_id;
         if (!bossTarget) {
             return new Response(JSON.stringify({ sent: false, reason: "No target config" }), {

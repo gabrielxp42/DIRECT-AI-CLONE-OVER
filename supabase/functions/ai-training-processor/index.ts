@@ -177,19 +177,51 @@ Deno.serve(async (req: Request) => {
                 if (analysisResult) {
                     console.log(`[Processor] Gemini analysis successful for ${userId}. Extracted ${analysisResult.knowledge_entries?.length || 0} entries.`);
 
-                    // Save Knowledge
+                    // Save Knowledge & Opportunities
                     if (analysisResult.knowledge_entries && analysisResult.knowledge_entries.length > 0) {
-                        const entries = analysisResult.knowledge_entries.map((entry: any) => ({
-                            user_id: userId,
-                            knowledge_type: entry.type,
-                            content: entry.content,
-                            confidence: entry.confidence || 0.8,
-                            source_count: 1,
-                            is_active: true
-                        }));
+                        const standardEntries = [];
+                        const opportunityEntries = [];
 
-                        const { error: knError } = await supabase.from('ai_knowledge_base').insert(entries);
-                        if (knError) console.error(`[Processor] Error saving knowledge for ${userId}:`, knError);
+                        for (const entry of analysisResult.knowledge_entries) {
+                            if (entry.type === 'opportunity') {
+                                // Extract description carefully (could be string or object)
+                                let oppDesc = "Oportunidade de venda detectada.";
+                                if (typeof entry.content === 'string') {
+                                    oppDesc = entry.content;
+                                } else if (entry.content && typeof entry.content === 'object') {
+                                    oppDesc = entry.content.descricao || entry.content.resumo || entry.content.detalhes || JSON.stringify(entry.content);
+                                }
+
+                                opportunityEntries.push({
+                                    user_id: userId,
+                                    insight_type: 'business_opportunity',
+                                    title: 'Oportunidade no WhatsApp 💬',
+                                    description: oppDesc,
+                                    confidence: entry.confidence || 0.9,
+                                    is_active: true
+                                });
+                            } else {
+                                standardEntries.push({
+                                    user_id: userId,
+                                    knowledge_type: entry.type,
+                                    content: entry.content,
+                                    confidence: entry.confidence || 0.8,
+                                    source_count: 1,
+                                    is_active: true
+                                });
+                            }
+                        }
+
+                        if (standardEntries.length > 0) {
+                            const { error: knError } = await supabase.from('ai_knowledge_base').insert(standardEntries);
+                            if (knError) console.error(`[Processor] Error saving knowledge for ${userId}:`, knError);
+                        }
+
+                        if (opportunityEntries.length > 0) {
+                            const { error: oppError } = await supabase.from('agent_insights').insert(opportunityEntries);
+                            if (oppError) console.error(`[Processor] Error saving opportunities for ${userId}:`, oppError);
+                            else console.log(`[Processor] Saved ${opportunityEntries.length} opportunities for ${userId}.`);
+                        }
 
                         // Log: Knowledge extracted
                         await supabase.from('ai_training_logs').insert({
@@ -197,8 +229,8 @@ Deno.serve(async (req: Request) => {
                             agent_type: 'synthesizer',
                             action: 'knowledge_updated',
                             details: {
-                                message: `Extraídos ${entries.length} novos padrões de conhecimento.`,
-                                types: entries.map((e: any) => e.knowledge_type)
+                                message: `Extraídos ${standardEntries.length} padrões e ${opportunityEntries.length} oportunidades.`,
+                                types: analysisResult.knowledge_entries.map((e: any) => e.type)
                             }
                         });
                     }
@@ -265,150 +297,138 @@ Deno.serve(async (req: Request) => {
                 const lastReport = trainingStatus?.last_report_at;
                 const lastFingerprint = trainingStatus?.last_context_fingerprint;
 
-                // 1. Frequency Control (Cooldown of 4 hours)
-                const isDue = forceUserId || !lastReport || (Date.now() - new Date(lastReport).getTime() > 4 * 60 * 60 * 1000);
-
-                // 2. Quiet Hours (Avoid pro-active alerts between 23h and 08h)
+                // 1. Timing and Triggers (Daily at 17h, Weekly on Friday)
                 const currentHour = parseInt(dateInfo.time.split(':')[0]);
-                const isQuietHours = currentHour >= 23 || currentHour < 8;
+                const timeSinceLastReport = !lastReport ? Infinity : Date.now() - new Date(lastReport).getTime();
+                const isFriday = new Date().getDay() === 5;
 
-                if (isQuietHours && !forceUserId) {
-                    console.log(`[Processor] Strategic Secretary in Quiet Hours (${currentHour}h) for ${userId}. Skipping.`);
+                let isDue = forceUserId;
+                let reportType = 'daily';
+
+                if (!forceUserId && timeSinceLastReport > 12 * 60 * 60 * 1000) {
+                    if (currentHour >= 17 && currentHour <= 19) {
+                        isDue = true;
+                        if (isFriday) {
+                            reportType = 'weekly';
+                        }
+                    }
+                }
+
+                // 2. Alert Types Check
+                const { data: profile } = await supabase.from('profiles')
+                    .select('organization_id, whatsapp_boss_notifications_enabled, whatsapp_boss_alert_types')
+                    .eq('id', userId)
+                    .single();
+
+                if (profile && profile.whatsapp_boss_notifications_enabled === false && !forceUserId) {
+                    console.log(`[Processor] Strategic Secretary disabled for ${userId}. Skipping.`);
                     continue;
                 }
+
+                const alertTypes = profile?.whatsapp_boss_alert_types || ['payment', 'inactivity', 'error', 'sales'];
+
+                if (alertTypes.length === 0 && !forceUserId) {
+                    console.log(`[Processor] No alert types selected for ${userId}. Skipping.`);
+                    continue;
+                }
+
+                const checkInactivity = alertTypes.includes('inactivity');
+                const checkSales = alertTypes.includes('sales');
 
                 if (isDue) {
                     console.log(`[Processor] Strategic Secretary phase STARTED for ${userId}...`);
 
-                    // Log: Secretary Phase Start
-                    await supabase.from('ai_training_logs').insert({
-                        user_id: userId,
-                        agent_type: 'synthesizer',
-                        action: 'secretary_phase_start',
-                        details: { message: "Iniciando compilação de relatório executivo proativo." }
-                    });
+                    // 3. Fetch Opportunities from Subagent (Gemini)
+                    let pendingOpportunities: any[] = [];
+                    let oppsDetails = "";
+                    if (checkInactivity || forceUserId) {
+                        const { data: opps } = await supabase
+                            .from('agent_insights')
+                            .select('id, description, created_at')
+                            .eq('user_id', userId)
+                            .eq('insight_type', 'business_opportunity')
+                            .eq('is_active', true)
+                            .order('created_at', { ascending: true });
 
-                    // 1. WhatsApp Inactivity Check (Grouped by Client)
-                    const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
-                    const { data: pendingMessages } = await supabase
-                        .from('whatsapp_messages')
-                        .select('client_name, phone, created_at, message')
-                        .eq('user_id', userId)
-                        .eq('direction', 'received')
-                        .eq('analyzed', false)
-                        .lt('created_at', sixHoursAgo);
+                        pendingOpportunities = opps || [];
+                        oppsDetails = pendingOpportunities.map((o: any) => `- ${o.description}`).join('\n');
+                    }
 
-                    // Group by client name
-                    const groupedInactivity = pendingMessages?.reduce((acc: any, m: any) => {
-                        const key = m.client_name || m.phone;
-                        if (!acc[key]) acc[key] = [];
-                        acc[key].push(m);
-                        return acc;
-                    }, {}) || {};
+                    // 4. Unpaid Orders Check (> 24h)
+                    let unpaidOrders: any[] = [];
+                    if (checkInactivity || checkSales || forceUserId) {
+                        const { data: fetchUnpaid } = await supabase
+                            .from('pedidos')
+                            .select('order_number, valor_total, created_at, clientes(nome)')
+                            .eq('user_id', userId)
+                            .in('status', ['pendente', 'aguardando_pagamento'])
+                            .lt('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+                        unpaidOrders = fetchUnpaid || [];
+                    }
 
-                    const inactivityDetails = Object.entries(groupedInactivity).map(([name, msgs]: [string, any]) =>
-                        `- ${name}: ${msgs.length} mensagens (última em ${new Date(msgs[msgs.length - 1].created_at).toLocaleString('pt-BR')})`
-                    ).join('\n');
+                    // 5. Fingerprint check: avoid sending same info if nothing changed
+                    const currentFingerprint = `unpaid:${(unpaidOrders || []).map((o: any) => o.order_number).sort().join(',')}|opps:${pendingOpportunities.length}`;
 
-                    // 2. Unpaid Orders Check (> 24h)
-                    const { data: unpaidOrders } = await supabase
-                        .from('pedidos')
-                        .select('order_number, valor_total, created_at, clientes(nome)')
-                        .eq('user_id', userId)
-                        .in('status', ['pendente', 'aguardando_pagamento'])
-                        .lt('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
-
-                    // 3. Fingerprint check: avoid sending same info
-                    const currentFingerprint = `unpaid:${(unpaidOrders || []).map((o: any) => o.order_number).sort().join(',')}|msg:${pendingMessages?.length || 0}`;
-
-                    if (currentFingerprint === lastFingerprint && !forceUserId) {
+                    if (currentFingerprint === lastFingerprint && !forceUserId && reportType !== 'weekly') {
                         console.log(`[Processor] Data hasn't changed for ${userId}. Skipping duplicate report.`);
-                        await supabase.from('ai_training_logs').insert({
-                            user_id: userId,
-                            agent_type: 'synthesizer',
-                            action: 'analysis_skipped',
-                            details: { message: "Dados idênticos ao último relatório. Pulando para evitar spam.", fingerprint: currentFingerprint }
-                        });
                         continue;
                     }
 
-                    // 4. Monthly Metrics
-                    const { data: profile } = await supabase.from('profiles').select('organization_id').eq('id', userId).single();
-                    const { data: monthlyMetrics } = await supabase.rpc('get_total_meters_by_period', {
-                        p_start_date: dateInfo.ranges.thisMonth.start,
-                        p_end_date: dateInfo.ranges.thisMonth.end,
-                        p_organization_id: profile?.organization_id
-                    });
+                    // 6. Monthly Metrics
+                    let monthlyMetrics: any = null;
+                    if (checkSales || forceUserId) {
+                        const { data: fetchMetrics } = await supabase.rpc('get_total_meters_by_period', {
+                            p_start_date: dateInfo.ranges.thisMonth.start,
+                            p_end_date: dateInfo.ranges.thisMonth.end,
+                            p_organization_id: profile?.organization_id
+                        });
+                        monthlyMetrics = fetchMetrics;
+                    }
 
-                    // 5. Generate Strategic Note with Gemini 
+                    // 7. Generate Strategic Note with OpenAI 
                     const strategicContext = {
-                        pending_whatsapp: inactivityDetails,
+                        opportunities: oppsDetails,
                         unpaid_orders: unpaidOrders || [],
                         metrics: (monthlyMetrics && monthlyMetrics.length > 0) ? monthlyMetrics[0] : { total_meters: 0, total_orders: 0 },
-                        date: dateInfo.fullDate
+                        date: dateInfo.fullDate,
+                        reportType: reportType
                     };
 
-                    // Log: Context prepared
-                    await supabase.from('ai_training_logs').insert({
-                        user_id: userId,
-                        agent_type: 'synthesizer',
-                        action: 'context_prepared',
-                        details: {
-                            inactivity_grouped: inactivityDetails,
-                            unpaid_count: strategicContext.unpaid_orders.length,
-                            metrics: strategicContext.metrics,
-                            fingerprint: currentFingerprint
-                        }
-                    });
-
-                    // 6. Attempt to generate Strategic Note
+                    // 8. Attempt to generate Strategic Note
                     try {
                         const executiveNote = await generateExecutiveNote(strategicContext, OPENAI_KEY);
 
-                        // Log: Raw response for debugging
-                        await supabase.from('ai_training_logs').insert({
-                            user_id: userId,
-                            agent_type: 'synthesizer',
-                            action: 'raw_ai_response',
-                            details: { response: executiveNote }
-                        });
-
                         const hasUnpaid = strategicContext.unpaid_orders.length > 0;
-                        const hasMessages = strategicContext.pending_whatsapp.length > 0;
-                        const shouldForce = hasUnpaid || hasMessages;
+                        const hasOpps = pendingOpportunities.length > 0;
+                        const shouldForce = hasUnpaid || hasOpps; // Only force if there are actual pendings
 
-                        if (executiveNote && (!executiveNote.includes("SKIP_ALERT") || shouldForce)) {
+                        if (executiveNote && (!executiveNote.includes("SKIP_ALERT") || shouldForce || reportType === 'weekly')) {
                             let note = executiveNote;
                             if (note.includes("SKIP_ALERT") && shouldForce) {
-                                note = "Gabi identificou pendências importantes: " +
+                                note = "A Gabi identificou pendências importantes: " +
                                     (hasUnpaid ? `${strategicContext.unpaid_orders.length} pedidos não pagos. ` : "") +
-                                    (hasMessages ? "Clientes aguardando no WhatsApp." : "");
+                                    (hasOpps ? "Oportunidades ou orçamentos pendentes no WhatsApp." : "");
+                            } else if (note.includes("SKIP_ALERT") && reportType === 'weekly') {
+                                note = "Resumo da Semana: Tudo limpo por aqui! Nenhuma pendência urgente no WhatsApp e as métricas do mês continuam crescendo.";
                             }
 
                             console.log(`[Processor] Executive note generated for ${userId}. Saving insight...`);
                             await supabase.from('agent_insights').insert({
                                 user_id: userId,
                                 insight_type: 'executive_alert',
-                                title: 'Resumo da Secretária Gabi',
+                                title: reportType === 'weekly' ? 'Resumo da Semana 📊' : 'Resumo da Secretária Gabi 🎩',
                                 description: note,
                                 confidence: 0.9,
                                 is_active: true
                             });
 
-                            await supabase.from('ai_training_logs').insert({
-                                user_id: userId,
-                                agent_type: 'synthesizer',
-                                action: 'insight_generated',
-                                details: { message: "Relatório executivo gerado e enviado para agent_insights." }
-                            });
+                            // Clear active opportunities so they aren't reported again tomorrow
+                            if (hasOpps) {
+                                const oppIds = pendingOpportunities.map((o: any) => o.id);
+                                await supabase.from('agent_insights').update({ is_active: false }).in('id', oppIds);
+                            }
                         } else {
                             console.log(`[Processor] Secretary skipped alert for ${userId} (Nothing critical).`);
-                            await supabase.from('ai_training_logs').insert({
-                                user_id: userId,
-                                agent_type: 'synthesizer',
-                                action: 'analysis_skipped',
-                                details: { message: "Análise concluída. Nada crítico identificado (SKIP_ALERT)." }
-                            });
                         }
 
                         // Update last report timestamp and fingerprint ON SUCCESS
@@ -421,16 +441,12 @@ Deno.serve(async (req: Request) => {
 
                     } catch (reportErr: any) {
                         console.error(`[Processor] Strategic Note Error for ${userId}:`, reportErr);
-
-                        // IMPORTANT: Mark attempt even on failure to avoid infinite retry every 5 mins
-                        // Set a smaller cooldown (e.g. 1h) instead of the full 4h if it failed
-                        const retryIn = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(); // 4h standard - 3h = 1h wait
-
+                        // Retry roughly in 1h if timeSinceLastReport > 12h
+                        const retryIn = new Date(Date.now() - 11 * 60 * 60 * 1000).toISOString();
                         await supabase.from('ai_agent_training')
                             .update({ last_report_at: retryIn })
                             .eq('user_id', userId);
-
-                        throw reportErr; // Re-throw for main loop logging
+                        throw reportErr;
                     }
                 } else {
                     console.log(`[Processor] Strategic Report skipped (Not due yet for ${userId})`);
@@ -466,27 +482,29 @@ Deno.serve(async (req: Request) => {
 
 // Helper: Strategic Secretary Intelligence (Updated for OpenAI GPT-4o)
 async function generateExecutiveNote(ctx: any, apiKey: string) {
+    const isWeekly = ctx.reportType === 'weekly';
     const prompt = `
     ATUE COMO A GABI, A GERENTE AMIGA E PARCEIRA DE CONFIANÇA DO PATRÃO NA DIRECT AI.
     
-    ESTADO DA OPERAÇÃO AGORA:
+    ESTADO DA OPERAÇÃO DE HOJE (${isWeekly ? 'RESUMO DA SEMANA' : 'RESUMO DO DIA'}):
     - Data: ${ctx.date}
-    - Conversas Pendentes: ${ctx.pending_whatsapp || 'Tudo em dia por aqui!'}
+    - Oportunidades Pendentes no WhatsApp que eu identifiquei:
+${ctx.opportunities || 'Tudo em dia com os clientes!'}
     - Pedidos aguardando pagamento (> 24h): ${ctx.unpaid_orders.length} pedidos. Total: R$ ${ctx.unpaid_orders.reduce((acc: number, o: any) => acc + (o.valor_total || 0), 0).toFixed(2)}
     - Produção do Mês: ${ctx.metrics.total_meters?.toFixed(2) || 0} metros em ${ctx.metrics.total_orders || 0} pedidos.
 
     OBJETIVO:
-    Dê um resumo proativo para o patrão. Imagine que você está sentada com ele tomando um café. 
-    Seja humana, use o "olho de dona" e fale de forma natural.
+    Dê um resumo proativo para o patrão focado no que ele precisa saber AGORA. Imagine que você está sentada com ele tomando um café ${isWeekly ? 'na sexta-feira à tarde' : 'no fim do dia'}. 
+    Seja direta e humana, você é a dona da operação junto com ele. Não mencione "subagentes", "sistemas" ou "IAs que anotaram". Fale como se VOCÊ tivesse lido as conversas e percebido os detalhes.
 
     DIRETRIZES DE TOM:
-    - Evite ser uma lista de supermercado. Converse.
-    - Se as vendas estiverem boas, comemore! Se houver muitos calotes ou mensagens paradas, avise com tom de preocupação e parceira.
+    - Se houver Oportunidades Pendentes, vá direto ao ponto e diga quem é e o que quer, para o chefe saber quem socorrer no WhatsApp.
+    - Se as vendas/produção estiverem boas, comemore de forma natural!
     - Dê uma dica ou sugestão de ação baseada no que viu.
-    - Máximo 4-5 linhas para ser ágil.
+    - Máximo 5-6 linhas para ser ágil.
 
     RETORNO "SKIP_ALERT": 
-    Apenas se ABSOLUTAMENTE tudo estiver perfeito e não houver nada relevante para comentar. Mas se quiser apenas dar um "Bom dia" com uma análise positiva, pode mandar também.
+    Apenas se ABSOLUTAMENTE tudo estiver perfeito e não houver nenhuma oportunidade pendente. Mas se quiser apenas dar um relatório positivo de encerramento, pode mandar também.
     `;
 
     try {
@@ -526,7 +544,7 @@ async function analyzeWithGemini(conversation: string, apiKey: string, model: st
     const prompt = `
     ATUE COMO UM ESPECIALISTA EM ANÁLISE DE ATENDIMENTO E EXTRAÇÃO DE CONHECIMENTO.
 
-    OBJETIVO: Analisar o trecho de conversa de WhatsApp abaixo e extrair padrões estruturados sobre como a EMPRESA atende, para treinar uma IA que a imite.
+    OBJETIVO: Analisar o trecho de conversa de WhatsApp abaixo e extrair padrões estruturados sobre como a EMPRESA atende, E TAMBÉM identificar oportunidades claras de vendas pendentes.
 
     CONVERSA:
     ${conversation}
@@ -535,8 +553,8 @@ async function analyzeWithGemini(conversation: string, apiKey: string, model: st
     {
       "knowledge_entries": [
         {
-          "type": "business_rule" | "tone" | "client_profile" | "product",
-          "content": { ...tabela chave-valor flexível dependendo do tipo... },
+          "type": "business_rule" | "tone" | "client_profile" | "product" | "opportunity",
+          "content": { ...tabela chave-valor flexível, se for opportunity, coloque um texto claro do que o cliente quer (ex: "Cliente João quer 5 metros de DTF") na chave "descricao"... },
           "confidence": 0.0 a 1.0
         }
       ]
@@ -547,6 +565,7 @@ async function analyzeWithGemini(conversation: string, apiKey: string, model: st
     2. "tone": Estilo de escrita (ex: usa emojis? formal ou informal? saudações comuns?).
     3. "client_profile": Preferências ou dados do cliente se mencionados (nome do cliente, o que gosta).
     4. "product": Detalhes de produtos mencionados (preço, características).
+    5. "opportunity": APENAS se o cliente demonstrou intenção CLARA de compra, pediu orçamento, prazo, ou está aguardando resposta para fechar negócio. Em "content", detalhe o máximo possível QUEM é o cliente e O QUE ele quer.
 
     SE NADA RELEVANTE FOR ENCONTRADO, RETORNE 'knowledge_entries': [].
     IGNORE MENSAGENS IRRELEVANTES (ex: "ok", "tá").

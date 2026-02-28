@@ -32,20 +32,26 @@ serve(async (req) => {
                 'Authorization': `Bearer ${resendApiKey}`
             },
             body: JSON.stringify({
-                from: 'Direct AI <hello@direct-ai.pro>', // Update the sender domain if needed
+                from: 'Direct AI <contato@iadirect.com.br>',
                 to: [to],
                 subject: subject,
                 html: htmlContent
             })
         });
 
-        if (!res.ok) {
-            const errorData = await res.json();
-            console.error('Erro detalhado do Resend:', errorData);
-            throw new Error(`Erro no Resend: ${errorData.message || JSON.stringify(errorData)}`);
-        }
-
         const data = await res.json();
+
+        if (!res.ok) {
+            console.error('Erro detalhado do Resend:', data);
+            return new Response(
+                JSON.stringify({
+                    success: false,
+                    error: data.message || data.error?.message || JSON.stringify(data),
+                    details: data
+                }),
+                { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+            );
+        }
 
         return new Response(
             JSON.stringify({ success: true, data }),
