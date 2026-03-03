@@ -11,9 +11,26 @@ const BASE_URL_PROD = "https://api.superfrete.com";
 const BASE_URL_SANDBOX = "https://sandbox.superfrete.com";
 
 Deno.serve(async (req: Request) => {
+    // 0. Handle CORS Preflight
     if (req.method === 'OPTIONS') {
-        return new Response('ok', { headers: corsHeaders });
+        return new Response('ok', {
+            headers: {
+                ...corsHeaders,
+                'Access-Control-Max-Age': '86400',
+            }
+        });
     }
+
+    // Helper para facilitar o retorno com CORS
+    const respond = (data: any, status = 200) => {
+        return new Response(JSON.stringify(data), {
+            status,
+            headers: {
+                ...corsHeaders,
+                'Content-Type': 'application/json'
+            }
+        });
+    };
 
     try {
         const body = await req.json().catch(() => ({}));
@@ -96,13 +113,38 @@ Deno.serve(async (req: Request) => {
                 break;
             case 'tracking': {
                 let orderId = params?.orders?.[0] || params?.order_id || params?.id;
+
+                // Trata strings 'undefined' ou nulas vindas do frontend
+                if (!orderId || orderId === 'undefined' || orderId === 'null') {
+                    // Se não temos o ID externo, tentamos buscar no banco pelo pedido_id
+                    const pedidoId = params.pedido_id;
+                    if (pedidoId) {
+                        const adminClient = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+                        const { data: label } = await adminClient.from('shipping_labels').select('external_id').eq('pedido_id', pedidoId).single();
+                        if (label?.external_id) orderId = label.external_id;
+                    }
+                }
+
                 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
                 if (orderId && uuidPattern.test(orderId)) {
                     const adminClient = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
                     const { data: label } = await adminClient.from('shipping_labels').select('external_id').eq('id', orderId).single();
                     if (label?.external_id) orderId = label.external_id;
                 }
-                if (!orderId) throw new Error("ID da etiqueta não fornecido");
+
+                if (!orderId || orderId === 'undefined') {
+                    // Tenta uma última busca pelo pedido_id se disponível
+                    const pedidoIdFallback = params?.pedido_id;
+                    if (pedidoIdFallback) {
+                        const adminClient = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+                        const { data: label } = await adminClient.from('shipping_labels').select('external_id').eq('pedido_id', pedidoIdFallback).single();
+                        if (label?.external_id) orderId = label.external_id;
+                    }
+                }
+
+                if (!orderId || orderId === 'undefined' || orderId === 'null') {
+                    throw new Error("ID da etiqueta SuperFrete (external_id) não encontrado.");
+                }
                 endpoint = `/api/v0/order/info/${orderId}`;
                 method = "GET";
                 break;
@@ -146,8 +188,8 @@ Deno.serve(async (req: Request) => {
             }), { status: 200, headers: corsHeaders });
         }
 
-        // Handle Persistence for Checkout and Cart
-        if ((action === 'checkout' || action === 'cart') && !result.error) {
+        // Handle Persistence for Checkout, Cart and Tracking
+        if ((action === 'checkout' || action === 'cart' || action === 'tracking') && !result.error) {
             const adminClient = createClient(
                 Deno.env.get('SUPABASE_URL') ?? '',
                 Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -171,21 +213,27 @@ Deno.serve(async (req: Request) => {
             }
 
             // 2. Extract Tracking and PDF
-            let trackingCode = dataToProcess.tracking || dataToProcess.tracking_code || null;
-            if (typeof trackingCode === 'object' && trackingCode !== null) trackingCode = trackingCode.code || trackingCode.tracking_code || null;
+            let trackingCode = dataToProcess.tracking || dataToProcess.tracking_code || dataToProcess.tracking_number || null;
+            if (typeof trackingCode === 'object' && trackingCode !== null) {
+                trackingCode = trackingCode.code || trackingCode.tracking_code || trackingCode.number || null;
+            }
+
             if (!trackingCode) {
                 const correiosMatch = JSON.stringify(dataToProcess).match(/([A-Z]{2}\d{9}[A-Z]{2})/i);
                 if (correiosMatch) trackingCode = correiosMatch[0].toUpperCase();
             }
 
             let pdfUrl = dataToProcess.pdf || dataToProcess.url;
-            if (!pdfUrl && sfOrderId && action === 'checkout') {
+            if (!pdfUrl && sfOrderId && (action === 'checkout' || action === 'tracking')) {
                 const b64 = btoa(JSON.stringify({ order_id: String(sfOrderId) }));
                 pdfUrl = `https://etiqueta.superfrete.com/_etiqueta/pdf/${b64}?format=A4`;
             }
 
             // 3. Upsert Shipping Label
-            const labelStatus = action === 'checkout' ? 'released' : (dataToProcess.status || 'pending');
+            // Status mapping: released, printed, posted, transit, delivered, cancelled
+            let labelStatus = dataToProcess.status || 'pending';
+            if (action === 'checkout') labelStatus = 'released';
+            if (labelStatus === 'Aguardando impressão' || labelStatus === 'Paga') labelStatus = 'released';
 
             const { data: upsertData, error: upsertError } = await adminClient.from('shipping_labels').upsert({
                 user_id: user.id,
@@ -195,7 +243,7 @@ Deno.serve(async (req: Request) => {
                 pdf_url: pdfUrl || null,
                 price: finalPrice,
                 tracking_code: trackingCode,
-                recipient_name: dataToProcess.to?.name || params.recipient_name || null,
+                recipient_name: dataToProcess.to?.name || params.recipient_name || dataToProcess.recipient?.name || null,
                 service_name: dataToProcess.service?.name || params.service_name || null,
                 provider: 'superfrete'
             }, { onConflict: 'external_id' }).select();
@@ -205,25 +253,37 @@ Deno.serve(async (req: Request) => {
             }
 
             // 4. Update Pedido Reference
-            if (params.pedido_id) {
+            let pedidoToUpdate = params.pedido_id;
+            if (!pedidoToUpdate && sfOrderId) {
+                const { data: existingLabel } = await adminClient.from('shipping_labels').select('pedido_id').eq('external_id', String(sfOrderId)).single();
+                if (existingLabel?.pedido_id) pedidoToUpdate = existingLabel.pedido_id;
+            }
+
+            if (pedidoToUpdate) {
                 await adminClient.from('pedidos').update({
                     shipping_label_id: String(sfOrderId),
                     shipping_label_status: labelStatus,
                     tracking_code: trackingCode || null
-                }).eq('id', params.pedido_id);
+                }).eq('id', pedidoToUpdate);
+            }
+
+            // Normalize result for Frontend
+            if (typeof result === 'object' && !Array.isArray(result)) {
+                result.tracking_code = trackingCode;
+                result.status = labelStatus;
+                result.pdf = pdfUrl;
+                result.success = true;
             }
         }
 
-        return new Response(JSON.stringify(result), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            status: 200
-        });
+        return respond(result);
 
     } catch (error: any) {
         console.error("[SuperFrete Proxy] Internal Error:", error);
-        return new Response(JSON.stringify({
+        return respond({
             error: true,
-            message: error.message || "Erro interno no proxy SuperFrete"
-        }), { status: 200, headers: corsHeaders });
+            message: error.message || "Erro interno no proxy SuperFrete",
+            type: "proxy_error"
+        }, 200); // Retornamos 200 com flag de error para evitar preflight failure em alguns browsers
     }
 });

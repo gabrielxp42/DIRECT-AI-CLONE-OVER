@@ -79,18 +79,31 @@ export const LogisticsOverview: React.FC = () => {
     const { data: pendingOrders, isLoading: loadingPending } = useQuery({
         queryKey: ['pending_labels_orders', userId],
         queryFn: async () => {
+            // Busca pedidos com labels em status que indicam necessidade de atenção
+            // Incluímos 'released' para o caso de etiquetas pagas que não foram sincronizadas (como o caso do Matheus)
             const { data, error } = await supabase
                 .from('pedidos')
-                .select('id, order_number, shipping_label_id, shipping_label_status, valor_frete, clientes(nome), created_at')
+                .select('id, order_number, shipping_label_id, shipping_label_status, valor_frete, clientes(nome), created_at, tracking_code')
                 .eq('user_id', userId)
-                .eq('shipping_label_status', 'pending');
+                .neq('status', 'cancelado')
+                .not('shipping_label_id', 'is', null);
 
             if (error) {
-                console.error("Erro ao buscar pedidos pendentes:", error);
+                console.error("Erro ao buscar pedidos com etiqueta:", error);
                 throw error;
             }
 
-            return (data || []).map((p: any) => ({
+            // Filtrar localmente:
+            // 1. Status 'pending' ou 'cart' (ainda não pago)
+            // 2. Status 'released' mas sem tracking_code no pedido (possível erro de sincronia após pagamento)
+            const pending = (data || []).filter((p: any) => {
+                const status = p.shipping_label_status;
+                if (status === 'pending' || status === 'cart') return true;
+                if (status === 'released' && !p.tracking_code) return true;
+                return false;
+            });
+
+            return pending.map((p: any) => ({
                 id: p.id,
                 order_number: p.order_number,
                 shipping_label_id: p.shipping_label_id,
@@ -157,13 +170,14 @@ export const LogisticsOverview: React.FC = () => {
     };
 
     const handleRefreshTracking = async (label: ShippingLabel, isBackground: boolean = false) => {
-        const loadingToast = !isBackground ? toast.loading(`Sincronizando rastreio: ${label.recipient_name}...`) : null;
+        const nameToShow = label.recipient_name || (label as any).cliente_nome || (label as any).order_number || label.id;
+        const loadingToast = !isBackground ? toast.loading(`Sincronizando rastreio: ${nameToShow}...`) : null;
         try {
             const token = await getValidToken();
             const provider = label.provider || 'superfrete';
             const functionName = provider === 'frenet' ? 'frenet-proxy' : 'superfrete-proxy';
 
-            console.log(`[LogisticsOverview] Refreshing tracking for provider: ${provider}, Label ID: ${label.id}, External ID: ${label.external_id}`);
+            console.log(`[LogisticsOverview] Refreshing tracking for provider: ${provider}, Label ID: ${label.id || 'N/A'}, External ID: ${label.external_id}`);
             const response = await fetch(`${SUPABASE_URL}/functions/v1/${functionName}`, {
                 method: 'POST',
                 headers: {
@@ -175,10 +189,11 @@ export const LogisticsOverview: React.FC = () => {
                     action: 'tracking',
                     params: {
                         id: label.id,
-                        order_id: label.external_id,
-                        orders: [label.external_id],
+                        order_id: label.external_id || (label as any).shipping_label_id,
+                        orders: [label.external_id || (label as any).shipping_label_id],
                         tracking_num: label.tracking_code,
-                        service_code: label.service_name
+                        service_code: label.service_name,
+                        pedido_id: label.pedido_id || (label as any).id // No caso de PendingOrderLabel, .id é o id do Pedido
                     }
                 })
             });
@@ -212,65 +227,83 @@ export const LogisticsOverview: React.FC = () => {
                 const errorMsg = typeof data.message === 'object' ? JSON.stringify(data.message) : (data.message || "Erro desconhecido");
                 throw new Error(errorMsg);
             }
-            if (data.tracking_code) {
-                // Atualizar etiqueta com rastreio, status e PDF permanente
-                const updateData: any = {
-                    tracking_code: data.tracking_code,
-                    status: data.status || 'released' // Persistir o status real retornado pela API
-                };
+            if (data.tracking_code || data.status || data.success) {
+                // Atualizar etiqueta com o que tivermos (rastreio, status, PDF)
+                const updateData: any = {};
+                if (data.tracking_code) updateData.tracking_code = data.tracking_code;
+                if (data.status) updateData.status = data.status;
                 if (data.url || data.pdf) updateData.pdf_url = data.url || data.pdf;
 
-                const { error: labelError } = await supabase
-                    .from('shipping_labels')
-                    .update(updateData)
-                    .eq('id', label.id);
+                // Se não tem tracking mas o status é released/paga, já ajuda muito
+                const hasChanges = Object.keys(updateData).length > 0;
 
-                if (labelError) {
-                    console.error("Erro ao atualizar shipping_labels:", labelError);
-                    throw new Error(`Erro ao salvar no banco: ${labelError.message}`);
+                if (hasChanges) {
+                    const { error: labelError } = await supabase
+                        .from('shipping_labels')
+                        .upsert({
+                            id: label.id, // Se for UUID
+                            external_id: label.external_id || (label as any).shipping_label_id,
+                            ...updateData,
+                            user_id: (await supabase.auth.getUser()).data.user?.id,
+                            pedido_id: label.pedido_id || (label as any).id,
+                            provider: label.provider || 'superfrete'
+                        }, { onConflict: 'external_id' });
+
+                    if (labelError) {
+                        console.error("Erro ao atualizar shipping_labels (UPSERT):", labelError);
+                        // Se der erro 403 aqui, pode ser que o RLS falhou ou o registro não pertence ao usuário
+                    }
+
+                    // Atualizar pedido se vinculado
+                    const pedidoId = label.pedido_id || (label as any).id;
+                    if (pedidoId) {
+                        const pedidoUpdate: any = {};
+                        if (data.tracking_code) pedidoUpdate.tracking_code = data.tracking_code;
+                        if (data.status) pedidoUpdate.shipping_label_status = data.status;
+
+                        await supabase
+                            .from('pedidos')
+                            .update(pedidoUpdate)
+                            .eq('id', pedidoId);
+                    }
+
+                    if (!isBackground) {
+                        const msg = data.tracking_code
+                            ? `Sincronizado: ${data.tracking_code}`
+                            : `Status atualizado: ${data.status || 'Paga'}`;
+
+                        toast.success(msg, {
+                            id: loadingToast!,
+                            description: "Dados atualizados com sucesso."
+                        });
+                    }
+                } else {
+                    if (!isBackground) {
+                        toast.info("Nenhuma alteração encontrada na transportadora.", { id: loadingToast! });
+                    }
                 }
 
-                // Atualizar pedido se vinculado
-                if (label.pedido_id) {
-                    const { error: pedidoError } = await supabase
-                        .from('pedidos')
-                        .update({
-                            tracking_code: data.tracking_code,
-                            shipping_label_status: data.status || 'released' // Também manter o status do pedido sincronizado
-                        })
-                        .eq('id', label.pedido_id);
-
-                    if (pedidoError) console.warn("Aviso: Falha ao atualizar o pedido vinculado:", pedidoError);
-                }
-
-                // ATUALIZAÇÃO INSTANTÂNEA PARA O USUÁRIO
-                setLocalTrackingUpdates(prev => ({
-                    ...prev,
-                    [label.id]: data.tracking_code
-                }));
-
-                if (!isBackground) {
-                    toast.success(`Rastreio atualizado: ${data.tracking_code}`, {
-                        id: loadingToast!,
-                        description: data.message === "Extraído via fallback de texto" || data.message === "Extraído via fallback do Frontend" ? "Código recuperado com sucesso!" : "Informações sincronizadas com sucesso."
-                    });
-                }
-
-                // Forçar invalidação agressiva do cache
+                // Forçar invalidação do cache
                 await queryClient.invalidateQueries({ queryKey: ['shipping_labels_all'] });
                 await queryClient.invalidateQueries({ queryKey: ['pending_labels_orders'] });
                 await refetchLabels();
-                await refetchLabels();
             } else {
-                console.log("Debug Logística:", data);
+                console.log("Debug Logística (Sem dados úteis):", data);
                 if (!isBackground) {
-                    toast.error(data.error || "Não foi possível obter o rastreio.", { id: loadingToast! });
+                    toast.error("A transportadora ainda não liberou os dados desta etiqueta.", {
+                        id: loadingToast!,
+                        description: "Tente novamente em alguns minutos."
+                    });
                 }
             }
         } catch (error: any) {
             console.error("Erro ao sincronizar:", error);
             if (!isBackground) {
-                toast.error(error.message || "Erro na conexão", { id: loadingToast! });
+                if (error.message?.includes('Failed to fetch')) {
+                    toast.error("Erro de conexão com o servidor (CORS ou Rede). Verifique se o proxy está acessível.", { id: loadingToast! });
+                } else {
+                    toast.error(error.message || "Erro na conexão", { id: loadingToast! });
+                }
             }
         }
     };
@@ -388,15 +421,17 @@ export const LogisticsOverview: React.FC = () => {
                                         </div>
                                         <p className="text-sm font-black text-amber-500">{formatCurrency(order.valor_frete)}</p>
                                     </div>
-                                    <Button
-                                        className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold h-9 gap-2"
-                                        onClick={() => {
-                                            toast.info(`Acesse o Pedido ${order.order_number} para finalizar o pagamento.`);
-                                        }}
-                                    >
-                                        <ExternalLink className="h-4 w-4" />
-                                        Finalizar no Pedido
-                                    </Button>
+                                    <div className="pt-2">
+                                        <Button
+                                            className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold h-10 gap-2 text-xs uppercase shadow-lg shadow-amber-500/20"
+                                            onClick={() => {
+                                                toast.info(`Acesse o Pedido ${order.order_number} para finalizar o pagamento.`);
+                                            }}
+                                        >
+                                            <ExternalLink className="h-4 w-4" />
+                                            Finalizar Pagamento
+                                        </Button>
+                                    </div>
                                 </CardContent>
                             </Card>
                         ))}
@@ -622,18 +657,7 @@ export const LogisticsOverview: React.FC = () => {
                                                 </td>
                                                 <td className="px-4 py-4 text-right">
                                                     <div className="flex items-center justify-end gap-1">
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            className="h-8 w-8 text-muted-foreground/60 hover:text-primary hover:bg-primary/10"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handleRefreshTracking(label);
-                                                            }}
-                                                            title="Sincronizar Rastreio"
-                                                        >
-                                                            <RefreshCw className="h-4 w-4" />
-                                                        </Button>
+                                                        {/* Sincronização automática via robô ou clique no rastreio acima */}
                                                         <Button
                                                             variant="ghost"
                                                             size="icon"

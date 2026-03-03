@@ -6,7 +6,7 @@ import { Cliente } from '@/types/cliente';
 import { Produto } from '@/types/produto';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Plus, Search, Filter, Eye, Edit, Trash2, Loader2, CalendarIcon, DollarSign, FileText, Scissors, History, MessageSquare, MoreHorizontal, User, Clock, CheckCircle, XCircle, Package, X, Printer, Ruler, PackageOpen, Wrench, Users, Activity, CheckSquare, ChevronDown, Sparkles, ScrollText, Calculator, Bike, Zap, Tag, Layers, PenTool, BadgeCheck, Palette, Info, AlertCircle, Truck, Copy, ExternalLink, Send } from 'lucide-react';
+import { Plus, Search, Filter, Eye, Edit, Trash2, Loader2, CalendarIcon, DollarSign, FileText, Scissors, History, MessageSquare, MoreHorizontal, User, Clock, CheckCircle, XCircle, Package, X, Printer, Ruler, PackageOpen, Wrench, Users, Activity, CheckSquare, ChevronDown, Sparkles, ScrollText, Calculator, Bike, Zap, Tag, Layers, PenTool, BadgeCheck, Palette, Info, AlertCircle, Truck, Copy, ExternalLink, Send, RefreshCw } from 'lucide-react';
 import { EmptyState } from '@/components/EmptyState';
 // Lazy loaded components definitions
 const PedidoForm = lazy(() => import('@/components/PedidoForm').then(m => ({ default: m.PedidoForm })));
@@ -98,6 +98,7 @@ const PedidosPage: React.FC = () => {
   const { canWriteData } = useSubscription();
   const { canSendDirectly: isPlusMode } = useIsPlusMode();
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -288,31 +289,96 @@ const PedidosPage: React.FC = () => {
   // --- Funções de PDF ---
   const handleDownloadPDF = async (pedido: Pedido) => {
     try {
-      // Se tiver etiqueta liberada, tentar baixar ela primeiro
-      if (pedido.shipping_label_status === 'released') {
-        const { data, error } = await supabase
-          .from('shipping_labels')
-          .select('pdf_url')
-          .eq('pedido_id', pedido.id)
-          .maybeSingle();
+      // Se tiver etiqueta liberada ou um ID de reserva, tentar buscar/sincronizar
+      if (pedido.shipping_label_status === 'released' || pedido.shipping_label_id) {
+        setLoading(true);
 
-        if (data && data.pdf_url) {
-          window.open(data.pdf_url, '_blank');
-          showSuccess("Etiqueta aberta em nova aba!");
+        const isSuperFrete = !(pedido as any).transportadora?.toLowerCase().includes('frenet');
+        const labelId = pedido.shipping_label_id;
+
+        // Se for SuperFrete e tivermos o ID, podemos construir a URL diretamente como fazemos na Logística
+        if (isSuperFrete && labelId && labelId !== 'undefined') {
+          console.log("[Pedidos] Construindo URL direta para SuperFrete:", labelId);
+          const payload = JSON.stringify({ order_id: String(labelId) });
+          const base64Payload = btoa(payload);
+          const constructedUrl = `https://etiqueta.superfrete.com/_etiqueta/pdf/${base64Payload}?format=A4`;
+
+          window.open(constructedUrl, '_blank');
+          showSuccess("Etiqueta aberta!");
+
+          // Tenta atualizar o status em background se for a primeira vez que abrimos e estava como pendente
+          if (pedido.shipping_label_status !== 'released') {
+            await supabase.from('pedidos').update({ shipping_label_status: 'released' }).eq('id', pedido.id);
+            queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+          }
+
+          setLoading(false);
           return;
         }
+
+        // Caso contrário (Frenet ou outro), faz a busca via proxy
+        // 1. Tentar buscar registro no banco
+        const { data: labelData } = await supabase
+          .from('shipping_labels')
+          .select('*')
+          .or(`pedido_id.eq.${pedido.id},external_id.eq.${pedido.shipping_label_id}`)
+          .maybeSingle();
+
+        if (labelData && labelData.pdf_url) {
+          window.open(labelData.pdf_url, '_blank');
+          showSuccess("Etiqueta aberta!");
+          setLoading(false);
+          return;
+        }
+
+        // 3. Sincronizar via Proxy
+        if (labelId) {
+          const token = await getValidToken();
+          const provider = isSuperFrete ? 'superfrete' : 'frenet';
+
+          const syncResponse = await fetch(`${SUPABASE_URL}/functions/v1/${provider}-proxy`, {
+            method: 'POST',
+            headers: {
+              'apikey': SUPABASE_ANON_KEY,
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              action: 'tracking',
+              params: {
+                id: labelId,
+                orders: [labelId],
+                pedido_id: pedido.id
+              }
+            })
+          });
+
+          const syncData = await syncResponse.json();
+          const result = Array.isArray(syncData) ? syncData[0] : syncData;
+
+          if (result && !result.error && (result.pdf_url || result.pdf || result.url)) {
+            const finalPdfUrl = result.pdf_url || result.pdf || result.url;
+            window.open(finalPdfUrl, '_blank');
+            showSuccess("Etiqueta sincronizada!");
+            queryClient.invalidateQueries({ queryKey: ["pedidos"] });
+            setLoading(false);
+            return;
+          }
+        }
+        setLoading(false);
       }
 
-      // Fallback: Gerar PDF interno do pedido
+      // Fallback: Gerar PDF interno do pedido (Nota de conferência)
       if ((!pedido.pedido_items || pedido.pedido_items.length === 0) && (!pedido.servicos || pedido.servicos.length === 0)) {
         showError("O pedido não possui itens ou serviços para gerar o PDF.");
         return;
       }
       const companyInfo = getCompanyInfoForPDF(companyProfile);
       await generateOrderPDF(pedido, 'save', tiposProducao || undefined, companyInfo);
-      showSuccess("PDF gerado e baixado com sucesso!");
+      showSuccess("Nota do pedido gerada com sucesso!");
     } catch (error: any) {
-      showError(`Erro ao gerar PDF: ${error.message}`);
+      setLoading(false);
+      showError(`Erro ao processar PDF: ${error.message}`);
     }
   };
 
@@ -1436,7 +1502,7 @@ const PedidosPage: React.FC = () => {
                       Pago em: {format(new Date(pedido.pago_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
                     </div>
                   ) : (
-                    pedido.status !== 'cancelado' && (
+                    pedido.status !== 'cancelado' && pedido.shipping_label_status !== 'released' && (
                       <div className="flex items-center text-[10px] text-red-500 font-black uppercase tracking-wider animate-pulse">
                         <AlertCircle className="h-3 w-3 mr-1.5" />
                         Aguardando Pagamento
@@ -1560,8 +1626,12 @@ const PedidosPage: React.FC = () => {
                             <Button
                               variant="outline"
                               size="sm"
+                              disabled={loading}
                               className="h-8 transition-all gap-2 px-3 rounded-xl mr-auto flex items-center shadow-sm hover:shadow-md group border-primary/50 text-primary hover:bg-primary/5"
-                              onClick={(e) => e.stopPropagation()}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDownloadPDF(pedido);
+                              }}
                             >
                               <span className="text-[9px] font-black italic uppercase tracking-tight">ETIQUETA PRONTA</span>
                               <Printer className="h-4 w-4" />
@@ -1598,16 +1668,25 @@ const PedidosPage: React.FC = () => {
                         </DropdownMenu>
                       ) : (
                         <Button
-                          variant="default" // Back to theme default
+                          variant="default"
                           size="sm"
-                          onClick={(e) => {
+                          disabled={loading}
+                          onClick={async (e) => {
                             e.stopPropagation();
+                            // Se já tem um ID de reserva, primeiro tenta baixar/sincronizar antes de abrir modal de compra
+                            if (pedido.shipping_label_id && pedido.shipping_label_id !== 'undefined') {
+                              toast.info("Verificando status da etiqueta...");
+                              await handleDownloadPDF(pedido);
+                              return;
+                            }
                             setShippingModal({ open: true, pedido });
                           }}
                           className="h-8 transition-all gap-2 px-3 rounded-xl mr-auto flex items-center shadow-sm hover:shadow-md group"
                         >
-                          <span className="text-[9px] font-black italic uppercase tracking-tight">GERAR ETIQUETA</span>
-                          <Truck className="h-4 w-4" />
+                          <span className="text-[9px] font-black italic uppercase tracking-tight">
+                            {loading ? 'SINCRONIZANDO...' : 'GERAR ETIQUETA'}
+                          </span>
+                          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Truck className="h-4 w-4" />}
                         </Button>
                       )
                     )}
