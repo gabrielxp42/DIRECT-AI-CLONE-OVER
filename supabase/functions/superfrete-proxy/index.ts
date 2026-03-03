@@ -146,61 +146,70 @@ Deno.serve(async (req: Request) => {
             }), { status: 200, headers: corsHeaders });
         }
 
-        // Handle Persistence for Checkout
-        if (isMasterAccount && action === 'checkout' && !result.error) {
-            const checkoutResult = Array.isArray(result) ? result[0] : result;
-            const finalPrice = checkoutResult.price || params.price || 0;
-            const tagId = checkoutResult.tag || checkoutResult.id || (Array.isArray(params.orders) ? params.orders[0] : params.id);
-
+        // Handle Persistence for Checkout and Cart
+        if ((action === 'checkout' || action === 'cart') && !result.error) {
             const adminClient = createClient(
                 Deno.env.get('SUPABASE_URL') ?? '',
                 Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
             );
 
-            if (finalPrice > 0) {
+            const dataToProcess = Array.isArray(result) ? result[0] : result;
+            const sfOrderId = dataToProcess.order_id || dataToProcess.id || (Array.isArray(params.orders) ? params.orders[0] : params.id);
+            const finalPrice = dataToProcess.price || params.price || 0;
+
+            // 1. Handle Balance Deduction (ONLY for Master Account during Checkout)
+            if (isMasterAccount && action === 'checkout' && finalPrice > 0) {
                 const currentBalance = profile.wallet_balance || 0;
                 await adminClient.from('profiles').update({ wallet_balance: currentBalance - finalPrice }).eq('id', user.id);
                 await adminClient.from('logistics_transactions').insert({
                     user_id: user.id,
                     amount: -finalPrice,
                     type: 'debit',
-                    description: `Etiqueta Super Frete (Ref: ${tagId})`,
-                    metadata: { action, result_id: tagId, pedido_id: params.pedido_id }
+                    description: `Etiqueta Super Frete (Ref: ${sfOrderId})`,
+                    metadata: { action, result_id: sfOrderId, pedido_id: params.pedido_id }
                 });
             }
 
-            // Tracking logic extracted
-            let trackingCode = checkoutResult.tracking || checkoutResult.tracking_code || null;
+            // 2. Extract Tracking and PDF
+            let trackingCode = dataToProcess.tracking || dataToProcess.tracking_code || null;
             if (typeof trackingCode === 'object' && trackingCode !== null) trackingCode = trackingCode.code || trackingCode.tracking_code || null;
             if (!trackingCode) {
-                const correiosMatch = JSON.stringify(checkoutResult).match(/([A-Z]{2}\d{9}[A-Z]{2})/i);
+                const correiosMatch = JSON.stringify(dataToProcess).match(/([A-Z]{2}\d{9}[A-Z]{2})/i);
                 if (correiosMatch) trackingCode = correiosMatch[0].toUpperCase();
             }
 
-            const sfOrderId = checkoutResult.order_id || checkoutResult.id || tagId;
-            let pdfUrl = checkoutResult.pdf || checkoutResult.url;
-            if (!pdfUrl && sfOrderId) {
+            let pdfUrl = dataToProcess.pdf || dataToProcess.url;
+            if (!pdfUrl && sfOrderId && action === 'checkout') {
                 const b64 = btoa(JSON.stringify({ order_id: String(sfOrderId) }));
                 pdfUrl = `https://etiqueta.superfrete.com/_etiqueta/pdf/${b64}?format=A4`;
             }
 
-            await adminClient.from('shipping_labels').insert({
+            // 3. Upsert Shipping Label
+            const labelStatus = action === 'checkout' ? 'released' : (dataToProcess.status || 'pending');
+
+            const { data: upsertData, error: upsertError } = await adminClient.from('shipping_labels').upsert({
                 user_id: user.id,
                 pedido_id: params.pedido_id || null,
                 external_id: String(sfOrderId),
-                status: 'released',
+                status: labelStatus,
                 pdf_url: pdfUrl || null,
                 price: finalPrice,
                 tracking_code: trackingCode,
-                recipient_name: checkoutResult.to?.name || params.recipient_name || null,
-                service_name: checkoutResult.service?.name || params.service_name || null,
+                recipient_name: dataToProcess.to?.name || params.recipient_name || null,
+                service_name: dataToProcess.service?.name || params.service_name || null,
                 provider: 'superfrete'
-            });
+            }, { onConflict: 'external_id' }).select();
 
+            if (upsertError) {
+                console.error("[SuperFrete Proxy] Upsert Error:", upsertError);
+            }
+
+            // 4. Update Pedido Reference
             if (params.pedido_id) {
                 await adminClient.from('pedidos').update({
-                    shipping_label_status: 'released',
-                    tracking_code: trackingCode
+                    shipping_label_id: String(sfOrderId),
+                    shipping_label_status: labelStatus,
+                    tracking_code: trackingCode || null
                 }).eq('id', params.pedido_id);
             }
         }

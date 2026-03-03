@@ -673,8 +673,10 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
             // A API pode retornar um objeto ou um array com o link
             const result = Array.isArray(data) ? data[0] : data;
             const pdfUrl = result.pdf || result.url;
+            const statusFromAPI = result.status || data.status;
+            const finalStatus = (statusFromAPI === 'pending' || !statusFromAPI) ? 'released' : statusFromAPI;
 
-            setStatus('released');
+            setStatus(finalStatus);
             if (pdfUrl) {
                 setLabelUrl(pdfUrl);
             }
@@ -682,7 +684,7 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
             // Refresh balance after purchase
             refetch();
 
-            const trackingCode = data.tracking_code || data.tracking;
+            const trackingCode = result.tracking_code || result.tracking || data.tracking_code || data.tracking;
             let finalTrackingCode = trackingCode;
             let finalPdfUrl = pdfUrl;
 
@@ -693,7 +695,7 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
                 await supabase
                     .from('pedidos')
                     .update({
-                        shipping_label_status: data.status,
+                        shipping_label_status: finalStatus,
                         status: 'enviado',
                         tracking_code: trackingCode || null
                     })
@@ -753,16 +755,21 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
             }
 
             // CRITICAL FIX: Ensure PDF URL and Tracking are saved to shipping_labels
-            if (finalPdfUrl || finalTrackingCode) {
+            // Use upsert to handle cases where the record might not exist yet
+            if (finalPdfUrl || finalTrackingCode || labelId) {
                 const { supabase } = await import('@/integrations/supabase/client');
                 await supabase
                     .from('shipping_labels')
-                    .update({
+                    .upsert({
+                        id: labelId, // Use the reserved ID
+                        external_id: labelId,
                         pdf_url: finalPdfUrl,
                         tracking_code: finalTrackingCode,
-                        status: 'released'
-                    })
-                    .eq('id', labelId);
+                        status: finalStatus,
+                        user_id: (await supabase.auth.getUser()).data.user?.id,
+                        pedido_id: pedidoId,
+                        provider: provider
+                    }, { onConflict: 'external_id' });
             }
 
             showSuccess("Etiqueta emitida com sucesso!");
