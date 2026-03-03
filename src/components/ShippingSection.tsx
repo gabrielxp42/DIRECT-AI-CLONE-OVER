@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Truck, Loader2, CreditCard, Download, PackageOpen, ExternalLink, ChevronDown, ChevronUp, Zap, Sparkles, MapPin, User, Search, CheckCircle2, Copy, Clock, Filter } from 'lucide-react';
+import { Truck, Loader2, CreditCard, Download, PackageOpen, ExternalLink, ChevronDown, ChevronUp, Zap, Sparkles, MapPin, User, Search, CheckCircle2, Copy, Clock, Filter, RefreshCw } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/integrations/supabase/client';
@@ -683,6 +683,8 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
             refetch();
 
             const trackingCode = data.tracking_code || data.tracking;
+            let finalTrackingCode = trackingCode;
+            let finalPdfUrl = pdfUrl;
 
             // Atualizar pedido (apenas se existir)
             if (pedidoId) {
@@ -698,6 +700,7 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
                     .eq('id', pedidoId);
 
                 // Tenta buscar o link da etiqueta/rastreio para registrar
+
                 try {
                     const trackingResponse = await fetch(`${SUPABASE_URL}/functions/v1/${proxy}`, {
                         method: 'POST',
@@ -708,17 +711,18 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
                         },
                         body: JSON.stringify({
                             action: 'tracking',
-                            params: {
-                                orders: [labelId],
-                                id: labelId,
-                                order_id: labelId
-                            }
+                            params: provider === 'superfrete'
+                                ? { orders: [labelId] }
+                                : { id: labelId }
                         })
                     });
-                    let trackingData;
+
                     const responseText = await trackingResponse.text();
+                    let trackingData;
                     try {
                         trackingData = JSON.parse(responseText);
+                        // No SuperFrete, se vier como array, pegar o primeiro
+                        if (Array.isArray(trackingData)) trackingData = trackingData[0];
                     } catch (e) {
                         const correiosMatch = responseText.match(/([A-Z]{2}\d{9}[A-Z]{2})/i);
                         const adiMatch = responseText.match(/(ADI\d{8,12}[A-Z]{0,2})/i);
@@ -728,11 +732,20 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
                         }
                     }
 
-                    if (trackingData && !trackingData.error && trackingData.tracking_code) {
-                        await supabase
-                            .from('pedidos')
-                            .update({ tracking_code: trackingData.tracking_code })
-                            .eq('id', pedidoId);
+                    if (trackingData && !trackingData.error) {
+                        if (trackingData.tracking_code) finalTrackingCode = trackingData.tracking_code;
+                        if (trackingData.pdf || trackingData.url) finalPdfUrl = trackingData.pdf || trackingData.url;
+
+                        if (finalTrackingCode) setTrackingCode(finalTrackingCode);
+                        if (finalPdfUrl) setLabelUrl(finalPdfUrl);
+
+                        if (pedidoId && finalTrackingCode) {
+                            const { supabase } = await import('@/integrations/supabase/client');
+                            await supabase
+                                .from('pedidos')
+                                .update({ tracking_code: finalTrackingCode })
+                                .eq('id', pedidoId);
+                        }
                     }
                 } catch (err) {
                     console.warn("Falha ao buscar tracking code imediato", err);
@@ -740,13 +753,13 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
             }
 
             // CRITICAL FIX: Ensure PDF URL and Tracking are saved to shipping_labels
-            if (pdfUrl || trackingCode) {
+            if (finalPdfUrl || finalTrackingCode) {
                 const { supabase } = await import('@/integrations/supabase/client');
                 await supabase
                     .from('shipping_labels')
                     .update({
-                        pdf_url: pdfUrl,
-                        tracking_code: trackingCode,
+                        pdf_url: finalPdfUrl,
+                        tracking_code: finalTrackingCode,
                         status: 'released'
                     })
                     .eq('id', labelId);
@@ -795,20 +808,40 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
 
             const result = Array.isArray(data) ? data[0] : data;
             const url = result.pdf || result.url;
+            const tracking = result.tracking_code || result.tracking;
 
-            if (!url) {
-                throw new Error(`Aguardando geração do link do PDF pela ${currentProvider === 'frenet' ? 'Frenet' : 'SuperFrete'}...`);
+            if (!url && !tracking) {
+                throw new Error(`Aguardando geração da etiqueta pela ${currentProvider === 'frenet' ? 'Frenet' : 'SuperFrete'}...`);
             }
 
-            setLabelUrl(url);
-            window.open(url, '_blank');
+            if (url) {
+                setLabelUrl(url);
+                window.open(url, '_blank');
+            }
 
-            // CRITICAL FIX: Persist the fresh PDF URL to the database
+            if (tracking) {
+                setTrackingCode(tracking);
+            }
+
+            // CRITICAL FIX: Persist the fresh data to the database
             const { supabase } = await import('@/integrations/supabase/client');
-            await supabase
-                .from('shipping_labels')
-                .update({ pdf_url: url })
-                .eq('id', labelId);
+            const updateFields: any = {};
+            if (url) updateFields.pdf_url = url;
+            if (tracking) updateFields.tracking_code = tracking;
+
+            if (Object.keys(updateFields).length > 0) {
+                await supabase
+                    .from('shipping_labels')
+                    .update(updateFields)
+                    .eq('id', labelId);
+
+                if (pedidoId && tracking) {
+                    await supabase
+                        .from('pedidos')
+                        .update({ tracking_code: tracking })
+                        .eq('id', pedidoId);
+                }
+            }
 
         } catch (error: any) {
             showError(`Erro ao obter link: ${error.message}`);
@@ -1240,7 +1273,7 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
                                                         {(trackingCode && !trackingCode.startsWith('ADI')) ? trackingCode : 'AGUARDANDO SYNC...'}
                                                     </span>
                                                 </div>
-                                                {trackingCode && (
+                                                {(trackingCode && !trackingCode.startsWith('ADI')) ? (
                                                     <Button
                                                         variant="ghost"
                                                         size="icon"
@@ -1251,6 +1284,17 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
                                                         }}
                                                     >
                                                         <Copy className="h-4 w-4" />
+                                                    </Button>
+                                                ) : (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="h-7 text-[10px] font-bold text-emerald-600 hover:bg-emerald-100 flex items-center gap-1"
+                                                        onClick={handleDownload}
+                                                        disabled={loading}
+                                                    >
+                                                        {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                                                        Sincronizar
                                                     </Button>
                                                 )}
                                             </div>

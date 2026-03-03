@@ -938,7 +938,8 @@ const PedidosPage: React.FC = () => {
           });
           if (!itemsResponse.ok) {
             const errorText = await itemsResponse.text();
-            throw new Error(`Erro ao inserir itens: ${itemsResponse.status} ${itemsResponse.statusText} - ${errorText}`);
+            console.error('❌ [Mutation] Erro detalhado ao inserir itens:', errorText);
+            throw new Error(`Erro ao inserir itens: ${itemsResponse.status} ${itemsResponse.statusText}. Verifique se há estoque suficiente ou restrições no banco.`);
           }
         }
 
