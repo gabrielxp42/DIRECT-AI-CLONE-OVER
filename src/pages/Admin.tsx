@@ -39,7 +39,8 @@ import {
     Mail,
     Send,
     Brain,
-    Wallet
+    Wallet,
+    Smartphone
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { toast } from 'sonner';
@@ -67,6 +68,7 @@ import { AdminGeminiConfig } from "@/components/AdminGeminiConfig";
 import { AdminAIMonitoring } from "@/components/AdminAIMonitoring";
 import { AdminWalletManager } from "@/components/AdminWalletManager";
 import { AdminUserRadar } from "@/components/AdminUserRadar";
+import { AdminDeviceTracker } from "@/components/AdminDeviceTracker";
 
 type AdminProfile = {
     id: string;
@@ -92,6 +94,8 @@ type AdminProfile = {
     commission_rate?: number;
     affiliate_pix_key?: string;
     affiliate_pix_key_type?: string;
+    pwa_version?: string;
+    last_active_at?: string;
 };
 
 type GlobalStats = {
@@ -672,6 +676,9 @@ export default function Admin() {
                     <TabsTrigger value="radar" className="rounded-xl px-4 md:px-8 font-black uppercase tracking-widest text-[11px] flex-1 md:flex-none shrink-0 flex items-center gap-2 text-indigo-500">
                         <Activity size={14} /> Radar
                     </TabsTrigger>
+                    <TabsTrigger value="devices" className="rounded-xl px-4 md:px-8 font-black uppercase tracking-widest text-[11px] flex-1 md:flex-none shrink-0 flex items-center gap-2 text-sky-500">
+                        <Smartphone size={14} /> Dispositivos
+                    </TabsTrigger>
                     <TabsTrigger value="logs" className="rounded-xl px-4 md:px-8 font-black uppercase tracking-widest text-[11px] flex-1 md:flex-none shrink-0">Logs</TabsTrigger>
                     <TabsTrigger value="ai-monitoring" className="rounded-xl px-4 md:px-8 font-black uppercase tracking-widest text-[11px] flex-1 md:flex-none shrink-0 flex items-center gap-2">
                         <Brain size={14} /> Monitoramento IA
@@ -686,6 +693,11 @@ export default function Admin() {
                         <Wallet size={14} /> Carteira
                     </TabsTrigger>
                 </TabsList>
+
+                {/* ABA DE DISPOSITIVOS PWA */}
+                <TabsContent value="devices">
+                    <AdminDeviceTracker users={users} />
+                </TabsContent>
 
                 {/* ABA DE RADAR */}
                 <TabsContent value="radar">

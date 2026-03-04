@@ -17,6 +17,7 @@ import { PWAManager } from "./components/PWAManager";
 import { InstallPrompt } from "./components/InstallPrompt";
 import AdminRoute from "./components/AdminRoute";
 import SubscriptionGuard from "./components/SubscriptionGuard";
+import { DeviceTracker } from "./hooks/useDeviceTracker";
 
 // Lazy Load Pages
 const Index = lazy(() => import("./pages/Index"));
@@ -89,7 +90,12 @@ const App = () => (
                       <Route path="/" element={<LandingPage />} />
                       <Route element={<ProtectedRoute />}>
                         <Route element={<SubscriptionGuard />}>
-                          <Route element={<Layout />}>
+                          <Route element={
+                            <>
+                              <DeviceTracker />
+                              <Layout />
+                            </>
+                          }>
                             <Route path="/dashboard" element={<Index />} />
                             <Route path="/clientes" element={<Clientes />} />
                             <Route path="/produtos" element={<Produtos />} />
@@ -97,6 +103,7 @@ const App = () => (
                             <Route path="/reports" element={<Reports />} />
                             <Route path="/insumos" element={<Insumos />} />
                             <Route path="/logistica" element={<Logistics />} />
+
                             <Route path="/settings" element={<Settings />} />
                             <Route path="/profile" element={<Profile />} />
                             <Route path="/gabi" element={<GabiSettings />} />

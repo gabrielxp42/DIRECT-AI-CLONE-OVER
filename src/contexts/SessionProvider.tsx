@@ -54,6 +54,8 @@ type Profile = {
   asaas_customer_id?: string | null;
   asaas_subscription_id?: string | null;
   stripe_customer_id?: string | null;
+  pwa_version?: string | null;
+  last_active_at?: string | null;
 };
 
 
