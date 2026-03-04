@@ -756,20 +756,31 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
 
             // CRITICAL FIX: Ensure PDF URL and Tracking are saved to shipping_labels
             // Use upsert to handle cases where the record might not exist yet
+            // NOTE: Do NOT pass `id` here — it's a UUID auto-generated column.
+            // `labelId` is the external provider ID (string), not a UUID.
             if (finalPdfUrl || finalTrackingCode || labelId) {
                 const { supabase } = await import('@/integrations/supabase/client');
-                await supabase
+                const currentUser = (await supabase.auth.getUser()).data.user;
+                const { error: labelError } = await supabase
                     .from('shipping_labels')
                     .upsert({
-                        id: labelId, // Use the reserved ID
                         external_id: labelId,
-                        pdf_url: finalPdfUrl,
-                        tracking_code: finalTrackingCode,
+                        pdf_url: finalPdfUrl || null,
+                        tracking_code: finalTrackingCode || null,
                         status: finalStatus,
-                        user_id: (await supabase.auth.getUser()).data.user?.id,
-                        pedido_id: pedidoId,
-                        provider: provider
+                        user_id: currentUser?.id,
+                        pedido_id: pedidoId || null,
+                        provider: provider,
+                        price: parseFloat(selectedOption?.price || '0'),
+                        recipient_name: manualDestName || clientName || null,
+                        service_name: selectedOption?.name || null,
+                        origin_zip: (companyProfile?.company_address_zip || '').replace(/\D/g, '') || null,
+                        destination_zip: (manualCEP || '').replace(/\D/g, '') || null
                     }, { onConflict: 'external_id' });
+
+                if (labelError) {
+                    console.error("Erro ao atualizar shipping_labels (UPSERT):", labelError);
+                }
             }
 
             showSuccess("Etiqueta emitida com sucesso!");
