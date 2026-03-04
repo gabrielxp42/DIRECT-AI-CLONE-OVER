@@ -583,7 +583,24 @@ export default function Admin() {
                             <h3 className="text-3xl font-black italic tracking-tighter">
                                 {stats.activeSubscribers} <span className="text-sm font-medium text-muted-foreground">Assinantes</span>
                             </h3>
-                            <p className="text-zinc-500 text-xs font-bold italic">Base total: {stats.totalUsers} usuários</p>
+                            <p className="text-zinc-500 text-xs font-bold italic">Apenas pagantes ativos</p>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card className="bg-white dark:bg-zinc-900 border-none shadow-xl rounded-[2rem] overflow-hidden">
+                    <CardContent className="p-8">
+                        <div className="flex items-center gap-4 mb-4">
+                            <div className="p-3 bg-violet-500/10 rounded-2xl text-violet-500">
+                                <Users size={24} />
+                            </div>
+                            <span className="text-xs font-black uppercase tracking-widest text-muted-foreground">Total de Operadores</span>
+                        </div>
+                        <div className="space-y-1">
+                            <h3 className="text-3xl font-black italic tracking-tighter">
+                                {stats.totalUsers} <span className="text-sm font-medium text-muted-foreground">Contas</span>
+                            </h3>
+                            <p className="text-violet-500 text-xs font-bold italic">Base total na plataforma</p>
                         </div>
                     </CardContent>
                 </Card>
@@ -1389,6 +1406,39 @@ export default function Admin() {
                             <Separator className="opacity-10" />
 
                             <div className="space-y-4 pt-2">
+                                <div className="space-y-3 pt-2">
+                                    <div className="flex items-center gap-3 p-4 bg-primary/5 rounded-2xl border border-primary/20">
+                                        <input
+                                            type="checkbox"
+                                            id="gifted"
+                                            checked={editForm.is_gifted_plan}
+                                            onChange={(e) => setEditForm(p => ({ ...p, is_gifted_plan: e.target.checked }))}
+                                            className="w-5 h-5 rounded-md accent-primary"
+                                        />
+                                        <label htmlFor="gifted" className="text-sm font-black uppercase italic">Dada de Presente (Gift)</label>
+                                    </div>
+
+                                    <div className="flex items-center gap-3 p-4 bg-emerald-500/5 rounded-2xl border border-emerald-500/20">
+                                        <input
+                                            type="checkbox"
+                                            id="wa_plus"
+                                            checked={editForm.is_whatsapp_plus_active}
+                                            onChange={(e) => {
+                                                const checked = e.target.checked;
+                                                setEditForm(p => ({
+                                                    ...p,
+                                                    is_whatsapp_plus_active: checked,
+                                                    is_whatsapp_plus_gifted: checked
+                                                }));
+                                            }}
+                                            className="w-5 h-5 rounded-md accent-emerald-500"
+                                        />
+                                        <div className="flex flex-col">
+                                            <label htmlFor="wa_plus" className="text-sm font-black uppercase italic text-emerald-600">Poder WhatsApp Plus</label>
+                                            <span className="text-[10px] text-zinc-500 font-medium uppercase tracking-widest leading-none">Libera Gabi Engine</span>
+                                        </div>
+                                    </div>
+                                </div>
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-3">
                                         <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500">
@@ -1450,41 +1500,6 @@ export default function Admin() {
                                 )}
                             </div>
 
-                            {editForm.subscription_status === 'active' && (
-                                <div className="space-y-3 pt-2">
-                                    <div className="flex items-center gap-3 p-4 bg-primary/5 rounded-2xl border border-primary/20">
-                                        <input
-                                            type="checkbox"
-                                            id="gifted"
-                                            checked={editForm.is_gifted_plan}
-                                            onChange={(e) => setEditForm(p => ({ ...p, is_gifted_plan: e.target.checked }))}
-                                            className="w-5 h-5 rounded-md accent-primary"
-                                        />
-                                        <label htmlFor="gifted" className="text-sm font-black uppercase italic">Dada de Presente (Gift)</label>
-                                    </div>
-
-                                    <div className="flex items-center gap-3 p-4 bg-emerald-500/5 rounded-2xl border border-emerald-500/20">
-                                        <input
-                                            type="checkbox"
-                                            id="wa_plus"
-                                            checked={editForm.is_whatsapp_plus_active}
-                                            onChange={(e) => {
-                                                const checked = e.target.checked;
-                                                setEditForm(p => ({
-                                                    ...p,
-                                                    is_whatsapp_plus_active: checked,
-                                                    is_whatsapp_plus_gifted: checked
-                                                }));
-                                            }}
-                                            className="w-5 h-5 rounded-md accent-emerald-500"
-                                        />
-                                        <div className="flex flex-col">
-                                            <label htmlFor="wa_plus" className="text-sm font-black uppercase italic text-emerald-600">Poder WhatsApp Plus</label>
-                                            <span className="text-[10px] text-zinc-500 font-medium uppercase tracking-widest leading-none">Libera Gabi Engine</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
                         </div>
                     )}
 
