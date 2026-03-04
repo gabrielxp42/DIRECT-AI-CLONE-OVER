@@ -165,7 +165,7 @@ const Checkout = () => {
     // Detect URL parameter for partner code (Affiliate links)
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
-        let code = params.get('code');
+        let code = params.get('code') || params.get('ref');
 
         // Fallback to localStorage if no code in URL (tracking from Landing Page)
         if (!code) {

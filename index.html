@@ -107,6 +107,12 @@
         return false;
       }
     }, true);
+
+    // Corrigir erro de deployment (Failed to fetch dynamically imported module)
+    window.addEventListener('vite:preloadError', (event) => {
+      console.error('CRITICAL: Erro de carregamento de módulo pós-atualização. Recarregando...', event);
+      window.location.reload();
+    });
   </script>
 </head>
 

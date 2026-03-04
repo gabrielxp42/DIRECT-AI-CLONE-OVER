@@ -105,12 +105,16 @@ export default function AffiliatePortal() {
     const fetchAffiliateStats = async () => {
         try {
             setIsLoading(true);
-            const { data: consumers, error } = await supabase
-                .from('profiles')
-                .select('subscription_status, subscription_tier, is_gifted_plan')
-                .eq('partner_code', profile?.affiliate_code);
+
+            // Use SECURITY DEFINER RPC to bypass RLS and get aggregate stats
+            const { data: rpcData, error } = await supabase.rpc('get_affiliate_stats', {
+                affiliate_code_param: profile?.affiliate_code
+            });
 
             if (error) throw error;
+
+            const activeCount = rpcData?.active_users || 0;
+            const revenue = Number(rpcData?.total_revenue || 0);
 
             const { data: withdrawalsData, error: wError } = await supabase
                 .from('affiliate_withdrawals')
@@ -118,17 +122,6 @@ export default function AffiliatePortal() {
                 .eq('user_id', profile?.id);
 
             if (wError) throw wError;
-
-            let revenue = 0;
-            let activeCount = 0;
-
-            consumers?.forEach(c => {
-                if (c.subscription_status === 'active' && !c.is_gifted_plan) {
-                    activeCount++;
-                    const price = c.subscription_tier === 'pro_max' ? 137.00 : 97.00;
-                    revenue += Number((price * 0.85).toFixed(2));
-                }
-            });
 
             const totalCommission = Number((revenue * (profile?.commission_rate || 10) / 100).toFixed(2));
 
