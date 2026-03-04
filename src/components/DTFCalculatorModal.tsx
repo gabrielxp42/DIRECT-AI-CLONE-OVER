@@ -16,9 +16,27 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { showSuccess, showError } from "@/utils/toast";
 import { toPng, toBlob } from 'html-to-image';
-import { supabase } from "@/integrations/supabase/client";
 import { useIsPlusMode } from "@/hooks/useIsPlusMode";
 import { GabiActionDialog } from "@/components/GabiActionDialog";
+import { useClientes } from "@/hooks/useDataFetch";
+import { useBackgroundTasks } from "@/hooks/useBackgroundTasks";
+import { useSession } from "@/contexts/SessionProvider";
+import { getValidToken } from "@/utils/tokenGuard";
+import { supabase as supabaseClient, SUPABASE_URL, SUPABASE_ANON_KEY } from "@/integrations/supabase/client";
+import { Check, ChevronsUpDown, Search, User, X } from "lucide-react";
+import {
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+} from "@/components/ui/command";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover";
 import { packItems2D } from "@/utils/binPacking";
 import { WhatsAppButton } from "./WhatsAppButton";
 import {
@@ -275,6 +293,20 @@ const NumberInput = ({
 export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculatorModalProps) => {
     const isMobile = useIsMobile();
     const { canSendDirectly: isPlusMode } = useIsPlusMode();
+
+    const [actionDialogOpen, setActionDialogOpen] = useState(false);
+    const [selectedClienteId, setSelectedClienteId] = useState<string>("");
+    const [clienteOpen, setClienteOpen] = useState(false);
+    const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
+
+    const { data: clientes = [] } = useClientes();
+    const { addTask, updateTask, updateStep } = useBackgroundTasks();
+    const { session } = useSession();
+
+    const selectedCliente = useMemo(() =>
+        clientes.find(c => c.id === selectedClienteId),
+        [clientes, selectedClienteId]);
+
     // --- MODO RÁPIDO (WIZARD) ---
     type CalculatorMode = 'quick' | 'multi';
     const [mode, setMode] = useState<CalculatorMode>('quick');
@@ -314,6 +346,9 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
         width: number;
         height: number;
         quantity: number;
+        imagesPerRow?: number;
+        isOverflowing?: boolean;
+        shouldRotate?: boolean;
     }
 
     const [items, setItems] = useState<MultiItem[]>([
@@ -372,6 +407,77 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
     };
     // --- END MULTI-ITEM MODE ---
 
+    const handleShareWhatsApp = () => {
+        setActionDialogOpen(true);
+    };
+
+    const handleConfirmWhatsAppSend = async (message: string) => {
+        if (!selectedCliente && !selectedClienteId) {
+            showError("Selecione um cliente para enviar o orçamento.");
+            return;
+        }
+
+        const phone = (selectedCliente?.telefone || '').replace(/\D/g, '');
+        if (!phone) {
+            showError("O cliente selecionado não possui um telefone cadastrado.");
+            return;
+        }
+
+        const formattedPhone = phone.startsWith('55') ? phone : `55${phone}`;
+        setActionDialogOpen(false);
+        setIsSendingWhatsApp(true);
+
+        const steps = [
+            { id: 'text-send', label: 'Enviar Orçamento', status: 'pending' as const }
+        ];
+
+        const taskId = addTask({
+            title: `Orçamento DTF`,
+            description: `Enviando para ${selectedCliente?.nome || 'Cliente'}`,
+            status: 'processing',
+            progress: 0,
+            steps
+        });
+
+        try {
+            updateStep(taskId, 'text-send', 'loading');
+            updateTask(taskId, { progress: 30 });
+
+            const validToken = await getValidToken();
+            const effectiveToken = validToken || session?.access_token;
+
+            const resp = await fetch(`${SUPABASE_URL}/functions/v1/whatsapp-proxy`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${effectiveToken}`,
+                    'apikey': SUPABASE_ANON_KEY
+                },
+                body: JSON.stringify({
+                    action: 'send-message',
+                    phone: formattedPhone,
+                    message: message
+                })
+            });
+
+            const result = await resp.json();
+            if (!resp.ok || result?.error) {
+                throw new Error(result?.message || 'Falha ao enviar orçamento');
+            }
+
+            updateStep(taskId, 'text-send', 'completed');
+            updateTask(taskId, { progress: 100, status: 'completed' });
+            showSuccess("Orçamento enviado para a fila de processamento!");
+
+        } catch (error: any) {
+            console.error("Erro ao enviar WhatsApp:", error);
+            updateStep(taskId, 'text-send', 'error');
+            updateTask(taskId, { status: 'error', error: error.message });
+            showError(`Erro ao enviar: ${error.message}`);
+        } finally {
+            setIsSendingWhatsApp(false);
+        }
+    };
     // UX State
     const [hoveredField, setHoveredField] = useState<string | null>(null);
     const [targetMeters, setTargetMeters] = useState<number>(0);
@@ -500,7 +606,9 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
         // Legado compatibility (para handleTargetMeters não dar quebra inesperada)
         const itemsWithLegacyProps = items.map(item => {
             const imagesPerRow = Math.max(1, Math.floor((usableWidth + separation) / (item.width + separation)));
-            return { ...item, imagesPerRow };
+            const isOverflowing = item.width > usableWidth && item.height > usableWidth;
+            const shouldRotate = item.width > usableWidth && item.height <= usableWidth;
+            return { ...item, imagesPerRow, isOverflowing, shouldRotate };
         });
 
         return {
@@ -554,26 +662,24 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
 
     const generateQuoteSummary = () => {
         if (mode === 'quick') {
-            return `📝 *Orçamento DTF - Direct AI*\n\n` +
-                `📐 *Logo:* ${imageWidth}x${imageHeight}cm\n` +
-                `🔢 *Qtde:* ${results.finalQuantity} un\n` +
-                `📏 *Rolo:* ${rollWidth}cm\n` +
-                `↔️ *Espaço:* ${separation}cm | *Margem:* ${margin}cm\n\n` +
-                `✅ *TOTAL:* ${results.totalMeters.toFixed(2)}m\n` +
-                `📈 *Aproveit.:* ${results.efficiency}% (Real)\n` +
-                `📦 *Rendimento:* ${results.imagesPerMeter} un/m`;
+            const itemsPerRowText = results.imagesPerRow === 1 ? '1 item por fileira' : `${results.imagesPerRow} itens por fileira`;
+
+            if (quickGoal === 'meters') {
+                return `🌟 *Orçamento Direct AI*\n\n` +
+                    `Vi aqui que em *${quickMetersInput} metros* de rolo (${rollWidth}cm), conseguimos encaixar *${results.finalQuantity} unidades* da sua logo de ${imageWidth}x${imageHeight}cm.\n\n` +
+                    `Ficou bem otimizado: cabem *${itemsPerRowText}* e tivemos *${results.efficiency}%* de aproveitamento do material. 🚀`;
+            } else {
+                return `🌟 *Orçamento Direct AI*\n\n` +
+                    `Para produzir as *${results.finalQuantity} unidades* que você precisa (${imageWidth}x${imageHeight}cm), vamos usar *${results.totalMeters.toFixed(2)} metros* do rolo de ${rollWidth}cm.\n\n` +
+                    `Na organização que fiz, couberam *${itemsPerRowText}* com um aproveitamento de *${results.efficiency}%*. Ficou ótimo! ✨`;
+            }
         }
 
-        const itemsText = multiResults.items.map((item, idx) =>
-            `${idx + 1}. *${item.name}* (${item.width}x${item.height}cm): ${item.quantity}un`
-        ).join('\n');
-
-        return `📝 *Orçamento DTF (Múltiplos) - Direct AI*\n\n` +
-            `📦 *Itens:*\n${itemsText}\n\n` +
-            `📏 *Rolo:* ${rollWidth}cm\n` +
-            `↔️ *Espaço:* ${separation}cm | *Margem:* ${margin}cm\n\n` +
-            `✅ *TOTAL:* ${multiResults.totalMeters.toFixed(2)}m\n` +
-            `📈 *Eficiência:* ${multiResults.efficiency}%`;
+        const itemsCount = multiResults.items.filter(i => i.quantity > 0).length;
+        return `🌟 *Orçamento Direct AI (Mix de Itens)*\n\n` +
+            `Fiz a otimização dos seus *${itemsCount} itens* diferentes e chegamos a um total de *${multiResults.totalQuantity} logos*.\n\n` +
+            `Para produzir tudo isso, vamos precisar de *${multiResults.totalMeters.toFixed(2)} metros* linear (rolo de ${rollWidth}cm).\n\n` +
+            `O aproveitamento total do material foi de *${multiResults.efficiency}%*. 🚀`;
     };
 
     const handleCopyToClipboard = () => {
@@ -708,7 +814,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                     <div className="flex-1 overflow-hidden mt-2">
                         <div className="grid grid-cols-1 md:grid-cols-12 gap-3 lg:gap-4 h-full items-start overflow-y-auto md:overflow-hidden custom-scrollbar pr-1 -mr-1">
                             {/* Formulário - 5 colunas */}
-                            <div id="calculator-material-settings" className="md:col-span-4 lg:col-span-5 space-y-3 md:max-h-[calc(92vh-120px)] md:overflow-y-auto custom-scrollbar md:pr-1.5">
+                            <div id="calculator-material-settings" className="md:col-span-4 lg:col-span-5 space-y-4 overflow-y-auto h-auto md:h-full custom-scrollbar pr-1 md:pr-4 pb-20 md:pb-10">
                                 {mode === 'quick' ? (
                                     <Card className="border-primary/20 bg-white/40 dark:bg-primary/5 backdrop-blur-md shadow-sm flex flex-col overflow-hidden">
                                         <div className="p-3 lg:p-4 flex-1 space-y-3">
@@ -1250,19 +1356,19 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                     Resumo da Gabi
                                                     <span className="bg-white/10 px-1.5 py-0.5 rounded text-[8px] text-white/60">GABI AI</span>
                                                 </div>
-                                                <div className="text-[12px] text-slate-300 leading-relaxed font-medium">
+                                                <div className="text-[12px] text-zinc-300 leading-relaxed font-medium">
                                                     {mode === 'quick' ? (
-                                                        <div className="flex flex-col gap-1">
+                                                        <div className="flex flex-col gap-1.5">
                                                             {quickGoal === 'meters' ? (
-                                                                <span>Nesses <strong className="text-white font-black">{quickMetersInput}m</strong>, você consegue espremer <strong className="text-white font-black">{results.finalQuantity} {results.finalQuantity === 1 ? 'unidade' : 'unidades'}</strong>.</span>
+                                                                <span>Dentro de <strong className="text-white font-black">{quickMetersInput} metros</strong> couberam <strong className="text-white font-black">{results.finalQuantity} unidades</strong> de {imageWidth}x{imageHeight}cm.</span>
                                                             ) : (
-                                                                <span>Para imprimir <strong className="text-white font-black">{results.finalQuantity} {results.finalQuantity === 1 ? 'unidade' : 'unidades'}</strong>, você vai precisar de <strong className="text-white font-black">{results.totalMeters.toFixed(2)}m</strong>.</span>
+                                                                <span>Para imprimir <strong className="text-white font-black">{results.finalQuantity} unidades</strong>, você vai precisar de <strong className="text-white font-black">{results.totalMeters.toFixed(2)}m</strong>.</span>
                                                             )}
-                                                            <span className="opacity-70 italic">Cabem <strong className="text-white font-black">{results.imagesPerRow} {results.imagesPerRow === 1 ? 'marca' : 'marcas'}</strong> por linha com <strong className="text-white font-black">{results.efficiency}%</strong> de aproveitamento.</span>
+                                                            <span className="opacity-80">Couberam <strong className="text-white font-black">{results.imagesPerRow} {results.imagesPerRow === 1 ? 'item' : 'itens'}</strong> por fileira com <strong className="text-white font-black">{results.efficiency}%</strong> de aproveitamento.</span>
                                                         </div>
                                                     ) : (
-                                                        <div className="flex flex-col gap-1">
-                                                            <span>Otimizei <strong className="text-white font-black">{multiResults.items.filter(i => i.quantity > 0).length} {multiResults.items.filter(i => i.quantity > 0).length === 1 ? 'item diferente' : 'itens diferentes'}</strong> ({multiResults.totalQuantity} logos totais).</span>
+                                                        <div className="flex flex-col gap-1.5">
+                                                            <span>Otimizei <strong className="text-white font-black">{multiResults.items.filter(i => i.quantity > 0).length} itens</strong> diferentes ({multiResults.totalQuantity} logos totais).</span>
                                                             <span>Produção total de <strong className="text-white font-black">{multiResults.totalMeters.toFixed(2)}m</strong> com <strong className="text-white font-black">{multiResults.efficiency}%</strong> de aproveitamento.</span>
                                                         </div>
                                                     )}
@@ -1271,33 +1377,35 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                         </div>
                                     </div>
 
-                                    {/* Ações de Compartilhamento Integradas */}
-                                    <div className="space-y-2">
-                                        <WhatsAppButton
-                                            phone=""
-                                            message={generateQuoteSummary()}
-                                            label="COMPARTILHAR NO WHATSAPP"
-                                            disabled={mode === 'quick' ? imageWidth + (margin * 2) > rollWidth : multiResults.totalItemsOverflowing > 0}
-                                            className="w-full h-10 text-[10px] rounded-xl font-black"
-                                            size="sm"
-                                        />
+                                    <Button
+                                        onClick={handleShareWhatsApp}
+                                        disabled={isSendingWhatsApp || (mode === 'quick' ? imageWidth + (margin * 2) > rollWidth : multiResults.totalItemsOverflowing > 0)}
+                                        className={cn(
+                                            "w-full h-12 text-[11px] rounded-xl font-black bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-xl shadow-purple-500/10 border-0 hover:brightness-110 hover:scale-[1.02] transition-all group relative overflow-hidden",
+                                            isSendingWhatsApp && "opacity-50 grayscale cursor-not-allowed"
+                                        )}
+                                    >
+                                        <Sparkles className="h-4 w-4 mr-2" />
+                                        <span className="relative z-10 tracking-widest uppercase">
+                                            Compartilhar Orçamento
+                                        </span>
+                                    </Button>
 
-                                        <div className="grid grid-cols-2 gap-2">
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                className="h-9 text-[9px] font-black uppercase tracking-widest border-primary/20 text-primary hover:bg-primary/5 rounded-xl gap-2"
-                                                onClick={handleCopyToClipboard}>
-                                                <Copy className="h-3.5 w-3.5" /> Copiar Resumo
-                                            </Button>
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                className="h-9 text-[9px] font-black uppercase tracking-widest border-primary/20 text-primary hover:bg-primary/5 rounded-xl gap-2"
-                                                onClick={handleDownloadImage}>
-                                                <Download className="h-3.5 w-3.5" /> Baixar Imagem
-                                            </Button>
-                                        </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-9 text-[9px] font-black uppercase tracking-widest border-primary/20 text-primary hover:bg-primary/5 rounded-xl gap-2"
+                                            onClick={handleCopyToClipboard}>
+                                            <Copy className="h-3.5 w-3.5" /> Copiar Resumo
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-9 text-[9px] font-black uppercase tracking-widest border-primary/20 text-primary hover:bg-primary/5 rounded-xl gap-2"
+                                            onClick={handleDownloadImage}>
+                                            <Download className="h-3.5 w-3.5" /> Baixar Imagem
+                                        </Button>
                                     </div>
                                 </div>
                             </div>
@@ -1533,8 +1641,8 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                     </div>
                                                 </div>
                                             </div>
-                                        </div >
-                                    </div >
+                                        </div>
+                                    </div>
 
                                     {/* Global Truncation Warning (Inside Scrollable Canvas Area) */}
                                     {
@@ -1585,32 +1693,115 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                             </div>
                         </div>
                     </div>
+                </DialogContent>
+            </Dialog>
 
-                    {/* Footer profissional */}
-                    <div className={cn(
-                        "flex justify-between items-center mt-auto pt-3 border-t bg-background/50 backdrop-blur-sm pb-1",
-                        isMobile && "flex-col gap-3"
-                    )}>
-                        {!isMobile && (
-                            <div className="flex items-center gap-2.5">
-                                <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center border border-emerald-100 dark:bg-emerald-500/10 dark:border-emerald-500/20">
-                                    <Calculator className="h-4 w-4 text-emerald-600" />
-                                </div>
-                                <div>
-                                    <div className="text-[9px] font-black text-slate-400 uppercase tracking-tighter leading-none">Cálculo Preciso</div>
-                                    <div className="text-[11px] font-bold text-slate-900 dark:text-slate-100">DIRECT-AI ENGINE v2.8</div>
-                                </div>
-                            </div>
-                        )}
-                        <div id="calculator-finalize" className={cn("flex gap-2.5", isMobile ? "w-full" : "")}>
-                            <Button variant="ghost" size="sm" onClick={onClose} className="h-8 text-[11px] font-bold text-slate-500 rounded-xl">Voltar</Button>
-                        </div>
-                    </div>
-                </DialogContent >
-            </Dialog >
+            <GabiActionDialog
+                isOpen={actionDialogOpen}
+                onOpenChange={setActionDialogOpen}
+                customerName={""}
+                phone={""}
+                messagePreview={generateQuoteSummary()}
+                onConfirm={async (msg, clienteId, manualPhone) => {
+                    let finalPhone = "";
+                    let customerDisplayName = "Cliente";
+
+                    if (clienteId) {
+                        const cliente = clientes.find(c => c.id === clienteId);
+                        if (cliente?.telefone) {
+                            const cleanPhone = cliente.telefone.replace(/\D/g, '');
+                            finalPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
+                            customerDisplayName = cliente.nome;
+                        }
+                    } else if (manualPhone) {
+                        const cleanPhone = manualPhone.replace(/\D/g, '');
+                        if (cleanPhone.length >= 10) {
+                            finalPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
+                            customerDisplayName = "Número Manual";
+                        }
+                    }
+
+                    if (!finalPhone) {
+                        showError("Por favor, selecione um cliente ou digite um número válido.");
+                        return;
+                    }
+
+                    setIsSendingWhatsApp(true);
+                    try {
+                        const taskId = addTask({
+                            title: 'Envio de Orçamento',
+                            description: `Enviando para ${customerDisplayName}`,
+                            status: 'processing',
+                            progress: 0,
+                            steps: [
+                                { id: 'whatsapp', label: 'Enviando WhatsApp', status: 'pending' }
+                            ]
+                        });
+
+                        showSuccess("Orçamento enviado para a fila de processamento! 🚀");
+                        setActionDialogOpen(false);
+
+                        // Função que roda em background
+                        const processEnvio = async () => {
+                            try {
+                                updateStep(taskId, 'whatsapp', 'loading');
+                                updateTask(taskId, { progress: 30 });
+
+                                const currentSession = (await supabaseClient.auth.getSession()).data.session;
+                                const controller = new AbortController();
+                                const timeout = setTimeout(() => controller.abort(), 60000);
+
+                                const resp = await fetch(`${SUPABASE_URL}/functions/v1/whatsapp-proxy`, {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'Authorization': `Bearer ${currentSession?.access_token}`,
+                                        'apikey': SUPABASE_ANON_KEY
+                                    },
+                                    body: JSON.stringify({
+                                        action: 'send-text',
+                                        phone: finalPhone,
+                                        message: msg.trim()
+                                    }),
+                                    signal: controller.signal
+                                });
+                                clearTimeout(timeout);
+
+                                const result = await resp.json();
+                                if (!resp.ok || result?.error) {
+                                    throw new Error(result?.message || 'Erro ao enviar WhatsApp');
+                                }
+
+                                updateStep(taskId, 'whatsapp', 'completed');
+                                updateTask(taskId, { status: 'completed', progress: 100 });
+                                showSuccess(`Orçamento enviado para ${customerDisplayName}!`);
+
+                            } catch (err: any) {
+                                console.error('Erro no envio de orçamento em background:', err);
+                                updateTask(taskId, {
+                                    status: 'error',
+                                    error: err.message || 'Erro desconhecido',
+                                    progress: 100
+                                });
+                                showError(`Falha ao enviar orçamento para ${customerDisplayName}`);
+                            }
+                        };
+
+                        processEnvio();
+
+                    } catch (error) {
+                        showError("Erro ao agendar envio.");
+                    } finally {
+                        setIsSendingWhatsApp(false);
+                    }
+                }}
+                isLoading={isSendingWhatsApp}
+                actionType="generic"
+                clientes={clientes}
+            />
 
             {/* Custom Liquid Glass Fill Dialog */}
-            < Dialog open={isFillDialogOpen} onOpenChange={setIsFillDialogOpen} >
+            <Dialog open={isFillDialogOpen} onOpenChange={setIsFillDialogOpen}>
                 <DialogContent className="max-w-[320px] p-0 border-none bg-transparent shadow-none overflow-hidden">
                     <div className="relative p-6 bg-slate-900/40 backdrop-blur-2xl border border-white/10 rounded-3xl shadow-2xl overflow-hidden group">
                         <div className="absolute -top-10 -right-10 w-32 h-32 bg-primary/20 rounded-full blur-3xl group-hover:bg-primary/30 transition-colors duration-500" />
@@ -1662,7 +1853,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                         </div>
                     </div>
                 </DialogContent>
-            </Dialog >
+            </Dialog>
 
             <TutorialGuide
                 steps={CALCULADORA_TOUR}

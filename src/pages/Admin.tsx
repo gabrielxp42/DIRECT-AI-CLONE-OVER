@@ -96,6 +96,7 @@ type AdminProfile = {
     affiliate_pix_key_type?: string;
     pwa_version?: string;
     last_active_at?: string;
+    partner_code?: string;
 };
 
 type GlobalStats = {
@@ -406,7 +407,8 @@ export default function Admin() {
             affiliate_code: user.affiliate_code || '',
             commission_rate: user.commission_rate || 10,
             affiliate_pix_key: (user as any).affiliate_pix_key || '',
-            affiliate_pix_key_type: (user as any).affiliate_pix_key_type || ''
+            affiliate_pix_key_type: (user as any).affiliate_pix_key_type || '',
+            partner_code: user.partner_code || ''
         });
         fetchUserStats(user.id);
         setIsDetailOpen(true);
@@ -1480,6 +1482,20 @@ export default function Admin() {
                                         </div>
                                     </div>
                                 </div>
+
+                                <div className="space-y-2 pt-2">
+                                    <label className="text-[10px] uppercase font-black text-muted-foreground tracking-widest">Afiliado/Parceiro Vinculado</label>
+                                    <Input
+                                        value={editForm.partner_code || ''}
+                                        onChange={(e) => setEditForm(p => ({ ...p, partner_code: e.target.value.toUpperCase().replace(/\s/g, '') }))}
+                                        placeholder="Ex: GABRIEL"
+                                        className="rounded-xl border-zinc-200 font-black italic h-10"
+                                    />
+                                    <p className="text-[10px] text-zinc-400 font-bold italic leading-tight">Preencha para dar autoria de indicação e gerar comissão para o influenciador.</p>
+                                </div>
+
+                                <Separator className="opacity-10 my-4" />
+
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-3">
                                         <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500">

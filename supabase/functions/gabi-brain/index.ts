@@ -106,6 +106,7 @@ Dono(a) da Empresa: ${profile?.first_name || 'N/A'}
 - Para envios de WhatsApp internos (send_whatsapp_message), apenas confirme que processou o direcionamento da mensagem, se for o caso.`
             : `
 ### 🚨 REGRA ABSOLUTA - USO DE FERRAMENTAS (INTERFACE WEB):
+- **CÁLCULADOR MATEMÁTICO:** Sempre use perform_calculation se o usuário fizer contas matemáticas, porcentagens ou divisões se você não tiver certeza absoluta. Exemplo: "230 + 15%" -> chame a tool.
 - **RAIO-X DE CLIENTE:** Use get_client_snapshot APENAS quando pedido. Retorne apenas texto informando que a "Ficha foi gerada". Não discurse os números no chat e NÃO USE essa tool apenas para enviar mensagem.
 - **CÁLCULOS DTF:** OBRIGATÓRIO chamar calculate_dtf_packing. Isso ativa o card interativo.
 - **WHATSAPP:** Para enviar mensagens, SEMPRE use send_whatsapp_message. Responda apenas que a "mensagem está pronta no card". NUNCA gere links [Enviar Mensagem](url).
@@ -384,6 +385,20 @@ Dono(a) da Empresa: ${profile?.first_name || 'N/A'}
                         required: ["query"]
                     }
                 }
+            },
+            {
+                type: "function",
+                function: {
+                    name: "perform_calculation",
+                    description: "Avalia expressões matemáticas (ex: 2+2, 5*10). SEMPRE use esta ferramenta para responder perguntas matemáticas com precisão ao invez de tentar adivinhar.",
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            expression: { type: "string", description: "Expressão matemática para calcular." }
+                        },
+                        required: ["expression"]
+                    }
+                }
             }
         ];
 
@@ -476,7 +491,7 @@ Dono(a) da Empresa: ${profile?.first_name || 'N/A'}
                                 }
                             };
                         } else if (call.function.name === "calculate_dtf_packing") {
-                            let { calculation_mode, imageWidth, imageHeight, quantity, rollWidth = 58, separation = 0.5, margin = 1.0 } = args;
+                            let { calculation_mode, imageWidth, imageHeight, quantity, rollWidth = 58, separation = 0.2, margin = 0.2 } = args;
 
                             imageWidth = Math.abs(parseFloat(imageWidth as any));
                             imageHeight = Math.abs(parseFloat(imageHeight as any));
@@ -610,6 +625,14 @@ Dono(a) da Empresa: ${profile?.first_name || 'N/A'}
                         } else if (call.function.name === "search_clients") {
                             const { data } = await supabase.from('clientes').select('*').ilike('nome', `%${args.query}%`).limit(args.limit || 5);
                             result = data;
+                        } else if (call.function.name === "perform_calculation") {
+                            try {
+                                const sanitizedExpression = args.expression.replace(/[^0-9+\-*/(). ]/g, '');
+                                const calcResult = new Function(`return ${sanitizedExpression}`)();
+                                result = { expression: args.expression, result: calcResult };
+                            } catch (e: any) {
+                                result = { error: "Expressão inválida. " + e.message };
+                            }
                         }
 
                         const resultString = truncate(JSON.stringify(result));

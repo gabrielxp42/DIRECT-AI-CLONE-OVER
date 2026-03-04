@@ -338,7 +338,17 @@ export const fetchReportData = async (
                 }
 
                 // Product Sales aggregation (stats) - Also useful for production volume
-                const productName = item.produtos?.nome || item.produto_nome || 'Produto não encontrado';
+                let productName = item.produtos?.nome || item.produto_nome || (item.tipo && item.tipo !== 'dtf' ? item.tipo : null) || 'Produto não encontrado';
+
+                if (productName) {
+                    const lowerName = productName.toLowerCase().trim();
+                    if (lowerName.includes('prensa') || lowerName.includes('prensada')) {
+                        productName = 'Prensa / Prensada';
+                    }
+                    // Normalization hook
+                    productName = productName.charAt(0).toUpperCase() + productName.slice(1);
+                }
+
                 const existingProd = productSales.get(productName) || { totalSold: 0, revenue: 0 };
                 productSales.set(productName, {
                     totalSold: existingProd.totalSold + item.quantidade,
