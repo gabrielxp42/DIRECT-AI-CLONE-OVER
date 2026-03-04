@@ -455,10 +455,19 @@ export default function Admin() {
         return name || 'LEAD';
     };
 
-    const handleSendRecoveryEmail = async (userId: string, email: string, name: string) => {
+    const handleSendRecoveryEmail = async (userId: string, email: string, name: string, templateType: 'trial' | 'recovery' = 'trial') => {
         try {
-            setSendingEmailToId(userId);
-            const response = await fetch('/email-templates/recovery-30-days.html');
+            setSendingEmailToId(userId + '_' + templateType);
+
+            const templateFile = templateType === 'trial'
+                ? '/email-templates/recovery-30-days.html'
+                : '/email-templates/recovery-lead.html';
+
+            const subject = templateType === 'trial'
+                ? '30 Dias Grátis na Direct AI (Presente do Gabriel)'
+                : 'Sua gráfica te esperando — Direct AI';
+
+            const response = await fetch(templateFile);
             let htmlContent = await response.text();
 
             htmlContent = htmlContent.replace(/\[NOME\]/g, name || 'Parceiro');
@@ -466,7 +475,7 @@ export default function Admin() {
             const { data, error } = await supabase.functions.invoke('send-recovery-email', {
                 body: {
                     to: email,
-                    subject: '30 Dias Grátis na Direct AI (Presente do Gabriel)',
+                    subject: subject,
                     htmlContent: htmlContent
                 }
             });
@@ -856,7 +865,7 @@ export default function Admin() {
                                     Recuperação de Leads
                                 </DialogTitle>
                                 <DialogDescription>
-                                    Envie o e-mail de 30 dias grátis direto para os leads inativos pelo Resend API.
+                                    Envie e-mails de presente (30 dias) ou estímulo de compra (Recuperação de Lead) pelo Resend API.
                                 </DialogDescription>
                             </DialogHeader>
 
@@ -880,19 +889,35 @@ export default function Admin() {
                                             value={customRecoveryEmail}
                                             onChange={(e) => setCustomRecoveryEmail(e.target.value)}
                                         />
-                                        <Button
-                                            size="sm"
-                                            disabled={sendingEmailToId === 'custom' || !customRecoveryEmail}
-                                            onClick={() => handleSendRecoveryEmail('custom', customRecoveryEmail, customRecoveryName)}
-                                            className="w-full sm:w-auto rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold shrink-0 h-10 px-6"
-                                        >
-                                            {sendingEmailToId === 'custom' ? (
-                                                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                                            ) : (
-                                                <Send className="w-4 h-4 mr-2" />
-                                            )}
-                                            Enviar 30 Dias
-                                        </Button>
+                                        <div className="flex gap-2">
+                                            <Button
+                                                size="sm"
+                                                disabled={sendingEmailToId === 'custom_trial' || !customRecoveryEmail}
+                                                onClick={() => handleSendRecoveryEmail('custom', customRecoveryEmail, customRecoveryName, 'trial')}
+                                                className="rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold shrink-0 h-10 px-4 text-xs"
+                                            >
+                                                {sendingEmailToId === 'custom_trial' ? (
+                                                    <Loader2 className="w-3 h-3 animate-spin mr-2" />
+                                                ) : (
+                                                    <Send className="w-3 h-3 mr-2" />
+                                                )}
+                                                Enviar 30 Dias
+                                            </Button>
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                disabled={sendingEmailToId === 'custom_recovery' || !customRecoveryEmail}
+                                                onClick={() => handleSendRecoveryEmail('custom', customRecoveryEmail, customRecoveryName, 'recovery')}
+                                                className="rounded-xl border-emerald-500/30 text-emerald-600 font-bold shrink-0 h-10 px-4 text-xs hover:bg-emerald-50/50"
+                                            >
+                                                {sendingEmailToId === 'custom_recovery' ? (
+                                                    <Loader2 className="w-3 h-3 animate-spin mr-2" />
+                                                ) : (
+                                                    <Mail className="w-3 h-3 mr-2" />
+                                                )}
+                                                Recuperar Lead
+                                            </Button>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -920,19 +945,35 @@ export default function Admin() {
                                                     <p className="text-xs text-muted-foreground font-medium">{lead.email}</p>
                                                 </div>
                                             </div>
-                                            <Button
-                                                size="sm"
-                                                disabled={sendingEmailToId === lead.id}
-                                                onClick={() => lead.email && handleSendRecoveryEmail(lead.id, lead.email, getFormattedName(lead.company_name, lead.email))}
-                                                className="w-full sm:w-auto rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold shrink-0"
-                                            >
-                                                {sendingEmailToId === lead.id ? (
-                                                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                                                ) : (
-                                                    <Send className="w-4 h-4 mr-2" />
-                                                )}
-                                                Enviar 30 Dias
-                                            </Button>
+                                            <div className="flex flex-col sm:flex-row gap-2">
+                                                <Button
+                                                    size="sm"
+                                                    disabled={sendingEmailToId === lead.id + '_trial'}
+                                                    onClick={() => lead.email && handleSendRecoveryEmail(lead.id, lead.email, getFormattedName(lead.company_name, lead.email), 'trial')}
+                                                    className="rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold shrink-0 text-xs px-3"
+                                                >
+                                                    {sendingEmailToId === lead.id + '_trial' ? (
+                                                        <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                                                    ) : (
+                                                        <Send className="w-3 h-3 mr-1" />
+                                                    )}
+                                                    30 Dias
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    disabled={sendingEmailToId === lead.id + '_recovery'}
+                                                    onClick={() => lead.email && handleSendRecoveryEmail(lead.id, lead.email, getFormattedName(lead.company_name, lead.email), 'recovery')}
+                                                    className="rounded-xl border-emerald-500/20 text-emerald-600 font-bold shrink-0 text-xs px-3 hover:bg-emerald-50/50"
+                                                >
+                                                    {sendingEmailToId === lead.id + '_recovery' ? (
+                                                        <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                                                    ) : (
+                                                        <Mail className="w-3 h-3 mr-1" />
+                                                    )}
+                                                    Recuperar
+                                                </Button>
+                                            </div>
                                         </div>
                                     ))
                                 }
