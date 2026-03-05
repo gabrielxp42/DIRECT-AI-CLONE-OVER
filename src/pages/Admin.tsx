@@ -395,6 +395,18 @@ export default function Admin() {
 
     const handleOpenDetail = (user: AdminProfile) => {
         setSelectedUser(user);
+
+        // Calculate current trial days remaining
+        let initialTrialDays = 30;
+        if (user.trial_start_date) {
+            const startStr = String(user.trial_start_date).replace(' ', 'T');
+            const start = new Date(startStr);
+            if (!isNaN(start.getTime())) {
+                const used = Math.max(0, differenceInDays(new Date(), start));
+                initialTrialDays = Math.max(0, 30 - used);
+            }
+        }
+
         setEditForm({
             subscription_status: user.subscription_status,
             subscription_tier: user.subscription_tier,
@@ -408,7 +420,8 @@ export default function Admin() {
             commission_rate: user.commission_rate || 10,
             affiliate_pix_key: (user as any).affiliate_pix_key || '',
             affiliate_pix_key_type: (user as any).affiliate_pix_key_type || '',
-            partner_code: user.partner_code || ''
+            partner_code: user.partner_code || '',
+            trial_days: initialTrialDays
         });
         fetchUserStats(user.id);
         setIsDetailOpen(true);
@@ -419,13 +432,25 @@ export default function Admin() {
         try {
             // When gifting a plan or WA plus, we need to reset the "viewed" flags 
             // so the user sees the celebration modal again
-            const finalForm = { ...editForm };
+            const finalForm: any = { ...editForm };
+
+            // Fix 409 Conflict: empty string to null for unique constraints
+            if (finalForm.affiliate_code === '') finalForm.affiliate_code = null;
+            if (finalForm.partner_code === '') finalForm.partner_code = null;
+
+            // Calculate new trial_start_date based on trial_days
+            if (finalForm.subscription_status === 'trial') {
+                const daysToSubtract = 30 - (finalForm.trial_days || 0);
+                finalForm.trial_start_date = subDays(new Date(), daysToSubtract).toISOString();
+            }
+
+            delete finalForm.trial_days;
 
             if (editForm.is_gifted_plan && !selectedUser.is_gifted_plan) {
-                (finalForm as any).subscription_gift_viewed = false;
+                finalForm.subscription_gift_viewed = false;
             }
             if (editForm.is_whatsapp_plus_gifted && !(selectedUser as any).is_whatsapp_plus_gifted) {
-                (finalForm as any).is_whatsapp_plus_gifted_viewed = false;
+                finalForm.is_whatsapp_plus_gifted_viewed = false;
             }
 
             const { error } = await supabase
@@ -1397,173 +1422,205 @@ export default function Admin() {
                 </TabsContent>
             </Tabs>
 
-            {/* Modal de Edição de Usuário (Existente mas estilizado) */}
+            {/* Modal de Edição de Usuário (Refaturado com Tabs) */}
             <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-                <DialogContent className="max-w-md rounded-[2.5rem] border-none shadow-3xl bg-white dark:bg-zinc-950">
-                    <DialogHeader>
-                        <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Ajuste de Credenciais</DialogTitle>
-                        <DialogDescription className="font-bold">Modificando privilégios de {selectedUser?.company_name || 'Usuário'}.</DialogDescription>
-                    </DialogHeader>
+                <DialogContent className="max-w-md rounded-[2.5rem] border-none shadow-3xl bg-white dark:bg-zinc-950 p-0 overflow-hidden">
+                    <div className="p-6 pb-4 bg-zinc-50 dark:bg-zinc-900 border-b border-zinc-100 dark:border-zinc-800">
+                        <DialogHeader>
+                            <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Ajuste de Credenciais</DialogTitle>
+                            <DialogDescription className="font-bold">Modificando privilégios de {selectedUser?.company_name || 'Usuário'}.</DialogDescription>
+                        </DialogHeader>
 
-                    {selectedUser && (
-                        <div className="space-y-6 py-6 font-bold overflow-y-auto max-h-[70vh] pr-2">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/20 text-center">
+                        {selectedUser && (
+                            <div className="grid grid-cols-2 gap-4 mt-6">
+                                <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/20 text-center">
                                     <span className="text-[10px] font-black uppercase tracking-widest text-emerald-500 block mb-1">Pedidos Feitos</span>
                                     <span className="text-2xl font-black italic text-emerald-700 dark:text-emerald-400 leading-none">
                                         {loadingStats ? <RefreshCw className="animate-spin inline" size={16} /> : userStats?.pedidos || 0}
                                     </span>
                                 </div>
-                                <div className="p-4 rounded-2xl bg-orange-50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-900/20 text-center">
+                                <div className="p-3 rounded-2xl bg-orange-50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-900/20 text-center">
                                     <span className="text-[10px] font-black uppercase tracking-widest text-orange-500 block mb-1">Clientes</span>
                                     <span className="text-2xl font-black italic text-orange-700 dark:text-orange-400 leading-none">
                                         {loadingStats ? <RefreshCw className="animate-spin inline" size={16} /> : userStats?.clientes || 0}
                                     </span>
                                 </div>
                             </div>
+                        )}
+                    </div>
 
-                            <div className="space-y-2">
-                                <label className="text-xs uppercase tracking-widest text-muted-foreground font-black">Status do Plano</label>
-                                <Select value={editForm.subscription_status} onValueChange={(v: any) => setEditForm(p => ({ ...p, subscription_status: v, subscription_tier: v === 'active' ? 'pro' : p.subscription_tier }))}>
-                                    <SelectTrigger className="rounded-xl h-12 border-zinc-200"><SelectValue /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="trial">Trial (Beta)</SelectItem>
-                                        <SelectItem value="active">Operador Ativo (Pago)</SelectItem>
-                                        <SelectItem value="expired">Acesso Revogado</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
+                    {selectedUser && (
+                        <div className="px-6 py-4">
+                            <Tabs defaultValue="plan" className="w-full">
+                                <TabsList className="grid w-full grid-cols-2 mb-4">
+                                    <TabsTrigger value="plan" className="text-xs uppercase font-black tracking-widest">Plano e Acesso</TabsTrigger>
+                                    <TabsTrigger value="affiliate" className="text-xs uppercase font-black tracking-widest">Revenda</TabsTrigger>
+                                </TabsList>
 
-                            <div className="space-y-2">
-                                <label className="text-xs uppercase tracking-widest text-muted-foreground font-black">Nível do Sistema (Tier)</label>
-                                <Select value={editForm.subscription_tier} onValueChange={(v: any) => setEditForm(p => ({ ...p, subscription_tier: v }))}>
-                                    <SelectTrigger className="rounded-xl h-12 border-zinc-200"><SelectValue /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="free">Free/Trial</SelectItem>
-                                        <SelectItem value="pro">Elite PRO</SelectItem>
-                                        <SelectItem value="pro_max">Elite PRO MAX</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <Separator className="opacity-10" />
-
-                            <div className="space-y-4 pt-2">
-                                <div className="space-y-3 pt-2">
-                                    <div className="flex items-center gap-3 p-4 bg-primary/5 rounded-2xl border border-primary/20">
-                                        <input
-                                            type="checkbox"
-                                            id="gifted"
-                                            checked={editForm.is_gifted_plan}
-                                            onChange={(e) => setEditForm(p => ({ ...p, is_gifted_plan: e.target.checked }))}
-                                            className="w-5 h-5 rounded-md accent-primary"
-                                        />
-                                        <label htmlFor="gifted" className="text-sm font-black uppercase italic">Dada de Presente (Gift)</label>
+                                <TabsContent value="plan" className="space-y-4 max-h-[50vh] overflow-y-auto pr-2 pb-2">
+                                    <div className="space-y-2">
+                                        <label className="text-xs uppercase tracking-widest text-muted-foreground font-black">Status do Plano</label>
+                                        <Select value={editForm.subscription_status} onValueChange={(v: any) => setEditForm(p => ({ ...p, subscription_status: v, subscription_tier: v === 'active' ? 'pro' : p.subscription_tier }))}>
+                                            <SelectTrigger className="rounded-xl h-12 border-zinc-200"><SelectValue /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="trial">Trial (Beta)</SelectItem>
+                                                <SelectItem value="active">Operador Ativo (Pago)</SelectItem>
+                                                <SelectItem value="expired">Acesso Revogado</SelectItem>
+                                            </SelectContent>
+                                        </Select>
                                     </div>
 
-                                    <div className="flex items-center gap-3 p-4 bg-emerald-500/5 rounded-2xl border border-emerald-500/20">
-                                        <input
-                                            type="checkbox"
-                                            id="wa_plus"
-                                            checked={editForm.is_whatsapp_plus_active}
-                                            onChange={(e) => {
-                                                const checked = e.target.checked;
-                                                setEditForm(p => ({
-                                                    ...p,
-                                                    is_whatsapp_plus_active: checked,
-                                                    is_whatsapp_plus_gifted: checked
-                                                }));
-                                            }}
-                                            className="w-5 h-5 rounded-md accent-emerald-500"
-                                        />
-                                        <div className="flex flex-col">
-                                            <label htmlFor="wa_plus" className="text-sm font-black uppercase italic text-emerald-600">Poder WhatsApp Plus</label>
-                                            <span className="text-[10px] text-zinc-500 font-medium uppercase tracking-widest leading-none">Libera Gabi Engine</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="space-y-2 pt-2">
-                                    <label className="text-[10px] uppercase font-black text-muted-foreground tracking-widest">Afiliado/Parceiro Vinculado</label>
-                                    <Input
-                                        value={editForm.partner_code || ''}
-                                        onChange={(e) => setEditForm(p => ({ ...p, partner_code: e.target.value.toUpperCase().replace(/\s/g, '') }))}
-                                        placeholder="Ex: GABRIEL"
-                                        className="rounded-xl border-zinc-200 font-black italic h-10"
-                                    />
-                                    <p className="text-[10px] text-zinc-400 font-bold italic leading-tight">Preencha para dar autoria de indicação e gerar comissão para o influenciador.</p>
-                                </div>
-
-                                <Separator className="opacity-10 my-4" />
-
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500">
-                                            <TrendingUp size={16} />
-                                        </div>
-                                        <label className="text-xs font-black uppercase italic tracking-tighter">Status de Afiliado</label>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <input
-                                            type="checkbox"
-                                            className="w-5 h-5 rounded-md border-zinc-200 accent-emerald-500"
-                                            checked={editForm.is_affiliate}
-                                            onChange={(e) => setEditForm(p => ({ ...p, is_affiliate: e.target.checked }))}
-                                        />
-                                    </div>
-                                </div>
-
-                                {editForm.is_affiliate && (
-                                    <motion.div
-                                        initial={{ opacity: 0, height: 0 }}
-                                        animate={{ opacity: 1, height: "auto" }}
-                                        className="space-y-4 p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-100 dark:border-zinc-800 overflow-hidden"
-                                    >
+                                    {editForm.subscription_status === 'trial' && (
                                         <div className="space-y-2">
-                                            <label className="text-[10px] uppercase font-black text-muted-foreground">Código Único</label>
-                                            <Input
-                                                value={editForm.affiliate_code}
-                                                onChange={(e) => setEditForm(p => ({ ...p, affiliate_code: e.target.value.toUpperCase().replace(/\s/g, '') }))}
-                                                placeholder="EX: PARCEIRO10"
-                                                className="rounded-xl border-zinc-200 font-black italic h-10"
-                                            />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] uppercase font-black text-muted-foreground">Comissão do Afiliado (%)</label>
-                                            <Input
-                                                type="number"
-                                                value={editForm.commission_rate}
-                                                onChange={(e) => setEditForm(p => ({ ...p, commission_rate: Number(e.target.value) }))}
-                                                className="rounded-xl border-zinc-200 font-black h-10"
-                                            />
-                                            <p className="text-[9px] text-muted-foreground italic">O desconto do cliente é fixo em 15% (Cupom).</p>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] uppercase font-black text-muted-foreground">Chave PIX (Para Pagamento)</label>
-                                            <div className="flex gap-2">
-                                                <Badge variant="outline" className="h-10 px-3 flex items-center shrink-0 uppercase text-[10px] font-black border-zinc-200">
-                                                    {editForm.affiliate_pix_key_type || 'NÃO DEF.'}
-                                                </Badge>
-                                                <Input
-                                                    value={editForm.affiliate_pix_key}
-                                                    readOnly
-                                                    placeholder="Aguardando cadastro..."
-                                                    className="rounded-xl border-zinc-200 font-bold h-10 bg-zinc-50"
+                                            <label className="text-[10px] uppercase tracking-widest text-muted-foreground font-black flex items-center justify-between">
+                                                <span>Dias Restantes do Trial</span>
+                                                <span className="text-primary italic">{editForm.trial_days || 0} Dias</span>
+                                            </label>
+                                            <div className="flex items-center gap-4">
+                                                <input
+                                                    type="range"
+                                                    min="0"
+                                                    max="30"
+                                                    value={editForm.trial_days || 0}
+                                                    onChange={(e) => setEditForm(p => ({ ...p, trial_days: Number(e.target.value) }))}
+                                                    className="w-full h-2 bg-zinc-200 rounded-lg appearance-none cursor-pointer accent-primary"
                                                 />
                                             </div>
-                                            <p className="text-[9px] text-muted-foreground italic leading-none">Apenas o próprio parceiro pode alterar sua chave PIX por segurança.</p>
+                                            <p className="text-[9px] text-zinc-400 italic">Limita quantos dias logados este usuário ainda tem até expirar no fluxo padrão de 30 dias.</p>
                                         </div>
-                                    </motion.div>
-                                )}
-                            </div>
+                                    )}
 
+                                    <div className="space-y-2">
+                                        <label className="text-xs uppercase tracking-widest text-muted-foreground font-black">Nível do Sistema (Tier)</label>
+                                        <Select value={editForm.subscription_tier} onValueChange={(v: any) => setEditForm(p => ({ ...p, subscription_tier: v }))}>
+                                            <SelectTrigger className="rounded-xl h-12 border-zinc-200"><SelectValue /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="free">Free/Trial</SelectItem>
+                                                <SelectItem value="pro">Elite PRO</SelectItem>
+                                                <SelectItem value="pro_max">Elite PRO MAX</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    <Separator className="opacity-10" />
+
+                                    <div className="space-y-3 pt-2">
+                                        <div className="flex items-center gap-3 p-4 bg-primary/5 rounded-2xl border border-primary/20">
+                                            <input
+                                                type="checkbox"
+                                                id="gifted"
+                                                checked={editForm.is_gifted_plan}
+                                                onChange={(e) => setEditForm(p => ({ ...p, is_gifted_plan: e.target.checked }))}
+                                                className="w-5 h-5 rounded-md accent-primary"
+                                            />
+                                            <label htmlFor="gifted" className="text-sm font-black uppercase italic">Dada de Presente (Gift)</label>
+                                        </div>
+
+                                        <div className="flex items-center gap-3 p-4 bg-emerald-500/5 rounded-2xl border border-emerald-500/20">
+                                            <input
+                                                type="checkbox"
+                                                id="wa_plus"
+                                                checked={editForm.is_whatsapp_plus_active}
+                                                onChange={(e) => {
+                                                    const checked = e.target.checked;
+                                                    setEditForm(p => ({
+                                                        ...p,
+                                                        is_whatsapp_plus_active: checked,
+                                                        is_whatsapp_plus_gifted: checked
+                                                    }));
+                                                }}
+                                                className="w-5 h-5 rounded-md accent-emerald-500"
+                                            />
+                                            <div className="flex flex-col">
+                                                <label htmlFor="wa_plus" className="text-sm font-black uppercase italic text-emerald-600">Poder WhatsApp Plus</label>
+                                                <span className="text-[10px] text-zinc-500 font-medium uppercase tracking-widest leading-none">Libera Gabi Engine</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </TabsContent>
+
+                                <TabsContent value="affiliate" className="space-y-4 max-h-[50vh] overflow-y-auto pr-2 pb-2">
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] uppercase font-black text-muted-foreground tracking-widest">Afiliado/Parceiro Vinculado</label>
+                                        <Input
+                                            value={editForm.partner_code || ''}
+                                            onChange={(e) => setEditForm(p => ({ ...p, partner_code: e.target.value.toUpperCase().replace(/\s/g, '') }))}
+                                            placeholder="Ex: GABRIEL"
+                                            className="rounded-xl border-zinc-200 font-black italic h-10"
+                                        />
+                                        <p className="text-[10px] text-zinc-400 font-bold italic leading-tight">Quem indicou esse usuário. Preencha para dar autoria de indicação e gerar comissão para o influenciador.</p>
+                                    </div>
+
+                                    <Separator className="opacity-10 my-4" />
+
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500">
+                                                <TrendingUp size={16} />
+                                            </div>
+                                            <label className="text-xs font-black uppercase italic tracking-tighter">Status de Afiliado</label>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <input
+                                                type="checkbox"
+                                                className="w-5 h-5 rounded-md border-zinc-200 accent-emerald-500"
+                                                checked={editForm.is_affiliate}
+                                                onChange={(e) => setEditForm(p => ({ ...p, is_affiliate: e.target.checked }))}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {editForm.is_affiliate && (
+                                        <motion.div
+                                            initial={{ opacity: 0, height: 0 }}
+                                            animate={{ opacity: 1, height: "auto" }}
+                                            className="space-y-4 p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-100 dark:border-zinc-800 overflow-hidden"
+                                        >
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] uppercase font-black text-muted-foreground">Código Único</label>
+                                                <Input
+                                                    value={editForm.affiliate_code || ''}
+                                                    onChange={(e) => setEditForm(p => ({ ...p, affiliate_code: e.target.value.toUpperCase().replace(/\s/g, '') }))}
+                                                    placeholder="EX: PARCEIRO10"
+                                                    className="rounded-xl border-zinc-200 font-black italic h-10"
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] uppercase font-black text-muted-foreground">Comissão do Afiliado (%)</label>
+                                                <Input
+                                                    type="number"
+                                                    value={editForm.commission_rate}
+                                                    onChange={(e) => setEditForm(p => ({ ...p, commission_rate: Number(e.target.value) }))}
+                                                    className="rounded-xl border-zinc-200 font-black h-10"
+                                                />
+                                                <p className="text-[9px] text-muted-foreground italic">O desconto do cliente é fixo em 15% (Cupom).</p>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] uppercase font-black text-muted-foreground">Chave PIX (Para Pagamento)</label>
+                                                <div className="flex gap-2">
+                                                    <Badge variant="outline" className="h-10 px-3 flex items-center shrink-0 uppercase text-[10px] font-black border-zinc-200">
+                                                        {editForm.affiliate_pix_key_type || 'NÃO DEF.'}
+                                                    </Badge>
+                                                    <Input
+                                                        value={editForm.affiliate_pix_key}
+                                                        readOnly
+                                                        placeholder="Aguardando cadastro..."
+                                                        className="rounded-xl border-zinc-200 font-bold h-10 bg-zinc-50"
+                                                    />
+                                                </div>
+                                                <p className="text-[9px] text-muted-foreground italic leading-none">Apenas o próprio parceiro pode alterar sua chave PIX por segurança.</p>
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </TabsContent>
+                            </Tabs>
                         </div>
                     )}
 
-                    <DialogFooter className="gap-2 pt-4">
+                    <div className="p-6 pt-0 bg-zinc-50 dark:bg-zinc-900 border-t border-zinc-100 dark:border-zinc-800 flex justify-end gap-2 mt-auto">
                         <Button variant="ghost" className="rounded-xl font-bold uppercase text-xs" onClick={() => setIsDetailOpen(false)}>Cancelar</Button>
                         <Button className="rounded-xl h-12 font-black uppercase tracking-widest text-xs px-8 shadow-lg" onClick={handleSaveDetail}>Aplicar Alterações</Button>
-                    </DialogFooter>
+                    </div>
                 </DialogContent>
             </Dialog>
 
