@@ -301,7 +301,7 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
 
     const { data: clientes = [] } = useClientes();
     const { addTask, updateTask, updateStep } = useBackgroundTasks();
-    const { session } = useSession();
+    const { session, profile } = useSession();
 
     const selectedCliente = useMemo(() =>
         clientes.find(c => c.id === selectedClienteId),
@@ -661,22 +661,24 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
     };
 
     const generateQuoteSummary = () => {
+        const companyName = profile?.company_name ? ` ${profile.company_name}` : "";
+
         if (mode === 'quick') {
             const itemsPerRowText = results.imagesPerRow === 1 ? '1 item por fileira' : `${results.imagesPerRow} itens por fileira`;
 
             if (quickGoal === 'meters') {
-                return `🌟 *Orçamento Direct AI*\n\n` +
+                return `🌟 *Orçamento${companyName}*\n\n` +
                     `Vi aqui que em *${quickMetersInput} metros* de rolo (${rollWidth}cm), conseguimos encaixar *${results.finalQuantity} unidades* da sua logo de ${imageWidth}x${imageHeight}cm.\n\n` +
                     `Ficou bem otimizado: cabem *${itemsPerRowText}* e tivemos *${results.efficiency}%* de aproveitamento do material. 🚀`;
             } else {
-                return `🌟 *Orçamento Direct AI*\n\n` +
+                return `🌟 *Orçamento${companyName}*\n\n` +
                     `Para produzir as *${results.finalQuantity} unidades* que você precisa (${imageWidth}x${imageHeight}cm), vamos usar *${results.totalMeters.toFixed(2)} metros* do rolo de ${rollWidth}cm.\n\n` +
                     `Na organização que fiz, couberam *${itemsPerRowText}* com um aproveitamento de *${results.efficiency}%*. Ficou ótimo! ✨`;
             }
         }
 
         const itemsCount = multiResults.items.filter(i => i.quantity > 0).length;
-        return `🌟 *Orçamento Direct AI (Mix de Itens)*\n\n` +
+        return `🌟 *Orçamento${companyName} (Mix de Itens)*\n\n` +
             `Fiz a otimização dos seus *${itemsCount} itens* diferentes e chegamos a um total de *${multiResults.totalQuantity} logos*.\n\n` +
             `Para produzir tudo isso, vamos precisar de *${multiResults.totalMeters.toFixed(2)} metros* linear (rolo de ${rollWidth}cm).\n\n` +
             `O aproveitamento total do material foi de *${multiResults.efficiency}%*. 🚀`;
