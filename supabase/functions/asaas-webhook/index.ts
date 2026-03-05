@@ -74,6 +74,31 @@ serve(async (req) => {
                     return new Response(JSON.stringify({ success: true, type: 'refill' }), { headers: corsHeaders, status: 200 });
                 }
 
+                if (externalReference.startsWith('AI_RECHARGE:')) {
+                    if (event === 'PAYMENT_CONFIRMED' || event === 'PAYMENT_RECEIVED') {
+                        const referenceParts = externalReference.split(':');
+                        const userId = referenceParts[1];
+                        const amountStr = referenceParts[2];
+                        const amount = parseInt(amountStr || "0");
+
+                        console.log(`RECARGA AI DETECTADA: User=${userId} | Créditos=${amount} | Pagamento=${payment?.id}`);
+
+                        const { error: rpcError } = await supabaseAdmin.rpc('add_ai_credits', {
+                            p_user_id: userId,
+                            p_amount: amount,
+                            p_payment_id: payment?.id
+                        });
+
+                        if (rpcError) {
+                            console.error(`Erro ao processar recarga AI via RPC: ${rpcError.message}`);
+                            throw rpcError;
+                        }
+
+                        console.log(`Recarga AI concluída com sucesso para ${userId}.`);
+                    }
+                    return new Response(JSON.stringify({ success: true, type: 'ai_recharge' }), { headers: corsHeaders, status: 200 });
+                }
+
                 // --- LÓGICA DE ASSINATURA (FLUXO ORIGINAL) ---
                 const updatePayload: any = {
                     subscription_status: 'active',
@@ -120,6 +145,20 @@ serve(async (req) => {
 
                 await supabaseAdmin.from('profiles').update(updatePayload).eq('id', externalReference);
                 console.log(`Profile ${externalReference} ativado via ${event}`);
+
+                // --- CONCEDER CRÉDITOS MENSAIS (150) ---
+                // Se for confirmação de pagamento de assinatura (ou autorização PIX)
+                if (isAuthEvent || (isPaymentEvent && payment?.subscription)) {
+                    const paymentId = isAuthEvent ? `AUTH_${asaasObject.id}` : payment.id;
+                    console.log(`Concedendo 150 créditos mensais para ${externalReference}. Pagamento: ${paymentId}`);
+
+                    await supabaseAdmin.rpc('add_ai_credits', {
+                        p_user_id: externalReference,
+                        p_amount: 150,
+                        p_payment_id: paymentId,
+                        p_description: 'Créditos Mensais do Plano'
+                    });
+                }
             }
         }
 

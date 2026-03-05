@@ -97,6 +97,9 @@ type AdminProfile = {
     pwa_version?: string;
     last_active_at?: string;
     partner_code?: string;
+    is_vetoriza_ai_gifted?: boolean;
+    is_vetoriza_ai_gifted_viewed?: boolean;
+    trial_days?: number;
 };
 
 type GlobalStats = {
@@ -421,7 +424,9 @@ export default function Admin() {
             affiliate_pix_key: (user as any).affiliate_pix_key || '',
             affiliate_pix_key_type: (user as any).affiliate_pix_key_type || '',
             partner_code: user.partner_code || '',
-            trial_days: initialTrialDays
+            trial_days: initialTrialDays,
+            is_vetoriza_ai_gifted: user.is_vetoriza_ai_gifted || false,
+            is_vetoriza_ai_gifted_viewed: user.is_vetoriza_ai_gifted_viewed || false
         });
         fetchUserStats(user.id);
         setIsDetailOpen(true);
@@ -1535,6 +1540,40 @@ export default function Admin() {
                                                 <label htmlFor="wa_plus" className="text-sm font-black uppercase italic text-emerald-600">Poder WhatsApp Plus</label>
                                                 <span className="text-[10px] text-zinc-500 font-medium uppercase tracking-widest leading-none">Libera Gabi Engine</span>
                                             </div>
+                                        </div>
+
+                                        <div className="pt-4">
+                                            <Button
+                                                onClick={async () => {
+                                                    if (!selectedUser) return;
+                                                    try {
+                                                        const { error: creditError } = await supabase.rpc('add_ai_credits', {
+                                                            p_user_id: selectedUser.id,
+                                                            p_amount: 150
+                                                        });
+                                                        if (creditError) throw creditError;
+
+                                                        const { error: profileError } = await supabase
+                                                            .from('profiles')
+                                                            .update({
+                                                                is_vetoriza_ai_gifted: true,
+                                                                is_vetoriza_ai_gifted_viewed: false
+                                                            })
+                                                            .eq('id', selectedUser.id);
+                                                        if (profileError) throw profileError;
+
+                                                        toast.success("Presente Vetoriza AI enviado (+150 créditos)!");
+                                                        setIsDetailOpen(false);
+                                                        fetchData();
+                                                    } catch (err: any) {
+                                                        toast.error("Erro ao enviar presente: " + err.message);
+                                                    }
+                                                }}
+                                                className="w-full h-14 bg-gradient-to-r from-amber-400 to-amber-600 hover:from-amber-500 hover:to-amber-700 text-black font-black uppercase tracking-widest rounded-2xl shadow-lg border-b-4 border-amber-800 active:border-b-0 active:translate-y-1 transition-all flex items-center justify-center gap-2"
+                                            >
+                                                <Star className="w-5 h-5 fill-current" />
+                                                Presentear Vetoriza AI (+150 cr)
+                                            </Button>
                                         </div>
                                     </div>
                                 </TabsContent>

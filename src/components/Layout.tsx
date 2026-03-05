@@ -15,8 +15,10 @@ import { APP_VERSION } from '@/utils/version';
 import { cn } from '@/lib/utils';
 import { CommandMenu } from './CommandMenu';
 import { GiftPlanModal } from './GiftPlanModal';
+import { GiftVetorizaModal } from './GiftVetorizaModal';
 import { DTFCalculatorModal } from './DTFCalculatorModal';
 import { SidebarShortcuts } from './SidebarShortcuts';
+import { VetorizadorModal } from './VetorizadorModal';
 import { useRealtimeSync } from '@/hooks/useRealtimeSync';
 import { SubscriptionAlert } from './SubscriptionAlert';
 import { useCompanyProfile } from '@/hooks/useCompanyProfile';
@@ -29,6 +31,7 @@ const staticNavItems = [
   { href: '/pedidos', icon: ShoppingCart, label: 'Pedidos' },
   { href: '/clientes', icon: Users, label: 'Clientes' },
   { href: '/produtos', icon: Package, label: 'Produtos' },
+  { href: '/vetorizar', icon: Sparkles, label: 'Vetorizar Logo' },
   { href: '/insumos', icon: Layers, label: 'Insumos' },
   { href: '/reports', icon: BarChart3, label: 'Relatórios' },
   { href: '/logistica', icon: Truck, label: 'Logística' },
@@ -41,6 +44,7 @@ const Layout = () => {
   const location = useLocation();
   const { data: insumos } = useInsumos();
   const [isCalculatorOpen, setIsCalculatorOpen] = React.useState(false);
+  const [isVetorizadorOpen, setIsVetorizadorOpen] = React.useState(false);
 
   // Ativar sincronização em tempo real (Supabase Realtime)
   useRealtimeSync();
@@ -110,11 +114,17 @@ const Layout = () => {
                   <Link
                     key={item.href}
                     to={item.href}
+                    onClick={(e) => {
+                      if (item.href === '/vetorizar' && !(profile as any)?.is_vetoriza_ai_gifted) {
+                        e.preventDefault();
+                      }
+                    }}
                     className={cn(
                       "flex items-center gap-4 rounded-lg px-3 py-2 transition-all duration-300 ease-in-out relative group",
                       isActive
                         ? "bg-primary text-primary-foreground shadow-md hover:bg-primary/90"
-                        : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:scale-[1.02]"
+                        : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:scale-[1.02]",
+                      item.href === '/vetorizar' && !(profile as any)?.is_vetoriza_ai_gifted && "opacity-50 grayscale-[0.5] cursor-not-allowed"
                     )}
                   >
                     <div className="relative">
@@ -132,6 +142,9 @@ const Layout = () => {
                       isExpanded ? "opacity-100" : "opacity-0"
                     )}>
                       {item.label}
+                      {item.href === '/vetorizar' && isExpanded && !(profile as any)?.is_vetoriza_ai_gifted && (
+                        <span className="text-[7px] bg-primary/20 text-primary-foreground px-1 rounded font-bold">BREVE</span>
+                      )}
                       {isInsumos && hasLowStock && isExpanded && (
                         <span className="ml-auto flex h-2 w-2 rounded-full bg-red-500 animate-pulse" />
                       )}
@@ -145,6 +158,7 @@ const Layout = () => {
             <SidebarShortcuts
               isExpanded={isExpanded}
               onOpenCalculator={() => setIsCalculatorOpen(true)}
+              onOpenVetorizador={() => setIsVetorizadorOpen(true)}
             />
           </div>
 
@@ -206,9 +220,14 @@ const Layout = () => {
       <AIAssistant />
       <CommandMenu />
       <GiftPlanModal />
+      <GiftVetorizaModal />
       <DTFCalculatorModal
         isOpen={isCalculatorOpen}
         onClose={() => setIsCalculatorOpen(false)}
+      />
+      <VetorizadorModal
+        isOpen={isVetorizadorOpen}
+        onClose={() => setIsVetorizadorOpen(false)}
       />
 
       <TaskDock />

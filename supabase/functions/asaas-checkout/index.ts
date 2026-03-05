@@ -173,15 +173,27 @@ serve(async (req) => {
         if (paymentMethod === 'CREDIT_CARD') billingType = 'CREDIT_CARD';
         if (paymentMethod === 'PIX' || paymentMethod === 'PIX_AUTOMATIC') billingType = 'PIX';
 
-        if (productType === 'REFILL') {
+        if (productType === 'REFILL' || productType === 'AI_RECHARGE') {
             // Pagamento Avulso para Recarga
+            const isAI = productType === 'AI_RECHARGE';
+            const creditCount = payload.credits || amount; // Fallback para amount se credits não enviado
+
+            const description = isAI
+                ? `Recarga Avulsa: ${creditCount} Créditos AI`
+                : `Recarga de Créditos Logística (${provider === 'frenet' ? 'Frenet' : 'SuperFrete'})`;
+
+            const externalReference = isAI
+                ? `AI_RECHARGE:${userId}:${creditCount}:${Date.now()}` // Added timestamp for uniqueness
+                : `REFILL:${userId}${provider ? `:${provider}` : ''}:${Date.now()}`;
+
+
             const paymentData: any = {
                 customer: customerId,
                 billingType: billingType,
                 value: selectedPrice,
                 dueDate: isoDate,
-                description: `Recarga de Créditos Logística (${provider === 'frenet' ? 'Frenet' : 'SuperFrete'}) - ${userId}`,
-                externalReference: `REFILL:${userId}${provider ? `:${provider}` : ''}`,
+                description,
+                externalReference,
                 ...(paymentMethod === 'CREDIT_CARD' && creditCard ? { creditCard, creditCardHolderInfo } : {})
             };
 
@@ -193,7 +205,7 @@ serve(async (req) => {
             const payResult = await payResponse.json();
 
             if (!payResponse.ok) {
-                throw new Error(payResult.errors?.[0]?.description || "Erro ao criar cobrança de recarga");
+                throw new Error(payResult.errors?.[0]?.description || `Erro ao criar cobrança de ${isAI ? 'créditos AI' : 'recarga logística'}`);
             }
 
             responseData = {

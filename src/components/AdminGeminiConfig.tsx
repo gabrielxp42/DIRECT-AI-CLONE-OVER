@@ -16,7 +16,8 @@ export function AdminGeminiConfig() {
         gemini_api_key: '',
         gemini_training_model: 'gemini-2.5-flash',
         gemini_response_model: 'gemini-2.5-flash',
-        ai_auto_reply_enabled: false
+        ai_auto_reply_enabled: false,
+        kieai_api_key: ''
     });
 
     useEffect(() => {
@@ -30,7 +31,7 @@ export function AdminGeminiConfig() {
 
             const { data, error } = await supabase
                 .from('profiles')
-                .select('gemini_api_key, gemini_training_model, gemini_response_model, ai_auto_reply_enabled')
+                .select('gemini_api_key, gemini_training_model, gemini_response_model, ai_auto_reply_enabled, kieai_api_key')
                 .eq('id', user.id)
                 .single();
 
@@ -41,7 +42,8 @@ export function AdminGeminiConfig() {
                     gemini_api_key: data.gemini_api_key || '',
                     gemini_training_model: data.gemini_training_model || 'gemini-2.5-flash',
                     gemini_response_model: data.gemini_response_model || 'gemini-2.5-flash',
-                    ai_auto_reply_enabled: data.ai_auto_reply_enabled || false
+                    ai_auto_reply_enabled: data.ai_auto_reply_enabled || false,
+                    kieai_api_key: data.kieai_api_key || ''
                 });
             }
         } catch (error) {
@@ -87,19 +89,47 @@ export function AdminGeminiConfig() {
             <div>
                 <h2 className="text-2xl font-bold flex items-center gap-2">
                     <Bot className="w-6 h-6 text-primary" />
-                    Configuração Gemini AI
+                    Configuração de IAs
                 </h2>
                 <p className="text-sm text-muted-foreground mt-1">
-                    Configure a integração com Google Gemini para o treinamento dos agentes
+                    Configure as integrações de Inteligência Artificial do sistema
                 </p>
             </div>
 
             <div className="grid gap-6">
+                <Card className="border-primary/20 bg-primary/5">
+                    <CardHeader>
+                        <CardTitle className="text-lg flex items-center gap-2">
+                            <Sparkles className="w-5 h-5 text-primary" />
+                            KIE.AI (Vetorizador Nano Banana)
+                        </CardTitle>
+                        <CardDescription>
+                            Chave de API necessária para a ferramenta de vetorização de logos.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="kieai_api_key">KIE.AI API Key</Label>
+                            <Input
+                                id="kieai_api_key"
+                                type="password"
+                                value={config.kieai_api_key}
+                                onChange={(e) => setConfig({ ...config, kieai_api_key: e.target.value })}
+                                placeholder="sk-..."
+                                className="font-mono bg-background"
+                            />
+                            <p className="text-[10px] text-muted-foreground">
+                                Obtenha sua chave em <a href="https://kie.ai" target="_blank" rel="noopener noreferrer" className="underline">kie.ai</a>. Esta chave será usada globalmente para todos os usuários.
+                            </p>
+                        </div>
+                    </CardContent>
+                </Card>
+
                 <Card>
                     <CardHeader>
-                        <CardTitle className="text-lg">Credenciais da API</CardTitle>
+                        <CardTitle className="text-lg">Google Gemini</CardTitle>
                         <CardDescription>
-                            A chave de API do Google AI Studio é necessária para o funcionamento dos agentes.
+                            Chave de API do Google AI Studio para o funcionamento dos agentes.
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">

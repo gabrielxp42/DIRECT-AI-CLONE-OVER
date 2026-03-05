@@ -1,0 +1,314 @@
+/* ============================================
+   DESIGN AGENT MODAL - PREMIUM DARK MODE
+   ============================================ */
+
+.agent-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.9);
+    backdrop-filter: blur(8px);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+
+.agent-modal {
+    width: 100%;
+    height: 100%;
+    max-width: 1400px;
+    max-height: 100vh;
+    background: #0a0a0f;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 0 60px rgba(139, 92, 246, 0.3);
+}
+
+@media (min-width: 768px) {
+    .agent-overlay {
+        padding: 2rem;
+    }
+
+    .agent-modal {
+        flex-direction: row;
+        max-height: 90vh;
+        border-radius: 24px;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+}
+
+/* Image Preview Area */
+.agent-preview {
+    flex: 1;
+    min-height: 40vh;
+    background: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    padding: 1rem;
+}
+
+@media (min-width: 768px) {
+    .agent-preview {
+        flex: 2;
+        min-height: auto;
+        padding: 2rem;
+    }
+}
+
+.agent-preview img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    border-radius: 12px;
+}
+
+.zoom-controls {
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+    display: flex;
+    gap: 0.5rem;
+    z-index: 10;
+}
+
+.zoom-controls button {
+    width: 36px;
+    height: 36px;
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.zoom-controls button:hover {
+    background: rgba(0, 0, 0, 0.8);
+    border-color: #8b5cf6;
+}
+
+.agent-preview-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    color: #6b6b80;
+}
+
+.agent-close-mobile {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    width: 40px;
+    height: 40px;
+    background: rgba(0, 0, 0, 0.6);
+    border: none;
+    border-radius: 50%;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+@media (min-width: 768px) {
+    .agent-close-mobile {
+        display: none;
+    }
+}
+
+.agent-download {
+    position: absolute;
+    bottom: 1.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    background: linear-gradient(135deg, #8b5cf6 0%, #06b6d4 50%, #10b981 100%);
+    border: none;
+    border-radius: 9999px;
+    color: white;
+    font-weight: 600;
+    font-size: 0.875rem;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4);
+}
+
+/* Chat Sidebar */
+.agent-chat {
+    width: 100%;
+    height: 50vh;
+    background: #12121a;
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+@media (min-width: 768px) {
+    .agent-chat {
+        width: 360px;
+        height: auto;
+        border-top: none;
+        border-left: 1px solid rgba(255, 255, 255, 0.06);
+    }
+}
+
+.agent-chat-header {
+    padding: 1rem 1.25rem;
+    background: #1a1a25;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-weight: 600;
+    color: #ffffff;
+}
+
+.agent-chat-header span {
+    flex: 1;
+}
+
+.agent-close-desktop {
+    display: none;
+    background: none;
+    border: none;
+    color: #a1a1b5;
+    cursor: pointer;
+    padding: 0.25rem;
+}
+
+@media (min-width: 768px) {
+    .agent-close-desktop {
+        display: flex;
+    }
+}
+
+.agent-chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.chat-msg {
+    max-width: 90%;
+    padding: 0.625rem 0.875rem;
+    border-radius: 12px;
+    font-size: 0.875rem;
+    line-height: 1.4;
+}
+
+.chat-msg.assistant {
+    align-self: flex-start;
+    background: #1a1a25;
+    color: #ffffff;
+}
+
+.chat-msg.user {
+    align-self: flex-end;
+    background: #8b5cf6;
+    color: white;
+}
+
+.chat-msg.loading {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #a1a1b5;
+    font-style: italic;
+}
+
+.agent-chat-footer {
+    padding: 1rem;
+    background: #1a1a25;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.agent-suggestions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.agent-pill {
+    padding: 0.5rem 0.875rem;
+    background: #12121a;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 9999px;
+    color: #a1a1b5;
+    font-size: 0.75rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    transition: all 0.15s ease;
+}
+
+.agent-pill:hover {
+    background: #22222f;
+    border-color: #8b5cf6;
+    color: #ffffff;
+}
+
+.agent-input {
+    display: flex;
+    gap: 0.5rem;
+    background: #12121a;
+    padding: 0.375rem;
+    border-radius: 9999px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.agent-input:focus-within {
+    border-color: #8b5cf6;
+}
+
+.agent-input input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    padding: 0.625rem 1rem;
+    color: #ffffff;
+    font-size: 0.875rem;
+}
+
+.agent-input input:focus {
+    outline: none;
+}
+
+.agent-input button {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #8b5cf6 0%, #06b6d4 50%, #10b981 100%);
+    border: none;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.15s;
+}
+
+.agent-input button:not(:disabled):hover {
+    transform: scale(1.05);
+}
+
+.agent-input button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
