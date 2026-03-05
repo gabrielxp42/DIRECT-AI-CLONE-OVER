@@ -169,7 +169,7 @@ const Vetorizador: React.FC = () => {
             label: 'Efeito Bordado',
             icon: <Layers size={24} />,
             desc: 'Patch 3D realista, linhas detalhadas.',
-            prompt: 'convert this logo into a realistic 3D embroidery patch, detailed threads, fabric texture, high resolution, isolated, transparent background, strictly no background'
+            prompt: 'CRIE UM PATCH BORDADO ALTAMENTE DETALHADO DO LOGOTIPO ENVIADO. O PATCH DEVE APRESENTAR COSTURA ELEVADA E TEXTURA DE BORDADO, PROPORCIONANDO UM VISUAL REALISTA EM 3D. MANTENHA AS CORES PRECISAS E AS PROPORÇÕES EXATAS DO LOGOTIPO. APRESENTE O PATCH ISOLADO EM UM FUNDO PNG TRANSPARENTE, SEM NENHUM TECIDO OU SUPERFÍCIE POR TRÁS. FAÇA COM QUE PAREÇA UM PATCH DE LOGOTIPO PROFISSIONALMENTE PRODUZIDO, PRONTO PARA ROUPAS OU ACESSÓRIOS.'
         },
         {
             id: 'puff',
