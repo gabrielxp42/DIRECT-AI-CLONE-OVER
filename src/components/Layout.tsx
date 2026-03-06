@@ -219,7 +219,10 @@ const Layout = () => {
           <Outlet />
         </main>
         {location.pathname !== '/settings' && (
-          <MobileBottomNav onOpenCalculator={() => setIsCalculatorOpen(true)} />
+          <MobileBottomNav
+            onOpenCalculator={() => setIsCalculatorOpen(true)}
+            onOpenVetorizador={() => setIsVetorizadorOpen(true)}
+          />
         )}
       </div>
 

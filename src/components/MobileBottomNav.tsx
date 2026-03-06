@@ -22,7 +22,13 @@ const navItemsRight = [
   { href: 'AI_ACTION', icon: MessageSquare, label: 'AI Chat' },
 ];
 
-export const MobileBottomNav = ({ onOpenCalculator }: { onOpenCalculator?: () => void }) => {
+export const MobileBottomNav = ({
+  onOpenCalculator,
+  onOpenVetorizador
+}: {
+  onOpenCalculator?: () => void;
+  onOpenVetorizador?: () => void;
+}) => {
   const location = useLocation();
   const navigate = useNavigate();
   const [isSheetOpen, setIsSheetOpen] = useState(false);
@@ -189,7 +195,11 @@ export const MobileBottomNav = ({ onOpenCalculator }: { onOpenCalculator?: () =>
                         )}
                         onClick={() => {
                           setIsSheetOpen(false);
-                          navigate(module.href);
+                          if (module.id === 'vetoriza' && onOpenVetorizador) {
+                            onOpenVetorizador();
+                          } else {
+                            navigate(module.href);
+                          }
                         }}
                       >
                         <div className="relative p-2 rounded-xl bg-white/5 group-hover:bg-primary/10 transition-colors">
