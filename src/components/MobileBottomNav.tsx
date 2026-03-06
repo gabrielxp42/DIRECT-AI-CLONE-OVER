@@ -1,12 +1,14 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, ShoppingCart, Package, User, Plus, BarChart3, MessageSquare, Settings2 } from 'lucide-react';
+import { Home, ShoppingCart, Package, User, Plus, BarChart3, MessageSquare, Settings2, Layers, Truck, Bot, Sparkles, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from './ui/button';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from './ui/sheet';
 import { useAIAssistant } from '@/contexts/AIAssistantProvider';
 import { useShortcuts } from '@/hooks/useShortcuts';
 import { ShortcutSelectionModal } from './ShortcutSelectionModal';
+import { useInsumos } from '@/hooks/useDataFetch';
+import { useAuth } from '@/hooks/useAuth';
 
 const navItemsLeft = [
   { href: '/dashboard', icon: Home, label: 'Início' },
@@ -27,6 +29,30 @@ export const MobileBottomNav = ({ onOpenCalculator }: { onOpenCalculator?: () =>
   const { open: openAIChat } = useAIAssistant();
   const { activeShortcuts, handleShortcutAction, definitions } = useShortcuts(onOpenCalculator);
   const [isPrefModalOpen, setIsPrefModalOpen] = useState(false);
+  const { profile } = useAuth();
+  const { data: insumos } = useInsumos();
+
+  const hasLowStock = useMemo(() => {
+    return insumos?.some(i => (i.quantidade_atual || 0) <= (i.quantidade_minima || 0));
+  }, [insumos]);
+
+  const systemModules = useMemo(() => {
+    const modules = [
+      { id: 'insumos', label: 'Insumos', icon: Layers, href: '/insumos', alert: hasLowStock },
+      { id: 'logistica', label: 'Logística', icon: Truck, href: '/logistica' },
+      { id: 'gabi', label: 'Gabi AI', icon: Bot, href: '/gabi' },
+      { id: 'vetoriza', label: 'Vetoriza AI', icon: Sparkles, href: '/vetorizar', important: true },
+      { id: 'reports', label: 'Relatórios', icon: BarChart3, href: '/reports' },
+    ];
+
+    if (profile?.is_affiliate) {
+      modules.push({ id: 'affiliate', label: 'Afiliados', icon: TrendingUp, href: '/affiliate' });
+    }
+
+    modules.push({ id: 'settings', label: 'Ajustes', icon: Settings2, href: '/settings' });
+
+    return modules;
+  }, [profile, hasLowStock]);
 
   const handleCreate = (path: string) => {
     setIsSheetOpen(false);
@@ -143,6 +169,44 @@ export const MobileBottomNav = ({ onOpenCalculator }: { onOpenCalculator?: () =>
                           </Button>
                         );
                       })}
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <span className="text-[10px] font-black uppercase tracking-[0.3em] text-foreground/40">Módulos do Sistema</span>
+                    <div className="h-px flex-1 bg-white/10" />
+                  </div>
+
+                  <div className="grid grid-cols-4 gap-3">
+                    {systemModules.map((module) => (
+                      <Button
+                        key={module.id}
+                        variant="ghost"
+                        className={cn(
+                          "flex flex-col h-20 gap-1.5 items-center justify-center bg-white/5 hover:bg-white/10 border border-white/5 rounded-2xl active:scale-90 transition-all group",
+                          module.important && "border-primary/30 bg-primary/5"
+                        )}
+                        onClick={() => {
+                          setIsSheetOpen(false);
+                          navigate(module.href);
+                        }}
+                      >
+                        <div className="relative p-2 rounded-xl bg-white/5 group-hover:bg-primary/10 transition-colors">
+                          <module.icon className={cn(
+                            "h-5 w-5 text-foreground/70 group-hover:text-primary transition-colors",
+                            module.important && "text-primary"
+                          )} />
+                          {module.alert && (
+                            <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 border border-zinc-950"></span>
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[9px] font-bold text-foreground/50 group-hover:text-foreground line-clamp-1">{module.label}</span>
+                      </Button>
+                    ))}
                   </div>
                 </div>
 
