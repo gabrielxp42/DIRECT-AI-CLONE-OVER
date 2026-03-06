@@ -30,6 +30,7 @@ type UserWalletInfo = {
     company_name: string | null;
     wallet_balance: number;
     frenet_balance: number | null;
+    ai_credits: number;
 };
 
 const formatCurrency = (value: number) => {
@@ -57,7 +58,7 @@ export function AdminWalletManager() {
         try {
             const { data, error } = await supabase
                 .from('profiles')
-                .select('id, email, company_name, wallet_balance, frenet_balance')
+                .select('id, email, company_name, wallet_balance, frenet_balance, ai_credits')
                 .or(`email.ilike.%${searchTerm}%,company_name.ilike.%${searchTerm}%`)
                 .order('company_name', { ascending: true })
                 .limit(20);
@@ -105,8 +106,8 @@ export function AdminWalletManager() {
 
         setIsAdding(true);
         try {
-            const fieldToUpdate = balanceType === 'frenet' ? 'frenet_balance' : 'wallet_balance';
-            const currentBalance = balanceType === 'frenet' ? (selectedUser.frenet_balance || 0) : (selectedUser.wallet_balance || 0);
+            const fieldToUpdate = balanceType === 'frenet' ? 'frenet_balance' : balanceType === 'ai_credits' ? 'ai_credits' : 'wallet_balance';
+            const currentBalance = balanceType === 'frenet' ? (selectedUser.frenet_balance || 0) : balanceType === 'ai_credits' ? (selectedUser.ai_credits || 0) : (selectedUser.wallet_balance || 0);
 
             // 1. Update balance
             const newBalance = currentBalance + numAmount;
@@ -124,7 +125,7 @@ export function AdminWalletManager() {
                     user_id: selectedUser.id,
                     type: 'credit',
                     amount: numAmount,
-                    description: description.trim() || `Crédito ${balanceType === 'frenet' ? 'Frenet' : 'SuperFrete'} adicionado pelo admin`,
+                    description: description.trim() || `Crédito ${balanceType === 'frenet' ? 'Frenet' : balanceType === 'ai_credits' ? 'Vetoriza AI' : 'SuperFrete'} adicionado pelo admin`,
                     provider: balanceType
                 });
 
@@ -145,7 +146,7 @@ export function AdminWalletManager() {
             // 4. Refresh transactions
             handleSelectUser(updatedUser);
 
-            toast.success(`${formatCurrency(numAmount)} adicionado à carteira ${balanceType === 'frenet' ? 'Frenet' : 'SuperFrete'} de ${selectedUser.company_name || selectedUser.email}!`);
+            toast.success(`${balanceType === 'ai_credits' ? numAmount : formatCurrency(numAmount)} adicionado à carteira ${balanceType === 'frenet' ? 'Frenet' : balanceType === 'ai_credits' ? 'Vetoriza AI' : 'SuperFrete'} de ${selectedUser.company_name || selectedUser.email}!`);
         } catch (err: any) {
             toast.error('Erro ao adicionar crédito: ' + err.message);
         } finally {
@@ -222,6 +223,18 @@ export function AdminWalletManager() {
                                             {formatCurrency(user.frenet_balance || 0)}
                                         </Badge>
                                     </div>
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Vetoriza AI</span>
+                                        <Badge
+                                            variant="outline"
+                                            className={`font-black text-[10px] tabular-nums ${(user.ai_credits || 0) > 0
+                                                ? 'text-purple-600 border-purple-200 bg-purple-50'
+                                                : 'text-zinc-500 border-zinc-200'
+                                                }`}
+                                        >
+                                            {user.ai_credits || 0} créditos
+                                        </Badge>
+                                    </div>
                                 </div>
                             </button>
                         ))}
@@ -256,6 +269,12 @@ export function AdminWalletManager() {
                                                 {formatCurrency(selectedUser.frenet_balance || 0)}
                                             </p>
                                         </div>
+                                        <div>
+                                            <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Vetoriza AI</p>
+                                            <p className={`text-sm font-black italic tracking-tighter ${(selectedUser.ai_credits || 0) > 0 ? 'text-purple-600' : 'text-zinc-400'}`}>
+                                                {selectedUser.ai_credits || 0} Créditos
+                                            </p>
+                                        </div>
                                     </div>
                                 </div>
                             </CardHeader>
@@ -272,6 +291,7 @@ export function AdminWalletManager() {
                                             <SelectContent>
                                                 <SelectItem value="superfrete" className="font-bold italic">SUPERFRETE</SelectItem>
                                                 <SelectItem value="frenet" className="font-bold italic">FRENET</SelectItem>
+                                                <SelectItem value="ai_credits" className="font-bold italic">VETORIZA AI (CRÉDITOS)</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     </div>

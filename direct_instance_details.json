@@ -1,0 +1,43 @@
+{
+  "id": "32ffa2f6-4033-46c3-9866-0f3cb20027e7",
+  "name": "directdtf812f",
+  "connectionStatus": "open",
+  "ownerJid": "5521995940055@s.whatsapp.net",
+  "profileName": "Direct DTF",
+  "profilePicUrl": "https://pps.whatsapp.net/v/t61.24694-24/473398507_619662947285342_1078131026881790790_n.jpg?ccb=11-4&oh=01_Q5Aa3wHWX5j_3VACPNTH_4a3JHXlfrpKrUug5DjcPdBK3xwxuw&oe=69B7C1A9&_nc_sid=5e03e0&_nc_cat=107",
+  "integration": "WHATSAPP-BAILEYS",
+  "number": null,
+  "businessId": null,
+  "token": "812ffd768e944b4c8198527d85386679",
+  "clientName": "evolution_v2",
+  "disconnectionReasonCode": null,
+  "disconnectionObject": null,
+  "disconnectionAt": null,
+  "createdAt": "2026-02-26T15:50:04.899Z",
+  "updatedAt": "2026-03-06T12:34:12.235Z",
+  "Chatwoot": null,
+  "Proxy": null,
+  "Rabbitmq": null,
+  "Nats": null,
+  "Sqs": null,
+  "Websocket": null,
+  "Setting": {
+    "id": "cmm3n3all17j1qy4c7v4mm5pk",
+    "rejectCall": false,
+    "msgCall": "",
+    "groupsIgnore": false,
+    "alwaysOnline": false,
+    "readMessages": false,
+    "readStatus": false,
+    "syncFullHistory": false,
+    "wavoipToken": "",
+    "createdAt": "2026-02-26T15:50:04.906Z",
+    "updatedAt": "2026-02-26T15:50:04.906Z",
+    "instanceId": "32ffa2f6-4033-46c3-9866-0f3cb20027e7"
+  },
+  "_count": {
+    "Message": 69974,
+    "Contact": 2245,
+    "Chat": 925
+  }
+}

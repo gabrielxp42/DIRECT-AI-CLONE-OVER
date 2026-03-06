@@ -27,6 +27,15 @@ Deno.serve(async (req: Request) => {
             Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
         );
 
+        // --- DEBUG LOG: START ---
+        await supabase.from('system_logs').insert({
+            level: 'info',
+            category: 'generator_debug',
+            message: `Starting generator for ${customer_phone}`,
+            user_id: user_id,
+            details: { customer_name, is_boss, has_message: !!message, has_audio: !!audio_base64 }
+        });
+
         // --- 1. Handle Audio (Whisper) ---
         let textMessage = message || "";
         const OPENAI_KEY = Deno.env.get('OPENAI_API_KEY');
@@ -61,8 +70,15 @@ Deno.serve(async (req: Request) => {
                             .eq('id', db_message_id);
                     }
                 }
-            } catch (err) {
+            } catch (err: any) {
                 console.error("[Generator] Transcription failed:", err);
+                await supabase.from('system_logs').insert({
+                    level: 'error',
+                    category: 'generator_error',
+                    message: `Transcription failed: ${err.message}`,
+                    user_id: user_id,
+                    details: { error: err }
+                });
             }
         }
 
@@ -90,13 +106,9 @@ Deno.serve(async (req: Request) => {
         }
 
         // --- 3. CALL UNIFIED GABI BRAIN ---
-        console.log(`[Generator] Calling unified gabi-brain for user ${user_id}`);
-        const brainRes = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/gabi-brain`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
+        console.log(`[Generator] Calling unified gabi-brain-v2 for user ${user_id}`);
+        const { data: brainData, error: brainError } = await supabase.functions.invoke('gabi-brain-v2', {
+            body: {
                 message: textMessage,
                 history: history,
                 platform: 'whatsapp',
@@ -104,17 +116,23 @@ Deno.serve(async (req: Request) => {
                 customer_name: customer_name,
                 customer_phone: customer_phone,
                 user_id: user_id
-            })
+            }
         });
 
-        if (!brainRes.ok) {
-            const errorText = await brainRes.text();
-            console.error(`[Generator] Gabi-brain returned error: ${brainRes.status}`, errorText);
-            throw new Error(`Cérebro da Gabi indisponível (Status ${brainRes.status})`);
+        if (brainError) {
+            console.error(`[Generator] Gabi-brain invocation failed:`, brainError);
+            throw new Error(`Cérebro da Gabi indisponível: ${brainError.message}`);
         }
 
-        const brainData = await brainRes.json();
         const finalResponse = brainData.content || brainData.text || "Desculpe, tive um problema ao processar. Pode repetir? 😅";
+
+        await supabase.from('system_logs').insert({
+            level: 'info',
+            category: 'generator_debug',
+            message: `Brain responded for ${customer_phone}`,
+            user_id: user_id,
+            details: { response_preview: finalResponse.substring(0, 100) }
+        });
 
         // --- 4. DELIVERY: Send back via Evolution API ---
         const { data: profile } = await supabase.from('profiles').select('whatsapp_api_url, whatsapp_api_key, whatsapp_instance_id').eq('id', user_id).single();
@@ -137,10 +155,33 @@ Deno.serve(async (req: Request) => {
                 });
 
                 if (!sendRes.ok) {
-                    console.error(`[Generator] Evolution API send failed: ${sendRes.status} ${await sendRes.text()}`);
+                    const errorText = await sendRes.text();
+                    console.error(`[Generator] Evolution API send failed: ${sendRes.status} ${errorText}`);
+                    await supabase.from('system_logs').insert({
+                        level: 'error',
+                        category: 'generator_error',
+                        message: `Evolution API delivery failed: ${sendRes.status}`,
+                        user_id: user_id,
+                        details: { status: sendRes.status, error: errorText, instance: profile.whatsapp_instance_id }
+                    });
+                } else {
+                    await supabase.from('system_logs').insert({
+                        level: 'info',
+                        category: 'generator_debug',
+                        message: `Message delivered to ${customer_phone}`,
+                        user_id: user_id,
+                        details: { instance: profile.whatsapp_instance_id }
+                    });
                 }
-            } catch (sendErr) {
+            } catch (sendErr: any) {
                 console.error("[Generator] Delivery error:", sendErr);
+                await supabase.from('system_logs').insert({
+                    level: 'error',
+                    category: 'generator_error',
+                    message: `Evolution API fetch error: ${sendErr.message}`,
+                    user_id: user_id,
+                    details: { error: sendErr }
+                });
             }
         } else {
             console.warn("[Generator] Skipping delivery: WhatsApp API not configured for user", user_id);

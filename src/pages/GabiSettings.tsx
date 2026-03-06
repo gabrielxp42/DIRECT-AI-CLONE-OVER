@@ -513,24 +513,7 @@ STATUS: {{status}}
 
             if (error) throw error;
 
-            showSuccess("Insight criado! Tentando disparo direto para garantir...");
-
-            // Tentativa de disparo direto via Edge Function para ignorar delay de trigger
-            const funcUrl = "https://zdbjzrpgliqicwvncfpc.supabase.co/functions/v1/gabi-executiva-agent";
-            await fetch(funcUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session?.access_token}`
-                },
-                body: JSON.stringify({
-                    type: 'INSERT',
-                    table: 'agent_insights',
-                    record: data
-                })
-            });
-
-            showSuccess("Alerta de teste processado! Verifique seu WhatsApp.");
+            showSuccess("Alerta de teste enviado! Verifique seu WhatsApp.");
         } catch (error: any) {
             console.error("Test Error:", error);
             showError("Erro no teste: " + error.message);

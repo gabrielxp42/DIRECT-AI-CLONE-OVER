@@ -1,7 +1,8 @@
+
 const WEBHOOK_URL = "https://zdbjzrpgliqicwvncfpc.supabase.co/functions/v1/whatsapp-webhook";
 
 async function test() {
-    console.log("Sending manual test to webhook...");
+    console.log("🚀 Sending Real Boss Test to webhook...");
     const resp = await fetch(WEBHOOK_URL, {
         method: 'POST',
         headers: {
@@ -9,12 +10,12 @@ async function test() {
         },
         body: JSON.stringify({
             event_type: 'MESSAGES_UPSERT',
-            instance: 'minha_empresa',
+            instance: 'directdtf812f',
             data: {
                 messageType: 'conversation',
-                key: { fromMe: false, remoteJid: '5511999999999@s.whatsapp.net', id: 'TEST_ID' },
-                message: { conversation: 'TESTE MANUAL' },
-                pushName: 'Tester'
+                key: { fromMe: false, remoteJid: '5521986243396@s.whatsapp.net', id: 'REAL_TEST_' + Date.now() },
+                message: { conversation: 'Olá Gabi, responda se estiver me ouvindo!' },
+                pushName: 'Gabriel Boss'
             }
         })
     });

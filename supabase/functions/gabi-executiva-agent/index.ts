@@ -114,21 +114,15 @@ Deno.serve(async (req: Request) => {
         let finalMessage = message;
         if (record.title === 'RESUMO_PENDENCIAS') {
             try {
-                const brainRes = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/gabi-brain`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
+                const { data: brainData, error: brainError } = await supabase.functions.invoke('gabi-brain-v2', {
+                    body: {
                         message: `Gabi, formate esse aviso para o Gabriel: ${message}`,
                         platform: 'whatsapp',
                         is_boss: true,
                         user_id: userId
-                    })
+                    }
                 });
-                if (brainRes.ok) {
-                    const brainData = await brainRes.json();
+                if (!brainError) {
                     finalMessage = brainData.content || brainData.text || finalMessage;
                 }
             } catch (e) {

@@ -41,7 +41,7 @@ serve(async (req) => {
         const inputText = payload.text || payload.message || "";
         const history = payload.history || [];
         const platform = payload.platform || 'web';
-        const { customer_phone, customer_name, user_id: provided_user_id } = payload;
+        const { customer_phone, customer_name, user_id: provided_user_id, is_boss } = payload;
 
         let userId: string | undefined = provided_user_id;
         const authHeader = req.headers.get('Authorization');
@@ -79,10 +79,14 @@ Sua missão é ajudar a cuidar da empresa com inteligência, organização impec
 - **Braço Direito**: Se algo acontece, você já pensa no próximo passo.
 
 ### 🚨 CONTEXTO DE OPERAÇÃO:
-${isGroup ? `- **VOCÊ ESTÁ EM UM GRUPO DE WHATSAPP.** Vários membros podem falar com você.
+${is_boss ? `- **VOCÊ ESTÁ FALANDO COM O GESTOR/PATRÃO (${interlocutorName}).**
+- Sua prioridade é fornecer insights, resumos e dados precisos.
+- Se ele pedir um resumo, chame get_financial_report ou get_orders_summary imediatamente.
+- Seja proativa: se notar algo importante nos dados, mencione.` :
+                (isGroup ? `- **VOCÊ ESTÁ EM UM GRUPO DE WHATSAPP.** Vários membros podem falar com você.
 - O interlocutor atual chama-se: **${interlocutorName}**.
 - Se ele não for o(a) ${profile?.first_name || 'Chefe'}, seja prestativa mas lembre-se que suas ferramentas de dados são focadas na gestão da empresa do(a) ${profile?.first_name}.` :
-                `- Você está conversando diretamente com: **${interlocutorName}**.`}
+                    `- Você está conversando diretamente com: **${interlocutorName}**.`)}
 - **PLATAFORMA:** ${platform === 'whatsapp' ? 'WhatsApp' : 'Interface Web'}.
 
 ### REGRAS DE OURO DA COMUNICAÇÃO:
