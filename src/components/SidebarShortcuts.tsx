@@ -51,8 +51,8 @@ export const SidebarShortcuts = ({ isExpanded, onOpenCalculator, onOpenVetorizad
                             ? "w-[calc(100%-1.5rem)] gap-3 rounded-xl p-3 mx-3"
                             : "justify-center rounded-[12px] h-10 w-10",
                         isGifted
-                            ? "bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600 text-black shadow-lg shadow-amber-500/20 hover:scale-[1.05] active:scale-95 cursor-pointer ring-1 ring-white/20"
-                            : "bg-primary/40 text-primary-foreground/50 shadow-none cursor-not-allowed grayscale-[0.5]"
+                            ? "bg-gradient-to-br from-primary via-primary/90 to-primary/80 text-primary-foreground shadow-lg shadow-primary/30 hover:scale-[1.05] active:scale-95 cursor-pointer ring-1 ring-white/30"
+                            : "bg-muted text-muted-foreground shadow-none cursor-not-allowed grayscale-[0.5]"
                     )}
                     title={!isExpanded ? (isGifted ? "Vetoriza AI" : "Vetoriza AI (Em breve)") : undefined}
                 >
@@ -79,7 +79,7 @@ export const SidebarShortcuts = ({ isExpanded, onOpenCalculator, onOpenVetorizad
                             </div>
                             <span className={cn(
                                 "text-[7.5px] font-medium leading-tight whitespace-nowrap",
-                                isGifted ? "text-black/60" : "opacity-40"
+                                isGifted ? "text-primary-foreground/70" : "opacity-40"
                             )}>
                                 MELHORAR QUALIDADE E EFEITOS NA IMAGEM
                             </span>

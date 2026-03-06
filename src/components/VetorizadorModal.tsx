@@ -14,9 +14,10 @@ import {
     Layers,
     Type,
     Image as ImageIcon,
-    PenTool,
     MessageSquare,
-    Zap
+    Zap,
+    RotateCcw,
+    PenTool
 } from 'lucide-react';
 import { useSession } from '@/contexts/SessionProvider';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
@@ -160,8 +161,10 @@ export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({ isOpen, onCl
                     clearInterval(interval);
                     setResultImage(data.result_url);
                     setStatus('done');
+                    setSelectedEffect(null);
+                    setUserPrompt('');
                     toast.success('Vetorização concluída!');
-                    fetchCredits(); // Refresh credits after successful operation
+                    setTimeout(() => fetchCredits(), 500);
                 } else if (data.status === 'failed') {
                     clearInterval(interval);
                     setStatus('error');
@@ -251,6 +254,8 @@ export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({ isOpen, onCl
                 isEdit ? 'edit' : selectedModel,
                 prompt
             );
+
+            console.log('Vectorization started:', response);
 
             if (response?.vectorization_id) {
                 setStatus('processing');
@@ -360,19 +365,30 @@ export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({ isOpen, onCl
                                         <div className="upload-icon-wrapper-vec">
                                             <ImagePlus size={32} />
                                         </div>
-                                        <h2 className="upload-title-vec">Arraste ou clique para enviar</h2>
-                                        <p className="upload-subtitle-vec">JPG, PNG ou WEBP (Max 10MB)</p>
+                                        <h2 className="upload-title-vec">Transforme sua Imagem Agora</h2>
+                                        <p className="upload-subtitle-vec">
+                                            Arraste seu arquivo ou escolha uma opção abaixo:
+                                        </p>
 
-                                        <div className="upload-options-vec gap-3" onClick={e => e.stopPropagation()}>
-                                            <button className="upload-btn-vec secondary" onClick={() => cameraInputRef.current?.click()}>
-                                                <Camera size={18} />
-                                                Câmera
+                                        <div className="upload-options-vec">
+                                            <button
+                                                className="action-btn-vec ghost flex-1 min-w-[120px]"
+                                                onClick={(e) => { e.stopPropagation(); cameraInputRef.current?.click(); }}
+                                            >
+                                                <Camera size={20} className="text-primary" />
+                                                <span>Tirar Foto</span>
                                             </button>
-                                            <button className="upload-btn-vec primary" onClick={() => fileInputRef.current?.click()}>
-                                                <Upload size={18} />
-                                                Galeria
+                                            <button
+                                                className="action-btn-vec ghost flex-1 min-w-[120px]"
+                                                onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
+                                            >
+                                                <ImageIcon size={20} className="text-primary" />
+                                                <span>Galeria</span>
                                             </button>
                                         </div>
+                                        <p className="mt-4 text-[10px] uppercase tracking-widest text-white/20 font-bold">
+                                            JPG, PNG ou WEBP • Máx 10MB
+                                        </p>
                                     </div>
                                 </div>
                             ) : (
@@ -383,6 +399,15 @@ export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({ isOpen, onCl
                                                 <span className="card-tag-vec">
                                                     {status === 'processing' ? 'Processando IA...' : status === 'done' ? 'Resultado Final' : 'Imagem Original'}
                                                 </span>
+                                                {(status === 'idle' || status === 'done') && (
+                                                    <button
+                                                        className="absolute top-5 right-5 z-10 p-2 bg-black/40 hover:bg-black/60 rounded-full text-white/70 hover:text-white transition-all backdrop-blur-md border border-white/10"
+                                                        onClick={handleReset}
+                                                        title="Remover imagem e carregar outra"
+                                                    >
+                                                        <RotateCcw size={16} />
+                                                    </button>
+                                                )}
                                             </div>
                                             <div className="card-image-vec">
                                                 {(status === 'processing' || status === 'uploading') && !resultImage ? (
@@ -482,6 +507,29 @@ export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({ isOpen, onCl
                                                         ))}
                                                     </div>
 
+                                                    {selectedEffect === 'custom' && (
+                                                        <div className="observation-field-vec fade-in">
+                                                            <div className="agent-bubble-vec mb-4">
+                                                                <div className="agent-avatar-vec">
+                                                                    <Sparkles size={24} />
+                                                                </div>
+                                                                <div className="agent-text-vec">
+                                                                    <p><strong>Gabi:</strong> O que você deseja criar hoje? Descreva com detalhes e eu usarei minha inteligência para gerar do zero!</p>
+                                                                </div>
+                                                            </div>
+                                                            <div className="custom-prompt-chat-input-wrapper">
+                                                                <textarea
+                                                                    value={userPrompt}
+                                                                    onChange={(e) => setUserPrompt(e.target.value)}
+                                                                    placeholder="Ex: 'Um logotipo minimalista de uma cafeteria com um grão de café estilizado em tons de marrom e dourado'"
+                                                                    rows={3}
+                                                                    className="custom-prompt-textarea"
+                                                                    disabled={status === 'processing' || status === 'uploading'}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    )}
+
                                                     <button
                                                         className="action-btn-vec primary full mt-4"
                                                         onClick={() => {
@@ -492,10 +540,10 @@ export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({ isOpen, onCl
                                                                 handleProcess(effect?.prompt || undefined);
                                                             }
                                                         }}
-                                                        disabled={!selectedEffect}
+                                                        disabled={!selectedEffect || status === 'processing'}
                                                     >
                                                         <Wand2 size={20} />
-                                                        {resultImage ? 'Aplicar Estilo' : 'VETORIZAR | MELHORAR QUALIDADE'}
+                                                        {resultImage ? 'Aplicar Estilo' : 'VETORIZAR AGORA'}
                                                     </button>
                                                 </div>
                                             )}

@@ -1,37 +1,30 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { toast } from 'sonner';
 import {
-    Upload,
     Sparkles,
     Download,
     Wand2,
     Camera,
     ImagePlus,
     Zap,
-    X,
     Loader2,
-    Key,
-    Settings,
     Palette,
     Send,
-    Check,
-    ExternalLink,
-    Layers,
-    Type,
-    Image as ImageIcon,
+    ImageIcon,
+    RotateCcw,
+    MessageSquare,
     PenTool,
-    MessageSquare
+    Type,
+    Edit3
 } from 'lucide-react';
 import { useSession } from '@/contexts/SessionProvider';
 import { DesignAgent } from '@/components/DesignAgent';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/integrations/supabase/client';
-import { getValidToken } from '@/utils/tokenGuard';
 import './Vetorizador.css';
 
 type ProcessingStatus = 'idle' | 'uploading' | 'processing' | 'done' | 'error';
 
 const Vetorizador: React.FC = () => {
-    const { supabase, session } = useSession();
+    const { supabase } = useSession();
     const [status, setStatus] = useState<ProcessingStatus>('idle');
     const [originalImage, setOriginalImage] = useState<string | null>(null);
     const [originalFile, setOriginalFile] = useState<File | null>(null);
@@ -45,32 +38,6 @@ const Vetorizador: React.FC = () => {
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const cameraInputRef = useRef<HTMLInputElement>(null);
-
-    // ── Drag & Drop ──
-    const handleDrag = (e: React.DragEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (e.type === "dragenter" || e.type === "dragover") {
-            setDragActive(true);
-        } else if (e.type === "dragleave") {
-            setDragActive(false);
-        }
-    };
-
-    const handleDrop = (e: React.DragEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setDragActive(false);
-        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-            handleFile(e.dataTransfer.files[0]);
-        }
-    };
-
-    const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            handleFile(e.target.files[0]);
-        }
-    };
 
     const handleFile = (file: File) => {
         if (!file.type.startsWith('image/')) {
@@ -87,67 +54,61 @@ const Vetorizador: React.FC = () => {
         reader.readAsDataURL(file);
     };
 
-    // ── Upload para Supabase Storage ──
+    const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            handleFile(e.target.files[0]);
+        }
+    };
+
+    const handleDrag = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.type === "dragenter" || e.type === "dragover") setDragActive(true);
+        else if (e.type === "dragleave") setDragActive(false);
+    };
+
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setDragActive(false);
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+    };
+
     const uploadImage = async (file: File): Promise<string> => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error('Não autenticado');
-
         const fileExt = file.name.split('.').pop();
         const fileName = `${user.id}/${Date.now()}.${fileExt}`;
-
-        const { error: uploadError } = await supabase.storage
-            .from('uploads')
-            .upload(fileName, file);
+        const { error: uploadError } = await supabase.storage.from('uploads').upload(fileName, file);
         if (uploadError) throw uploadError;
-
-        const { data } = supabase.storage
-            .from('uploads')
-            .getPublicUrl(fileName);
-
+        const { data } = supabase.storage.from('uploads').getPublicUrl(fileName);
         return data.publicUrl;
     };
 
-    // ── Chamar a Edge Function ──
-    const vectorizeImage = async (imageUrl: string, model: 'standard' | 'pro' | 'edit', prompt?: string) => {
-        const { data: rawData, error } = await supabase.functions.invoke('vectorize', {
+    const vectorizeImage = async (imageUrl: string, model: string, prompt?: string) => {
+        const { data, error } = await supabase.functions.invoke('vectorize', {
             body: { image_url: imageUrl, model, prompt }
         });
-
-        if (error) throw error;
-
-        let data = rawData;
-        if (typeof rawData === 'string') {
-            try { data = JSON.parse(rawData); } catch { /* keep raw */ }
-        }
-        return data;
-    };
-
-    // ── Verificar status ──
-    const checkVectorizationStatus = async (vectorizationId: string) => {
-        const { data, error } = await supabase.functions.invoke(`vectorize?id=${vectorizationId}`, {
-            method: 'GET'
-        });
-
         if (error) throw error;
         return data;
     };
 
-    // ── Polling ──
     const pollStatus = async (vectorizationId: string) => {
         const interval = setInterval(async () => {
             try {
-                const data = await checkVectorizationStatus(vectorizationId);
-                console.log('Polling status:', data.status);
-
+                const { data, error } = await supabase.functions.invoke(`vectorize?id=${vectorizationId}`, { method: 'GET' });
+                if (error) throw error;
                 if (data.status === 'completed' && data.result_url) {
                     clearInterval(interval);
                     setResultImage(data.result_url);
                     setStatus('done');
+                    setSelectedEffect(null);
+                    setUserPrompt('');
                     toast.success('Vetorização concluída!');
                 } else if (data.status === 'failed') {
                     clearInterval(interval);
                     setStatus('error');
-                    toast.error('Falha na vetorização. Tente novamente.');
+                    toast.error('Falha na vetorização.');
                 }
             } catch (err) {
                 console.error('Polling error:', err);
@@ -155,100 +116,20 @@ const Vetorizador: React.FC = () => {
         }, 2000);
     };
 
-    // ── Opções de Efeitos ──
-    const effectOptions = [
-        {
-            id: 'vectorize',
-            label: 'Vetor Clássico',
-            icon: <PenTool size={24} />,
-            desc: 'Logos limpos, sem fundo, cores chapadas.',
-            prompt: 'vectorize this logo, clean and professional, sharp edges, high resolution, flat colors, isolated, transparent background, strictly no background'
-        },
-        {
-            id: 'embroidery',
-            label: 'Efeito Bordado',
-            icon: <Layers size={24} />,
-            desc: 'Patch 3D realista, linhas detalhadas.',
-            prompt: 'CRIE UM PATCH BORDADO ALTAMENTE DETALHADO DO LOGOTIPO ENVIADO. O PATCH DEVE APRESENTAR COSTURA ELEVADA E TEXTURA DE BORDADO, PROPORCIONANDO UM VISUAL REALISTA EM 3D. MANTENHA AS CORES PRECISAS E AS PROPORÇÕES EXATAS DO LOGOTIPO. APRESENTE O PATCH ISOLADO EM UM FUNDO PNG TRANSPARENTE, SEM NENHUM TECIDO OU SUPERFÍCIE POR TRÁS. FAÇA COM QUE PAREÇA UM PATCH DE LOGOTIPO PROFISSIONALMENTE PRODUZIDO, PRONTO PARA ROUPAS OU ACESSÓRIOS.'
-        },
-        {
-            id: 'puff',
-            label: 'Puff Print',
-            icon: <Type size={24} />,
-            desc: 'Relevo 3D estilo estampa puff.',
-            prompt: 'convert this design into a 3D puff print on fabric, raised ink, tactile texture, realistic apparel printing, isolated, transparent background, strictly no background'
-        },
-        {
-            id: 'neon',
-            label: 'Efeito Neon',
-            icon: <Zap size={24} />,
-            desc: 'Letreiro neon brilhante realista.',
-            prompt: 'convert this logo into a glowing neon sign, vibrant colors, cinematic lighting, isolated, transparent background, strictly no background'
-        },
-        {
-            id: 'sticker',
-            label: 'Adesivo',
-            icon: <ImageIcon size={24} />,
-            desc: 'Adesivo de vinil com borda branca.',
-            prompt: 'convert this logo into a die-cut vinyl sticker, with a thick white border, glossy finish, flat vector style, isolated, transparent background outside the sticker, strictly no background'
-        },
-        {
-            id: 'custom',
-            label: 'Personalizado',
-            icon: <MessageSquare size={24} />,
-            desc: 'Escreva exatamente o que deseja.',
-            prompt: '' // Usará o texto digitado
-        }
-    ];
-
-    // ── Processar ──
     const handleProcess = async (prompt?: string) => {
         const source = resultImage || originalFile;
         if (!source) return;
-
         const isEdit = !!prompt;
         setStatus(isEdit ? 'processing' : 'uploading');
-
         try {
-            let imageUrl = '';
-
-            if (typeof source === 'string' && source.startsWith('http')) {
-                imageUrl = source;
-            } else if (originalFile) {
-                imageUrl = await uploadImage(originalFile);
-            } else {
-                return;
-            }
-
-            console.log('Image source for AI:', imageUrl);
-
-            const response = await vectorizeImage(
-                imageUrl,
-                isEdit ? 'edit' : selectedModel,
-                prompt
-            );
-
-            console.log('Vectorization started:', response);
-
-            if (response?.vectorization_id) {
-                setStatus('processing');
-                pollStatus(response.vectorization_id);
-            } else {
-                console.error('Response missing vectorization_id:', response);
-                throw new Error('Erro na resposta da API');
-            }
+            let imageUrl = (typeof source === 'string' && source.startsWith('http')) ? source : await uploadImage(originalFile!);
+            const response = await vectorizeImage(imageUrl, isEdit ? 'edit' : selectedModel, prompt);
+            if (response?.vectorization_id) pollStatus(response.vectorization_id);
+            else throw new Error('Erro na resposta da API');
         } catch (err: any) {
-            console.error('Process error:', err);
-            toast.error(err.message || 'Erro ao processar imagem.');
+            toast.error(err.message || 'Erro ao processar.');
             setStatus('error');
         }
-    };
-
-    const handleInlineSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!inlinePrompt.trim() || status === 'processing') return;
-        handleProcess(inlinePrompt);
-        setInlinePrompt('');
     };
 
     const handleReset = () => {
@@ -256,61 +137,41 @@ const Vetorizador: React.FC = () => {
         setOriginalFile(null);
         setResultImage(null);
         setStatus('idle');
-        setUserPrompt('');
         setSelectedEffect(null);
-        setInlinePrompt('');
-        if (fileInputRef.current) fileInputRef.current.value = '';
-        if (cameraInputRef.current) cameraInputRef.current.value = '';
+        setUserPrompt('');
     };
 
-    const handleDownload = () => {
+    const handleDownload = async () => {
         if (!resultImage) return;
-
-        fetch(resultImage)
-            .then(response => response.blob())
-            .then(blob => {
-                const url = window.URL.createObjectURL(blob);
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = `vetoriza-ai-${Date.now()}.png`;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                window.URL.revokeObjectURL(url);
-                toast.success('Download iniciado!');
-            })
-            .catch(() => {
-                const link = document.createElement('a');
-                link.href = resultImage!;
-                link.target = '_blank';
-                link.download = 'vetoriza-ai-result.png';
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-            });
+        try {
+            const response = await fetch(resultImage);
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `vetor-direct-ai-${Date.now()}.png`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        } catch (err) {
+            toast.error('Erro ao baixar imagem.');
+        }
     };
 
-    const openCamera = () => cameraInputRef.current?.click();
-    const openGallery = () => fileInputRef.current?.click();
+    const effectOptions = [
+        { id: 'classic', label: 'Vetor Clássico', icon: <PenTool size={24} />, desc: 'Transformação limpa em vetor.', prompt: 'vectorize this logo, clean lines, high contrast, flat style, isolated, transparent background' },
+        { id: 'embroidery', label: 'Efeito Bordado', icon: <Layers size={24} />, desc: 'Efeito de costura e linhas.', prompt: 'convert this design into a highly detailed embroidery patch, with realistic thread texture, satin stitching, 3D relief, isolated, transparent background' },
+        { id: 'puff', label: 'Puff Print', icon: <Type size={24} />, desc: 'Relevo 3D estilo estampa puff.', prompt: 'convert this design into a 3D puff print on fabric, raised ink, tactile texture, realistic apparel printing, isolated, transparent background' },
+        { id: 'neon', label: 'Efeito Neon', icon: <Zap size={24} />, desc: 'Letreiro neon brilhante.', prompt: 'convert this logo into a glowing neon sign, vibrant colors, isolated, transparent background' },
+        { id: 'sticker', label: 'Adesivo', icon: <ImageIcon size={24} />, desc: 'Adesivo de vinil com borda.', prompt: 'convert this logo into a die-cut vinyl sticker, white border, glossy finish, isolated, transparent background' },
+        { id: 'custom', label: 'Personalizado', icon: <MessageSquare size={24} />, desc: 'Escreva seu desejo.', prompt: '' }
+    ];
 
     return (
         <div className="dashboard-mobile-vec">
             <div className="dashboard-content-vec">
-                <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileInput}
-                    style={{ display: 'none' }}
-                />
-                <input
-                    ref={cameraInputRef}
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    onChange={handleFileInput}
-                    style={{ display: 'none' }}
-                />
+                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileInput} style={{ display: 'none' }} />
+                <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleFileInput} style={{ display: 'none' }} />
 
                 <div className="header-vec">
                     <div className="logo-container-vec">
@@ -324,31 +185,22 @@ const Vetorizador: React.FC = () => {
 
                 <div className="main-grid-vec">
                     {status === 'idle' && !originalImage ? (
-                        <div
-                            className={`upload-zone-vec ${dragActive ? 'active' : ''}`}
-                            onDragEnter={handleDrag}
-                            onDragLeave={handleDrag}
-                            onDragOver={handleDrag}
-                            onDrop={handleDrop}
-                            onClick={openGallery}
-                        >
+                        <div className={`upload-zone-vec ${dragActive ? 'active' : ''}`} onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop} onClick={() => fileInputRef.current?.click()}>
                             <div className="upload-content-vec">
-                                <div className="upload-icon-wrapper-vec">
-                                    <ImagePlus size={32} />
-                                </div>
-                                <h2 className="upload-title-vec">Arraste ou clique para enviar</h2>
-                                <p className="upload-subtitle-vec">JPG, PNG ou WEBP (Max 10MB)</p>
-
-                                <div className="upload-options-vec gap-3" onClick={e => e.stopPropagation()}>
-                                    <button className="upload-btn-vec secondary" onClick={openCamera}>
-                                        <Camera size={18} />
-                                        Câmera
+                                <div className="upload-icon-wrapper-vec"><ImagePlus size={32} /></div>
+                                <h2 className="upload-title-vec">Transforme sua Imagem Agora</h2>
+                                <p className="upload-subtitle-vec">Arraste seu arquivo ou escolha uma opção abaixo:</p>
+                                <div className="upload-options-vec">
+                                    <button className="action-btn-vec ghost flex-1 min-w-[120px]" onClick={(e) => { e.stopPropagation(); cameraInputRef.current?.click(); }}>
+                                        <Camera size={20} className="text-primary" />
+                                        <span>Tirar Foto</span>
                                     </button>
-                                    <button className="upload-btn-vec primary" onClick={openGallery}>
-                                        <Upload size={18} />
-                                        Galeria
+                                    <button className="action-btn-vec ghost flex-1 min-w-[120px]" onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}>
+                                        <ImageIcon size={20} className="text-primary" />
+                                        <span>Galeria</span>
                                     </button>
                                 </div>
+                                <p className="mt-4 text-[10px] uppercase tracking-widest text-white/20 font-bold">JPG, PNG ou WEBP • Máx 10MB</p>
                             </div>
                         </div>
                     ) : (
@@ -356,51 +208,29 @@ const Vetorizador: React.FC = () => {
                             <div className="preview-split-left">
                                 <div className="preview-card-vec active">
                                     <div className="card-header-vec">
-                                        <span className="card-tag-vec">
-                                            {status === 'processing' ? 'Processando IA...' : status === 'done' ? 'Resultado Final' : 'Imagem Original'}
-                                        </span>
+                                        <span className="card-tag-vec">{status === 'processing' ? 'Processando...' : status === 'done' ? 'Vetorizado' : 'Original'}</span>
+                                        {(status === 'idle' || status === 'done') && (
+                                            <button className="absolute top-0 right-0 z-10 p-2 bg-black/40 rounded-full text-white/70 hover:text-white" onClick={handleReset}><RotateCcw size={16} /></button>
+                                        )}
                                     </div>
                                     <div className="card-image-vec">
                                         {(status === 'processing' || status === 'uploading') && !resultImage ? (
                                             <div className="loading-container-vec">
                                                 <Loader2 className="animate-spin text-primary" size={48} />
-                                                <p>{status === 'uploading' ? 'Enviando arquivo...' : 'A mágica está acontecendo...'}</p>
+                                                <p>{status === 'uploading' ? 'Enviando...' : 'A mágica está acontecendo...'}</p>
                                             </div>
-                                        ) : (
-                                            <>
-                                                <img
-                                                    src={(resultImage) ? resultImage : (originalImage || '')}
-                                                    alt={resultImage ? 'Resultado' : 'Original'}
-                                                    className={status === 'processing' ? 'opacity-50' : ''}
-                                                />
-                                                {status === 'processing' && resultImage && (
-                                                    <div className="loading-overlay-vec">
-                                                        <Loader2 className="animate-spin text-primary" size={32} />
-                                                    </div>
-                                                )}
-                                            </>
-                                        )}
+                                        ) : <img src={resultImage || originalImage || ''} alt="Preview" className={status === 'processing' ? 'opacity-50' : ''} />}
                                     </div>
                                 </div>
                             </div>
 
                             <div className="preview-split-right">
                                 <div className="model-selector-vec">
-                                    <button
-                                        className={`model-btn-vec ${selectedModel === 'standard' ? 'active' : ''}`}
-                                        onClick={() => setSelectedModel('standard')}
-                                    >
-                                        <Zap size={16} />
-                                        <span>Standard</span>
-                                        <span className="model-credits-vec">1 crédito</span>
+                                    <button className={`model-btn-vec ${selectedModel === 'standard' ? 'active' : ''}`} onClick={() => setSelectedModel('standard')}>
+                                        <Zap size={16} /><span>Standard</span><span className="model-credits-vec">1 crédito</span>
                                     </button>
-                                    <button
-                                        className={`model-btn-vec ${selectedModel === 'pro' ? 'active' : ''}`}
-                                        onClick={() => setSelectedModel('pro')}
-                                    >
-                                        <Sparkles size={16} />
-                                        <span>Pro HD</span>
-                                        <span className="model-credits-vec">3 créditos</span>
+                                    <button className={`model-btn-vec ${selectedModel === 'pro' ? 'active' : ''}`} onClick={() => setSelectedModel('pro')}>
+                                        <Sparkles size={16} /><span>Pro HD</span><span className="model-credits-vec">3 créditos</span>
                                     </button>
                                 </div>
 
@@ -408,93 +238,45 @@ const Vetorizador: React.FC = () => {
                                     {resultImage && (
                                         <div className="inline-agent-chat-vec fade-in">
                                             <div className="agent-bubble-vec">
-                                                <div className="agent-avatar-vec">
-                                                    <Sparkles size={24} />
-                                                </div>
+                                                <div className="agent-avatar-vec"><Sparkles size={24} /></div>
                                                 <div className="agent-text-vec">
-                                                    {status === 'processing' ? (
-                                                        <p className="flex items-center gap-2">
-                                                            <Loader2 className="animate-spin" size={16} />
-                                                            <strong>Gabi:</strong> Um momento, estou preparando suas alterações...
-                                                        </p>
-                                                    ) : (
-                                                        <p><strong>Gabi:</strong> Ficou do seu gosto? Me diga o que mais quer alterar! (ex: "deixe o fundo branco", "mude para vermelho")</p>
-                                                    )}
+                                                    {status === 'processing' ? <p><Loader2 className="animate-spin inline mr-2" size={16} />Gabi: Ajustando...</p> : <p><strong>Gabi:</strong> O que mais quer alterar?</p>}
                                                 </div>
                                             </div>
-
-                                            <form onSubmit={handleInlineSubmit} className="inline-chat-input-vec">
-                                                <input
-                                                    type="text"
-                                                    value={inlinePrompt}
-                                                    onChange={(e) => setInlinePrompt(e.target.value)}
-                                                    placeholder="Diga à Gabi o que ajustar..."
-                                                    disabled={status === 'processing'}
-                                                />
-                                                <button type="submit" disabled={!inlinePrompt.trim() || status === 'processing'}>
-                                                    <Send size={18} />
-                                                </button>
+                                            <form onSubmit={(e) => { e.preventDefault(); handleProcess(inlinePrompt); setInlinePrompt(''); }} className="inline-chat-input-vec">
+                                                <input type="text" value={inlinePrompt} onChange={(e) => setInlinePrompt(e.target.value)} placeholder="Ajustar..." disabled={status === 'processing'} />
+                                                <button type="submit" disabled={!inlinePrompt.trim() || status === 'processing'}><Send size={18} /></button>
                                             </form>
-
                                             <div className="inline-actions-row-vec">
-                                                <button className="action-btn-vec primary" onClick={handleDownload}>
-                                                    <Download size={20} />
-                                                    Baixar PNG
-                                                </button>
-                                                <button className="action-btn-vec ghost" onClick={handleReset}>
-                                                    Nova Imagem
-                                                </button>
+                                                <button className="action-btn-vec primary" onClick={handleDownload}><Download size={20} /> Baixar</button>
+                                                <button className="action-btn-vec ghost" onClick={handleReset}>Novo</button>
                                             </div>
                                         </div>
                                     )}
 
-                                    {(status !== 'processing' && status !== 'uploading') && (
+                                    {status !== 'processing' && status !== 'uploading' && (
                                         <div className="effects-selection-area">
                                             <h3 className="effects-title">Estilos Rápidos:</h3>
                                             <div className="effects-chips-vec">
-                                                {effectOptions.map((effect) => (
-                                                    <button
-                                                        key={effect.id}
-                                                        className={`effect-chip-vec ${selectedEffect === effect.id ? 'active' : ''}`}
-                                                        onClick={() => setSelectedEffect(effect.id)}
-                                                    >
-                                                        <span className="effect-chip-icon">{effect.icon}</span>
-                                                        <span className="effect-chip-label">{effect.label}</span>
+                                                {effectOptions.map((eff) => (
+                                                    <button key={eff.id} className={`effect-chip-vec ${selectedEffect === eff.id ? 'active' : ''}`} onClick={() => setSelectedEffect(eff.id)}>
+                                                        {eff.label}
                                                     </button>
                                                 ))}
                                             </div>
-
-                                            {selectedEffect && selectedEffect !== 'custom' && (
-                                                <p className="effect-selected-desc fade-in">
-                                                    {effectOptions.find(e => e.id === selectedEffect)?.desc}
-                                                </p>
-                                            )}
-
                                             {selectedEffect === 'custom' && (
                                                 <div className="observation-field-vec fade-in">
-                                                    <textarea
-                                                        value={userPrompt}
-                                                        onChange={(e) => setUserPrompt(e.target.value)}
-                                                        placeholder="💡 Descreva o que quer vetorizar ou alterar. Ex: 'Logo em azul', 'Apenas o macaco'..."
-                                                        rows={3}
-                                                    />
+                                                    <div className="agent-bubble-vec mb-4">
+                                                        <div className="agent-avatar-vec"><Sparkles size={24} /></div>
+                                                        <div className="agent-text-vec"><p><strong>Gabi:</strong> O que deseja criar?</p></div>
+                                                    </div>
+                                                    <div className="custom-prompt-chat-input-wrapper">
+                                                        <textarea value={userPrompt} onChange={(e) => setUserPrompt(e.target.value)} placeholder="Descreva aqui..." rows={3} className="custom-prompt-textarea" />
+                                                    </div>
                                                 </div>
                                             )}
-
-                                            <button
-                                                className="action-btn-vec primary full mt-4"
-                                                onClick={() => {
-                                                    if (selectedEffect === 'custom') {
-                                                        handleProcess(userPrompt || undefined);
-                                                    } else {
-                                                        const effect = effectOptions.find(e => e.id === selectedEffect);
-                                                        handleProcess(effect?.prompt || undefined);
-                                                    }
-                                                }}
-                                                disabled={!selectedEffect}
-                                            >
-                                                <Wand2 size={20} />
-                                                {resultImage ? 'Aplicar Estilo' : 'Vetorizar Agora'}
+                                            <button className="action-btn-vec primary full mt-4" onClick={() => handleProcess(selectedEffect === 'custom' ? userPrompt : effectOptions.find(e => e.id === selectedEffect)?.prompt)} disabled={!selectedEffect}>
+                                                <Wand2 size={20} /> {resultImage ? 'Aplicar' : 'Vetorizar'}
                                             </button>
                                         </div>
                                     )}
@@ -503,16 +285,16 @@ const Vetorizador: React.FC = () => {
                         </div>
                     )}
                 </div>
-            </div>
 
-            {isAgentOpen && (
-                <DesignAgent
-                    currentImage={resultImage}
-                    onSendMessage={handleProcess}
-                    isProcessing={status === 'processing'}
-                    onClose={() => setIsAgentOpen(false)}
-                />
-            )}
+                {isAgentOpen && (
+                    <DesignAgent
+                        currentImage={resultImage}
+                        onSendMessage={handleProcess}
+                        isProcessing={status === 'processing'}
+                        onClose={() => setIsAgentOpen(false)}
+                    />
+                )}
+            </div>
         </div>
     );
 };

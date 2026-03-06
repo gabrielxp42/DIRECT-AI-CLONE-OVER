@@ -46,6 +46,13 @@ const Layout = () => {
   const [isCalculatorOpen, setIsCalculatorOpen] = React.useState(false);
   const [isVetorizadorOpen, setIsVetorizadorOpen] = React.useState(false);
 
+  // Listen for open-vetorizador event (e.g. from GiftVetorizaModal)
+  React.useEffect(() => {
+    const handler = () => setIsVetorizadorOpen(true);
+    window.addEventListener('open-vetorizador', handler);
+    return () => window.removeEventListener('open-vetorizador', handler);
+  }, []);
+
   // Ativar sincronização em tempo real (Supabase Realtime)
   useRealtimeSync();
 

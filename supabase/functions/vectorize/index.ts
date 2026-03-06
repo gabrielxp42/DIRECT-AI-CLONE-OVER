@@ -201,15 +201,17 @@ Deno.serve(async (req: Request) => {
         };
 
         const cost = prompt ? COSTS["edit"] : (COSTS[model as string] || COSTS["standard"]);
+        console.log(`[vectorize] Attempting credit deduction for user ${user.id}. Cost: ${cost}`);
 
         try {
-            const { error: deductionError } = await supabaseAdmin.rpc('deduct_ai_credits', {
+            const { data: deductionData, error: deductionError } = await supabaseAdmin.rpc('deduct_ai_credits', {
                 p_user_id: user.id,
                 p_amount: cost
             });
 
             if (deductionError) {
-                if (deductionError.message.includes('Insufficient Credits')) {
+                console.error("[vectorize] RPC deductionError:", JSON.stringify(deductionError));
+                if (deductionError.message?.includes('Insufficient Credits')) {
                     return new Response(
                         JSON.stringify({
                             error: "Créditos insuficientes. Por favor, recarregue para continuar.",
@@ -220,10 +222,14 @@ Deno.serve(async (req: Request) => {
                 }
                 throw deductionError;
             }
+            console.log(`[vectorize] Credit deduction successful for ${user.id}`);
         } catch (err: any) {
-            console.error("[vectorize] Credit deduction error:", err);
+            console.error("[vectorize] Credit deduction critical error:", err);
             return new Response(
-                JSON.stringify({ error: "Erro ao processar cobrança de créditos." }),
+                JSON.stringify({
+                    error: "Erro ao processar cobrança de créditos.",
+                    debug: err.message
+                }),
                 { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
             );
         }
