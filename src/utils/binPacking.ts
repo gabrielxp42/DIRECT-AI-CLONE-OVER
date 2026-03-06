@@ -32,9 +32,91 @@ interface Rect {
 }
 
 /**
- * Função de empacotamento em Prateleira (Shelf Packing) com Centralização Automática.
- * Garante o alinhamento em "linhas" horizontais para facilitar o corte em guilhotina,
- * agrupando as sobras de forma igualitária (esq/dir).
+ * Arredonda valores para evitar erros de ponto flutuante que quebram a heurística geométrica (ex: 10.200000000000001)
+ */
+function roundFloat(val: number): number {
+    return Math.round(val * 1000) / 1000;
+}
+
+/**
+ * Divide um retângulo livre em retângulos menores (sem a área consumida)
+ */
+function splitFreeNode(freeNode: Rect, usedNode: Rect): Rect[] {
+    const results: Rect[] = [];
+
+    // Se não há intersecção, o nó livre permanece intacto
+    if (usedNode.x >= freeNode.x + freeNode.w || usedNode.x + usedNode.w <= freeNode.x ||
+        usedNode.y >= freeNode.y + freeNode.h || usedNode.y + usedNode.h <= freeNode.y) {
+        return [freeNode];
+    }
+
+    // Parte de cima
+    if (usedNode.y > freeNode.y && usedNode.y < freeNode.y + freeNode.h) {
+        results.push({
+            x: freeNode.x,
+            y: freeNode.y,
+            w: freeNode.w,
+            h: roundFloat(usedNode.y - freeNode.y)
+        });
+    }
+
+    // Parte de baixo
+    if (usedNode.y + usedNode.h < freeNode.y + freeNode.h) {
+        results.push({
+            x: freeNode.x,
+            y: roundFloat(usedNode.y + usedNode.h),
+            w: freeNode.w,
+            h: roundFloat(freeNode.y + freeNode.h - (usedNode.y + usedNode.h))
+        });
+    }
+
+    // Parte da esquerda
+    if (usedNode.x > freeNode.x && usedNode.x < freeNode.x + freeNode.w) {
+        results.push({
+            x: freeNode.x,
+            y: freeNode.y,
+            w: roundFloat(usedNode.x - freeNode.x),
+            h: freeNode.h
+        });
+    }
+
+    // Parte da direita
+    if (usedNode.x + usedNode.w < freeNode.x + freeNode.w) {
+        results.push({
+            x: roundFloat(usedNode.x + usedNode.w),
+            y: freeNode.y,
+            w: roundFloat(freeNode.x + freeNode.w - (usedNode.x + usedNode.w)),
+            h: freeNode.h
+        });
+    }
+
+    return results;
+}
+
+/**
+ * Remove retângulos livres que estão 100% contidos em outros retângulos livres (limpeza)
+ */
+function pruneFreeList(freeRects: Rect[]): Rect[] {
+    const EPSILON = 0.001; // Tolerância para flutuantes
+    return freeRects.filter((rectA, i) => {
+        for (let j = 0; j < freeRects.length; j++) {
+            if (i === j) continue;
+            const rectB = freeRects[j];
+            // Verifica se A está contido em B com pequena tolerância
+            if (rectA.x >= rectB.x - EPSILON && rectA.y >= rectB.y - EPSILON &&
+                rectA.x + rectA.w <= rectB.x + rectB.w + EPSILON &&
+                rectA.y + rectA.h <= rectB.y + rectB.h + EPSILON) {
+                return false;
+            }
+        }
+        return true;
+    });
+}
+
+/**
+ * Função de empacotamento em 2D com Heurística Bottom-Left (MaxRects adaptado).
+ * Encaixa os itens preenchendo o espaço disponível mais abaixo (menor Y) possível.
+ * HMR BUSTER: ${Date.now()}
  */
 export function packItems2D(
     usableWidth: number,
@@ -52,39 +134,14 @@ export function packItems2D(
         }
     });
 
-    let currentX = 0;
-    let shelfY = 0;
-    let currentShelfHeight = 0;
-    let lastOriginalIndex = -1;
+    let freeRects: Rect[] = [{ x: 0, y: 0, w: usableWidth, h: 9999999 }];
     let contentWidth = 0;
-
-    let currentShelfItems: any[] = [];
-
-    const flushShelf = () => {
-        if (currentShelfItems.length === 0) return;
-
-        const shelfWidth = currentX;
-        contentWidth = Math.max(contentWidth, shelfWidth);
-        const slack = usableWidth - shelfWidth;
-        const offsetX = Math.max(0, slack / 2); // Centraliza na prateleira
-
-        currentShelfItems.forEach(i => {
-            placedItems.push({
-                ...i,
-                x: i.x + offsetX,
-                y: shelfY
-            });
-        });
-
-        shelfY += currentShelfHeight + separation;
-        currentX = 0;
-        currentShelfHeight = 0;
-        currentShelfItems = [];
-    };
+    let totalHeightCm = 0;
 
     expandedItems.forEach((item) => {
-        let pw = item.width;
-        let ph = item.height;
+        let pw = Number(item.width) || 0;
+        let ph = Number(item.height) || 0;
+        const sep = Number(separation) || 0;
         let rotated = false;
         let isOverflowing = false;
 
@@ -98,38 +155,61 @@ export function packItems2D(
             } else {
                 isOverflowing = true;
                 totalItemsOverflowing++;
+                return; // Pula este item pois ele não cabe de forma alguma
             }
         }
 
-        const widthNeeded = currentX === 0 ? pw : pw + separation;
-        const changedLogo = lastOriginalIndex !== -1 && item.originalIndex !== lastOriginalIndex;
+        let bestNodeIndex = -1;
+        let bestY = Infinity;
+        let bestX = Infinity;
 
-        if ((currentX + widthNeeded > usableWidth && currentX > 0) || (changedLogo && currentX > 0)) {
-            flushShelf();
+        // Heurística Bottom-Left: Menor Y primeiro, em caso de empate, Menor X.
+        for (let i = 0; i < freeRects.length; i++) {
+            const fr = freeRects[i];
+            // Se o espaço livre for maior ou igual (com tolerância EPSILON)
+            if (fr.w >= pw - 0.001 && fr.h >= ph - 0.001) {
+                if (fr.y < bestY - 0.001 || (Math.abs(fr.y - bestY) <= 0.001 && fr.x < bestX)) {
+                    bestNodeIndex = i;
+                    bestY = fr.y;
+                    bestX = fr.x;
+                }
+            }
         }
 
-        lastOriginalIndex = item.originalIndex;
-        const finalX = currentX === 0 ? 0 : currentX + separation;
+        if (bestNodeIndex === -1) {
+            totalItemsOverflowing++;
+            return;
+        }
 
-        currentShelfItems.push({
+        placedItems.push({
             ...item,
-            x: finalX,
+            x: bestX,
+            y: bestY,
             packWidth: pw,
             packHeight: ph,
             rotated,
-            isOverflowing
+            isOverflowing: false
         });
 
-        currentX = finalX + pw;
-        if (ph > currentShelfHeight) {
-            currentShelfHeight = ph;
+        contentWidth = Math.max(contentWidth, bestX + pw);
+        totalHeightCm = Math.max(totalHeightCm, bestY + ph);
+
+        // O rect que consome espaço precisa incluir a margem de separação
+        const usedNode: Rect = {
+            x: bestX,
+            y: bestY,
+            w: pw + sep,
+            h: ph + sep
+        };
+
+        // Atualiza a lista de espaços livres dividindo-os com o espaço recém-usado
+        let newFreeRects: Rect[] = [];
+        for (const fr of freeRects) {
+            newFreeRects = newFreeRects.concat(splitFreeNode(fr, usedNode));
         }
+
+        freeRects = pruneFreeList(newFreeRects);
     });
-
-    // Despejar os últimos itens
-    flushShelf();
-
-    let totalHeightCm = shelfY > 0 ? shelfY - separation : 0;
 
     return {
         totalHeightCm,
