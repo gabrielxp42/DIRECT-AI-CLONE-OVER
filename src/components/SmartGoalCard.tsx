@@ -73,6 +73,14 @@ export const SmartGoalCard = ({ stats }: { stats: any }) => {
                 setCelebrationMilestone(milestone);
             }
         }
+
+        // NOVO: Trigger surpresa de branding para todos
+        const hasSeenSurprise = localStorage.getItem('acknowledged_milestone_branding_surprise_v2') ||
+            serverCompletedTours.includes('milestone:branding_surprise_v2');
+
+        if (!hasSeenSurprise && profile.subscription_status === 'active') {
+            setIsGiftOpen(true);
+        }
     }, [stats, profile]);
 
     // Timer do Flash Goal
@@ -166,7 +174,7 @@ export const SmartGoalCard = ({ stats }: { stats: any }) => {
     };
 
     const handleCloseGift = () => {
-        persistMilestone('white_label_unlock', 'growth', 100);
+        persistMilestone('branding_surprise_v2', 'growth', 0);
         // Force branding unlock in local storage so settings can enable it immediately
         localStorage.setItem('branding_feature_unlocked', 'true');
         setIsGiftOpen(false);

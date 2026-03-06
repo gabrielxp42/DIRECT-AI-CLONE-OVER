@@ -70,11 +70,11 @@ export const GiftUnlockModal = ({ isOpen, onClose, userName }: GiftUnlockModalPr
 
                                     <div className="space-y-4">
                                         <h2 className="text-4xl font-black text-white uppercase italic tracking-tighter leading-none">
-                                            UM PRESENTE POR <br />
-                                            <span className="text-primary italic">100 CLIENTES</span>!
+                                            UM PRESENTE <br />
+                                            <span className="text-primary italic">PARA VOCÊ</span>!
                                         </h2>
                                         <p className="text-zinc-400 font-medium max-w-sm mx-auto">
-                                            {userName}, você atingiu a marca de 100 clientes cadastrados! O sistema agora é 100% a sua cara.
+                                            {userName}, você acaba de ganhar um presente especial! O sistema agora é 100% a sua cara com personalização liberada.
                                         </p>
                                     </div>
 
@@ -95,10 +95,10 @@ export const GiftUnlockModal = ({ isOpen, onClose, userName }: GiftUnlockModalPr
                                                     <Palette className="w-8 h-8" />
                                                 </div>
                                                 <h2 className="text-3xl font-black text-white uppercase tracking-tighter">
-                                                    PERSONALIZAÇÃO LIBERADA!
+                                                    ESSE É O NOSSO JEITO!
                                                 </h2>
                                                 <p className="text-zinc-400 text-sm max-w-sm">
-                                                    Agora o sistema é 100% seu. Troque as cores, coloque sua logo e domine o mercado com sua identidade.
+                                                    Como agradecimento por sua parceria, liberamos a personalização completa. Escolha suas cores, sua logo e domine o mercado!
                                                 </p>
                                             </div>
 

@@ -40,7 +40,9 @@ import {
     Send,
     Brain,
     Wallet,
-    Smartphone
+    Smartphone,
+    Sparkles,
+    Pencil
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { toast } from 'sonner';
@@ -101,6 +103,7 @@ type AdminProfile = {
     is_vetoriza_ai_gifted_viewed?: boolean;
     trial_days?: number;
     completed_tours?: string[] | null;
+    ai_credits?: number;
 };
 
 type GlobalStats = {
@@ -168,6 +171,7 @@ export default function Admin() {
     const [userStats, setUserStats] = useState<{ pedidos: number, clientes: number } | null>(null);
     const [loadingStats, setLoadingStats] = useState(false);
     const [evolutionStatus, setEvolutionStatus] = useState<'idle' | 'online' | 'error'>('idle');
+    const [isEditingCredits, setIsEditingCredits] = useState(false);
 
     const fetchUserStats = async (userId: string) => {
         setLoadingStats(true);
@@ -427,9 +431,11 @@ export default function Admin() {
             partner_code: user.partner_code || '',
             trial_days: initialTrialDays,
             is_vetoriza_ai_gifted: user.is_vetoriza_ai_gifted || false,
-            is_vetoriza_ai_gifted_viewed: user.is_vetoriza_ai_gifted_viewed || false
+            is_vetoriza_ai_gifted_viewed: user.is_vetoriza_ai_gifted_viewed || false,
+            ai_credits: user.ai_credits || 0
         });
-        fetchUserStats(user.id);
+        setUserStats(null);
+        setIsEditingCredits(false);
         setIsDetailOpen(true);
     };
 
@@ -1450,6 +1456,52 @@ export default function Admin() {
                                     <span className="text-2xl font-black italic text-orange-700 dark:text-orange-400 leading-none">
                                         {loadingStats ? <RefreshCw className="animate-spin inline" size={16} /> : userStats?.clientes || 0}
                                     </span>
+                                </div>
+                                <div className="p-3 rounded-2xl bg-purple-50 dark:bg-purple-900/10 border border-purple-100 dark:border-purple-900/20 text-center col-span-2 relative group-hover:block">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-purple-500 block mb-1 flex items-center justify-center gap-1">
+                                        <Sparkles size={10} /> Créditos Vetoriza AI
+                                    </span>
+                                    {isEditingCredits ? (
+                                        <div className="flex items-center justify-center gap-2">
+                                            <Input
+                                                type="number"
+                                                className="w-24 h-8 text-center font-black italic text-lg rounded-lg border-purple-300"
+                                                value={editForm.ai_credits || 0}
+                                                onChange={(e) => setEditForm(p => ({ ...p, ai_credits: Number(e.target.value) }))}
+                                                autoFocus
+                                                onBlur={() => setIsEditingCredits(false)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') setIsEditingCredits(false);
+                                                    if (e.key === 'Escape') {
+                                                        setEditForm(p => ({ ...p, ai_credits: selectedUser?.ai_credits || 0 }));
+                                                        setIsEditingCredits(false);
+                                                    }
+                                                }}
+                                            />
+                                            <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                className="h-8 w-8 p-0 text-purple-600 hover:bg-purple-100"
+                                                onClick={() => setIsEditingCredits(false)}
+                                            >
+                                                <Check size={16} />
+                                            </Button>
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center justify-center gap-2 relative group">
+                                            <span className="text-2xl font-black italic text-purple-700 dark:text-purple-400 leading-none">
+                                                {editForm.ai_credits !== undefined ? editForm.ai_credits : (selectedUser?.ai_credits || 0)}
+                                            </span>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-6 w-6 text-purple-400 hover:text-purple-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                onClick={() => setIsEditingCredits(true)}
+                                            >
+                                                <Pencil size={12} />
+                                            </Button>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )}

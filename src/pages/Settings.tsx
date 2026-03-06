@@ -205,13 +205,7 @@ export default function Settings() {
     };
 
 
-    const isBrandingUnlocked = !!(
-        companyProfile?.company_logo_url ||
-        (companyProfile?.company_primary_color && companyProfile.company_primary_color !== '#FFF200') ||
-        (typeof localStorage !== 'undefined' && localStorage.getItem('branding_feature_unlocked') === 'true') ||
-        session?.user?.email?.includes('dtagudos') ||
-        session?.user?.email?.includes('gabriel')
-    );
+    const isBrandingUnlocked = true;
 
     const {
         isTourOpen,
@@ -471,32 +465,7 @@ export default function Settings() {
                         </div>
                     </CardHeader>
                     <CardContent className="pt-6 relative">
-                        {!isBrandingUnlocked && (
-                            <div className="absolute inset-0 z-10 bg-background/60 backdrop-blur-[2px] flex items-center justify-center p-6 text-center">
-                                <div className="max-w-xs space-y-4 animate-in fade-in zoom-in duration-500">
-                                    <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                                        <Lock className="w-6 h-6 text-primary" />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <h4 className="font-bold text-sm uppercase italic">Recurso Bloqueado</h4>
-                                        <p className="text-[10px] text-muted-foreground leading-relaxed">
-                                            Venda mais para liberar! A personalização visual é um prêmio para usuários elite.
-                                            <br />
-                                            <span className="text-primary font-bold">Meta: 100 Clientes</span>
-                                        </p>
-                                    </div>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-8 text-[10px] border-primary/20 bg-primary/5 font-bold uppercase"
-                                        onClick={() => window.location.href = '/'}
-                                    >
-                                        Ver meu progresso
-                                    </Button>
-                                </div>
-                            </div>
-                        )}
-                        <div className={cn("flex flex-col sm:flex-row items-center gap-6", !isBrandingUnlocked && "opacity-20 grayscale pointer-events-none")}>
+                        <div className="flex flex-col sm:flex-row items-center gap-6">
                             <div
                                 className="w-16 h-16 rounded-xl border shadow-inner transition-colors duration-300"
                                 style={{ backgroundColor: formData.company_primary_color || '#FFF200' }}
@@ -545,20 +514,14 @@ export default function Settings() {
                 {/* Logo Section */}
                 <Card id="company-logo-section" className="border-border/50 shadow-sm overflow-hidden">
                     <CardHeader className="pb-4 bg-muted/30">
-                        <div className="flex items-center justify-between">
-                            <StepBadge
-                                step={2}
-                                title="Identidade Visual"
-                                explanation="Sua marca aparecerá no topo de todos os PDFs e notas gerados."
-                            />
-                            {!isBrandingUnlocked && <Lock className="w-4 h-4 text-muted-foreground" />}
-                        </div>
+                        <StepBadge
+                            step={2}
+                            title="Identidade Visual"
+                            explanation="Sua marca aparecerá no topo de todos os PDFs e notas gerados."
+                        />
                     </CardHeader>
-                    <CardContent className="pt-6 relative">
-                        {!isBrandingUnlocked && (
-                            <div className="absolute inset-0 z-10 bg-background/20 backdrop-blur-[1px] pointer-events-none" />
-                        )}
-                        <div className={cn("flex flex-col sm:flex-row items-center gap-6", !isBrandingUnlocked && "opacity-20 grayscale pointer-events-none")}>
+                    <CardContent className="pt-6">
+                        <div className="flex flex-col sm:flex-row items-center gap-6">
                             {/* Logo Preview */}
                             <div className={cn(
                                 "relative w-28 h-28 rounded-2xl border-2 border-dashed flex items-center justify-center overflow-hidden",
@@ -1058,6 +1021,6 @@ export default function Settings() {
                 />
             </div>
 
-        </div>
+        </div >
     );
 }

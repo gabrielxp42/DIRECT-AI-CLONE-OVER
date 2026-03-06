@@ -20,7 +20,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { Wallet, Search, Loader2, Plus, ArrowDownLeft, ArrowUpRight, RefreshCw, Truck } from 'lucide-react';
+import { Wallet, Search, Loader2, Plus, ArrowDownLeft, ArrowUpRight, RefreshCw, Truck, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { Textarea } from '@/components/ui/textarea';
 
@@ -45,7 +45,7 @@ export function AdminWalletManager() {
     const [users, setUsers] = useState<UserWalletInfo[]>([]);
     const [selectedUser, setSelectedUser] = useState<UserWalletInfo | null>(null);
     const [amount, setAmount] = useState('');
-    const [balanceType, setBalanceType] = useState<'superfrete' | 'frenet'>('superfrete');
+    const [balanceType, setBalanceType] = useState<'superfrete' | 'frenet' | 'ai_credits'>('superfrete');
     const [description, setDescription] = useState('');
     const [isSearching, setIsSearching] = useState(false);
     const [isAdding, setIsAdding] = useState(false);
@@ -159,12 +159,12 @@ export function AdminWalletManager() {
             {/* Coluna 1: Busca + Lista de Usuários */}
             <Card className="lg:col-span-1 shadow-2xl rounded-[2rem] overflow-hidden border-none bg-white dark:bg-zinc-900/50 backdrop-blur-xl">
                 <CardHeader className="p-6 border-b border-zinc-100 dark:border-zinc-800">
-                    <CardTitle className="text-lg font-black uppercase italic tracking-tighter flex items-center gap-2">
-                        <Wallet className="h-5 w-5 text-primary" />
-                        Carteira de Logística
+                    <CardTitle className="text-lg font-black uppercase italic tracking-tighter flex items-center gap-2 text-purple-600">
+                        <Sparkles className="h-5 w-5" />
+                        Gestão de Saldos & Créditos AI
                     </CardTitle>
                     <CardDescription className="text-xs font-medium">
-                        Busque um usuário para gerenciar o saldo.
+                        Gerencie saldo de logística e créditos do Vetoriza AI.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="p-4 space-y-4">
