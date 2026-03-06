@@ -22,6 +22,7 @@ import {
 import { useSession } from '@/contexts/SessionProvider';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { CreditsShopModal } from './CreditsShopModal';
+import { cn } from '@/lib/utils';
 import '@/pages/Vetorizador.css';
 
 interface VetorizadorModalProps {
@@ -40,7 +41,7 @@ export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({ isOpen, onCl
     const [selectedModel, setSelectedModel] = useState<'standard' | 'pro'>('standard');
     const [dragActive, setDragActive] = useState(false);
     const [userPrompt, setUserPrompt] = useState('');
-    const [selectedEffect, setSelectedEffect] = useState<string | null>(null);
+    const [selectedEffect, setSelectedEffect] = useState<string | null>('vectorize');
     const [inlinePrompt, setInlinePrompt] = useState('');
     const [aiCredits, setAiCredits] = useState<number>(0);
     const [isShopOpen, setIsShopOpen] = useState(false); // Existing state for shop visibility
@@ -397,7 +398,7 @@ export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({ isOpen, onCl
                                         <div className="preview-card-vec active">
                                             <div className="card-header-vec">
                                                 <span className="card-tag-vec">
-                                                    {status === 'processing' ? 'Processando IA...' : status === 'done' ? 'Resultado Final' : 'Imagem Original'}
+                                                    {(status as string) === 'processing' ? 'Processando IA...' : (status as string) === 'done' ? 'Resultado Final' : 'Imagem Original'}
                                                 </span>
                                                 {(status === 'idle' || status === 'done') && (
                                                     <button
@@ -455,7 +456,7 @@ export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({ isOpen, onCl
                                                             <Sparkles size={24} />
                                                         </div>
                                                         <div className="agent-text-vec">
-                                                            {status === 'processing' ? (
+                                                            {(status as string) === 'processing' ? (
                                                                 <p className="flex items-center gap-2">
                                                                     <Loader2 className="animate-spin" size={16} />
                                                                     <strong>Gabi:</strong> Um momento...
@@ -472,9 +473,9 @@ export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({ isOpen, onCl
                                                             value={inlinePrompt}
                                                             onChange={(e) => setInlinePrompt(e.target.value)}
                                                             placeholder="Diga à Gabi o que ajustar..."
-                                                            disabled={status === 'processing'}
+                                                            disabled={(status as string) === 'processing'}
                                                         />
-                                                        <button type="submit" disabled={!inlinePrompt.trim() || status === 'processing'}>
+                                                        <button type="submit" disabled={!inlinePrompt.trim() || (status as string) === 'processing'}>
                                                             <Send size={18} />
                                                         </button>
                                                     </form>
@@ -524,15 +525,22 @@ export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({ isOpen, onCl
                                                                     placeholder="Ex: 'Um logotipo minimalista de uma cafeteria com um grão de café estilizado em tons de marrom e dourado'"
                                                                     rows={3}
                                                                     className="custom-prompt-textarea"
-                                                                    disabled={status === 'processing' || status === 'uploading'}
+                                                                    disabled={(status as string) === 'processing' || (status as string) === 'uploading'}
                                                                 />
                                                             </div>
                                                         </div>
                                                     )}
 
                                                     <button
-                                                        className="action-btn-vec primary full mt-4"
+                                                        className={cn(
+                                                            "action-btn-vec primary full mt-4 relative group",
+                                                            !selectedEffect && "opacity-50 cursor-not-allowed"
+                                                        )}
                                                         onClick={() => {
+                                                            if (!selectedEffect) {
+                                                                toast.error("Por favor, selecione um estilo antes de continuar.");
+                                                                return;
+                                                            }
                                                             if (selectedEffect === 'custom') {
                                                                 handleProcess(userPrompt || undefined);
                                                             } else {
@@ -540,10 +548,15 @@ export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({ isOpen, onCl
                                                                 handleProcess(effect?.prompt || undefined);
                                                             }
                                                         }}
-                                                        disabled={!selectedEffect || status === 'processing'}
+                                                        disabled={(status as string) === 'processing'}
                                                     >
                                                         <Wand2 size={20} />
                                                         {resultImage ? 'Aplicar Estilo' : 'VETORIZAR AGORA'}
+                                                        {!selectedEffect && (
+                                                            <span className="absolute -top-12 left-1/2 -translate-x-1/2 bg-zinc-900 text-white text-[10px] py-1 px-3 rounded-lg border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                                                                Selecione um estilo acima
+                                                            </span>
+                                                        )}
                                                     </button>
                                                 </div>
                                             )}
