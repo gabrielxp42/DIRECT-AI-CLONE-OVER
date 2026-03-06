@@ -390,25 +390,31 @@
         left: 0.75rem;
         right: 0.75rem;
         display: flex;
-        justify-content: space-between;
+        justify-content: flex-start;
         align-items: center;
-        width: calc(100% - 1.5rem);
+        width: auto;
     }
 
     .reset-btn-mobile-vec {
-        background: rgba(255, 255, 255, 0.1);
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        color: white;
-        padding: 0.4rem 0.8rem;
-        border-radius: 999px;
-        font-size: 0.7rem;
-        font-weight: 700;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: rgba(255, 255, 255, 0.6);
+        padding: 0.5rem 1rem;
+        border-radius: 0.75rem;
+        font-size: 0.75rem;
+        font-weight: 600;
         display: flex;
         align-items: center;
-        gap: 0.4rem;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
+        justify-content: center;
+        gap: 0.5rem;
+        width: fit-content;
+        margin: 0 auto 0.5rem auto;
+        transition: all 0.2s;
+    }
+
+    .reset-btn-mobile-vec:active {
+        background: rgba(255, 255, 255, 0.1);
+        transform: scale(0.98);
     }
 
     .preview-split-right {

@@ -409,15 +409,6 @@ export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({ isOpen, onCl
                                                         <RotateCcw size={16} />
                                                     </button>
                                                 )}
-                                                {(status === 'idle' || status === 'done') && (
-                                                    <button
-                                                        className="reset-btn-mobile-vec md:hidden absolute top-3 right-3 z-20"
-                                                        onClick={handleReset}
-                                                    >
-                                                        <RotateCcw size={14} />
-                                                        <span>Trocar Imagem</span>
-                                                    </button>
-                                                )}
                                             </div>
                                             <div className="card-image-vec">
                                                 {(status === 'processing' || status === 'uploading') && !resultImage ? (
@@ -441,6 +432,17 @@ export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({ isOpen, onCl
                                                 )}
                                             </div>
                                         </div>
+
+                                        {/* MOBILE RESET BUTTON (NEW POSITION) */}
+                                        {(status === 'idle' || status === 'done') && (
+                                            <button
+                                                className="reset-btn-mobile-vec md:hidden"
+                                                onClick={handleReset}
+                                            >
+                                                <RotateCcw size={14} />
+                                                <span>Trocar Imagem</span>
+                                            </button>
+                                        )}
                                     </div>
 
                                     <div className="preview-split-right">
