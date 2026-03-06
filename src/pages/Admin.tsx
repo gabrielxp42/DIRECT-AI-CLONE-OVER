@@ -100,6 +100,7 @@ type AdminProfile = {
     is_vetoriza_ai_gifted?: boolean;
     is_vetoriza_ai_gifted_viewed?: boolean;
     trial_days?: number;
+    completed_tours?: string[] | null;
 };
 
 type GlobalStats = {
@@ -1573,6 +1574,37 @@ export default function Admin() {
                                             >
                                                 <Star className="w-5 h-5 fill-current" />
                                                 Presentear Vetoriza AI (+150 cr)
+                                            </Button>
+                                        </div>
+                                        <div className="pt-2">
+                                            <Button
+                                                onClick={async () => {
+                                                    if (!selectedUser) return;
+                                                    try {
+                                                        const currentTours = selectedUser.completed_tours || [];
+                                                        const updatedTours = Array.from(new Set([...currentTours, 'milestone:white_label_unlock']));
+
+                                                        const { error: profileError } = await supabase
+                                                            .from('profiles')
+                                                            .update({
+                                                                completed_tours: updatedTours
+                                                            })
+                                                            .eq('id', selectedUser.id);
+
+                                                        if (profileError) throw profileError;
+
+                                                        toast.success("Personalização de Cores (Branding) liberada!");
+                                                        setIsDetailOpen(false);
+                                                        fetchData();
+                                                    } catch (err: any) {
+                                                        toast.error("Erro ao liberar branding: " + err.message);
+                                                    }
+                                                }}
+                                                variant="outline"
+                                                className="w-full h-12 border-2 border-dashed border-primary/30 hover:border-primary/60 hover:bg-primary/5 text-primary font-black uppercase tracking-widest rounded-2xl transition-all flex items-center justify-center gap-2"
+                                            >
+                                                <Palette className="w-4 h-4" />
+                                                Liberar Branding (Cores)
                                             </Button>
                                         </div>
                                     </div>

@@ -460,15 +460,6 @@ export function WhatsAppConnection() {
                                             )}
                                         </Button>
 
-                                        {!loading && status !== 'connecting' && (
-                                            <button
-                                                onClick={() => handleConnect(true)}
-                                                className="text-[9px] text-zinc-500 hover:text-red-500 uppercase font-bold tracking-tighter transition-colors mt-4 flex items-center gap-2"
-                                            >
-                                                <RefreshCcw className="w-3 h-3" />
-                                                Instância travada? Tentar Reset Total
-                                            </button>
-                                        )}
                                         {status === 'connecting' && (
                                             <div className="flex flex-col items-center space-y-2">
                                                 <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest italic animate-pulse">
@@ -495,6 +486,17 @@ export function WhatsAppConnection() {
                                             </div>
                                         )}
                                     </div>
+                                )}
+
+                                {/* Opção de Reset Total sempre visível se não estiver FULL conectado */}
+                                {!loading && status !== 'connected' && (
+                                    <button
+                                        onClick={() => handleConnect(true)}
+                                        className="text-[9px] text-zinc-500 hover:text-red-500 uppercase font-black tracking-tighter transition-colors mt-2 flex items-center gap-2 group"
+                                    >
+                                        <RefreshCcw className="w-3 h-3 group-hover:rotate-180 transition-transform duration-500" />
+                                        Instância travada ou QR não carrega? Tentar Reset Total
+                                    </button>
                                 )}
                             </div>
                         )}
