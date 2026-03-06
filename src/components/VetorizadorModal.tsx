@@ -402,11 +402,20 @@ export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({ isOpen, onCl
                                                 </span>
                                                 {(status === 'idle' || status === 'done') && (
                                                     <button
-                                                        className="absolute top-5 right-5 z-10 p-2 bg-black/40 hover:bg-black/60 rounded-full text-white/70 hover:text-white transition-all backdrop-blur-md border border-white/10"
+                                                        className="absolute top-5 right-5 z-10 p-2 bg-black/40 hover:bg-black/60 rounded-full text-white/70 hover:text-white transition-all backdrop-blur-md border border-white/10 hidden md:flex"
                                                         onClick={handleReset}
                                                         title="Remover imagem e carregar outra"
                                                     >
                                                         <RotateCcw size={16} />
+                                                    </button>
+                                                )}
+                                                {(status === 'idle' || status === 'done') && (
+                                                    <button
+                                                        className="reset-btn-mobile-vec md:hidden absolute top-3 right-3 z-20"
+                                                        onClick={handleReset}
+                                                    >
+                                                        <RotateCcw size={14} />
+                                                        <span>Trocar Imagem</span>
                                                     </button>
                                                 )}
                                             </div>
