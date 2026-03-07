@@ -1622,11 +1622,11 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                     "absolute inset-y-0 left-0 pointer-events-none z-10 flex transition-all duration-300",
                                                     hoveredField === 'margin' ? "bg-emerald-500/20 shadow-[inset_-10px_0_15px_rgba(16,185,129,0.2)]" : ""
                                                 )}
-                                                    style={{ width: `${((mode === 'quick' ? results.realSideMargin : multiResults.realSideMargin) / rollWidth) * 100}%` }}>
+                                                    style={{ width: `${((mode === 'quick' ? results.realSideMargin : margin) / rollWidth) * 100}%` }}>
                                                     <div className={cn(
                                                         "h-full border-r flex items-center justify-center transition-all",
                                                         hoveredField === 'margin' ? "bg-emerald-500/30 border-emerald-500" : "bg-emerald-500/5 border-emerald-500/10"
-                                                    )} style={{ width: mode === 'quick' ? `${(margin / results.realSideMargin) * 100}%` : `${(margin / multiResults.realSideMargin) * 100}%` }}>
+                                                    )} style={{ width: mode === 'quick' ? `${(margin / results.realSideMargin) * 100}%` : '100%' }}>
                                                         <div className="[writing-mode:vertical-lr] rotate-180 opacity-40">
                                                             <span className={cn("text-[5px] font-bold uppercase tracking-widest", hoveredField === 'margin' ? "text-emerald-900" : "text-emerald-800")}>M. SEG {margin}CM</span>
                                                         </div>
@@ -1636,11 +1636,11 @@ export const DTFCalculatorModal = ({ isOpen, onClose, initialData }: DTFCalculat
                                                     "absolute inset-y-0 right-0 pointer-events-none z-10 flex flex-row-reverse transition-all duration-300",
                                                     hoveredField === 'margin' ? "bg-emerald-500/20 shadow-[inset_10px_0_15px_rgba(16,185,129,0.2)]" : ""
                                                 )}
-                                                    style={{ width: `${((mode === 'quick' ? results.realSideMargin : multiResults.realSideMargin) / rollWidth) * 100}%` }}>
+                                                    style={{ width: `${((mode === 'quick' ? results.realSideMargin : margin) / rollWidth) * 100}%` }}>
                                                     <div className={cn(
                                                         "h-full border-l flex items-center justify-center transition-all",
                                                         hoveredField === 'margin' ? "bg-emerald-500/30 border-emerald-500" : "bg-emerald-500/5 border-emerald-500/10"
-                                                    )} style={{ width: mode === 'quick' ? `${(margin / results.realSideMargin) * 100}%` : `${(margin / multiResults.realSideMargin) * 100}%` }}>
+                                                    )} style={{ width: mode === 'quick' ? `${(margin / results.realSideMargin) * 100}%` : '100%' }}>
                                                         <div className="[writing-mode:vertical-lr] opacity-40">
                                                             <span className={cn("text-[5px] font-bold uppercase tracking-widest", hoveredField === 'margin' ? "text-emerald-900" : "text-emerald-800")}>M. SEG {margin}CM</span>
                                                         </div>

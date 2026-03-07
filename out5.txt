@@ -1,0 +1,14 @@
+Total Height: 32
+Placed Items:
+[id:1] x:0, y:0
+[id:1] x:11, y:0
+[id:1] x:22, y:0
+[id:1] x:33, y:0
+[id:1] x:44, y:0
+[id:1] x:0, y:11
+[id:1] x:11, y:11
+[id:1] x:22, y:11
+[id:1] x:33, y:11
+[id:1] x:44, y:11
+[id:1] x:0, y:22
+[id:1] x:11, y:22

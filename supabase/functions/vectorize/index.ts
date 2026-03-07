@@ -197,7 +197,8 @@ Deno.serve(async (req: Request) => {
         const COSTS: Record<string, number> = {
             "standard": 5,
             "pro": 20,
-            "edit": 5
+            "edit": 5,
+            "bg_removal": 25
         };
 
         const cost = prompt ? COSTS["edit"] : (COSTS[model as string] || COSTS["standard"]);

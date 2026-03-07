@@ -184,35 +184,35 @@ export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({ isOpen, onCl
             label: 'Vetor Clássico',
             icon: <PenTool size={24} />,
             desc: 'Logos limpos, sem fundo, cores chapadas.',
-            prompt: 'improve image quality, recreate as a high-quality vector logo, smooth edges, clean lines, professional finish, high resolution, solid colors, isolated on solid flat background, strictly no noise or pixelation'
+            prompt: 'recreate as a professional high-fidelity 2D vector logo, IGNORE surface textures, wrinkles, shadows or reflections. RECREATE from scratch with perfect geometric shapes and solid flat colors. TIGHT CROP: ensure logo occupies 95% of the frame. HIGH CONTRAST BACKGROUND: Use a background color that contrasts strongly with the logo (e.g., dark for light logos, light for dark logos) to ensure visibility.'
         },
         {
             id: 'embroidery',
             label: 'Efeito Bordado',
             icon: <Layers size={24} />,
             desc: 'Patch 3D realista, linhas detalhadas.',
-            prompt: 'CRIE UM PATCH BORDADO ALTAMENTE DETALHADO DO LOGOTIPO ENVIADO. O PATCH DEVE APRESENTAR COSTURA ELEVADA E TEXTURA DE BORDADO, PROPORCIONANDO UM VISUAL REALISTA EM 3D. MANTENHA AS CORES PRECISAS E AS PROPORÇÕES EXATAS DO LOGOTIPO. APRESENTE O PATCH ISOLADO EM UM FUNDO PNG TRANSPARENTE, SEM NENHUM TECIDO OU SUPERFÍCIE POR TRÁS. FAÇA COM que PAREÇA UM PATCH DE LOGOTIPO PROFISSIONALMENTE PRODUZIDO, PRONTO PARA ROUPAS OU ACESSÓRIOS.'
+            prompt: 'HIGH-DETAILED EMBROIDERED PATCH of the logo. Elevated stitching and 3D texture. TIGHT CROP: logo must occupy 90-95% of the frame. HIGH CONTRAST BACKGROUND for visibility. Isolated on PNG background with no surrounding fabric or surface.'
         },
         {
             id: 'puff',
             label: 'Puff Print',
             icon: <Type size={24} />,
             desc: 'Relevo 3D estilo estampa puff.',
-            prompt: 'convert this design into a 3D puff print on fabric, raised ink, tactile texture, realistic apparel printing, isolated, transparent background, strictly no background'
+            prompt: '3D puff print on fabric, raised ink, tactile texture. TIGHT CROP: occupy 95% of the frame. Isolated, transparent background, strictly no background.'
         },
         {
             id: 'neon',
             label: 'Efeito Neon',
             icon: <Zap size={24} />,
             desc: 'Letreiro neon brilhante realista.',
-            prompt: 'convert this logo into a glowing neon sign, vibrant colors, cinematic lighting, isolated, transparent background, strictly no background'
+            prompt: 'glowing neon sign, vibrant colors, cinematic lighting. TIGHT CROP: occupy 95% of the frame. Isolated, transparent background, strictly no background.'
         },
         {
             id: 'sticker',
             label: 'Adesivo',
             icon: <ImageIcon size={24} />,
             desc: 'Adesivo de vinil com borda branca.',
-            prompt: 'convert this logo into a die-cut vinyl sticker, with a thick white border, glossy finish, flat vector style, isolated, transparent background outside the sticker, strictly no background'
+            prompt: 'die-cut vinyl sticker, thick white border, glossy finish. TIGHT CROP: occupy 95% of the frame. Isolated, transparent background outside the sticker.'
         },
         {
             id: 'custom',
@@ -227,9 +227,16 @@ export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({ isOpen, onCl
         const source = resultImage || originalFile;
         if (!source) return;
 
-        // --- TRAVA DE CRÉDITOS (CLIENT-SIDE) ---
-        const cost = prompt ? 5 : (selectedModel === 'pro' ? 20 : 5);
-        const currentCredits = aiCredits; // Use aiCredits state
+        // --- TABELA DE PREÇOS (Sincronizada com Backend) ---
+        const COSTS = {
+            standard: 5,
+            pro: 20,
+            edit: 5,
+            bg_removal: 25 // Clipping Magic API
+        };
+
+        const cost = prompt ? COSTS.edit : (selectedModel === 'pro' ? COSTS.pro : COSTS.standard);
+        const currentCredits = aiCredits;
 
         if (currentCredits < cost) {
             toast.error(`Saldo insuficiente: você tem ${currentCredits} créditos e precisa de ${cost}.`);

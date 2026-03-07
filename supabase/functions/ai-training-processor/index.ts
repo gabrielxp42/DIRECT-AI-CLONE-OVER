@@ -253,10 +253,12 @@ Deno.serve(async (req: Request) => {
                     const currentTone = currentTraining?.tone_consistency_score || 0;
                     const currentProd = currentTraining?.product_knowledge_score || 0;
 
-                    const newSim = Math.min(100, currentSim + (findings.length > 0 ? 12 : 1));
-                    const newCov = Math.min(100, currentCov + (hasBusinessRule ? 15 : 5) + (hasClientProfile ? 8 : 0));
-                    const newTone = Math.min(100, currentTone + (hasTone ? 18 : 3));
-                    const newProd = Math.min(100, currentProd + (hasProduct ? 14 : 2));
+                    // DRASIC REDUCTION: Slow down the learning curve to ~3-4 months for 100%
+                    // Each batch of 50 messages now gives ~0.3% to ~1.0% instead of 12%+.
+                    const newSim = Math.min(100, currentSim + (findings.length > 0 ? 0.8 : 0.1));
+                    const newCov = Math.min(100, currentCov + (hasBusinessRule ? 1.2 : 0.2) + (hasClientProfile ? 0.5 : 0));
+                    const newTone = Math.min(100, currentTone + (hasTone ? 1.0 : 0.2));
+                    const newProd = Math.min(100, currentProd + (hasProduct ? 1.5 : 0.1));
 
                     await supabase
                         .from('ai_agent_training')
