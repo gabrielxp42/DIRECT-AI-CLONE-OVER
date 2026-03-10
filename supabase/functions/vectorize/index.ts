@@ -180,9 +180,10 @@ Deno.serve(async (req: Request) => {
             );
         }
 
-        const apiKey = profiles && profiles.length > 0 ? profiles[0].kieai_api_key : null;
+        const kieApiKey = profiles && profiles.length > 0 ? profiles[0].kieai_api_key : null;
+        const photoRoomApiKey = Deno.env.get("PHOTOROOM_API_KEY") || "sk_pr_default_2c850c3d2dc4f8fbf08d368bd2902aad52f44444";
 
-        if (!apiKey) {
+        if (!kieApiKey) {
             console.error("[vectorize] No admin API key found in profiles");
             return new Response(
                 JSON.stringify({ error: "Serviço indisponível: Chave API do KIE.AI não configurada pelo administrador." }),
@@ -198,7 +199,7 @@ Deno.serve(async (req: Request) => {
             "standard": 5,
             "pro": 20,
             "edit": 5,
-            "bg_removal": 25
+            "bg_removal": 15 // Updated to 15 credits (R$ 0,75) for better competitiveness 
         };
 
         const cost = prompt ? COSTS["edit"] : (COSTS[model as string] || COSTS["standard"]);
@@ -268,12 +269,91 @@ Deno.serve(async (req: Request) => {
 
         const vectorizationId = vectorization.id;
 
-        // 2. Chamar API KIE.AI
+        // 2. Chamar API Correspondente
+        if (model === "bg_removal") {
+            const photoroomEndpoint = "https://sdk.photoroom.com/v1/segment";
+            console.log(`[vectorize] Calling PhotoRoom for background removal: ${image_url}`);
+
+            try {
+                const response = await fetch(photoroomEndpoint, {
+                    method: "POST",
+                    headers: {
+                        "x-api-key": photoRoomApiKey,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        imageUrl: image_url,
+                        size: "full"
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`PhotoRoom Error (${response.status}): ${errorText}`);
+                }
+
+                // PhotoRoom retorna binário. Vamos salvar no storage.
+                const imageBlob = await response.blob();
+                const fileName = `${user.id}/bg-removed-${Date.now()}.png`;
+
+                const { error: uploadError } = await supabaseAdmin.storage
+                    .from("uploads")
+                    .upload(fileName, imageBlob, {
+                        contentType: 'image/png',
+                        upsert: true
+                    });
+
+                if (uploadError) throw uploadError;
+
+                const { data: publicUrlData } = supabaseAdmin.storage
+                    .from("uploads")
+                    .getPublicUrl(fileName);
+
+                const resultUrl = publicUrlData.publicUrl;
+
+                // Sucesso Síncrono para Remoção de Fundo
+                await supabaseAdmin
+                    .from("vectorizations")
+                    .update({
+                        status: "completed",
+                        result_url: resultUrl,
+                        completed_at: new Date().toISOString(),
+                    })
+                    .eq("id", vectorizationId);
+
+                return new Response(
+                    JSON.stringify({
+                        vectorization_id: vectorizationId,
+                        status: "completed",
+                        result_url: resultUrl,
+                    }),
+                    { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+                );
+
+            } catch (err: any) {
+                console.error(`[vectorize] PhotoRoom failed:`, err);
+                await supabaseAdmin
+                    .from("vectorizations")
+                    .update({
+                        status: "failed",
+                        error_message: err.message,
+                        completed_at: new Date().toISOString(),
+                    })
+                    .eq("id", vectorizationId);
+
+                return new Response(
+                    JSON.stringify({ error: err.message }),
+                    { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+                );
+            }
+        }
+
+        // 3. Chamar API KIE.AI (Vetorização)
         const endpoint = "https://api.kie.ai/api/v1/jobs/createTask";
 
         // Mapear modelo conforme o usuário solicitou ou usar o padrão Edit (que ele indicou no site)
         const targetModel = model === "pro" ? "google/nano-banana-pro" : "google/nano-banana-edit";
-        const defaultPrompt = "vectorize this logo, clean and professional, sharp edges, high resolution";
+        const defaultPrompt = "Isolate the main logo or drawing from the image. Ignore background elements like fabric, shirts, or surrounding objects. Re-vectorize and enhance only the identified artwork, making it perfectly ready for high-quality printing. Ensure sharp edges, high resolution, and a professional clean look. TIGHT CROP. TRANSPARENT BACKGROUND.";
 
         let resultUrl: string | null = null;
         let kieError: string | null = null;
@@ -285,7 +365,7 @@ Deno.serve(async (req: Request) => {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
-                    "Authorization": `Bearer ${apiKey}`,
+                    "Authorization": `Bearer ${kieApiKey}`,
                 },
                 body: JSON.stringify({
                     model: targetModel,
