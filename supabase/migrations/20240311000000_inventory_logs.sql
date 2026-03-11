@@ -52,7 +52,7 @@ BEGIN
                 OLD.quantidade_atual,
                 NEW.quantidade_atual,
                 NEW.user_id,
-                NEW.organization_id,
+                NULL,
                 'Atualização automática via sistema'
             );
         END IF;
