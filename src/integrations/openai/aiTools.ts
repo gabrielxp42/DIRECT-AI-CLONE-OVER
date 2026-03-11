@@ -1359,7 +1359,7 @@ const findClientWithMultipleStrategies = async (clientName: string) => {
     try {
       console.log(`📍 [findClient] Tentativa 1: Busca FUZZY via RPC para "${normalizedClientName}"`);
       const { data: response, error } = await supabase.rpc('find_client_by_fuzzy_name', {
-        search_name: normalizedClientName,
+        partial_name: normalizedClientName,
         p_organization_id: ctx.organization_id
       });
 
@@ -2423,7 +2423,9 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
     // Caso contrário, informamos ao assistente os múltiplos nomes para ele pedir clarificação.
 
     let targetClient = foundClients[0];
-    const exactMatch = foundClients.find((c: any) => c.nome.trim().toLowerCase() === clientName.toLowerCase().trim());
+    const exactMatch = foundClients.find((c: any) =>
+      removeAccents(c.nome.toLowerCase()).trim() === removeAccents(clientName.toLowerCase()).trim()
+    );
 
     if (exactMatch) {
       targetClient = exactMatch;
@@ -2684,12 +2686,16 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       }
 
       if (statuses && statuses.length > 0) {
-        const statusList = statuses.map(s => `"${s}"`).join(',');
+        // Map 'pendente' (IA term) to 'aguardando' (DB term)
+        const mappedStatuses = statuses.map(s => s === 'pendente' ? 'aguardando' : s);
+        const statusList = mappedStatuses.map(s => `"${s}"`).join(',');
         queryParams.append('status', `in.(${statusList})`);
       }
 
       if (exclude_statuses && exclude_statuses.length > 0) {
-        const statusList = exclude_statuses.map(s => `"${s}"`).join(',');
+        // Map 'pendente' (IA term) to 'aguardando' (DB term)
+        const mappedExcludes = exclude_statuses.map(s => s === 'pendente' ? 'aguardando' : s);
+        const statusList = mappedExcludes.map(s => `"${s}"`).join(',');
         queryParams.append('status', `not.in.(${statusList})`);
       }
 
@@ -3330,12 +3336,22 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
 
   if (name === "get_order_details_v2") {
     try {
+      const ctx = await getUserContext();
+      if (!ctx) throw new Error("Contexto do usuário não encontrado.");
+
       let finalOrderId = args.orderId;
       if (!finalOrderId && args.orderNumber) {
-        const { data: order } = await supabase.from('pedidos').select('id').eq('order_number', args.orderNumber).single();
+        // SEGURANÇA: Filtrar por organização/usuário para não vazar dados de outros tenants
+        let query = supabase.from('pedidos').select('id').eq('order_number', args.orderNumber);
+        if (ctx.organization_id) {
+          query = query.eq('organization_id', ctx.organization_id);
+        } else {
+          query = query.eq('user_id', ctx.user_id);
+        }
+        const { data: order } = await query.single();
         finalOrderId = order?.id;
       }
-      if (!finalOrderId) throw new Error("ID do pedido não identificado.");
+      if (!finalOrderId) throw new Error("Pedido não encontrado na sua conta. Verifique o número.");
 
       const { data, error } = await supabase.rpc('get_order_details_v2', {
         p_order_id: finalOrderId
