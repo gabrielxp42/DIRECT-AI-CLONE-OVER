@@ -4,9 +4,11 @@ import "./globals.css";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 
 // Log de inicialização para debug de produção
+const startTime = performance.now();
 console.log('🚀 [Main] Starting application...', {
   env: import.meta.env.MODE,
-  version: import.meta.env.VITE_APP_VERSION
+  version: import.meta.env.VITE_APP_VERSION,
+  timestamp: new Date().toISOString()
 });
 
 // Global error handlers for React context
@@ -79,3 +81,5 @@ window.addEventListener('unhandledrejection', (event) => {
 });
 
 createRoot(document.getElementById("root")!).render(<App />);
+
+console.log(`⏱️ [Main] App mounted in ${(performance.now() - startTime).toFixed(2)}ms`);

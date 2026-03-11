@@ -31,8 +31,10 @@ BEGIN
         public.clientes c ON p.cliente_id = c.id
     WHERE 
         (p_status IS NULL OR p.status = p_status)
-        AND (p_user_id IS NULL OR p.user_id = p_user_id)
-        AND (p_organization_id IS NULL OR p.organization_id = p_organization_id)
+        AND (
+            (p_organization_id IS NOT NULL AND p.organization_id = p_organization_id)
+            OR (p_organization_id IS NULL AND p_user_id IS NOT NULL AND p.user_id = p_user_id)
+        )
     ORDER BY 
         p.created_at DESC
     LIMIT p_limit;

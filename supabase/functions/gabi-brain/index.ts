@@ -463,8 +463,13 @@ Dono(a) da Empresa: ${profile?.first_name || 'N/A'}
                             if (error) throw error;
                             result = data;
                         } else if (call.function.name === "update_order_status") {
-                            const { data: order } = await supabase.from('pedidos').select('id').eq('order_number', args.orderNumber).single();
-                            if (!order) throw new Error("Pedido não encontrado.");
+                            let query = supabase.from('pedidos').select('id').eq('order_number', args.orderNumber);
+                            if (orgId) query = query.eq('organization_id', orgId);
+                            else query = query.eq('user_id', userId);
+                            
+                            const { data: order } = await query.single();
+                            if (!order) throw new Error("Pedido não encontrado na sua organização.");
+                            
                             const { data, error } = await supabase.from('pedidos').update({ status: args.newStatus }).eq('id', order.id).select();
                             if (error) throw error;
                             result = data;
@@ -476,10 +481,28 @@ Dono(a) da Empresa: ${profile?.first_name || 'N/A'}
                                 data: { phone: args.phone, message: args.message, link: `https://wa.me/${cleanPhone}?text=${encodedMessage}` }
                             };
                         } else if (call.function.name === "get_client_snapshot") {
-                            const { data: client } = await supabase.from('clientes').select('id, nome, telefone, observacoes').ilike('nome', `%${args.clientName}%`).limit(1).single();
+                            let query = supabase.from('clientes').select('id, nome, telefone, observacoes').ilike('nome', `%${args.clientName}%`);
+                            if (orgId) query = query.eq('organization_id', orgId);
+                            else query = query.eq('user_id', userId);
+                            
+                            const { data: client } = await query.limit(1).single();
                             if (!client) throw new Error("Cliente não encontrado.");
-                            const { data: orders } = await supabase.from('pedidos').select('valor_total, status, created_at').eq('cliente_id', client.id).order('created_at', { ascending: false });
 
+                            // Selecionar pago_at para lógica correta de pendências
+                            let ordersQuery = supabase.from('pedidos').select('valor_total, status, created_at, order_number, pago_at').eq('cliente_id', client.id);
+                            if (orgId) ordersQuery = ordersQuery.eq('organization_id', orgId);
+                            else ordersQuery = ordersQuery.eq('user_id', userId);
+                            
+                            const { data: orders } = await ordersQuery.order('created_at', { ascending: false });
+
+                            // Lógica de Pagamento: Ignorar cancelados, checar se pago_at é nulo
+                            const unpaidOrders = orders?.filter(o => !o.pago_at && o.status !== 'cancelado') || [];
+                            const inProductionOrders = orders?.filter(o => ['processando', 'design', 'queued', 'printing', 'finishing'].includes(o.status)) || [];
+                            
+                            const now = new Date();
+                            const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+                            const ordersThisMonth = orders?.filter(o => new Date(o.created_at) >= firstDayOfMonth) || [];
+                            
                             const totalSpent = orders?.reduce((sum, o) => sum + Number(o.valor_total || 0), 0) || 0;
                             const lastOrderDate = orders && orders.length > 0 ? new Date(orders[0].created_at).toLocaleDateString('pt-BR') : 'N/A';
 
@@ -490,8 +513,13 @@ Dono(a) da Empresa: ${profile?.first_name || 'N/A'}
                                     phone: client.telefone,
                                     total_spent: totalSpent,
                                     total_orders: orders?.length || 0,
+                                    orders_this_month_count: ordersThisMonth.length,
+                                    pending_payments_count: unpaidOrders.length,
+                                    pending_payments_list: unpaidOrders.slice(0, 10).map(o => `Pedido #${o.order_number} (R$ ${Number(o.valor_total).toFixed(2)}) - Status: ${o.status}`),
+                                    in_production_count: inProductionOrders.length,
+                                    in_production_list: inProductionOrders.slice(0, 10).map(o => `Pedido #${o.order_number} (${o.status})`),
                                     last_order: lastOrderDate,
-                                    memory: client.observacoes || 'Sem notas.'
+                                    notes: client.observacoes || 'Sem notas.'
                                 }
                             };
                         } else if (call.function.name === "calculate_dtf_packing") {
@@ -622,12 +650,31 @@ Dono(a) da Empresa: ${profile?.first_name || 'N/A'}
                             const { data, error } = await query;
                             result = error ? error.message : data;
                         } else if (call.function.name === "get_client_orders") {
-                            const { data: client } = await supabase.from('clientes').select('id').ilike('nome', `%${args.clientName}%`).limit(1).single();
+                            let clientQuery = supabase.from('clientes').select('id').ilike('nome', `%${args.clientName}%`);
+                            if (orgId) clientQuery = clientQuery.eq('organization_id', orgId);
+                            else clientQuery = clientQuery.eq('user_id', userId);
+                            
+                            const { data: client } = await clientQuery.limit(1).single();
                             if (!client) throw new Error("Cliente não encontrado.");
-                            const { data: orders } = await supabase.from('pedidos').select('*').eq('cliente_id', client.id).limit(args.limit || 10);
-                            result = orders;
+
+                            let ordersQuery = supabase.from('pedidos').select('*', { count: 'exact' }).eq('cliente_id', client.id);
+                            if (orgId) ordersQuery = ordersQuery.eq('organization_id', orgId);
+                            else ordersQuery = ordersQuery.eq('user_id', userId);
+                            
+                            const limit = args.limit || 100;
+                            const { data: orders, count } = await ordersQuery.order('created_at', { ascending: false }).limit(limit);
+                            
+                            result = {
+                                orders: orders,
+                                total_found: count,
+                                showing: orders?.length,
+                                message: count && count > limit ? `Atenção: Existem ${count} pedidos no total, mas estou mostrando apenas os ${limit} mais recentes por limitação técnica.` : null
+                            };
                         } else if (call.function.name === "search_clients") {
-                            const { data } = await supabase.from('clientes').select('*').ilike('nome', `%${args.query}%`).limit(args.limit || 5);
+                            let query = supabase.from('clientes').select('*').ilike('nome', `%${args.query}%`);
+                            if (orgId) query = query.eq('organization_id', orgId);
+                            else query = query.eq('user_id', userId);
+                            const { data } = await query.limit(args.limit || 10);
                             result = data;
                         } else if (call.function.name === "perform_calculation") {
                             try {

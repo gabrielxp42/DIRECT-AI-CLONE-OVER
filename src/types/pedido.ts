@@ -33,6 +33,7 @@ export interface StatusHistoryItem {
 }
 
 export type PedidoStatus = 'pendente' | 'processando' | 'enviado' | 'entregue' | 'cancelado' | 'pago' | 'aguardando retirada';
+export type ProductionStatus = 'design' | 'queued' | 'printing' | 'finishing' | 'ready';
 
 export interface Pedido {
   id: string;
@@ -57,10 +58,9 @@ export interface Pedido {
   shipping_label_status?: string | null;
   shipping_cep?: string | null;
   shipping_details?: any | null;
+  production_status: ProductionStatus;
   created_at: string;
-
   pago_at: string | null;
-  metodo_pagamento: string | null;
   order_number: number;
   clientes: Cliente;
   pedido_items: PedidoItem[];
@@ -96,15 +96,10 @@ export interface NewPedido {
   total_metros_vinil: number;
   status: PedidoStatus; // Status de pagamento/geral
   pago_at?: string | null;
-  metodo_pagamento?: string | null;
   observacoes?: string;
   tipo_entrega?: 'frete' | 'retirada';
   valor_frete?: number;
   transportadora?: string | null;
-  tracking_code?: string | null;
-  shipping_cep?: string | null;
-  shipping_details?: any | null;
   items: NewPedidoItem[];
-
   servicos?: NewServico[];
 }

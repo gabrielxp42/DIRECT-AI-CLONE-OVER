@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { useAIAssistant } from "@/contexts/AIAssistantProvider";
 import { useCompanyProfile } from "@/hooks/useCompanyProfile";
 import { showSuccess } from "@/utils/toast";
+import { toast } from "sonner";
 import {
     Calculator,
     PlusCircle,
@@ -11,7 +12,12 @@ import {
     Package,
     QrCode,
     ClipboardList,
-    Truck
+    Truck,
+    MessageCircle,
+    Share2,
+    Factory,
+    LineChart,
+    Boxes
 } from "lucide-react";
 import React from "react";
 
@@ -22,8 +28,14 @@ export const SHORTCUT_DEFINITIONS: Record<string, any> = {
     add_insumo: { label: 'Adicionar Insumo', icon: Layers },
     new_cliente: { label: 'Novo Cliente', icon: Users },
     new_produto: { label: 'Novo Produto', icon: Package },
+    shipping: { label: 'Gerar Frete', icon: Truck },
+    whatsapp_config: { label: 'Conexão WhatsApp', icon: MessageCircle },
+    finance: { label: 'Financeiro', icon: LineChart },
+    inventory: { label: 'Estoque', icon: Boxes },
     pix_generator: { label: 'Gerador de PIX', icon: QrCode },
     price_table: { label: 'Tabela de Preços', icon: ClipboardList },
+    catalog: { label: 'Catálogo Digital', icon: Share2 },
+    production: { label: 'Produção', icon: Factory },
     logistics: { label: 'Logística', icon: Truck },
 };
 
@@ -59,14 +71,28 @@ export const useShortcuts = (onOpenCalculator?: () => void) => {
             case 'new_produto':
                 navigate('/produtos', { state: { openForm: true } });
                 break;
+            case 'shipping':
+            case 'whatsapp_config':
+            case 'finance':
+            case 'inventory':
+            case 'logistics':
+                 // Navigation to valid pages usually, but just in case keeping logistics mapped:
+                 if (id === 'logistics' || id === 'shipping') navigate('/logistica');
+                 else if (id === 'whatsapp_config') navigate('/settings', { state: { tab: 'whatsapp' } });
+                 else if (id === 'inventory') navigate('/insumos');
+                 else if (id === 'finance') navigate('/reports');
+                 break;
             case 'pix_generator':
-                showSuccess("Gerador de PIX em breve!");
+                toast.info("Gerador de PIX em breve!");
                 break;
             case 'price_table':
-                showSuccess("Tabela de Preços em breve!");
+                toast.info("Tabela de Preços em breve!");
                 break;
-            case 'logistics':
-                navigate('/logistica');
+            case 'catalog':
+                toast.info("Catálogo em breve!");
+                break;
+            case 'production':
+                toast.info("Modo Operador e Fila de Produção em breve!");
                 break;
             default:
                 console.warn(`No action defined for shortcut: ${id}`);

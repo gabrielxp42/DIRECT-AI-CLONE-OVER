@@ -526,14 +526,25 @@ export const deductInsumosFromPedido = async (pedido: Pedido) => {
       let resolvedTipo = item.tipo;
 
       if (item.produto_id) {
-        const { data: prod } = await supabase.from('produtos').select('id, tipo, produto_insumos(insumo_id, consumo)').eq('id', item.produto_id).single();
+        let qProduct = supabase.from('produtos').select('id, tipo, produto_insumos(insumo_id, consumo)').eq('id', item.produto_id);
+        if (pedido.organization_id) qProduct = qProduct.eq('organization_id', pedido.organization_id);
+        else qProduct = qProduct.eq('user_id', pedido.user_id);
+        
+        const { data: prod } = await qProduct.single();
         if (prod) {
-          temp_insumos.push(...((prod as any).produto_insumos || []));
-          if (prod.tipo) resolvedTipo = prod.tipo;
+          const prodInsumos = (prod as any).produto_insumos || [];
+          if (prodInsumos.length > 0) {
+            temp_insumos.push(...prodInsumos);
+          } else if (prod.tipo) {
+            resolvedTipo = prod.tipo;
+          } else {
+            resolvedTipo = item.tipo;
+          }
         }
       }
 
-      if (resolvedTipo) {
+      // Se não pegou insumo do produto, busca da categoria (tipo)
+      if (temp_insumos.length === 0 && resolvedTipo) {
         let q = supabase.from('tipos_producao').select('id').ilike('nome', resolvedTipo).eq('is_active', true);
         if (pedido.organization_id) q = q.eq('organization_id', pedido.organization_id);
         else q = q.eq('user_id', pedido.user_id);
@@ -545,6 +556,8 @@ export const deductInsumosFromPedido = async (pedido: Pedido) => {
       }
 
       if (temp_insumos.length === 0) continue;
+      
+      // Agrupar e deduzir (Log de Auditoria)
       const grouped = temp_insumos.reduce((acc, curr) => {
         const ex = acc.find(i => i.insumo_id === curr.insumo_id);
         if (ex) ex.consumo += Number(curr.consumo);
@@ -553,16 +566,29 @@ export const deductInsumosFromPedido = async (pedido: Pedido) => {
       }, [] as { insumo_id: string; consumo: number }[]);
 
       for (const pi of grouped) {
-        const { data: ins } = await supabase.from('insumos').select('id, quantidade_atual').eq('id', pi.insumo_id).single();
-        if (!ins) continue;
         const total = Number(pi.consumo) * Number(item.quantidade);
-        const { error: rpcErr } = await supabase.rpc('update_insumo_quantity_atomic', { p_insumo_id: ins.id, p_quantity_change: -total });
+        
+        // Chamada Atômica com Rastreabilidade
+        const { error: rpcErr } = await supabase.rpc('update_insumo_quantity_atomic', { 
+          p_insumo_id: pi.insumo_id, 
+          p_quantity_change: -total,
+          p_pedido_id: pedido.id,
+          p_observacao: `Dedução de estoque - Pedido #${pedido.order_number}`
+        });
+
         if (rpcErr) {
-          await supabase.from('insumos').update({ quantidade_atual: (ins.quantidade_atual || 0) - total }).eq('id', ins.id);
+          console.error(`[Inventory] Falha no RPC Atômico para insumo ${pi.insumo_id}. Fallback para update simples.`, rpcErr);
+          // Fallback minimalista (menos seguro, mas mantém sistema rodando se RPC sumir)
+          const { data: ins } = await supabase.from('insumos').select('quantidade_atual').eq('id', pi.insumo_id).single();
+          if (ins) {
+            await supabase.from('insumos').update({ 
+              quantidade_atual: (ins.quantidade_atual || 0) - total 
+            }).eq('id', pi.insumo_id);
+          }
         }
       }
     }
-  } catch (err) { console.error('[Inventory] Erro no abate:', err); }
+  } catch (err) { console.error('[Inventory] Erro crítico no abate:', err); }
 };
 
 export const restoreInsumosFromPedido = async (pedido: Pedido) => {
@@ -573,13 +599,23 @@ export const restoreInsumosFromPedido = async (pedido: Pedido) => {
       const temp_insumos: { insumo_id: string; consumo: number }[] = [];
       let resolvedTipo = item.tipo;
       if (item.produto_id) {
-        const { data: prod } = await supabase.from('produtos').select('id, tipo, produto_insumos(insumo_id, consumo)').eq('id', item.produto_id).single();
+        let qProduct = supabase.from('produtos').select('id, tipo, produto_insumos(insumo_id, consumo)').eq('id', item.produto_id);
+        if (pedido.organization_id) qProduct = qProduct.eq('organization_id', pedido.organization_id);
+        else qProduct = qProduct.eq('user_id', pedido.user_id);
+        
+        const { data: prod } = await qProduct.single();
         if (prod) {
-          temp_insumos.push(...((prod as any).produto_insumos || []));
-          if (prod.tipo) resolvedTipo = prod.tipo;
+          const prodInsumos = (prod as any).produto_insumos || [];
+          if (prodInsumos.length > 0) {
+            temp_insumos.push(...prodInsumos);
+          } else if (prod.tipo) {
+            resolvedTipo = prod.tipo;
+          } else {
+            resolvedTipo = item.tipo;
+          }
         }
       }
-      if (resolvedTipo) {
+      if (temp_insumos.length === 0 && resolvedTipo) {
         let q = supabase.from('tipos_producao').select('id').ilike('nome', resolvedTipo).eq('is_active', true);
         if (pedido.organization_id) q = q.eq('organization_id', pedido.organization_id);
         else q = q.eq('user_id', pedido.user_id);
@@ -597,13 +633,28 @@ export const restoreInsumosFromPedido = async (pedido: Pedido) => {
         return acc;
       }, [] as { insumo_id: string; consumo: number }[]);
       for (const pi of grouped) {
-        const { data: ins } = await supabase.from('insumos').select('id, quantidade_atual').eq('id', pi.insumo_id).single();
-        if (!ins) continue;
         const total = Number(pi.consumo) * Number(item.quantidade);
-        await supabase.from('insumos').update({ quantidade_atual: (ins.quantidade_atual || 0) + total }).eq('id', ins.id);
+        
+        // Estorno ATÔMICO (Corrigido para evitar race conditions)
+        const { error: rpcErr } = await supabase.rpc('update_insumo_quantity_atomic', { 
+          p_insumo_id: pi.insumo_id, 
+          p_quantity_change: total,
+          p_pedido_id: pedido.id,
+          p_observacao: `Estorno de estoque - Pedido #${pedido.order_number}`
+        });
+
+        if (rpcErr) {
+          console.error(`[Inventory] Falha no RPC de estorno para ${pi.insumo_id}.`, rpcErr);
+          const { data: ins } = await supabase.from('insumos').select('quantidade_atual').eq('id', pi.insumo_id).single();
+          if (ins) {
+            await supabase.from('insumos').update({ 
+                quantidade_atual: (ins.quantidade_atual || 0) + total 
+            }).eq('id', pi.insumo_id);
+          }
+        }
       }
     }
-  } catch (err) { console.error('[Inventory] Erro no estorno:', err); }
+  } catch (err) { console.error('[Inventory] Erro crítico no estorno:', err); }
 };
 
 export const useTransportadoras = () => {

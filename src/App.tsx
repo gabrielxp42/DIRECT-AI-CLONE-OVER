@@ -39,6 +39,8 @@ const Affiliate = lazy(() => import("./pages/Affiliate"));
 const LandingPage = lazy(() => import("./pages/LandingPage"));
 const Logistics = lazy(() => import("./pages/Logistics"));
 const Vetorizador = lazy(() => import("./pages/Vetorizador"));
+import ProductionKanban from "./pages/ProductionKanban";
+const ProductionTV = lazy(() => import("./pages/ProductionTV"));
 
 
 // Configurar QueryClient com opções otimizadas
@@ -87,6 +89,7 @@ const App = () => (
                       <Route path="/privacy" element={<Legal />} />
                       <Route path="/checkout" element={<Checkout />} />
                       <Route path="/landing-page" element={<LandingPage />} />
+                      <Route path="/producao/tv" element={<ProductionTV />} />
                       <Route path="/index.html" element={<Navigate to="/" replace />} />
                       <Route path="/" element={<LandingPage />} />
                       <Route element={<ProtectedRoute />}>
@@ -110,6 +113,7 @@ const App = () => (
                             <Route path="/gabi" element={<GabiSettings />} />
                             <Route path="/affiliate" element={<Affiliate />} />
                             <Route path="/vetorizar" element={<Vetorizador />} />
+                            <Route path="/producao" element={<ProductionKanban />} />
 
                             <Route path="/admin" element={
                               <AdminRoute>

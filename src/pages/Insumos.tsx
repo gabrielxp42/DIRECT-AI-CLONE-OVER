@@ -299,20 +299,18 @@ const Insumos = () => {
         if (!selectedInsumo || !adjustQuantity) return;
 
         try {
-            const qty = Number(adjustQuantity);
+            const qty = Number(adjustQuantity.replace(',', '.'));
             if (isNaN(qty) || qty <= 0) {
                 showError("Digite uma quantidade válida.");
                 return;
             }
 
-            const newQuantity = Number((adjustType === 'add'
-                ? selectedInsumo.quantidade_atual + qty
-                : Math.max(0, selectedInsumo.quantidade_atual - qty)).toFixed(4));
-
-            const { error } = await supabase
-                .from('insumos')
-                .update({ quantidade_atual: newQuantity })
-                .eq('id', selectedInsumo.id);
+            // Chamada Atômica com Rastreabilidade
+            const { error } = await supabase.rpc('update_insumo_quantity_atomic', { 
+                p_insumo_id: selectedInsumo.id, 
+                p_quantity_change: adjustType === 'add' ? qty : -qty,
+                p_observacao: `Ajuste manual: ${adjustType === 'add' ? 'Entrada' : 'Baixa'} via Gestão de Estoque`
+            });
 
             if (error) throw error;
 
