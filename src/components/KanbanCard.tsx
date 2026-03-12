@@ -49,7 +49,7 @@ const InnerCardContent = memo(function InnerCardContent({ pedido, isDragging, ti
                         Itens para Produção
                     </div>
                     <div className="space-y-1">
-                        {pedido.pedido_items?.map((item) => (
+                        {pedido.pedido_items?.slice(0, 3).map((item) => (
                             <div key={item.id || `${pedido.id}-${item.produto_id}`} className="bg-muted p-2 rounded text-xs flex justify-between items-center group">
                                 <div className="flex flex-col">
                                     <span className="font-bold line-clamp-1">{item.produto_nome}</span>
@@ -58,6 +58,11 @@ const InnerCardContent = memo(function InnerCardContent({ pedido, isDragging, ti
                                 <span className="bg-background px-2 py-0.5 rounded font-black border">{item.quantidade}x</span>
                             </div>
                         ))}
+                        {pedido.pedido_items && pedido.pedido_items.length > 3 && (
+                            <div className="text-[10px] text-center text-muted-foreground font-bold py-1 bg-muted/50 rounded border border-dashed italic">
+                                + {pedido.pedido_items.length - 3} itens neste pedido
+                            </div>
+                        )}
                         {pedido.servicos?.map((serv) => (
                             <div key={serv.id || `s-${pedido.id}-${serv.nome}`} className="bg-muted p-2 rounded text-xs flex justify-between items-center">
                                 <span className="font-bold">{serv.nome}</span>

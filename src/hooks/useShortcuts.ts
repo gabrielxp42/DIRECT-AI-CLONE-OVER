@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useAIAssistant } from "@/contexts/AIAssistantProvider";
+import { useAuth } from "@/hooks/useAuth";
 import { useCompanyProfile } from "@/hooks/useCompanyProfile";
 import { showSuccess } from "@/utils/toast";
 import { toast } from "sonner";
@@ -40,6 +41,7 @@ export const SHORTCUT_DEFINITIONS: Record<string, any> = {
 };
 
 export const useShortcuts = (onOpenCalculator?: () => void) => {
+    const { profile } = useAuth();
     const { companyProfile } = useCompanyProfile();
     const { open: openAIAssistant } = useAIAssistant();
     const navigate = useNavigate();
@@ -92,7 +94,11 @@ export const useShortcuts = (onOpenCalculator?: () => void) => {
                 toast.info("Catálogo em breve!");
                 break;
             case 'production':
-                toast.info("Modo Operador e Fila de Produção em breve!");
+                if (profile?.is_admin) {
+                    navigate('/producao');
+                } else {
+                    toast.info("Modo Operador e Fila de Produção em breve!");
+                }
                 break;
             default:
                 console.warn(`No action defined for shortcut: ${id}`);

@@ -14,6 +14,40 @@ const corsHeaders = {
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, asaas-access-token',
 };
 
+// Função auxiliar para enviar e-mail ao Administrador via Resend
+async function sendAdminEmail(subject: string, htmlContent: string) {
+    try {
+        const resendApiKey = Deno.env.get('RESEND_API_KEY');
+        if (!resendApiKey) {
+            console.error("[ADMIN EMAIL] Erro: RESEND_API_KEY não configurada.");
+            return;
+        }
+
+        const res = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${resendApiKey}`
+            },
+            body: JSON.stringify({
+                from: 'Direct AI <contato@iadirect.com.br>',
+                to: ['gabrielxp45@gmail.com'],
+                subject: subject,
+                html: htmlContent
+            })
+        });
+
+        if (!res.ok) {
+            const error = await res.json();
+            console.error("[ADMIN EMAIL] Erro ao enviar para Resend:", error);
+        } else {
+            console.log(`[ADMIN EMAIL] Notificação enviada para gabrielxp45@gmail.com: ${subject}`);
+        }
+    } catch (e) {
+        console.error("[ADMIN EMAIL] Erro na função sendAdminEmail:", e.message);
+    }
+}
+
 serve(async (req) => {
     if (req.method === 'OPTIONS') {
         return new Response('ok', { headers: corsHeaders });
@@ -67,6 +101,26 @@ serve(async (req) => {
 
                         if (rpcResult.success) {
                             console.log(`Recarga concluída com sucesso para ${userId}. Novo saldo: ${rpcResult.new_balance}`);
+                            
+                            // Notificar BOSS via E-mail
+                            const { data: userProfile } = await supabaseAdmin.from('profiles').select('company_name, email').eq('id', userId).single();
+                            const userName = userProfile?.company_name || userProfile?.email || userId;
+                            const currencyValue = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(amount);
+                            
+                            await sendAdminEmail(
+                                `💰 RECARGA DE LOGÍSTICA: ${userName}`,
+                                `
+                                <div style="font-family: sans-serif; padding: 20px; color: #333;">
+                                    <h2 style="color: #10b981;">💰 Recarga de Logística Realizada</h2>
+                                    <p><strong>Usuário:</strong> ${userName} (${userProfile?.email || 'N/A'})</p>
+                                    <p><strong>Provedor:</strong> ${provider === 'frenet' ? 'Frenet' : 'SuperFrete'}</p>
+                                    <p><strong>Valor:</strong> ${currencyValue}</p>
+                                    <p><strong>Status:</strong> Saldo atualizado no sistema.</p>
+                                    <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+                                    <small style="color: #666;">Notificação automática Direct AI</small>
+                                </div>
+                                `
+                            );
                         } else {
                             console.log(`Recarga ignorada ou falhou: ${rpcResult.message} (${rpcResult.reason})`);
                         }
@@ -95,6 +149,24 @@ serve(async (req) => {
                         }
 
                         console.log(`Recarga AI concluída com sucesso para ${userId}.`);
+
+                        // Notificar BOSS via E-mail
+                        const { data: userProfile } = await supabaseAdmin.from('profiles').select('company_name, email').eq('id', userId).single();
+                        const userName = userProfile?.company_name || userProfile?.email || userId;
+                        
+                        await sendAdminEmail(
+                            `💎 RECARGA DE CRÉDITOS AI: ${userName}`,
+                            `
+                            <div style="font-family: sans-serif; padding: 20px; color: #333;">
+                                <h2 style="color: #8b5cf6;">💎 Recarga de Créditos AI</h2>
+                                <p><strong>Usuário:</strong> ${userName} (${userProfile?.email || 'N/A'})</p>
+                                <p><strong>Quantidade:</strong> ${amount} Créditos</p>
+                                <p><strong>Status:</strong> Liberado instantaneamente.</p>
+                                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+                                <small style="color: #666;">Notificação automática Direct AI</small>
+                            </div>
+                            `
+                        );
                     }
                     return new Response(JSON.stringify({ success: true, type: 'ai_recharge' }), { headers: corsHeaders, status: 200 });
                 }

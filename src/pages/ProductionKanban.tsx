@@ -44,12 +44,13 @@ export default function ProductionKanban() {
         setEnabled(true);
     }, []);
 
-    const fetchPedidos = async () => {
+    const fetchPedidos = React.useCallback(async () => {
         if (!session?.user?.id) return;
 
         let query = supabase
             .from('pedidos')
             .select('*, clientes(id, nome, telefone, email, endereco, cep), pedido_items(*)')
+            .in('status', ['pendente', 'processando'])
             .order('order_number', { ascending: false });
 
         if (profile?.organization_id) {
@@ -78,7 +79,7 @@ export default function ProductionKanban() {
             setColumns(newCols);
         }
         setLoading(false);
-    };
+    }, [session?.user?.id, profile?.organization_id]);
 
     useEffect(() => {
         fetchPedidos();
@@ -192,7 +193,7 @@ export default function ProductionKanban() {
                 fetchPedidos(); // Reverte para o estado do banco em caso de erro real
             }
         }
-    }, [columns, supabase]); // columns ainda é necessário para o fallback inicial, mas a lógica prev resolve a maioria
+    }, [supabase, fetchPedidos]); // Removido 'columns' para evitar recriações infinitas e adicionado 'fetchPedidos'
 
     if (loading) {
         return (

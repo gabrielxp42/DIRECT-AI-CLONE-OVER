@@ -28,6 +28,7 @@ import {
     Boxes
 } from "lucide-react";
 import { useCompanyProfile } from "@/hooks/useCompanyProfile";
+import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
@@ -64,6 +65,7 @@ interface ShortcutSelectionModalProps {
 }
 
 export const ShortcutSelectionModal = ({ isOpen, onClose }: ShortcutSelectionModalProps) => {
+    const { profile } = useAuth();
     const { companyProfile, updateProfileAsync, isUpdating } = useCompanyProfile();
     // Local state for instant feedback before saving
     const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
@@ -153,7 +155,7 @@ export const ShortcutSelectionModal = ({ isOpen, onClose }: ShortcutSelectionMod
                                         "absolute top-0 right-0 p-2 transition-all",
                                         isSelected || shortcut.isComingSoon ? "opacity-100" : "opacity-0"
                                     )}>
-                                        {shortcut.isComingSoon ? (
+                                        {(shortcut.isComingSoon && !(shortcut.id === 'production' && profile?.is_admin)) ? (
                                             <div className="bg-zinc-700/50 rounded-bl-xl rounded-tr-lg px-2 py-0.5 border border-white/5">
                                                 <span className="text-[8px] font-black text-zinc-400 uppercase tracking-tighter">Em breve</span>
                                             </div>

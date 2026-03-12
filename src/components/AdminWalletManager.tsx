@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -31,6 +31,7 @@ type UserWalletInfo = {
     wallet_balance: number;
     frenet_balance: number | null;
     ai_credits: number;
+    subscription_status: string | null;
 };
 
 const formatCurrency = (value: number) => {
@@ -51,29 +52,55 @@ export function AdminWalletManager() {
     const [isAdding, setIsAdding] = useState(false);
     const [transactions, setTransactions] = useState<any[]>([]);
     const [loadingTx, setLoadingTx] = useState(false);
+    const [allUsers, setAllUsers] = useState<UserWalletInfo[]>([]);
+    const [viewMode, setViewMode] = useState<'active' | 'all'>('active');
 
-    const handleSearch = async () => {
-        if (!searchTerm.trim()) return;
+    const fetchAllUsers = async () => {
         setIsSearching(true);
         try {
             const { data, error } = await supabase
                 .from('profiles')
-                .select('id, email, company_name, wallet_balance, frenet_balance, ai_credits')
-                .or(`email.ilike.%${searchTerm}%,company_name.ilike.%${searchTerm}%`)
-                .order('company_name', { ascending: true })
-                .limit(20);
+                .select('id, email, company_name, wallet_balance, frenet_balance, ai_credits, subscription_status')
+                .order('company_name', { ascending: true });
 
             if (error) throw error;
-            setUsers((data as UserWalletInfo[]) || []);
-            if (!data?.length) {
-                toast.info('Nenhum usuário encontrado.');
-            }
+            const userData = (data as UserWalletInfo[]) || [];
+            setAllUsers(userData);
+            setUsers(userData);
         } catch (err: any) {
-            toast.error('Erro na busca: ' + err.message);
+            toast.error('Erro ao carregar usuários: ' + err.message);
         } finally {
             setIsSearching(false);
         }
     };
+
+    const handleSearch = () => {
+        if (!searchTerm.trim()) {
+            setUsers(allUsers);
+            return;
+        }
+
+        const term = searchTerm.toLowerCase();
+        let filtered = allUsers.filter(u =>
+            (u.email?.toLowerCase().includes(term) ||
+            u.company_name?.toLowerCase().includes(term))
+        );
+
+        if (viewMode === 'active') {
+            filtered = filtered.filter(u => u.subscription_status === 'active');
+        }
+
+        setUsers(filtered);
+    };
+
+    // Inicialização e Busca Reativa
+    useEffect(() => {
+        fetchAllUsers();
+    }, []);
+
+    useEffect(() => {
+        handleSearch();
+    }, [searchTerm, allUsers, viewMode]);
 
     const handleSelectUser = async (user: UserWalletInfo) => {
         setSelectedUser(user);
@@ -172,16 +199,47 @@ export function AdminWalletManager() {
                         <div className="relative flex-1">
                             <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                             <Input
-                                placeholder="Nome ou email..."
+                                placeholder="Filtrar por nome ou email..."
                                 className="pl-10 h-10 rounded-xl"
                                 value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                                onChange={(e) => {
+                                    setSearchTerm(e.target.value);
+                                    // Filtragem imediata ao digitar
+                                    const term = e.target.value.toLowerCase();
+                                    if (!term.trim()) {
+                                        setUsers(allUsers);
+                                    } else {
+                                        const filtered = allUsers.filter(u =>
+                                            (u.email?.toLowerCase().includes(term) ||
+                                            u.company_name?.toLowerCase().includes(term))
+                                        );
+                                        setUsers(filtered);
+                                    }
+                                }}
                             />
                         </div>
-                        <Button onClick={handleSearch} disabled={isSearching} className="rounded-xl h-10 px-4">
-                            {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                        <Button onClick={fetchAllUsers} disabled={isSearching} className="rounded-xl h-10 px-4" title="Recarregar Lista">
+                            {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                         </Button>
+                    </div>
+
+                    <div className="flex p-1 bg-muted/50 rounded-xl mb-2">
+                        <button 
+                            onClick={() => setViewMode('active')}
+                            className={`flex-1 py-1 px-2 text-[10px] font-black uppercase rounded-lg transition-all ${
+                                viewMode === 'active' ? 'bg-white shadow-sm text-primary' : 'text-muted-foreground'
+                            }`}
+                        >
+                            Assinantes
+                        </button>
+                        <button 
+                            onClick={() => setViewMode('all')}
+                            className={`flex-1 py-1 px-2 text-[10px] font-black uppercase rounded-lg transition-all ${
+                                viewMode === 'all' ? 'bg-white shadow-sm text-primary' : 'text-muted-foreground'
+                            }`}
+                        >
+                            Todos
+                        </button>
                     </div>
 
                     <div className="space-y-1 max-h-[400px] overflow-y-auto">
@@ -197,7 +255,19 @@ export function AdminWalletManager() {
                                 <p className="text-sm font-black italic uppercase leading-none mb-1 truncate">
                                     {user.company_name || 'Sem Nome'}
                                 </p>
-                                <p className="text-[10px] text-muted-foreground font-medium truncate">{user.email}</p>
+                                <div className="flex items-center gap-2 mb-1">
+                                    <p className="text-[10px] text-muted-foreground font-medium truncate flex-1">{user.email}</p>
+                                    <Badge 
+                                        variant="secondary" 
+                                        className={`text-[8px] font-black uppercase px-1.5 py-0 h-4 ${
+                                            user.subscription_status === 'active' 
+                                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' 
+                                            : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                                        }`}
+                                    >
+                                        {user.subscription_status === 'active' ? 'Assinante' : 'Trial'}
+                                    </Badge>
+                                </div>
                                 <div className="mt-2 space-y-2">
                                     <div className="flex items-center justify-between">
                                         <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">SuperFrete</span>

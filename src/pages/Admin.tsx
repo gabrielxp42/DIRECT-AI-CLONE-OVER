@@ -166,6 +166,7 @@ export default function Admin() {
     const [sendingEmailToId, setSendingEmailToId] = useState<string | null>(null);
     const [customRecoveryEmail, setCustomRecoveryEmail] = useState("");
     const [customRecoveryName, setCustomRecoveryName] = useState("");
+    const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'trial' | 'expired'>('all');
 
     const [editForm, setEditForm] = useState<Partial<AdminProfile>>({});
     const [userStats, setUserStats] = useState<{ pedidos: number, clientes: number } | null>(null);
@@ -565,11 +566,16 @@ export default function Admin() {
         }
     };
 
-    const filteredUsers = users.filter(u =>
-    (u.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        u.company_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        u.id.includes(searchTerm))
-    );
+    const filteredUsers = users.filter(u => {
+        const matchesSearch = (
+            u.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            u.company_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            u.id.includes(searchTerm)
+        );
+
+        if (statusFilter === 'all') return matchesSearch;
+        return matchesSearch && u.subscription_status === statusFilter;
+    });
 
     if (!profile?.is_admin) {
         return (
@@ -787,14 +793,30 @@ export default function Admin() {
                                         <Mail className="w-4 h-4 mr-2" />
                                         Recuperar Leads
                                     </Button>
-                                    <div className="relative w-full md:w-80">
-                                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                                        <Input
-                                            placeholder="Buscar por email ou ID..."
-                                            className="pl-10 h-10 rounded-xl"
-                                            value={searchTerm}
-                                            onChange={(e) => setSearchTerm(e.target.value)}
-                                        />
+                                    <div className="flex items-center gap-2 w-full md:w-auto">
+                                        <div className="relative w-full md:w-64">
+                                            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                                            <Input
+                                                placeholder="Buscar por email ou ID..."
+                                                className="pl-10 h-10 rounded-xl"
+                                                value={searchTerm}
+                                                onChange={(e) => setSearchTerm(e.target.value)}
+                                            />
+                                        </div>
+                                        <Select 
+                                            value={statusFilter} 
+                                            onValueChange={(v: any) => setStatusFilter(v)}
+                                        >
+                                            <SelectTrigger className="w-[140px] h-10 rounded-xl border-zinc-200 dark:border-zinc-800 font-bold uppercase text-[10px]">
+                                                <SelectValue placeholder="Filtrar" />
+                                            </SelectTrigger>
+                                            <SelectContent className="rounded-xl border-zinc-200 dark:border-zinc-800">
+                                                <SelectItem value="all" className="font-bold uppercase text-[10px]">Todos</SelectItem>
+                                                <SelectItem value="active" className="font-bold uppercase text-[10px]">Assinantes</SelectItem>
+                                                <SelectItem value="trial" className="font-bold uppercase text-[10px]">Trials</SelectItem>
+                                                <SelectItem value="expired" className="font-bold uppercase text-[10px]">Expirados</SelectItem>
+                                            </SelectContent>
+                                        </Select>
                                     </div>
                                 </div>
                             </div>
@@ -829,15 +851,67 @@ export default function Admin() {
                                                 </div>
                                             </TableCell>
                                             <TableCell className="p-6">
-                                                {user.subscription_status === 'active' ? (
-                                                    <Badge className="bg-emerald-500/10 text-emerald-500 border-none rounded-lg px-3 py-1 font-black uppercase text-[10px]">
-                                                        Ativo {user.is_gifted_plan && "🎁"} {user.is_whatsapp_plus_active && "⚡"}
-                                                    </Badge>
-                                                ) : (
-                                                    <Badge variant="secondary" className="bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border-none rounded-lg px-3 py-1 font-black uppercase text-[10px]">
-                                                        {user.subscription_status}
-                                                    </Badge>
-                                                )}
+                                                <div className="flex flex-col gap-1.5">
+                                                    {user.subscription_status === 'active' ? (
+                                                        <Badge className="bg-emerald-500/10 text-emerald-500 border-none rounded-lg px-3 py-1 font-black uppercase text-[10px] w-fit">
+                                                            Ativo {user.is_gifted_plan && "🎁"} {user.is_whatsapp_plus_active && "⚡"}
+                                                        </Badge>
+                                                    ) : user.subscription_status === 'trial' ? (
+                                                        <Badge variant="secondary" className="bg-amber-500/10 text-amber-600 border-none rounded-lg px-3 py-1 font-black uppercase text-[10px] w-fit">
+                                                            Trial
+                                                        </Badge>
+                                                    ) : (
+                                                        <Badge variant="secondary" className="bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border-none rounded-lg px-3 py-1 font-black uppercase text-[10px] w-fit">
+                                                            {user.subscription_status}
+                                                        </Badge>
+                                                    )}
+                                                    
+                                                    {/* Timer de Expiração */}
+                                                    {user.subscription_status === 'trial' && user.trial_start_date && (
+                                                        <div className="flex items-center gap-1 text-[9px] font-bold italic">
+                                                            <Clock size={10} className={(() => {
+                                                                const start = new Date(user.trial_start_date.replace(' ', 'T'));
+                                                                const used = Math.max(0, differenceInDays(new Date(), start));
+                                                                const remaining = Math.max(0, 30 - used);
+                                                                return remaining <= 3 ? "text-red-500 animate-pulse" : "text-amber-500";
+                                                            })()} />
+                                                            <span className={(() => {
+                                                                const start = new Date(user.trial_start_date.replace(' ', 'T'));
+                                                                const used = Math.max(0, differenceInDays(new Date(), start));
+                                                                const remaining = Math.max(0, 30 - used);
+                                                                return remaining <= 3 ? "text-red-500" : "text-muted-foreground";
+                                                            })()}>
+                                                                {(() => {
+                                                                    const start = new Date(user.trial_start_date.replace(' ', 'T'));
+                                                                    const used = Math.max(0, differenceInDays(new Date(), start));
+                                                                    const remaining = Math.max(0, 30 - used);
+                                                                    return remaining === 0 ? "Expirou hoje" : `${remaining} dias restantes`;
+                                                                })()}
+                                                            </span>
+                                                        </div>
+                                                    )}
+
+                                                    {user.subscription_status === 'active' && (user as any).next_billing_date && (
+                                                        <div className="flex items-center gap-1 text-[9px] font-bold italic">
+                                                            <Clock size={10} className={(() => {
+                                                                const next = new Date((user as any).next_billing_date);
+                                                                const remaining = differenceInDays(next, new Date());
+                                                                return remaining <= 3 ? "text-red-500 animate-pulse" : "text-emerald-500";
+                                                            })()} />
+                                                            <span className={(() => {
+                                                                const next = new Date((user as any).next_billing_date);
+                                                                const remaining = differenceInDays(next, new Date());
+                                                                return remaining <= 3 ? "text-red-500" : "text-muted-foreground";
+                                                            })()}>
+                                                                Renova em {(() => {
+                                                                    const next = new Date((user as any).next_billing_date);
+                                                                    const remaining = differenceInDays(next, new Date());
+                                                                    return remaining <= 0 ? "hoje" : `${remaining} dias`;
+                                                                })()}
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </TableCell>
                                             <TableCell className="p-6 text-center">
                                                 <Badge variant="outline" className="font-black tabular-nums border-zinc-200 dark:border-zinc-800">
