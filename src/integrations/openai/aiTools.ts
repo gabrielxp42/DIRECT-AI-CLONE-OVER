@@ -2828,11 +2828,19 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       const currentOrder = await responseStatus.json();
       const statusAnterior = currentOrder?.status || 'desconhecido';
 
+      // Prepare update payload
+      const updatePayload: any = { status: newStatus };
+      if (newStatus === 'pago') {
+        updatePayload.pago_at = new Date().toISOString();
+      } else if (['pendente', 'cancelado'].includes(newStatus)) {
+        updatePayload.pago_at = null;
+      }
+
       // Update status
       const responseUpdate = await fetch(`${SUPABASE_URL}/rest/v1/pedidos?id=eq.${fullOrderId}&${orgFilter}`, {
         method: 'PATCH',
         headers: headers,
-        body: JSON.stringify({ status: newStatus })
+        body: JSON.stringify(updatePayload)
       });
 
       if (!responseUpdate.ok) {
