@@ -384,6 +384,112 @@ const send_whatsapp_message = async (args: { phone?: string; message: string; cl
 
 };
 
+// Nova Função: Preparar múltiplas mensagens de WhatsApp em lote
+export const prepare_bulk_whatsapp_messages = async (args: {
+  messages: Array<{ clientName: string; phone?: string; message: string }>
+}) => {
+  console.log(`📦 [prepare_bulk_whatsapp_messages] Solicitado preparo de ${args.messages?.length || 0} mensagens em lote.`);
+
+  if (!args.messages || args.messages.length === 0) {
+    return { error: true, message: "Nenhuma mensagem fornecida para envio em lote." };
+  }
+
+  // --- LÓGICA DE ELEGIBILIDADE ---
+  let canSendDirectly = false;
+  let isPlus = false;
+
+  try {
+    const token = await getValidToken();
+    if (token) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+
+        if (profile) {
+          const status = isEligibleForPlusMode(profile);
+          isPlus = status.isPlus;
+          canSendDirectly = status.canSendDirectly;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("Erro ao verificar elegibilidade de envio direto:", err);
+  }
+
+  const clientsToMessage = [];
+  let successCount = 0;
+  let errorCount = 0;
+
+  // Processar cada mensagem gerada pela IA
+  // Limitamos a 50 concorrências ou processamos em lote caso o número seja muito grande.
+  for (const item of args.messages) {
+    let finalPhone = item.phone || '';
+    let resolvedClientName = item.clientName || '';
+
+    const isPlaceholder = finalPhone.includes('999999999') || !finalPhone;
+
+    if (isPlaceholder || item.clientName) {
+      const searchTerm = item.clientName || item.phone || '';
+      const foundClients = await findClientWithMultipleStrategies(searchTerm);
+
+      if (foundClients && foundClients.length > 0) {
+        const exactMatch = foundClients.find((c: any) =>
+          removeAccents(c.nome.toLowerCase()).trim() === removeAccents(searchTerm.toLowerCase()).trim()
+        );
+
+        const client = (exactMatch || foundClients[0]) as any;
+        if (client.telefone) {
+          finalPhone = client.telefone;
+          resolvedClientName = client.nome;
+        }
+      }
+    }
+
+    if (!finalPhone || finalPhone.includes('999999999')) {
+      errorCount++;
+      // Pode ser útil manter no array com um flag de erro para mostrar na UI que falhou para este usuário
+      clientsToMessage.push({
+        clientName: item.clientName || 'Desconhecido',
+        error: true,
+        reason: "Telefone não encontrado"
+      });
+      continue;
+    }
+
+    const cleanPhone = finalPhone.replace(/\D/g, '');
+    const encodedMessage = encodeURIComponent(item.message);
+    const waLink = `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
+
+    clientsToMessage.push({
+      clientName: resolvedClientName,
+      phone: finalPhone,
+      cleanPhone: cleanPhone,
+      message: item.message,
+      link: waLink,
+      error: false
+    });
+    
+    successCount++;
+  }
+
+  return {
+    type: 'bulk_whatsapp_action',
+    data: {
+      successCount,
+      errorCount,
+      clientsToMessage,
+      canSendDirectly,
+      isPlus,
+      status: 'ready_to_send_bulk'
+    },
+    message: `📦 **Lote Preparado!**\n\nEu preparei **${successCount} mensagens** para serem enviadas. Verifique o card abaixo para confirmar o envio em lote.`
+  };
+};
+
 // Função para resetar a memória do usuário
 const reset_user_memory = async (args: { confirmation: string }) => {
   if (args.confirmation !== 'confirmar') {
@@ -1229,6 +1335,29 @@ export const openAIFunctions = [
         }
       },
       required: ["message"]
+    }
+  },
+  {
+    name: "prepare_bulk_whatsapp_messages",
+    description: "Prepara MÚLTIPLAS mensagens de WhatsApp para serem enviadas em lote. USE SEMPRE ESTA FERRAMENTA quando o usuário pedir para cobrar 'todos', 'vários' ou mencionar mais de 2 clientes ao mesmo tempo. Nunca chame a ferramenta individual 'send_whatsapp_message' repetidas vezes em loop. Esta ferramenta agrupa tudo em um único pedido de confirmação.",
+    parameters: {
+      type: "object",
+      properties: {
+        messages: {
+          type: "array",
+          description: "Lista de mensagens a serem enviadas.",
+          items: {
+            type: "object",
+            properties: {
+              clientName: { type: "string", description: "Nome do cliente destino." },
+              phone: { type: "string", description: "O número do telefone (se disponível)." },
+              message: { type: "string", description: "Texto personalizado da cobrança/mensagem para este cliente específico." }
+            },
+            required: ["clientName", "message"]
+          }
+        }
+      },
+      required: ["messages"]
     }
   },
   {
@@ -2335,6 +2464,10 @@ export const callOpenAIFunction = async (functionCall: { name: string; arguments
       ...args,
       mode: args.mode as 'link' | 'auto' // Garantir tipagem
     });
+  }
+
+  if (name === "prepare_bulk_whatsapp_messages") {
+    return prepare_bulk_whatsapp_messages(args);
   }
 
   if (name === "reset_user_memory") {

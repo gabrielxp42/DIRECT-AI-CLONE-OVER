@@ -451,7 +451,7 @@ export const AIAssistant = () => {
                                     } catch (e) { return null; }
                                     return null;
                                   })()
-                                ) : msg.name === 'send_whatsapp_message' ? (
+                                ) : msg.name === 'send_whatsapp_message' || msg.name === 'prepare_bulk_whatsapp_messages' ? (
                                   (() => {
                                     try {
                                       const content = typeof msg.content === 'string' ? msg.content : '';
@@ -509,6 +509,56 @@ export const AIAssistant = () => {
                                                     Mensagem Enviada
                                                   </div>
                                                 )}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        );
+                                      } else if (resultData.type === 'bulk_whatsapp_action') {
+                                        const { successCount, errorCount, canSendDirectly } = resultData.data;
+
+                                        return (
+                                          <div className="mt-2 w-full max-w-[350px] animate-in zoom-in-95 group">
+                                            <div className="flex items-center gap-2 mb-2 px-1">
+                                              <div className="h-5 w-5 rounded-full bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                                                <MessageCircle className="h-2.5 w-2.5 text-white" />
+                                              </div>
+                                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">WhatsApp Lote</span>
+                                            </div>
+
+                                            <div className="relative rounded-3xl overflow-hidden shadow-2xl ring-1 ring-white/10 bg-slate-950/60 backdrop-blur-xl border border-white/5">
+                                              <div className="relative h-1.5 w-full bg-gradient-to-r from-emerald-400 via-green-500 to-amber-500 shadow-[0_0_20px_rgba(16,185,129,0.4)]" />
+
+                                              <div className="relative p-6 space-y-5">
+                                                <div className="flex items-center justify-between">
+                                                  <div className="space-y-1">
+                                                    <h4 className="text-[10px] font-black text-emerald-400 uppercase tracking-[0.2em]">Envio em Lote</h4>
+                                                    <p className="text-xl font-black text-white italic tracking-tighter">{successCount} Clientes</p>
+                                                  </div>
+                                                  <div className="h-10 w-10 rounded-2xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
+                                                    <User className="w-5 h-5 text-emerald-400" />
+                                                  </div>
+                                                </div>
+
+                                                <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/5 space-y-3 flex flex-col items-center">
+                                                    <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Gabi preparou as mensagens.</span>
+                                                    {errorCount > 0 && (
+                                                      <span className="text-[9px] text-amber-500 font-bold uppercase">{errorCount} telefone(s) não encontrado(s).</span>
+                                                    )}
+                                                </div>
+
+                                                <Button
+                                                    className="w-full h-14 bg-emerald-500 hover:bg-emerald-600 text-white font-black uppercase tracking-[0.2em] text-[11px] gap-3 shadow-[0_15px_35px_rgba(16,185,129,0.3)] border-none rounded-2xl transition-all hover:scale-[1.02] active:scale-95"
+                                                    onClick={() => {
+                                                      toast({
+                                                        title: "API de Envio Lote não conectada",
+                                                        description: "A interface capturou a intenção, mas o disparo em lote via Evolution API requer o backend configurado.",
+                                                        variant: "default"
+                                                      });
+                                                    }}
+                                                  >
+                                                    <CheckCircle2 className="w-4 h-4" />
+                                                    Aprovar e Enviar Todas
+                                                </Button>
                                               </div>
                                             </div>
                                           </div>

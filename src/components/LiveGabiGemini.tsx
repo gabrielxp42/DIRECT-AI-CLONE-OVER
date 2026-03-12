@@ -17,7 +17,7 @@ interface LiveGabiGeminiProps {
 
 type ConnectionStatus = 'connecting' | 'active' | 'thinking' | 'error' | 'disconnected';
 
-const SENSITIVE_TOOLS = ['update_branding', 'reset_user_memory', 'send_whatsapp_message'];
+const SENSITIVE_TOOLS = ['update_branding', 'reset_user_memory', 'send_whatsapp_message', 'prepare_bulk_whatsapp_messages'];
 
 const GABI_INSTRUCTIONS = `Você é a GABI AI, a Inteligência Executiva e CEO Virtual da DIRECT AI.
 Você é a FONTE DA VERDADE. Você não estima, você consulta.
