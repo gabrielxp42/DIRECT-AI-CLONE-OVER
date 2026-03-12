@@ -721,7 +721,7 @@ const PedidosPage: React.FC = () => {
             insight_type: 'executive_alert',
             title: '💰 Pagamento Recebido!',
             description: `Um pedido acaba de ser marcado como PAGO! 🎉\n\nDetalhes:\n- Pedido: #${pedidoFull.order_number}\n- Cliente: ${pedidoFull.clientes?.nome || 'Cliente'}\n- Valor: R$ ${(pedidoFull.valor_total || 0).toFixed(2)}\n\nMantenha o bom trabalho!`,
-            metadata: { type: 'payment', order_id: pedidoFull.id }
+            data: { type: 'payment', order_id: pedidoFull.id }
           });
         } catch (e) {
           console.error("Erro ao gerar insight de pagamento:", e);
