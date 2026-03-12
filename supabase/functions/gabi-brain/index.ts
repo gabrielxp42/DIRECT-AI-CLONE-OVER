@@ -16,13 +16,13 @@ const corsHeaders = {
 
 const DATABASE_SCHEMA = `
 Tabelas Principais:
-- pedidos: id (uuid), order_number (int), status (pendente, pago, processando, entregue, enviado, aguardando retirada, cancelado), valor_total, cliente_id, created_at, organization_id, metodo_pagamento.
+- pedidos: id (uuid), order_number (int), status (pendente, pago, processando, entregue, enviado, aguardando retirada, cancelado), valor_total, cliente_id, created_at, organization_id, metodo_pagamento, total_metros.
 - clientes: id (uuid), nome, telefone, email, valor_metro, zip_code.
-- pedido_items: id, pedido_id, produto_id, quantidade, preco_unitario, width, height, metros_lineares.
+- pedido_items: id, pedido_id, produto_id, quantidade, preco_unitario, width, height.
 - agent_insights: insight_type (executive_alert, business_opportunity), title, description.
 `;
 
-function truncate(str: string, max = 2000) {
+function truncate(str: string, max = 8000) {
     if (str.length <= max) return str;
     return str.slice(0, max) + '... [TRUNCATED]';
 }
@@ -152,7 +152,7 @@ Dono(a) da Empresa: ${profile?.first_name || 'N/A'}
                 type: "function",
                 function: {
                     name: "get_orders_summary",
-                    description: "Busca um resumo dos pedidos. SE O USUÁRIO PEDIR 'TODOS' OU 'DE HOJE', NÃO PASSE STATUS (deixe null) para trazer todos os pedidos independente do pagamento.",
+                    description: "Busca um resumo GERAL de todos os pedidos da loja. NUNCA use esta ferramenta se o usuário mencionar o nome de um cliente (ex: 'Solution', 'João'). Para clientes específicos, use get_client_orders.",
                     parameters: {
                         type: "object",
                         properties: {
@@ -337,23 +337,32 @@ Dono(a) da Empresa: ${profile?.first_name || 'N/A'}
                 type: "function",
                 function: {
                     name: "query_database",
-                    description: "Busca dados brutos de tabelas caso precise de detalhes adicionais.",
+                    description: "FERRAMENTA DE INVESTIGAÇÃO LIVRE: Use esta ferramenta APENAS quando o usuário fizer perguntas complexas que cruzem dados, filtros incomuns ou listas que as ferramentas normais não cobrem (ex: compras maiores que X, clientes de cidade Y).",
                     parameters: {
                         type: "object",
                         properties: {
-                            table: { type: "string" },
-                            select: { type: "string", default: "*" },
+                            table: { type: "string", description: "O nome da tabela (ex: clientes, pedidos, pedido_items)" },
+                            select: { type: "string", description: "Colunas para recuperar, suporta joins (ex: '*, cliente:clientes(nome)')", default: "*" },
                             filters: {
                                 type: "array",
+                                description: "Filtros para aplicar na query. Importante: Para verificar null use op:'is' e value:'null'.",
                                 items: {
                                     type: "object",
                                     properties: {
                                         column: { type: "string" },
-                                        op: { type: "string" },
+                                        op: { type: "string", enum: ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'like', 'ilike', 'is', 'in'] },
                                         value: { type: "string" }
                                     }
                                 }
-                            }
+                            },
+                            order: {
+                                type: "object",
+                                properties: {
+                                    column: { type: "string" },
+                                    ascending: { type: "boolean" }
+                                }
+                            },
+                            limit: { type: "integer", default: 20 }
                         },
                         required: ["table"]
                     }
@@ -363,7 +372,7 @@ Dono(a) da Empresa: ${profile?.first_name || 'N/A'}
                 type: "function",
                 function: {
                     name: "get_client_orders",
-                    description: "Busca pedidos de um cliente específico. SEMPRE use esta ferramenta quando o usuário perguntar sobre pedidos de um cliente.",
+                    description: "Busca TODOS os pedidos de um cliente específico. OBRIGATÓRIO usar esta ferramenta se o usuário perguntar 'quantos pedidos o cliente X tem', 'quais os pedidos da empresa Y', etc.",
                     parameters: {
                         type: "object",
                         properties: {
@@ -455,8 +464,13 @@ Dono(a) da Empresa: ${profile?.first_name || 'N/A'}
                             result = data;
                         } else if (call.function.name === "get_order_details_v2") {
                             let query = supabase.from('pedidos').select('*, cliente:clientes(*), items:pedido_items(*)');
-                            if (orgId) query = query.eq('organization_id', orgId);
-                            else query = query.eq('user_id', userId);
+                            
+                            if (orgId) {
+                                query = query.eq('organization_id', orgId);
+                            } else {
+                                query = query.eq('user_id', userId).is('organization_id', null);
+                            }
+                            
                             if (args.orderId) query = query.eq('id', args.orderId);
                             else if (args.orderNumber) query = query.eq('order_number', args.orderNumber);
                             const { data, error } = await query.single();
@@ -464,8 +478,12 @@ Dono(a) da Empresa: ${profile?.first_name || 'N/A'}
                             result = data;
                         } else if (call.function.name === "update_order_status") {
                             let query = supabase.from('pedidos').select('id').eq('order_number', args.orderNumber);
-                            if (orgId) query = query.eq('organization_id', orgId);
-                            else query = query.eq('user_id', userId);
+                            
+                            if (orgId) {
+                                query = query.eq('organization_id', orgId);
+                            } else {
+                                query = query.eq('user_id', userId).is('organization_id', null);
+                            }
                             
                             const { data: order } = await query.single();
                             if (!order) throw new Error("Pedido não encontrado na sua organização.");
@@ -482,16 +500,24 @@ Dono(a) da Empresa: ${profile?.first_name || 'N/A'}
                             };
                         } else if (call.function.name === "get_client_snapshot") {
                             let query = supabase.from('clientes').select('id, nome, telefone, observacoes').ilike('nome', `%${args.clientName}%`);
-                            if (orgId) query = query.eq('organization_id', orgId);
-                            else query = query.eq('user_id', userId);
+                            
+                            if (orgId) {
+                                query = query.eq('organization_id', orgId);
+                            } else {
+                                query = query.eq('user_id', userId).is('organization_id', null);
+                            }
                             
                             const { data: client } = await query.limit(1).single();
                             if (!client) throw new Error("Cliente não encontrado.");
 
                             // Selecionar pago_at para lógica correta de pendências
                             let ordersQuery = supabase.from('pedidos').select('valor_total, status, created_at, order_number, pago_at').eq('cliente_id', client.id);
-                            if (orgId) ordersQuery = ordersQuery.eq('organization_id', orgId);
-                            else ordersQuery = ordersQuery.eq('user_id', userId);
+                            
+                            if (orgId) {
+                                ordersQuery = ordersQuery.eq('organization_id', orgId);
+                            } else {
+                                ordersQuery = ordersQuery.eq('user_id', userId).is('organization_id', null);
+                            }
                             
                             const { data: orders } = await ordersQuery.order('created_at', { ascending: false });
 
@@ -644,22 +670,108 @@ Dono(a) da Empresa: ${profile?.first_name || 'N/A'}
                             });
                             result = await response.json();
                         } else if (call.function.name === "query_database") {
-                            let query = supabase.from(args.table).select(args.select || '*').limit(20);
-                            if (orgId) query = query.eq('organization_id', orgId);
-                            else query = query.eq('user_id', userId);
+                            let query = supabase.from(args.table).select(args.select || '*');
+                            
+                            // 1. Aplicar a Jaula de Segurança PRIMEIRO (Obrigatório)
+                            if (orgId) {
+                                query = query.eq('organization_id', orgId);
+                            } else {
+                                query = query.eq('user_id', userId).is('organization_id', null);
+                            }
+
+                            // 2. Aplicar Filtros Dinâmicos
+                            if (args.filters && Array.isArray(args.filters)) {
+                                for (const f of args.filters) {
+                                    if (!f.column || !f.op) continue;
+                                    
+                                    // Tratamento especial para is null / is not null enviado como string
+                                    let filterVal = f.value;
+                                    if (filterVal === 'null') filterVal = null;
+                                    
+                                    switch (f.op) {
+                                        case 'eq': query = query.eq(f.column, filterVal); break;
+                                        case 'neq': query = query.neq(f.column, filterVal); break;
+                                        case 'gt': query = query.gt(f.column, filterVal); break;
+                                        case 'gte': query = query.gte(f.column, filterVal); break;
+                                        case 'lt': query = query.lt(f.column, filterVal); break;
+                                        case 'lte': query = query.lte(f.column, filterVal); break;
+                                        case 'like': query = query.like(f.column, filterVal); break;
+                                        case 'ilike': query = query.ilike(f.column, filterVal); break;
+                                        case 'is': query = query.is(f.column, filterVal); break;
+                                        case 'in': 
+                                            // Converte string separada por vírgula em array para o IN do Supabase
+                                            if (typeof filterVal === 'string') {
+                                                query = query.in(f.column, filterVal.split(',').map(s => s.trim()));
+                                            } else if (Array.isArray(filterVal)) {
+                                                query = query.in(f.column, filterVal);
+                                            }
+                                            break;
+                                    }
+                                }
+                            }
+
+                            // 3. Aplicar Ordenação
+                            if (args.order && args.order.column) {
+                                query = query.order(args.order.column, { ascending: args.order.ascending === true });
+                            } else {
+                                // Default order if not specified
+                                query = query.order('created_at', { ascending: false });
+                            }
+
+                            // 4. Aplicar Limite (Default 20, Max 50 para não estourar tokens)
+                            const limit = Math.min(args.limit || 20, 50);
+                            query = query.limit(limit);
+                            
                             const { data, error } = await query;
                             result = error ? error.message : data;
-                        } else if (call.function.name === "get_client_orders") {
-                            let clientQuery = supabase.from('clientes').select('id').ilike('nome', `%${args.clientName}%`);
-                            if (orgId) clientQuery = clientQuery.eq('organization_id', orgId);
-                            else clientQuery = clientQuery.eq('user_id', userId);
+                        } else if (call.function.name === "get_order_uuid_by_number") {
+                            let query = supabase.from('pedidos').select('id, order_number').eq('order_number', args.orderNumber);
                             
-                            const { data: client } = await clientQuery.limit(1).single();
-                            if (!client) throw new Error("Cliente não encontrado.");
+                            if (orgId) {
+                                query = query.eq('organization_id', orgId);
+                            } else {
+                                query = query.eq('user_id', userId).is('organization_id', null);
+                            }
+                            
+                            const { data: order, error } = await query.single();
+                            if (error || !order) throw new Error("Pedido não encontrado na sua organização.");
+                            result = { id: order.id, order_number: order.order_number };
+                        } else if (call.function.name === "get_client_orders") {
+                            // Buscar cliente por nome ou ID
+                            let clientId = args.clientId;
+                            if (!clientId && args.clientName) {
+                                let clientQuery = supabase.from('clientes').select('id').ilike('nome', `%${args.clientName}%`);
+                                if (orgId) {
+                                    clientQuery = clientQuery.eq('organization_id', orgId);
+                                } else {
+                                    clientQuery = clientQuery.eq('user_id', userId).is('organization_id', null);
+                                }
+                                const { data: client } = await clientQuery.limit(1).single();
+                                if (!client) throw new Error("Cliente não encontrado.");
+                                clientId = client.id;
+                            }
+                            if (!clientId) throw new Error("Informe o nome ou ID do cliente.");
 
-                            let ordersQuery = supabase.from('pedidos').select('*', { count: 'exact' }).eq('cliente_id', client.id);
-                            if (orgId) ordersQuery = ordersQuery.eq('organization_id', orgId);
-                            else ordersQuery = ordersQuery.eq('user_id', userId);
+                            // Buscar pedidos com pago_at para lógica correta
+                            let ordersQuery = supabase.from('pedidos').select('id, order_number, status, valor_total, created_at, production_status, pago_at, cliente:clientes(nome, telefone)', { count: 'exact' }).eq('cliente_id', clientId);
+                            
+                            if (orgId) {
+                                ordersQuery = ordersQuery.eq('organization_id', orgId);
+                            } else {
+                                ordersQuery = ordersQuery.eq('user_id', userId).is('organization_id', null);
+                            }
+
+                            // CORREÇÃO CRÍTICA: Filtro inteligente por status
+                            // 'pendente' = pago_at IS NULL (não cancelado)
+                            // 'pago' = pago_at IS NOT NULL
+                            // outros = filtro literal por status
+                            if (args.status === 'pendente') {
+                                ordersQuery = ordersQuery.is('pago_at', null).neq('status', 'cancelado').neq('status', 'pago').neq('status', 'entregue');
+                            } else if (args.status === 'pago') {
+                                ordersQuery = ordersQuery.not('pago_at', 'is', null);
+                            } else if (args.status) {
+                                ordersQuery = ordersQuery.eq('status', args.status);
+                            }
                             
                             const limit = args.limit || 100;
                             const { data: orders, count } = await ordersQuery.order('created_at', { ascending: false }).limit(limit);
@@ -671,9 +783,14 @@ Dono(a) da Empresa: ${profile?.first_name || 'N/A'}
                                 message: count && count > limit ? `Atenção: Existem ${count} pedidos no total, mas estou mostrando apenas os ${limit} mais recentes por limitação técnica.` : null
                             };
                         } else if (call.function.name === "search_clients") {
-                            let query = supabase.from('clientes').select('*').ilike('nome', `%${args.query}%`);
-                            if (orgId) query = query.eq('organization_id', orgId);
-                            else query = query.eq('user_id', userId);
+                            let query = supabase.from('clientes').select('id, nome, telefone, email, valor_metro').ilike('nome', `%${args.query}%`);
+                            
+                            if (orgId) {
+                                query = query.eq('organization_id', orgId);
+                            } else {
+                                query = query.eq('user_id', userId).is('organization_id', null);
+                            }
+                            
                             const { data } = await query.limit(args.limit || 10);
                             result = data;
                         } else if (call.function.name === "perform_calculation") {
@@ -689,8 +806,25 @@ Dono(a) da Empresa: ${profile?.first_name || 'N/A'}
                         const resultString = truncate(JSON.stringify(result));
                         intermediateSteps.push({ tool: call.function.name, args, result: resultString });
                         chatMessages.push({ role: "tool", tool_call_id: call.id, content: resultString });
+
+                        // LOG de tool_call para auditoria
+                        await supabase.from('system_logs').insert({
+                            level: 'info',
+                            category: 'brain_tool_call',
+                            message: `Tool: ${call.function.name}`,
+                            user_id: userId,
+                            details: { args, result_preview: resultString.substring(0, 300) }
+                        }).then(() => {}).catch(() => {}); // fire-and-forget
                     } catch (e: any) {
                         chatMessages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ error: e.message }) });
+                        // LOG de erro de tool para auditoria
+                        await supabase.from('system_logs').insert({
+                            level: 'error',
+                            category: 'brain_tool_error',
+                            message: `Tool ERROR: ${call.function.name}: ${e.message}`,
+                            user_id: userId,
+                            details: { args, error: e.message }
+                        }).then(() => {}).catch(() => {}); // fire-and-forget
                     }
                 }
                 loopCount++;

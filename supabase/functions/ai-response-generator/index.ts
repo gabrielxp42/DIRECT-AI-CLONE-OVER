@@ -106,8 +106,8 @@ Deno.serve(async (req: Request) => {
         }
 
         // --- 3. CALL UNIFIED GABI BRAIN ---
-        console.log(`[Generator] Calling unified gabi-brain-v2 for user ${user_id}`);
-        const { data: brainData, error: brainError } = await supabase.functions.invoke('gabi-brain-v2', {
+        console.log(`[Generator] Calling unified gabi-brain for user ${user_id}`);
+        const { data: brainData, error: brainError } = await supabase.functions.invoke('gabi-brain', {
             body: {
                 message: textMessage,
                 history: history,

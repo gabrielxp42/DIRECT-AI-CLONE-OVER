@@ -82,7 +82,7 @@ Deno.serve(async (req: Request) => {
             }
 
             let profile: any = null;
-            const { data: p } = await supabaseAdmin.from('profiles').select('id, ai_auto_reply_enabled, whatsapp_boss_group_id, operator_phone').eq('whatsapp_instance_id', instance).single();
+            const { data: p } = await supabaseAdmin.from('profiles').select('id, phone, ai_auto_reply_enabled, whatsapp_boss_group_id, operator_phone').eq('whatsapp_instance_id', instance).single();
             profile = p;
             if (!profile) {
                 return new Response(JSON.stringify({
@@ -123,9 +123,11 @@ Deno.serve(async (req: Request) => {
             const jidDigits = remoteJid.split('@')[0].replace(/\D/g, '');
             const bossSettingNormalized = profile.whatsapp_boss_group_id?.replace(/\D/g, '') || "";
             const operatorDigits = profile.operator_phone?.replace(/\D/g, '') || "";
+            const profilePhoneDigits = profile.phone?.replace(/\D/g, '') || "";
 
             const isBoss = (bossSettingNormalized && jidDigits.endsWith(bossSettingNormalized.slice(-8))) ||
-                (operatorDigits && jidDigits.endsWith(operatorDigits.slice(-8)));
+                (operatorDigits && jidDigits.endsWith(operatorDigits.slice(-8))) ||
+                (profilePhoneDigits && jidDigits.endsWith(profilePhoneDigits.slice(-8)));
 
             const customer_name = isBoss ? "Chefe" : (data.pushName || remoteJid.split('@')[0]);
 
