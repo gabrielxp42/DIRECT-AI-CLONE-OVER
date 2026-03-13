@@ -60,7 +60,7 @@ Deno.serve(async (req: Request) => {
         }
 
         const alertTypes = profile.whatsapp_boss_alert_types || [];
-        const msgType = record.metadata?.type;
+        const msgType = record.data?.type;
 
         // If the insight came with a specific type (e.g., 'payment'), check if it's enabled.
         if (msgType && !alertTypes.includes(msgType)) {
