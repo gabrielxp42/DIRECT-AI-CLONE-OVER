@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { MessageSquare, Send, X, Bot, Sparkles, Mic, Paperclip, Share2, Calculator, Settings, Volume2, Maximize2, Minimize2, Image as ImageIcon, User, Check, ShoppingBag, Loader2, LayoutGrid, CheckCircle2, Zap, MessageCircle, ExternalLink } from 'lucide-react';
+import { MessageSquare, Send, X, Bot, Sparkles, Mic, Paperclip, Share2, Calculator, Settings, Volume2, Maximize2, Minimize2, Image as ImageIcon, User, Check, ShoppingBag, Loader2, LayoutGrid, CheckCircle2, Zap, MessageCircle, ExternalLink, ChevronDown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { getOpenAIClient, type ChatMessage } from '@/integrations/openai/client';
 import { openAIFunctions, callOpenAIFunction } from '@/integrations/openai/aiTools';
@@ -22,6 +22,7 @@ import { generateReActSystemPrompt } from '@/utils/agentPrompts';
 import { useAIAssistant } from '@/contexts/AIAssistantProvider';
 import { LiveGabi } from './LiveGabi';
 import { LiveGabiGemini } from './LiveGabiGemini';
+import { useBackgroundTasks } from '@/hooks/useBackgroundTasks';
 
 export const AIAssistant = () => {
   const { isOpen, close: closeAssistant } = useAIAssistant();
@@ -38,11 +39,13 @@ export const AIAssistant = () => {
   const [memoryManager, setMemoryManager] = useState<AgentMemoryManager | null>(null);
   const [suggestedActions, setSuggestedActions] = useState<string[]>(["Novo pedido", "Resumo do dia", "Estoque baixo?", "Clientes inativos", "Criar cliente"]);
   const [isLive, setIsLive] = useState(false);
+  const [isSendingWhatsapp, setIsSendingWhatsapp] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<ChatMessage[]>(messages);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { addTask, updateTask } = useBackgroundTasks();
 
   // Keep messagesRef in sync
   useEffect(() => {
@@ -201,6 +204,145 @@ export const AIAssistant = () => {
     const userMessage: ChatMessage = { role: 'user', content: transcription, audioUrl };
     setMessages(prev => [...prev, userMessage]);
     handleSendMessage(transcription);
+  };
+
+  const handleWhatsappSend = async (data: any, messageId: number) => {
+    setIsSendingWhatsapp(true);
+    try {
+      const { data: response, error } = await supabase.functions.invoke('whatsapp-proxy', {
+        body: {
+          action: 'send-text',
+          phone: data.cleanPhone || data.phone.replace(/\D/g, ''),
+          message: data.message
+        }
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Mensagem Enviada!",
+        description: `Enviada com sucesso para ${data.clientName}.`,
+      });
+
+      // Atualizar a mensagem no chat para mostrar como 'enviada'
+      setMessages(prev => prev.map((msg, idx) => {
+        if (idx === messageId) {
+          try {
+            const content = JSON.parse(msg.content || '{}');
+            return {
+              ...msg,
+              content: JSON.stringify({ ...content, type: 'whatsapp_direct_sent' })
+            };
+          } catch (e) {
+            return msg;
+          }
+        }
+        return msg;
+      }));
+    } catch (error: any) {
+      console.error("❌ Erro ao enviar WhatsApp:", error);
+      toast({
+        title: "Erro ao enviar",
+        description: "Certifique-se que sua API Evolution está conectada.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSendingWhatsapp(false);
+    }
+  };
+
+  const handleBulkWhatsappSend = async (data: any, messageId: number) => {
+    setIsSendingWhatsapp(true);
+    const clients = Array.isArray(data) ? data : (data?.clientsToMessage || []);
+    let successes = 0;
+
+    if (clients.length === 0) {
+      toast({ title: "Nenhuma mensagem", description: "A lista de clientes está vazia.", variant: "destructive" });
+      setIsSendingWhatsapp(false);
+      return;
+    }
+
+    const taskId = addTask({
+      title: "Disparo de WhatsApp",
+      description: `Iniciando envio para ${clients.length} clientes...`,
+      status: 'processing',
+      progress: 0,
+      steps: clients.map((c: any, i: number) => ({
+        id: `step-${i}`,
+        label: c.clientName || 'Cliente',
+        status: 'pending'
+      }))
+    });
+    
+    try {
+      for (let i = 0; i < clients.length; i++) {
+        const client = clients[i];
+        
+        updateTask(taskId, { 
+          description: `Enviando para ${client.clientName || 'Cliente'} (${i + 1}/${clients.length})`,
+          progress: Math.round((i / clients.length) * 100)
+        });
+
+        const { error } = await supabase.functions.invoke('whatsapp-proxy', {
+          body: {
+            action: 'send-text',
+            phone: client.cleanPhone || client.phone.replace(/\D/g, ''),
+            message: client.message
+          }
+        });
+        
+        if (!error) successes++;
+        
+        updateTask(taskId, {
+          steps: clients.map((c: any, stepIdx: number) => ({
+             id: `step-${stepIdx}`,
+             label: c.clientName || 'Cliente',
+             status: stepIdx < i ? 'completed' : (stepIdx === i ? (error ? 'error' : 'completed') : 'pending')
+          }))
+        });
+
+        // Delay para evitar bloqueios
+        await new Promise(r => setTimeout(r, 1200));
+      }
+
+      updateTask(taskId, {
+        status: 'completed',
+        progress: 100,
+        description: `Concluído: ${successes} de ${clients.length} enviadas.`
+      });
+
+      toast({
+        title: "Disparo Concluído!",
+        description: `${successes} de ${clients.length} mensagens enviadas com sucesso.`,
+      });
+
+      setMessages(prev => prev.map((msg, idx) => {
+        if (idx === messageId) {
+          try {
+            const content = JSON.parse(msg.content || '{}');
+            return {
+              ...msg,
+              content: JSON.stringify({ 
+                ...content, 
+                type: 'whatsapp_direct_sent',
+                data: { ...content.data, status: 'sent', sentCount: successes } 
+              })
+            };
+          } catch (e) {
+            return msg;
+          }
+        }
+        return msg;
+      }));
+    } catch (error: any) {
+      toast({
+        title: "Erro no disparo em lote",
+        description: "Ocorreu uma falha durante o envio das mensagens.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSendingWhatsapp(false);
+    }
   };
 
   const handleCreateOrder = async (result: any) => {
@@ -498,10 +640,17 @@ export const AIAssistant = () => {
                                                 {!isSent ? (
                                                   <Button
                                                     className="w-full h-14 bg-emerald-500 hover:bg-emerald-600 text-white font-black uppercase tracking-[0.2em] text-[11px] gap-3 shadow-[0_15px_35px_rgba(16,185,129,0.3)] border-none rounded-2xl transition-all hover:scale-[1.02] active:scale-95"
-                                                    onClick={() => window.open(link, '_blank')}
+                                                    disabled={isSendingWhatsapp}
+                                                    onClick={() => {
+                                                      if (resultData.data.canSendDirectly) {
+                                                        handleWhatsappSend(resultData.data, idx);
+                                                      } else {
+                                                        window.open(link, '_blank');
+                                                      }
+                                                    }}
                                                   >
-                                                    <ExternalLink className="w-4 h-4" />
-                                                    Confirmar e Enviar
+                                                    {isSendingWhatsapp ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
+                                                    {resultData.data.canSendDirectly ? "Enviar Agora (API)" : "Confirmar e Enviar"}
                                                   </Button>
                                                 ) : (
                                                   <div className="w-full h-14 flex items-center justify-center gap-3 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl text-emerald-400 font-black uppercase tracking-widest text-[10px]">
@@ -514,7 +663,7 @@ export const AIAssistant = () => {
                                           </div>
                                         );
                                       } else if (resultData.type === 'bulk_whatsapp_action') {
-                                        const { successCount, errorCount, canSendDirectly } = resultData.data;
+                                        const { successCount, errorCount, canSendDirectly, clientsToMessage } = resultData.data;
 
                                         return (
                                           <div className="mt-2 w-full max-w-[350px] animate-in zoom-in-95 group">
@@ -539,25 +688,47 @@ export const AIAssistant = () => {
                                                   </div>
                                                 </div>
 
-                                                <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/5 space-y-3 flex flex-col items-center">
-                                                    <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Gabi preparou as mensagens.</span>
+                                                <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/5 space-y-3">
+                                                    <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Gabi preparou {clientsToMessage?.length || 0} mensagens.</span>
+                                                    
+                                                    <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1 custom-scrollbar">
+                                                      {clientsToMessage?.map((item: any, cIdx: number) => (
+                                                        <details key={cIdx} className="group/item bg-white/5 rounded-xl border border-white/5 overflow-hidden">
+                                                          <summary className="p-2.5 list-none cursor-pointer flex justify-between items-center hover:bg-white/10 transition-colors">
+                                                            <span className="text-[10px] font-bold text-slate-300">
+                                                              {cIdx + 1}. {item.clientName}
+                                                            </span>
+                                                            <ChevronDown className="w-3 h-3 text-slate-500 group-open/item:rotate-180 transition-transform" />
+                                                          </summary>
+                                                          <div className="p-2.5 pt-0 text-[10px] text-slate-400 italic border-t border-white/5 mt-1 leading-relaxed">
+                                                            "{item.message}"
+                                                          </div>
+                                                        </details>
+                                                      ))}
+                                                    </div>
+
                                                     {errorCount > 0 && (
-                                                      <span className="text-[9px] text-amber-500 font-bold uppercase">{errorCount} telefone(s) não encontrado(s).</span>
+                                                      <span className="text-[9px] text-amber-500 font-bold uppercase block text-center mt-1">{errorCount} telefone(s) não encontrado(s).</span>
                                                     )}
                                                 </div>
 
                                                 <Button
                                                     className="w-full h-14 bg-emerald-500 hover:bg-emerald-600 text-white font-black uppercase tracking-[0.2em] text-[11px] gap-3 shadow-[0_15px_35px_rgba(16,185,129,0.3)] border-none rounded-2xl transition-all hover:scale-[1.02] active:scale-95"
+                                                    disabled={isSendingWhatsapp}
                                                     onClick={() => {
-                                                      toast({
-                                                        title: "API de Envio Lote não conectada",
-                                                        description: "A interface capturou a intenção, mas o disparo em lote via Evolution API requer o backend configurado.",
-                                                        variant: "default"
-                                                      });
+                                                        if (canSendDirectly) {
+                                                            handleBulkWhatsappSend(resultData.data.clientsToMessage, idx);
+                                                        } else {
+                                                            toast({
+                                                              title: "API de Envio Lote não conectada",
+                                                              description: "Você não possui integração ativa com o WhatsApp.",
+                                                              variant: "destructive"
+                                                            });
+                                                        }
                                                     }}
                                                   >
-                                                    <CheckCircle2 className="w-4 h-4" />
-                                                    Aprovar e Enviar Todas
+                                                    {isSendingWhatsapp ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                                                    {canSendDirectly ? "Aprovar e Enviar Todas" : "Envio Lote Indisponível"}
                                                 </Button>
                                               </div>
                                             </div>

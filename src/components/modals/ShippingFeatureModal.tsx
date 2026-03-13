@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ShippingAnimation } from '@/components/marketing/ShippingAnimation';
 import { OrderCreationAnimation } from '@/components/marketing/OrderCreationAnimation';
+import { useModalQueue } from '@/contexts/ModalQueueContext';
 
 interface ShippingFeatureModalProps {
     isOpen: boolean;
@@ -14,6 +15,16 @@ interface ShippingFeatureModalProps {
 export const ShippingFeatureModal = ({ isOpen, onClose }: ShippingFeatureModalProps) => {
     const [step, setStep] = useState(1);
     const totalSteps = 2;
+    const { register, deregister, isAllowed } = useModalQueue();
+    const MODAL_ID = 'shipping-feature';
+
+    useEffect(() => {
+        if (isOpen) {
+            register(MODAL_ID, 5);
+        } else {
+            deregister(MODAL_ID);
+        }
+    }, [isOpen]);
 
     const handleNext = () => {
         if (step < totalSteps) {
@@ -25,7 +36,7 @@ export const ShippingFeatureModal = ({ isOpen, onClose }: ShippingFeatureModalPr
 
     return (
         <AnimatePresence>
-            {isOpen && (
+            {(isOpen && isAllowed(MODAL_ID)) && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
                     {/* Backdrop */}
                     <motion.div

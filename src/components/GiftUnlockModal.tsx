@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { BrandingShowcase } from './BrandingShowcase';
+import { useModalQueue } from '@/contexts/ModalQueueContext';
 
 interface GiftUnlockModalProps {
     isOpen: boolean;
@@ -16,6 +17,16 @@ export const GiftUnlockModal = ({ isOpen, onClose, userName }: GiftUnlockModalPr
     const [isOpened, setIsOpened] = useState(false);
     const [showShowcase, setShowShowcase] = useState(false);
     const navigate = useNavigate();
+    const { register, deregister, isAllowed } = useModalQueue();
+    const MODAL_ID = 'gift-unlock';
+
+    React.useEffect(() => {
+        if (isOpen) {
+            register(MODAL_ID, 3);
+        } else {
+            deregister(MODAL_ID);
+        }
+    }, [isOpen]);
 
     const handleOpenGift = () => {
         setIsOpened(true);
@@ -27,7 +38,7 @@ export const GiftUnlockModal = ({ isOpen, onClose, userName }: GiftUnlockModalPr
 
     return (
         <AnimatePresence>
-            {isOpen && (
+            {(isOpen && isAllowed(MODAL_ID)) && (
                 <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
                     <motion.div
                         initial={{ opacity: 0 }}

@@ -124,7 +124,8 @@ const fetchPedidos = async (
 
   // 4. Apply Filters
   if (filterStatus === 'pendente-pagamento') {
-    query = query.not('status', 'in', '(pago,cancelado,entregue)');
+    query = query.not('status', 'in', '(pago,cancelado,entregue,aguardando retirada)');
+    query = query.is('pago_at', null);
   } else if (filterStatus !== 'todos') {
     query = query.eq('status', filterStatus);
   }

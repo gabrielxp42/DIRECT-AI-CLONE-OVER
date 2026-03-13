@@ -10,6 +10,7 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from "@/integrations/supabase/client"
 import { cn } from "@/lib/utils";
 import confetti from 'canvas-confetti';
 import { VetorizaShowcase } from "./VetorizaShowcase";
+import { useModalQueue } from '@/contexts/ModalQueueContext';
 
 export function GiftVetorizaModal() {
     const { session, profile } = useSession();
@@ -17,6 +18,8 @@ export function GiftVetorizaModal() {
     const [isOpened, setIsOpened] = useState(false);
     const [showShowcase, setShowShowcase] = useState(false);
     const navigate = useNavigate();
+    const { register, deregister, isAllowed } = useModalQueue();
+    const MODAL_ID = 'gift-vetoriza';
 
     useEffect(() => {
         if (session && profile) {
@@ -26,6 +29,7 @@ export function GiftVetorizaModal() {
 
             if (isGifted && hasNotViewed && !localViewed) {
                 console.log("🎁 Triggering Vetoriza AI Gift Modal!");
+                register(MODAL_ID, 2);
                 setIsOpen(true);
             }
         }
@@ -53,6 +57,7 @@ export function GiftVetorizaModal() {
 
         if (newOpenState === true) return;
         setIsOpen(false);
+        deregister(MODAL_ID);
 
         if (!session?.user?.id) return;
 
@@ -73,7 +78,7 @@ export function GiftVetorizaModal() {
     };
 
     return (
-        <Dialog open={isOpen} onOpenChange={markAsViewed}>
+        <Dialog open={isOpen && isAllowed(MODAL_ID)} onOpenChange={markAsViewed}>
             <DialogContent className="gift-modal-box w-[95vw] max-w-[550px] p-0 overflow-hidden rounded-[1.5rem] sm:rounded-[2.5rem] border border-white/10 shadow-[0_0_100px_rgba(0,0,0,0.9)] bg-zinc-950/80 backdrop-blur-3xl">
                 {/* Responsive scaling for smaller viewports */}
                 <style>{`

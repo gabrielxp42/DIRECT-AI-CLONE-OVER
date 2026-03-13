@@ -25,6 +25,7 @@ import { useCompanyProfile } from '@/hooks/useCompanyProfile';
 import { useAuth } from '@/hooks/useAuth';
 import { TrendingUp } from 'lucide-react';
 import { TaskDock } from './TaskDock';
+import { ModalQueueProvider } from '@/contexts/ModalQueueContext';
 import { ActivityTracker } from './ActivityTracker';
 const staticNavItems = [
   { href: '/dashboard', icon: Home, label: 'Dashboard' },
@@ -82,6 +83,7 @@ const Layout = () => {
   const gridTemplate = isExpanded ? 'md:grid-cols-[280px_1fr]' : 'md:grid-cols-[64px_1fr]';
 
   return (
+    <ModalQueueProvider>
     <div className={cn("grid min-h-screen w-full transition-all duration-300", gridTemplate)}>
       {/* Sidebar - Desktop (Primeira Coluna do Grid) */}
       <div
@@ -260,6 +262,7 @@ const Layout = () => {
         </button>
       )}
     </div>
+    </ModalQueueProvider>
   );
 };
 

@@ -113,7 +113,7 @@ Dono(a) da Empresa: ${profile?.first_name || 'N/A'}
 - **CÁLCULADOR MATEMÁTICO:** Sempre use perform_calculation se o usuário fizer contas matemáticas, porcentagens ou divisões se você não tiver certeza absoluta. Exemplo: "230 + 15%" -> chame a tool.
 - **RAIO-X DE CLIENTE:** Use get_client_snapshot APENAS quando pedido. Retorne apenas texto informando que a "Ficha foi gerada". Não discurse os números no chat e NÃO USE essa tool apenas para enviar mensagem.
 - **CÁLCULOS DTF:** OBRIGATÓRIO chamar calculate_dtf_packing. Isso ativa o card interativo.
-- **WHATSAPP:** Para enviar mensagens, SEMPRE use send_whatsapp_message. Responda apenas que a "mensagem está pronta no card". NUNCA gere links [Enviar Mensagem](url).
+- **WHATSAPP:** Para enviar mensagens, SEMPRE use send_whatsapp_message ou prepare_bulk_whatsapp_messages. Responda apenas que a "mensagem está pronta no card". NUNCA, SOB QUALQUER HIPÓTESE, gere links manuais como [Enviar Mensagem](url) ou (https://wa.me/...). Se precisar falar com vários clientes, use prepare_bulk_whatsapp_messages.
 - **FRETE:** SEMPRE use calculate_shipping. Mostra as opções em um card.`;
 
         const chatMessages: any[] = [
@@ -402,6 +402,31 @@ Dono(a) da Empresa: ${profile?.first_name || 'N/A'}
             {
                 type: "function",
                 function: {
+                    name: "prepare_bulk_whatsapp_messages",
+                    description: "Prepara múltiplas mensagens de WhatsApp para envio em lote. Use quando precisar falar com vários clientes de uma vez.",
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            messages: {
+                                type: "array",
+                                items: {
+                                    type: "object",
+                                    properties: {
+                                        clientName: { type: "string" },
+                                        phone: { type: "string" },
+                                        message: { type: "string" }
+                                    },
+                                    required: ["clientName", "message"]
+                                }
+                            }
+                        },
+                        required: ["messages"]
+                    }
+                }
+            },
+            {
+                type: "function",
+                function: {
                     name: "perform_calculation",
                     description: "Avalia expressões matemáticas (ex: 2+2, 5*10). SEMPRE use esta ferramenta para responder perguntas matemáticas com precisão ao invez de tentar adivinhar.",
                     parameters: {
@@ -492,11 +517,32 @@ Dono(a) da Empresa: ${profile?.first_name || 'N/A'}
                             if (error) throw error;
                             result = data;
                         } else if (call.function.name === "send_whatsapp_message") {
-                            const cleanPhone = args.phone ? args.phone.replace(/\D/g, '') : '';
+                            let phone = args.phone ? args.phone.replace(/\D/g, '') : null;
+                            let clientName = args.clientName || 'Cliente';
+                            
+                            if (!phone && args.clientName) {
+                                let query = supabase.from('clientes').select('telefone, nome').ilike('nome', `%${args.clientName}%`);
+                                if (orgId) query = query.eq('organization_id', orgId);
+                                else query = query.eq('user_id', userId).is('organization_id', null);
+                                
+                                const { data: client } = await query.limit(1).maybeSingle();
+                                if (client && client.telefone) {
+                                    phone = client.telefone.replace(/\D/g, '');
+                                    clientName = client.nome;
+                                }
+                            }
+
+                            const cleanPhone = phone || '';
                             const encodedMessage = encodeURIComponent(args.message);
                             result = {
                                 type: 'whatsapp_action',
-                                data: { phone: args.phone, message: args.message, link: `https://wa.me/${cleanPhone}?text=${encodedMessage}` }
+                                data: { 
+                                    clientName,
+                                    phone: cleanPhone || args.phone, 
+                                    message: args.message, 
+                                    link: `https://wa.me/${cleanPhone}?text=${encodedMessage}`,
+                                    canSendDirectly: true
+                                }
                             };
                         } else if (call.function.name === "get_client_snapshot") {
                             let query = supabase.from('clientes').select('id, nome, telefone, observacoes').ilike('nome', `%${args.clientName}%`);
@@ -781,6 +827,49 @@ Dono(a) da Empresa: ${profile?.first_name || 'N/A'}
                                 total_found: count,
                                 showing: orders?.length,
                                 message: count && count > limit ? `Atenção: Existem ${count} pedidos no total, mas estou mostrando apenas os ${limit} mais recentes por limitação técnica.` : null
+                            };
+                        } else if (call.function.name === "prepare_bulk_whatsapp_messages") {
+                            const clientsToMessage = [];
+                            let successCount = 0;
+                            let errorCount = 0;
+
+                            for (const item of args.messages) {
+                                let finalPhone = item.phone || '';
+                                let resolvedClientName = item.clientName || '';
+                                const isPlaceholder = !finalPhone || finalPhone.includes('999999999');
+
+                                if (isPlaceholder && item.clientName) {
+                                    const { data: client } = await supabase.from('clientes').select('nome, telefone').ilike('nome', `%${item.clientName}%`).limit(1).maybeSingle();
+                                    if (client?.telefone) {
+                                        finalPhone = client.telefone;
+                                        resolvedClientName = client.nome;
+                                    }
+                                }
+
+                                if (!finalPhone || finalPhone.includes('999999999')) {
+                                    errorCount++;
+                                    continue;
+                                }
+
+                                const cleanPhone = finalPhone.replace(/\D/g, '');
+                                clientsToMessage.push({
+                                    clientName: resolvedClientName,
+                                    phone: finalPhone,
+                                    cleanPhone: cleanPhone,
+                                    message: item.message,
+                                    link: `https://wa.me/${cleanPhone}?text=${encodeURIComponent(item.message)}`
+                                });
+                                successCount++;
+                            }
+
+                            result = {
+                                type: 'bulk_whatsapp_action',
+                                data: {
+                                    successCount,
+                                    errorCount,
+                                    clientsToMessage,
+                                    canSendDirectly: true // Assuming if they reached here and have integration
+                                }
                             };
                         } else if (call.function.name === "search_clients") {
                             let query = supabase.from('clientes').select('id, nome, telefone, email, valor_metro').ilike('nome', `%${args.query}%`);

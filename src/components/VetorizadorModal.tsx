@@ -48,6 +48,7 @@ export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({ isOpen, onCl
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const cameraInputRef = useRef<HTMLInputElement>(null);
+    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
     // --- FETCH CREDITS ---
     const fetchCredits = async () => {
@@ -102,6 +103,10 @@ export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({ isOpen, onCl
             toast.error('Por favor, selecione uma imagem.');
             return;
         }
+        if (file.size > MAX_FILE_SIZE) {
+            toast.error('A imagem é muito grande. O limite máximo é 10MB.');
+            return;
+        }
         setOriginalFile(file);
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -122,7 +127,13 @@ export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({ isOpen, onCl
         const { error: uploadError } = await supabase.storage
             .from('uploads')
             .upload(fileName, file);
-        if (uploadError) throw uploadError;
+        
+        if (uploadError) {
+            if (uploadError.message.includes('maximum allowed size')) {
+                throw new Error('A imagem é muito grande para o servidor. Tente uma imagem menor que 10MB.');
+            }
+            throw uploadError;
+        }
 
         const { data } = supabase.storage
             .from('uploads')
@@ -146,36 +157,68 @@ export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({ isOpen, onCl
     };
 
     const checkVectorizationStatus = async (vectorizationId: string) => {
-        const { data, error } = await supabase.functions.invoke(`vectorize?id=${vectorizationId}`, {
+        const { data: rawData, error } = await supabase.functions.invoke(`vectorize?id=${vectorizationId}`, {
             method: 'GET'
         });
 
         if (error) throw error;
+        
+        // Safety parsing in case Supabase returns a string
+        let data = rawData;
+        if (typeof rawData === 'string') {
+            try { data = JSON.parse(rawData); } catch { /* keep raw */ }
+        }
         return data;
     };
 
     const pollStatus = async (vectorizationId: string) => {
-        const interval = setInterval(async () => {
+        const startTime = Date.now();
+        const MAX_POLL_TIME = 10 * 60 * 1000; // 10 minutes timeout
+
+        const check = async () => {
+            if (Date.now() - startTime > MAX_POLL_TIME) {
+                setStatus('error');
+                toast.error('Tempo limite de processamento atingido. Tente novamente.');
+                return;
+            }
+
             try {
                 const data = await checkVectorizationStatus(vectorizationId);
+                console.log('[Vetorizador] Poll data:', data);
+
                 if (data.status === 'completed' && data.result_url) {
-                    clearInterval(interval);
                     setResultImage(data.result_url);
                     setStatus('done');
                     setSelectedEffect(null);
                     setUserPrompt('');
                     toast.success('Vetorização concluída!');
                     setTimeout(() => fetchCredits(), 500);
+                    return; // Stop polling
                 } else if (data.status === 'failed') {
-                    clearInterval(interval);
                     setStatus('error');
-                    toast.error('Falha na vetorização. Tente novamente.');
-                    fetchCredits(); // Refresh credits even on failure, in case they were deducted
+                    const errorMsg = data.error || data.error_message || 'Falha na vetorização.';
+                    if (errorMsg.toLowerCase().includes('safety') || errorMsg.toLowerCase().includes('copyright') || errorMsg.toLowerCase().includes('policy')) {
+                        toast.error('A IA bloqueou a imagem por direitos autorais. Tente outra imagem.', { duration: 6000 });
+                    } else {
+                        toast.error(errorMsg);
+                    }
+                    fetchCredits();
+                    return; // Stop polling
                 }
-            } catch (err) {
+            } catch (err: any) {
                 console.error('Polling error:', err);
+                // Continue polling on transient errors unless it's a hard failure
+                if (err.context?.response?.status === 404) {
+                    setStatus('error');
+                    return;
+                }
             }
-        }, 2000);
+
+            // Schedule next check
+            setTimeout(check, 3000);
+        };
+
+        check();
     };
 
     const effectOptions = [
@@ -184,7 +227,7 @@ export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({ isOpen, onCl
             label: 'Vetor Clássico',
             icon: <PenTool size={24} />,
             desc: 'Logos limpos, sem fundo, cores chapadas.',
-            prompt: 'recreate as a professional high-fidelity 2D vector logo, IGNORE surface textures, wrinkles, shadows or reflections. RECREATE from scratch with perfect geometric shapes and solid flat colors. TIGHT CROP: ensure logo occupies 95% of the frame. HIGH CONTRAST BACKGROUND: Use a background color that contrasts strongly with the logo (e.g., dark for light logos, light for dark logos) to ensure visibility.'
+            prompt: 'recreate as a professional high-fidelity 2D vector logo. RECREATE from scratch with perfect geometric shapes and solid flat colors. TIGHT CROP: ensure logo occupies 95% of the frame. HIGH CONTRAST BACKGROUND.'
         },
         {
             id: 'embroidery',
@@ -229,10 +272,10 @@ export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({ isOpen, onCl
 
         // --- TABELA DE PREÇOS (Sincronizada com Backend) ---
         const COSTS = {
-            standard: 5,
-            pro: 20,
-            edit: 5,
-            bg_removal: 25 // Clipping Magic API
+            standard: 1,
+            pro: 3,
+            edit: 1,
+            bg_removal: 5
         };
 
         const cost = prompt ? COSTS.edit : (selectedModel === 'pro' ? COSTS.pro : COSTS.standard);
@@ -272,9 +315,31 @@ export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({ isOpen, onCl
                 throw new Error('Erro na resposta da API');
             }
         } catch (err: any) {
-            toast.error(err.message || 'Erro ao processar imagem.');
+            console.error('Vectorization error:', err);
+            let errorMsg = 'Erro ao processar imagem.';
+            
+            // Try to extract JSON error from Edge Function
+            if (err.context?.response) {
+                try {
+                    const errorData = await err.context.response.json();
+                    errorMsg = errorData.error || errorData.message || errorMsg;
+                } catch (e) {
+                    errorMsg = err.message || errorMsg;
+                }
+            } else {
+                errorMsg = err.message || errorMsg;
+            }
+
+            if (errorMsg.toLowerCase().includes('safety') || errorMsg.toLowerCase().includes('copyright') || errorMsg.toLowerCase().includes('policy')) {
+                toast.error('A IA bloqueou esta imagem por direitos autorais ou política de segurança. Tente outra arte.', { duration: 6000 });
+            } else if (err.context?.response?.status === 503 || errorMsg.toLowerCase().includes('credit') || errorMsg.toLowerCase().includes('balance')) {
+                toast.error('O sistema de IA está em manutenção ou sem créditos no momento. Por favor, avise o suporte.', { duration: 8000 });
+            } else {
+                toast.error(errorMsg);
+            }
+            
             setStatus('error');
-            fetchCredits(); // Refresh credits in case of an error after deduction
+            fetchCredits(); 
         }
     };
 
@@ -408,13 +473,9 @@ export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({ isOpen, onCl
                                                     {(status as string) === 'processing' ? 'Processando IA...' : (status as string) === 'done' ? 'Resultado Final' : 'Imagem Original'}
                                                 </span>
                                                 {(status === 'idle' || status === 'done') && (
-                                                    <button
-                                                        className="absolute top-5 right-5 z-10 p-2 bg-black/40 hover:bg-black/60 rounded-full text-white/70 hover:text-white transition-all backdrop-blur-md border border-white/10 hidden md:flex"
-                                                        onClick={handleReset}
-                                                        title="Remover imagem e carregar outra"
-                                                    >
-                                                        <RotateCcw size={16} />
-                                                    </button>
+                                                    <div className="flex justify-end pr-2">
+                                                        {/* Tag logic stays but button moves */}
+                                                    </div>
                                                 )}
                                             </div>
                                             <div className="card-image-vec">
@@ -440,15 +501,18 @@ export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({ isOpen, onCl
                                             </div>
                                         </div>
 
-                                        {/* MOBILE RESET BUTTON (NEW POSITION) */}
+                                        {/* LIQUID GLASS RESET BUTTON */}
                                         {(status === 'idle' || status === 'done') && (
-                                            <button
-                                                className="reset-btn-mobile-vec md:hidden"
-                                                onClick={handleReset}
-                                            >
-                                                <RotateCcw size={14} />
-                                                <span>Trocar Imagem</span>
-                                            </button>
+                                            <div className="mt-4 flex justify-center">
+                                                <button
+                                                    className="group relative flex items-center justify-center gap-2 py-2.5 px-6 rounded-2xl transition-all duration-300 backdrop-blur-xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 active:scale-95 shadow-2xl overflow-hidden"
+                                                    onClick={handleReset}
+                                                >
+                                                    <div className="absolute inset-0 bg-gradient-to-r from-primary/20 via-transparent to-primary/20 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                    <RotateCcw size={18} className="text-white/70 group-hover:text-primary transition-colors group-hover:rotate-[-45deg] duration-500" />
+                                                    <span className="text-sm font-medium text-white/90 tracking-wide uppercase">Trocar Imagem</span>
+                                                </button>
+                                            </div>
                                         )}
                                     </div>
 

@@ -44,7 +44,7 @@ const Index = () => {
 
   useEffect(() => {
     if (shouldAutoStart && !sessionLoading) {
-      const timer = setTimeout(startTour, 2000);
+      const timer = setTimeout(startTour, 5000); // Aumentado para 5s para dar tempo de outros modais (como frete) respirarem
       return () => clearTimeout(timer);
     }
   }, [shouldAutoStart, sessionLoading, startTour]);

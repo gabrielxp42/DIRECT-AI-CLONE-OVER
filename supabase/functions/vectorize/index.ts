@@ -8,6 +8,7 @@ const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Headers":
         "authorization, x-client-info, apikey, content-type",
+    "Content-Type": "application/json",
 };
 
 /**
@@ -17,12 +18,97 @@ const corsHeaders = {
  * reconstruir/vetorizar logos de baixa qualidade.
  *
  * A chave da API é lida de qualquer perfil administrativo para uso global.
- */
-Deno.serve(async (req: Request) => {
+ */Deno.serve(async (req: Request) => {
     if (req.method === "OPTIONS")
         return new Response("ok", { headers: corsHeaders });
 
     const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    // Buscar a chave API administrativa globalmente
+    const { data: adminProfiles } = await supabaseAdmin
+        .from("profiles")
+        .select("kieai_api_key")
+        .eq("is_admin", true)
+        .not("kieai_api_key", "is", null)
+        .limit(1);
+
+    const kieApiKey = adminProfiles?.[0]?.kieai_api_key;
+    if (!kieApiKey && req.method !== "OPTIONS") {
+        return new Response(JSON.stringify({ error: "KIE.AI API key not configured" }), {
+            status: 503, headers: corsHeaders
+        });
+    }
+
+    // --- UTILITY: Execute KIE.AI Task ---
+    const executeKieTask = async (
+        vectorizationId: string, 
+        userId: string, 
+        currentModel: string, 
+        currentPrompt: string, 
+        currentImageUrl: string, 
+        isFallbackRetry = false
+    ) => {
+        const endpoint = "https://api.kie.ai/api/v1/jobs/createTask";
+        const isFlux = currentModel.startsWith("flux");
+        
+        // --- 1. HANDLE CREDITS FOR FALLBACK ---
+        if (isFallbackRetry) {
+            console.log(`[vectorize] Attempting fallback credit deduction for ${userId} (1 credit)`);
+            const { error: fallbackError } = await supabaseAdmin.rpc('deduct_ai_credits', {
+                p_user_id: userId,
+                p_amount: 1 // 5 (Flux) - 4 (Nano)
+            });
+
+            if (fallbackError) {
+                console.error("[vectorize] Fallback credit deduction failed:", fallbackError);
+                throw new Error("Saldo insuficiente para o modelo alternativo (Flux 2).");
+            }
+        }
+
+        // --- 2. CALL KIE.AI API ---
+        const requestBody = {
+            model: currentModel,
+            input: isFlux ? {
+                prompt: currentPrompt,
+                input_urls: [currentImageUrl],
+                aspect_ratio: "auto",
+                resolution: "1K"
+            } : {
+                prompt: currentPrompt,
+                image_urls: [currentImageUrl],
+                output_format: "png",
+                image_size: "1:1"
+            }
+        };
+
+        const response = await fetch(endpoint, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${kieApiKey}`,
+            },
+            body: JSON.stringify(requestBody),
+        });
+
+        const responseText = await response.text();
+        let data: any;
+        try {
+            data = JSON.parse(responseText);
+        } catch (e) {
+            data = { message: responseText };
+        }
+
+        if (response.ok && (data.taskId || data.data?.taskId)) {
+            const taskId = data.taskId || data.data?.taskId;
+            return { taskId, isFallback: isFallbackRetry };
+        } else if (data.code === 200 && (data.taskId || data.data?.taskId)) {
+            const taskId = data.taskId || data.data?.taskId;
+            return { taskId, isFallback: isFallbackRetry };
+        } else {
+            const errorStr = data.error || data.message || data.msg || `Error ${response.status}`;
+            throw new Error(errorStr);
+        }
+    };
 
     // --- HANDLE GET (Polling) ---
     if (req.method === "GET") {
@@ -30,438 +116,185 @@ Deno.serve(async (req: Request) => {
             const url = new URL(req.url);
             const id = url.searchParams.get("id");
 
-            if (!id) {
-                return new Response(JSON.stringify({ error: "Missing id parameter" }), {
-                    status: 400,
-                    headers: { ...corsHeaders, "Content-Type": "application/json" },
-                });
-            }
+            if (!id) return new Response(JSON.stringify({ error: "Missing id" }), { status: 400, headers: corsHeaders });
 
-            // Buscar registro local
-            const { data: record, error: fetchError } = await supabaseAdmin
-                .from("vectorizations")
-                .select("*")
-                .eq("id", id)
-                .single();
+            const { data: record, error: fetchError } = await supabaseAdmin.from("vectorizations").select("*").eq("id", id).single();
+            if (fetchError || !record) return new Response(JSON.stringify({ error: "Job find error" }), { status: 404, headers: corsHeaders });
 
-            if (fetchError || !record) {
-                return new Response(JSON.stringify({ error: "Job not found" }), {
-                    status: 404,
-                    headers: { ...corsHeaders, "Content-Type": "application/json" },
-                });
-            }
-
-            // Se já finalizou, retorna o que tem
             if (record.status !== "processing" || !record.external_task_id) {
-                return new Response(JSON.stringify(record), {
-                    headers: { ...corsHeaders, "Content-Type": "application/json" },
-                });
+                return new Response(JSON.stringify(record), { headers: corsHeaders });
             }
-
-            // Se ainda está processando, consulta a KIE.AI
-            // Buscar chave API de admin
-            const { data: profiles } = await supabaseAdmin
-                .from("profiles")
-                .select("kieai_api_key")
-                .eq("is_admin", true)
-                .not("kieai_api_key", "is", null)
-                .limit(1);
-
-            const apiKey = profiles?.[0]?.kieai_api_key;
-            if (!apiKey) throw new Error("API Key not found");
 
             const statusEndpoint = `https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${record.external_task_id}`;
-            const response = await fetch(statusEndpoint, {
-                headers: { "Authorization": `Bearer ${apiKey}` }
-            });
+            const response = await fetch(statusEndpoint, { headers: { "Authorization": `Bearer ${kieApiKey}` } });
 
             if (response.ok) {
                 const data = await response.json();
-                console.log(`[vectorize] KIE.AI status for ${record.external_task_id}:`, data);
+                const kieData = data.data || data; // Handle cases where data is not wrapped
+                const kieState = kieData?.state || kieData?.status;
+                
+                // Detailed logging for debugging
+                console.log(`[vectorize] KIE.AI status for taskId ${record.external_task_id}: ${kieState}`);
 
-                // Estrutura real retornada pela API KIE.AI
-                const kieState = data.data?.state;
-                let resultUrl = data.data?.output_url || data.data?.result_url || data.data?.image_url;
+                let resultUrl = kieData?.output_url || kieData?.result_url || kieData?.image_url || kieData?.url;
 
-                if (kieState === "success" && data.data?.resultJson) {
-                    try {
-                        const parsedResult = JSON.parse(data.data.resultJson);
-                        if (parsedResult.resultUrls && parsedResult.resultUrls.length > 0) {
-                            resultUrl = parsedResult.resultUrls[0];
+                // Flux models and others often use result (stringified JSON) or resultJson
+                const resultSource = kieData?.result || kieData?.resultJson || kieData?.result_json;
+                if (kieState === "success" || kieState === "completed") {
+                    if (resultSource) {
+                        try {
+                            const parsed = typeof resultSource === 'string' ? JSON.parse(resultSource) : resultSource;
+                            if (parsed.resultUrls && parsed.resultUrls.length > 0) {
+                                resultUrl = parsed.resultUrls[0];
+                            } else if (parsed.url) {
+                                resultUrl = parsed.url;
+                            } else if (Array.isArray(parsed) && parsed.length > 0) {
+                                resultUrl = parsed[0];
+                            }
+                        } catch (e) { 
+                            console.error("[vectorize] JSON parse error in resultSource", e); 
                         }
-                    } catch (e) {
-                        console.error("[vectorize] Error parsing KIE.AI resultJson:", e);
                     }
                 }
 
-                if (resultUrl) {
-                    // Completou!
-                    const { data: updated } = await supabaseAdmin
+                if (resultUrl && (kieState === "success" || kieState === "completed")) {
+                    console.log(`[vectorize] Success! resultUrl found: ${resultUrl}`);
+                    const { data: updated, error: updateError } = await supabaseAdmin
                         .from("vectorizations")
-                        .update({
-                            status: "completed",
-                            result_url: resultUrl,
-                            completed_at: new Date().toISOString()
+                        .update({ 
+                            status: "completed", 
+                            result_url: resultUrl, 
+                            completed_at: new Date().toISOString() 
                         })
                         .eq("id", id)
                         .select()
                         .single();
 
-                    return new Response(JSON.stringify(updated), {
-                        headers: { ...corsHeaders, "Content-Type": "application/json" },
-                    });
-                } else if (kieState === "failed" || kieState === "fail" || data.data?.status === 2 || data.data?.failCode) {
-                    // Falhou
-                    const { data: updated } = await supabaseAdmin
-                        .from("vectorizations")
-                        .update({
-                            status: "failed",
-                            error_message: "KIE.AI task failed",
-                            completed_at: new Date().toISOString()
-                        })
-                        .eq("id", id)
-                        .select()
-                        .single();
+                    if (updateError) console.error("[vectorize] Update error:", updateError);
+                    return new Response(JSON.stringify(updated || record), { headers: corsHeaders });
+                } 
+                
+                // --- FALLBACK LOGIC ON FAILURE ---
+                if (kieState === "failed" || kieState === "fail" || kieData?.failCode) {
+                    const failMsg = (kieData?.failMsg || kieData?.error || "").toLowerCase();
+                    const isCopyrightError = failMsg.includes("safety") || failMsg.includes("copyright") || failMsg.includes("prohibited") || failMsg.includes("gemini could not generate");
 
-                    return new Response(JSON.stringify(updated), {
-                        headers: { ...corsHeaders, "Content-Type": "application/json" },
-                    });
+                    // Check if we already tried fallback for this record
+                    const alreadyFallback = record.error_message?.includes("Fallback (Flux 2)");
+
+                    if (isCopyrightError && !alreadyFallback) {
+                        console.log("⚠️ Async Copyright error detected. Initiating fallback to Flux 2 PRO...");
+                        try {
+                            const fluxModel = "flux-2/pro-image-to-image";
+                            const defaultPrompt = "Isolate the main logo or drawing from the image... TIGHT CROP. TRANSPARENT BACKGROUND.";
+                            
+                            const { taskId } = await executeKieTask(
+                                record.id, 
+                                record.user_id, 
+                                fluxModel, 
+                                record.prompt || defaultPrompt, 
+                                record.input_url, 
+                                true
+                            );
+
+                            const { data: updatedRecord } = await supabaseAdmin
+                                .from("vectorizations")
+                                .update({ 
+                                    external_task_id: taskId,
+                                    error_message: "Processado via Fallback (Flux 2) devido a restrições de direitos autorais no modelo original."
+                                })
+                                .eq("id", id)
+                                .select()
+                                .single();
+
+                            return new Response(JSON.stringify(updatedRecord), { headers: corsHeaders });
+                        } catch (err: any) {
+                            console.error("[vectorize] Async fallback initiation failed:", err);
+                            const { data: failedRecord } = await supabaseAdmin
+                                .from("vectorizations")
+                                .update({ 
+                                    status: "failed", 
+                                    error_message: `Fallback falhou: ${err.message}` 
+                                })
+                                .eq("id", id)
+                                .select()
+                                .single();
+                            return new Response(JSON.stringify(failedRecord || record), { headers: corsHeaders });
+                        }
+                    }
+
+                    // Se não for erro de copyright ou fallback falhou/já foi tentado
+                    const { data: updated } = await supabaseAdmin.from("vectorizations").update({ status: "failed", error_message: kieData?.failMsg || "KIE.AI task failed", completed_at: new Date().toISOString() }).eq("id", id).select().single();
+                    return new Response(JSON.stringify(updated), { headers: corsHeaders });
                 }
             }
 
-            // Ainda processando ou erro na consulta
-            return new Response(JSON.stringify(record), {
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
-            });
-
+            return new Response(JSON.stringify(record), { headers: corsHeaders });
         } catch (err: any) {
-            return new Response(JSON.stringify({ error: err.message }), {
-                status: 500,
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
-            });
+            return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: corsHeaders });
         }
     }
 
     // --- HANDLE POST (Creation) ---
     try {
-        // Autenticação do chamador
         const authHeader = req.headers.get("Authorization");
-        if (!authHeader) {
-            return new Response(
-                JSON.stringify({ error: "Missing authorization header" }),
-                { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
-        }
+        if (!authHeader) return new Response(JSON.stringify({ error: "Missing auth" }), { status: 401, headers: corsHeaders });
 
-        // Validar user chamador
         const token = authHeader.replace("Bearer ", "");
         const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-
-        if (authError || !user) {
-            return new Response(
-                JSON.stringify({ error: "Invalid token" }),
-                { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
-        }
-
-        // Buscar a chave API de um perfil administrativo (chave global)
-        const { data: profiles, error: profileError } = await supabaseAdmin
-            .from("profiles")
-            .select("kieai_api_key")
-            .eq("is_admin", true)
-            .not("kieai_api_key", "is", null)
-            .limit(1);
-
-        if (profileError) {
-            console.error("[vectorize] Profile query error:", profileError);
-            return new Response(
-                JSON.stringify({ error: "Erro ao buscar configuração administrativa." }),
-                { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
-        }
-
-        const kieApiKey = profiles && profiles.length > 0 ? profiles[0].kieai_api_key : null;
-        const photoRoomApiKey = Deno.env.get("PHOTOROOM_API_KEY") || "sk_pr_default_2c850c3d2dc4f8fbf08d368bd2902aad52f44444";
-
-        if (!kieApiKey) {
-            console.error("[vectorize] No admin API key found in profiles");
-            return new Response(
-                JSON.stringify({ error: "Serviço indisponível: Chave API do KIE.AI não configurada pelo administrador." }),
-                { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
-        }
+        if (authError || !user) return new Response(JSON.stringify({ error: "Invalid token" }), { status: 401, headers: corsHeaders });
 
         const payload = await req.json();
         const { image_url, model = "standard", prompt } = payload;
+        if (!image_url) return new Response(JSON.stringify({ error: "image_url required" }), { status: 400, headers: corsHeaders });
 
-        // --- CREDIT SYSTEM INTEGRATION ---
-        const COSTS: Record<string, number> = {
-            "standard": 5,
-            "pro": 20,
-            "edit": 5,
-            "bg_removal": 15 // Updated to 15 credits (R$ 0,75) for better competitiveness 
-        };
-
-        const cost = prompt ? COSTS["edit"] : (COSTS[model as string] || COSTS["standard"]);
-        console.log(`[vectorize] Attempting credit deduction for user ${user.id}. Cost: ${cost}`);
-
-        try {
-            const { data: deductionData, error: deductionError } = await supabaseAdmin.rpc('deduct_ai_credits', {
-                p_user_id: user.id,
-                p_amount: cost
-            });
-
-            if (deductionError) {
-                console.error("[vectorize] RPC deductionError:", JSON.stringify(deductionError));
-                if (deductionError.message?.includes('Insufficient Credits')) {
-                    return new Response(
-                        JSON.stringify({
-                            error: "Créditos insuficientes. Por favor, recarregue para continuar.",
-                            code: "INSUFFICIENT_CREDITS"
-                        }),
-                        { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-                    );
-                }
-                throw deductionError;
-            }
-            console.log(`[vectorize] Credit deduction successful for ${user.id}`);
-        } catch (err: any) {
-            console.error("[vectorize] Credit deduction critical error:", err);
-            return new Response(
-                JSON.stringify({
-                    error: "Erro ao processar cobrança de créditos.",
-                    debug: err.message
-                }),
-                { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
-        }
-        // ---------------------------------
-
-        if (!image_url) {
-            return new Response(
-                JSON.stringify({ error: "image_url is required" }),
-                { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
+        // dedução inicial (4 créditos)
+        const cost = 4; // Nano Banana cost
+        const { error: deductionError } = await supabaseAdmin.rpc('deduct_ai_credits', { p_user_id: user.id, p_amount: cost });
+        if (deductionError) {
+            return new Response(JSON.stringify({ error: "Créditos insuficientes.", code: "INSUFFICIENT_CREDITS" }), { status: 402, headers: corsHeaders });
         }
 
-        console.log(`[vectorize] User: ${user.id}, Model: ${model}`);
+        // 1. Criar registro no banco
+        const { data: job } = await supabaseAdmin.from("vectorizations").insert({ user_id: user.id, input_url: image_url, model, prompt, status: "processing" }).select("id").single();
+        if (!job) throw new Error("Failed to create record");
 
-        // 1. Registrar job como "processing"
-        const { data: vectorization, error: insertError } = await supabaseAdmin
-            .from("vectorizations")
-            .insert({
-                user_id: user.id,
-                input_url: image_url,
-                model,
-                prompt: prompt || null,
-                status: "processing",
-            })
-            .select("id")
-            .single();
-
-        if (insertError) {
-            console.error("[vectorize] Insert error:", insertError);
-            return new Response(
-                JSON.stringify({ error: "Failed to create vectorization job" }),
-                { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
-        }
-
-        const vectorizationId = vectorization.id;
-
-        // 2. Chamar API Correspondente
-        if (model === "bg_removal") {
-            const photoroomEndpoint = "https://sdk.photoroom.com/v1/segment";
-            console.log(`[vectorize] Calling PhotoRoom for background removal: ${image_url}`);
-
-            try {
-                const response = await fetch(photoroomEndpoint, {
-                    method: "POST",
-                    headers: {
-                        "x-api-key": photoRoomApiKey,
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify({
-                        imageUrl: image_url,
-                        size: "full"
-                    })
-                });
-
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`PhotoRoom Error (${response.status}): ${errorText}`);
-                }
-
-                // PhotoRoom retorna binário. Vamos salvar no storage.
-                const imageBlob = await response.blob();
-                const fileName = `${user.id}/bg-removed-${Date.now()}.png`;
-
-                const { error: uploadError } = await supabaseAdmin.storage
-                    .from("uploads")
-                    .upload(fileName, imageBlob, {
-                        contentType: 'image/png',
-                        upsert: true
-                    });
-
-                if (uploadError) throw uploadError;
-
-                const { data: publicUrlData } = supabaseAdmin.storage
-                    .from("uploads")
-                    .getPublicUrl(fileName);
-
-                const resultUrl = publicUrlData.publicUrl;
-
-                // Sucesso Síncrono para Remoção de Fundo
-                await supabaseAdmin
-                    .from("vectorizations")
-                    .update({
-                        status: "completed",
-                        result_url: resultUrl,
-                        completed_at: new Date().toISOString(),
-                    })
-                    .eq("id", vectorizationId);
-
-                return new Response(
-                    JSON.stringify({
-                        vectorization_id: vectorizationId,
-                        status: "completed",
-                        result_url: resultUrl,
-                    }),
-                    { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-                );
-
-            } catch (err: any) {
-                console.error(`[vectorize] PhotoRoom failed:`, err);
-                await supabaseAdmin
-                    .from("vectorizations")
-                    .update({
-                        status: "failed",
-                        error_message: err.message,
-                        completed_at: new Date().toISOString(),
-                    })
-                    .eq("id", vectorizationId);
-
-                return new Response(
-                    JSON.stringify({ error: err.message }),
-                    { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-                );
-            }
-        }
-
-        // 3. Chamar API KIE.AI (Vetorização)
-        const endpoint = "https://api.kie.ai/api/v1/jobs/createTask";
-
-        // Mapear modelo conforme o usuário solicitou ou usar o padrão Edit (que ele indicou no site)
         const targetModel = model === "pro" ? "google/nano-banana-pro" : "google/nano-banana-edit";
-        const defaultPrompt = "Isolate the main logo or drawing from the image. Ignore background elements like fabric, shirts, or surrounding objects. Re-vectorize and enhance only the identified artwork, making it perfectly ready for high-quality printing. Ensure sharp edges, high resolution, and a professional clean look. TIGHT CROP. TRANSPARENT BACKGROUND.";
+        const defaultPrompt = "Isolate the main logo or drawing from the image... TIGHT CROP. TRANSPARENT BACKGROUND.";
 
-        let resultUrl: string | null = null;
         let kieError: string | null = null;
 
         try {
-            console.log(`[vectorize] Calling KIE.AI endpoint: ${endpoint} with model: ${targetModel}`);
+            const { taskId } = await executeKieTask(job.id, user.id, targetModel, prompt || defaultPrompt, image_url);
+            
+            await supabaseAdmin.from("vectorizations").update({ external_task_id: taskId }).eq("id", job.id);
 
-            const response = await fetch(endpoint, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${kieApiKey}`,
-                },
-                body: JSON.stringify({
-                    model: targetModel,
-                    input: {
-                        prompt: prompt || defaultPrompt,
-                        image_urls: [image_url],
-                        output_format: "png",
-                        image_size: "1:1"
-                    }
-                }),
-            });
-
-            const responseText = await response.text();
-            let data: any;
-            try {
-                data = JSON.parse(responseText);
-            } catch (e) {
-                data = { message: responseText };
-            }
-
-            console.log(`[vectorize] KIE.AI response (${response.status}):`, responseText);
-
-            if (response.ok && (data.taskId || data.data?.taskId)) {
-                const taskId = data.taskId || data.data?.taskId;
-                // Sucesso na criação da task (assinscrono)
-                await supabaseAdmin
-                    .from("vectorizations")
-                    .update({ external_task_id: taskId })
-                    .eq("id", vectorizationId);
-
-                return new Response(
-                    JSON.stringify({
-                        vectorization_id: vectorizationId,
-                        status: "processing",
-                        task_id: taskId,
-                    }),
-                    { status: 202, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-                );
-            } else if (response.ok && (data.output_url || data.result_url || data.image_url)) {
-                // Sucesso síncrono
-                resultUrl = data.output_url || data.result_url || data.image_url;
-            } else if (data.code === 200 && (data.taskId || data.data?.taskId)) {
-                // Caso o status venha 200 mas dentro do JSON (como vimos no log)
-                const taskId = data.taskId || data.data?.taskId;
-                await supabaseAdmin
-                    .from("vectorizations")
-                    .update({ external_task_id: taskId })
-                    .eq("id", vectorizationId);
-
-                return new Response(
-                    JSON.stringify({
-                        vectorization_id: vectorizationId,
-                        status: "processing",
-                        task_id: taskId,
-                    }),
-                    { status: 202, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-                );
-            } else {
-                kieError = data.error || data.message || data.msg || `Error ${response.status}: ${responseText}`;
-                console.warn(`[vectorize] KIE.AI failed: ${kieError}`);
-            }
+            return new Response(JSON.stringify({ vectorization_id: job.id, status: "processing", task_id: taskId }), { status: 202, headers: corsHeaders });
         } catch (err: any) {
-            kieError = err.message;
-            console.error(`[vectorize] KIE.AI fetch exception:`, err);
-        }
+            // DETECTAR ERRO DE COPYRIGHT IMEDIATO NO POST
+            const errLower = err.message.toLowerCase();
+            const isCopyrightError = errLower.includes("safety") || 
+                                   errLower.includes("copyright") || 
+                                   errLower.includes("prohibited") || 
+                                   errLower.includes("gemini could not generate");
 
-        // 4. Atualizar o job com resultado
-        const finalStatus = resultUrl ? "completed" : "failed";
-
-        await supabaseAdmin
-            .from("vectorizations")
-            .update({
-                status: finalStatus,
-                result_url: resultUrl,
-                error_message: kieError,
-                completed_at: new Date().toISOString(),
-            })
-            .eq("id", vectorizationId);
-
-        return new Response(
-            JSON.stringify({
-                vectorization_id: vectorizationId,
-                status: finalStatus,
-                result_url: resultUrl,
-                error: kieError,
-            }),
-            {
-                status: finalStatus === "completed" ? 200 : 500,
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
+            if (isCopyrightError) {
+                console.log("⚠️ Immediate Copyright error detected in POST. Trying fallback to Flux 2 PRO...");
+                try {
+                    const { taskId } = await executeKieTask(job.id, user.id, "flux-2/pro-image-to-image", prompt || defaultPrompt, image_url, true);
+                    await supabaseAdmin.from("vectorizations").update({ external_task_id: taskId, error_message: "Processado via Fallback (Flux 2) devido a restrições no modelo original." }).eq("id", job.id);
+                    return new Response(JSON.stringify({ vectorization_id: job.id, status: "processing", task_id: taskId, is_fallback: true }), { status: 202, headers: corsHeaders });
+                } catch (fallbackErr: any) {
+                    kieError = fallbackErr.message;
+                }
+            } else {
+                kieError = err.message;
             }
-        );
+
+            await supabaseAdmin.from("vectorizations").update({ status: "failed", error_message: kieError, completed_at: new Date().toISOString() }).eq("id", job.id);
+            return new Response(JSON.stringify({ error: kieError }), { status: 500, headers: corsHeaders });
+        }
     } catch (error: any) {
-        console.error("[vectorize] Fatal error:", error);
-        return new Response(
-            JSON.stringify({ error: error.message }),
-            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: corsHeaders });
     }
 });

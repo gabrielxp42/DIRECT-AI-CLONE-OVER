@@ -1,13 +1,16 @@
 "use client";
 
 import { useSession } from '@/contexts/SessionProvider';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { TutorialStep } from '@/components/TutorialGuide';
+import { useModalQueue } from '@/contexts/ModalQueueContext';
 
 export const useTour = (steps: TutorialStep[], tourId: string) => {
     const { profile, supabase } = useSession();
     const [isTourOpen, setIsTourOpen] = useState(false);
     const [currentStep, setCurrentStep] = useState(0);
+    const { register, deregister, isAllowed } = useModalQueue();
+    const MODAL_ID = `tutorial-${tourId}`;
 
     const completedTours = profile?.completed_tours || [];
 
@@ -17,8 +20,16 @@ export const useTour = (steps: TutorialStep[], tourId: string) => {
 
     const startTour = useCallback(() => {
         setCurrentStep(0);
+        register(MODAL_ID, 10);
+        // Only set the open state to true immediately if nothing else is open
+        // But the registration itself will eventually allow it
         setIsTourOpen(true);
-    }, []);
+    }, [register, MODAL_ID]);
+
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => deregister(MODAL_ID);
+    }, [deregister, MODAL_ID]);
 
     const nextStep = useCallback(() => {
         if (currentStep < steps.length - 1) {
@@ -36,6 +47,7 @@ export const useTour = (steps: TutorialStep[], tourId: string) => {
 
     const completeTour = useCallback(async (isFinished: boolean) => {
         setIsTourOpen(false);
+        deregister(MODAL_ID);
 
         if (isFinished && !isCompleted) {
             // 1. Immediate Local Update
@@ -71,7 +83,7 @@ export const useTour = (steps: TutorialStep[], tourId: string) => {
     }, [completeTour]);
 
     return {
-        isTourOpen,
+        isTourOpen: isTourOpen && isAllowed(MODAL_ID),
         isCompleted,
         currentStep,
         steps,

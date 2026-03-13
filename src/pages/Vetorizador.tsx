@@ -15,7 +15,8 @@ import {
     MessageSquare,
     PenTool,
     Type,
-    Edit3
+    Edit3,
+    Layers
 } from 'lucide-react';
 import { useSession } from '@/contexts/SessionProvider';
 import { DesignAgent } from '@/components/DesignAgent';
@@ -38,10 +39,15 @@ const Vetorizador: React.FC = () => {
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const cameraInputRef = useRef<HTMLInputElement>(null);
+    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
     const handleFile = (file: File) => {
         if (!file.type.startsWith('image/')) {
             toast.error('Por favor, selecione uma imagem.');
+            return;
+        }
+        if (file.size > MAX_FILE_SIZE) {
+            toast.error('A imagem é muito grande. O limite máximo é 10MB.');
             return;
         }
         setOriginalFile(file);
@@ -80,7 +86,12 @@ const Vetorizador: React.FC = () => {
         const fileExt = file.name.split('.').pop();
         const fileName = `${user.id}/${Date.now()}.${fileExt}`;
         const { error: uploadError } = await supabase.storage.from('uploads').upload(fileName, file);
-        if (uploadError) throw uploadError;
+        if (uploadError) {
+          if (uploadError.message.includes('maximum allowed size')) {
+            throw new Error('A imagem é muito grande para o servidor. Tente uma imagem menor que 10MB.');
+          }
+          throw uploadError;
+        }
         const { data } = supabase.storage.from('uploads').getPublicUrl(fileName);
         return data.publicUrl;
     };
@@ -108,10 +119,26 @@ const Vetorizador: React.FC = () => {
                 } else if (data.status === 'failed') {
                     clearInterval(interval);
                     setStatus('error');
-                    toast.error('Falha na vetorização.');
+                    
+                    const errorMsg = data.error || data.error_message || 'Falha na vetorização.';
+                    if (errorMsg.toLowerCase().includes('safety') || errorMsg.toLowerCase().includes('copyright') || errorMsg.toLowerCase().includes('policy')) {
+                        toast.error('A IA bloqueou a imagem por direitos autorais (ex: personagens famosos). Tente outra imagem.', { duration: 6000 });
+                    } else {
+                        toast.error(errorMsg);
+                    }
                 }
-            } catch (err) {
+            } catch (err: any) {
                 console.error('Polling error:', err);
+                let pollError = 'Erro ao verificar status.';
+                if (err.context?.response) {
+                    try {
+                        const body = await err.context.response.json();
+                        pollError = body.error || pollError;
+                    } catch {}
+                    toast.error(pollError);
+                    clearInterval(interval);
+                    setStatus('error');
+                }
             }
         }, 2000);
     };
@@ -127,7 +154,28 @@ const Vetorizador: React.FC = () => {
             if (response?.vectorization_id) pollStatus(response.vectorization_id);
             else throw new Error('Erro na resposta da API');
         } catch (err: any) {
-            toast.error(err.message || 'Erro ao processar.');
+            console.error('Vectorization error:', err);
+            let errorMsg = 'Erro ao processar imagem.';
+            
+            if (err.context?.response) {
+                try {
+                    const errorData = await err.context.response.json();
+                    errorMsg = errorData.error || errorData.message || errorMsg;
+                } catch (e) {
+                    errorMsg = err.message || errorMsg;
+                }
+            } else {
+                errorMsg = err.message || errorMsg;
+            }
+
+            if (errorMsg.toLowerCase().includes('safety') || errorMsg.toLowerCase().includes('copyright') || errorMsg.toLowerCase().includes('policy')) {
+                toast.error('A IA bloqueou esta imagem por direitos autorais ou política de segurança. Tente outra arte.', { duration: 6000 });
+            } else if (err.context?.response?.status === 503 || errorMsg.toLowerCase().includes('credit') || errorMsg.toLowerCase().includes('balance')) {
+                toast.error('O sistema de IA está em manutenção ou sem créditos no momento. Por favor, avise o suporte.', { duration: 8000 });
+            } else {
+                toast.error(errorMsg);
+            }
+            
             setStatus('error');
         }
     };
@@ -210,7 +258,9 @@ const Vetorizador: React.FC = () => {
                                     <div className="card-header-vec">
                                         <span className="card-tag-vec">{status === 'processing' ? 'Processando...' : status === 'done' ? 'Vetorizado' : 'Original'}</span>
                                         {(status === 'idle' || status === 'done') && (
-                                            <button className="absolute top-0 right-0 z-10 p-2 bg-black/40 rounded-full text-white/70 hover:text-white" onClick={handleReset}><RotateCcw size={16} /></button>
+                                            <div className="flex justify-end pr-2">
+                                                {/* Button moved below */}
+                                            </div>
                                         )}
                                     </div>
                                     <div className="card-image-vec">
@@ -222,6 +272,19 @@ const Vetorizador: React.FC = () => {
                                         ) : <img src={resultImage || originalImage || ''} alt="Preview" className={status === 'processing' ? 'opacity-50' : ''} />}
                                     </div>
                                 </div>
+                                {/* LIQUID GLASS RESET BUTTON */}
+                                {(status === 'idle' || status === 'done') && (
+                                    <div className="mt-6 flex justify-center">
+                                        <button
+                                            className="group relative flex items-center justify-center gap-2 py-3 px-8 rounded-2xl transition-all duration-300 backdrop-blur-xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 active:scale-95 shadow-2xl overflow-hidden"
+                                            onClick={handleReset}
+                                        >
+                                            <div className="absolute inset-0 bg-gradient-to-r from-primary/20 via-transparent to-primary/20 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                            <RotateCcw size={20} className="text-white/70 group-hover:text-primary transition-colors group-hover:rotate-[-45deg] duration-500" />
+                                            <span className="text-sm font-bold text-white/90 tracking-widest uppercase">Trocar Imagem</span>
+                                        </button>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="preview-split-right">

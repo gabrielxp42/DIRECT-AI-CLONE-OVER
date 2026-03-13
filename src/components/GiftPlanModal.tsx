@@ -10,6 +10,7 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from "@/integrations/supabase/client"
 import { cn } from "@/lib/utils";
 import confetti from 'canvas-confetti';
 import { WhatsAppShowcase } from "./WhatsAppShowcase";
+import { useModalQueue } from '@/contexts/ModalQueueContext';
 
 export function GiftPlanModal() {
     const { session, profile } = useSession();
@@ -17,6 +18,8 @@ export function GiftPlanModal() {
     const [isOpened, setIsOpened] = useState(false);
     const [showShowcase, setShowShowcase] = useState(false);
     const navigate = useNavigate();
+    const { register, deregister, isAllowed } = useModalQueue();
+    const MODAL_ID = 'gift-plan';
     const TRIGGER_PLAN = 'pro';
 
     useEffect(() => {
@@ -37,6 +40,7 @@ export function GiftPlanModal() {
 
             if (shouldShowPro || shouldShowWA) {
                 console.log("🎯 Triggering Gift Modal!", { pro: shouldShowPro, wa: shouldShowWA });
+                register(MODAL_ID, 1);
                 setIsOpen(true);
             }
         }
@@ -70,6 +74,7 @@ export function GiftPlanModal() {
     const markAsViewed = async (newOpenState?: boolean) => {
         if (newOpenState === true) return;
         setIsOpen(false);
+        deregister(MODAL_ID);
 
         if (!session?.user?.id) return;
 
@@ -101,7 +106,7 @@ export function GiftPlanModal() {
     };
 
     return (
-        <Dialog open={isOpen} onOpenChange={markAsViewed}>
+        <Dialog open={isOpen && isAllowed(MODAL_ID)} onOpenChange={markAsViewed}>
             <DialogContent className="w-[95vw] max-w-[500px] p-0 overflow-hidden rounded-[2.5rem] border border-white/10 shadow-[0_0_80px_rgba(0,0,0,0.8)] bg-zinc-950/90 backdrop-blur-3xl">
                 {/* Background Decor */}
                 <div className="absolute inset-0 z-0 overflow-hidden">
