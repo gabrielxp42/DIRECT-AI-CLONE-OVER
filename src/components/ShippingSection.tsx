@@ -835,6 +835,18 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
             if (url) {
                 setLabelUrl(url);
                 window.open(url, '_blank');
+            } else if (currentProvider === 'superfrete' && labelId) {
+                // Fallback: Construir URL direta se o proxy não retornar URL mas tivermos o ID
+                const payload = JSON.stringify({ order_id: labelId });
+                const base64Payload = btoa(payload);
+                const constructedUrl = `https://etiqueta.superfrete.com/_etiqueta/pdf/${base64Payload}?format=A4`;
+                
+                setLabelUrl(constructedUrl);
+                window.open(constructedUrl, '_blank');
+                
+                // Salva no banco também
+                const { supabase } = await import('@/integrations/supabase/client');
+                await supabase.from('shipping_labels').update({ pdf_url: constructedUrl }).eq('id', labelId);
             }
 
             if (tracking) {

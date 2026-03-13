@@ -228,10 +228,11 @@ export const AIAssistant = () => {
       setMessages(prev => prev.map((msg, idx) => {
         if (idx === messageId) {
           try {
-            const content = JSON.parse(msg.content || '{}');
+            const currentContent = typeof msg.content === 'string' ? msg.content : (Array.isArray(msg.content) ? msg.content.map(p => p.type === 'text' ? p.text : '').join('') : '{}');
+            const contentJson = JSON.parse(currentContent || '{}');
             return {
               ...msg,
-              content: JSON.stringify({ ...content, type: 'whatsapp_direct_sent' })
+              content: JSON.stringify({ ...contentJson, type: 'whatsapp_direct_sent' })
             };
           } catch (e) {
             return msg;
@@ -319,13 +320,14 @@ export const AIAssistant = () => {
       setMessages(prev => prev.map((msg, idx) => {
         if (idx === messageId) {
           try {
-            const content = JSON.parse(msg.content || '{}');
+            const currentContent = typeof msg.content === 'string' ? msg.content : (Array.isArray(msg.content) ? msg.content.map(p => p.type === 'text' ? p.text : '').join('') : '{}');
+            const contentJson = JSON.parse(currentContent || '{}');
             return {
               ...msg,
               content: JSON.stringify({ 
-                ...content, 
+                ...contentJson, 
                 type: 'whatsapp_direct_sent',
-                data: { ...content.data, status: 'sent', sentCount: successes } 
+                data: { ...contentJson.data, status: 'sent', sentCount: successes } 
               })
             };
           } catch (e) {
@@ -500,7 +502,7 @@ export const AIAssistant = () => {
                                 <div className="relative max-w-[90%] rounded-2xl p-[1px] bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] shadow-[0_10px_40px_rgba(0,0,0,0.3)] animate-in slide-in-from-left-4 fade-in duration-300 group">
                                   <div className="absolute inset-0 bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] opacity-10 blur-xl group-hover:opacity-25 transition-opacity duration-700" />
                                   <div className="relative bg-slate-950/95 backdrop-blur-2xl rounded-[15px] p-4 text-sm leading-relaxed text-slate-100 shadow-inner">
-                                    <div dangerouslySetInnerHTML={{ __html: formatMessage(typeof msg.content === 'string' ? msg.content : '') }} />
+                                    <div dangerouslySetInnerHTML={{ __html: formatMessage(typeof msg.content === 'string' ? msg.content : (Array.isArray(msg.content) ? msg.content.map(p => p.type === 'text' ? p.text : '').join('') : '')) }} />
                                   </div>
                                 </div>
                               </div>
@@ -662,7 +664,7 @@ export const AIAssistant = () => {
                                             </div>
                                           </div>
                                         );
-                                      } else if (resultData.type === 'bulk_whatsapp_action') {
+                                      } else if (resultData.type === 'bulk_whatsapp_action' || resultData.type === 'bulk_whatsapp_sent') {
                                         const { successCount, errorCount, canSendDirectly, clientsToMessage } = resultData.data;
 
                                         return (
@@ -712,24 +714,31 @@ export const AIAssistant = () => {
                                                     )}
                                                 </div>
 
-                                                <Button
-                                                    className="w-full h-14 bg-emerald-500 hover:bg-emerald-600 text-white font-black uppercase tracking-[0.2em] text-[11px] gap-3 shadow-[0_15px_35px_rgba(16,185,129,0.3)] border-none rounded-2xl transition-all hover:scale-[1.02] active:scale-95"
-                                                    disabled={isSendingWhatsapp}
-                                                    onClick={() => {
-                                                        if (canSendDirectly) {
-                                                            handleBulkWhatsappSend(resultData.data.clientsToMessage, idx);
-                                                        } else {
-                                                            toast({
-                                                              title: "API de Envio Lote não conectada",
-                                                              description: "Você não possui integração ativa com o WhatsApp.",
-                                                              variant: "destructive"
-                                                            });
-                                                        }
-                                                    }}
-                                                  >
-                                                    {isSendingWhatsapp ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                                                    {canSendDirectly ? "Aprovar e Enviar Todas" : "Envio Lote Indisponível"}
-                                                </Button>
+                                                {!resultData.data.autoSent ? (
+                                                  <Button
+                                                      className="w-full h-14 bg-emerald-500 hover:bg-emerald-600 text-white font-black uppercase tracking-[0.2em] text-[11px] gap-3 shadow-[0_15px_35px_rgba(16,185,129,0.3)] border-none rounded-2xl transition-all hover:scale-[1.02] active:scale-95"
+                                                      disabled={isSendingWhatsapp}
+                                                      onClick={() => {
+                                                          if (canSendDirectly) {
+                                                              handleBulkWhatsappSend(resultData.data.clientsToMessage, idx);
+                                                          } else {
+                                                              toast({
+                                                                title: "API de Envio Lote não conectada",
+                                                                description: "Você não possui integração ativa com o WhatsApp.",
+                                                                variant: "destructive"
+                                                              });
+                                                          }
+                                                      }}
+                                                    >
+                                                      {isSendingWhatsapp ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                                                      {canSendDirectly ? "Aprovar e Enviar Todas" : "Envio Lote Indisponível"}
+                                                  </Button>
+                                                ) : (
+                                                  <div className="w-full h-14 flex items-center justify-center gap-3 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl text-emerald-400 font-black uppercase tracking-widest text-[10px]">
+                                                    <CheckCircle2 className="w-5 h-5" />
+                                                    Lote Enviado Automaticamente
+                                                  </div>
+                                                )}
                                               </div>
                                             </div>
                                           </div>

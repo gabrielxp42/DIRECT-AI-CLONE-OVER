@@ -312,17 +312,8 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
 
       if (error) throw error;
 
-      // --- Lógica de Inventário Unificada ---
-      const wasConsuming = isInventoryConsumingStatus(statusAnterior);
-      const isNowConsuming = isInventoryConsumingStatus(newStatus);
-
-      if (!wasConsuming && isNowConsuming) {
-        console.log(`[Inventory] Status mudou para ${newStatus}. Deduzindo estoque...`);
-        await deductInsumosFromPedido(pedido);
-      } else if (wasConsuming && !isNowConsuming) {
-        console.log(`[Inventory] Status mudou para ${newStatus}. Restaurando estoque...`);
-        await restoreInsumosFromPedido(pedido);
-      }
+      // Inventário gerenciado pelo trigger 'trg_inventory_status_change' no banco.
+      // Não deduzir/restaurar no frontend para evitar duplicação.
 
       // Se houver observação, adicionar ao histórico (sempre, independente de ser pagamento ou não)
       if (observacao && observacao.trim()) {

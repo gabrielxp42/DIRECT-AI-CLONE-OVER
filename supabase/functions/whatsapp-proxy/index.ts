@@ -171,9 +171,17 @@ Deno.serve(async (req: Request) => {
             result = { success: true };
         } else if (body.action === 'send-text') {
             const { data: p } = await supabaseAdmin.from('profiles').select('whatsapp_instance_id').eq('id', user.id).single();
-            if (!p?.whatsapp_instance_id) throw new Error("Instância WhatsApp não encontrada");
+            let instanceId = p?.whatsapp_instance_id;
 
-            const resp = await fetchWithTimeout(`${EVOLUTION_URL}/message/sendText/${p.whatsapp_instance_id}`, {
+            if (!instanceId) {
+                // Fallback to Admin instance
+                const { data: admin } = await supabaseAdmin.from('profiles').select('whatsapp_instance_id').eq('is_admin', true).not('whatsapp_instance_id', 'is', null).limit(1).single();
+                instanceId = admin?.whatsapp_instance_id;
+            }
+
+            if (!instanceId) throw new Error("Nenhuma instância WhatsApp (própria ou admin) encontrada");
+
+            const resp = await fetchWithTimeout(`${EVOLUTION_URL}/message/sendText/${instanceId}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'apikey': EVOLUTION_KEY },
                 body: JSON.stringify({
@@ -184,10 +192,18 @@ Deno.serve(async (req: Request) => {
                 })
             });
             result = await safeJson(resp);
-            console.log(`[Proxy] Text sent to ${body.phone}, status: ${resp.status}`);
+            console.log(`[Proxy] Text sent to ${body.phone} via ${instanceId}, status: ${resp.status}`);
         } else if (body.action === 'send-media') {
             const { data: p } = await supabaseAdmin.from('profiles').select('whatsapp_instance_id').eq('id', user.id).single();
-            if (!p?.whatsapp_instance_id) throw new Error("Instância WhatsApp não encontrada");
+            let instanceId = p?.whatsapp_instance_id;
+
+            if (!instanceId) {
+                // Fallback to Admin instance
+                const { data: admin } = await supabaseAdmin.from('profiles').select('whatsapp_instance_id').eq('is_admin', true).not('whatsapp_instance_id', 'is', null).limit(1).single();
+                instanceId = admin?.whatsapp_instance_id;
+            }
+
+            if (!instanceId) throw new Error("Nenhuma instância WhatsApp (própria ou admin) encontrada");
 
             const mediaPayload: any = {
                 number: body.phone,
@@ -207,13 +223,13 @@ Deno.serve(async (req: Request) => {
                 mediaPayload.fileName = body.mediaName;
             }
 
-            const resp = await fetchWithTimeout(`${EVOLUTION_URL}/message/sendMedia/${p.whatsapp_instance_id}`, {
+            const resp = await fetchWithTimeout(`${EVOLUTION_URL}/message/sendMedia/${instanceId}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'apikey': EVOLUTION_KEY },
                 body: JSON.stringify(mediaPayload)
             });
             result = await safeJson(resp);
-            console.log(`[Proxy] Media sent to ${body.phone}, status: ${resp.status}`);
+            console.log(`[Proxy] Media sent to ${body.phone} via ${instanceId}, status: ${resp.status}`);
         } else {
             console.warn(`[Proxy] Unknown action: ${body.action}`);
             result = { error: true, message: `Ação desconhecida: ${body.action}` };

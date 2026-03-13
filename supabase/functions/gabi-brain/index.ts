@@ -521,7 +521,12 @@ Dono(a) da Empresa: ${profile?.first_name || 'N/A'}
                             let clientName = args.clientName || 'Cliente';
                             
                             if (!phone && args.clientName) {
-                                let query = supabase.from('clientes').select('telefone, nome').ilike('nome', `%${args.clientName}%`);
+                                let query = supabase.from('clientes').select('telefone, nome');
+                                const keywords = args.clientName.split(/\s+/).filter((k: string) => k.length > 0);
+                                keywords.forEach((word: string) => {
+                                    query = query.ilike('nome', `%${word}%`);
+                                });
+                                
                                 if (orgId) query = query.eq('organization_id', orgId);
                                 else query = query.eq('user_id', userId).is('organization_id', null);
                                 
@@ -534,18 +539,54 @@ Dono(a) da Empresa: ${profile?.first_name || 'N/A'}
 
                             const cleanPhone = phone || '';
                             const encodedMessage = encodeURIComponent(args.message);
+                            
+                            // FALLBACK LOGIC: Check user instance, then admin instance
+                            let whatsappInstance = profile?.whatsapp_instance_id;
+                            if (!whatsappInstance) {
+                                const { data: admin } = await supabase.from('profiles').select('whatsapp_instance_id').eq('is_admin', true).not('whatsapp_instance_id', 'is', null).limit(1).single();
+                                whatsappInstance = admin?.whatsapp_instance_id;
+                            }
+                            const canSendDirectly = !!whatsappInstance;
+
+                            // AUTO-SEND if on WhatsApp platform
+                            let autoSent = false;
+                            if (platform === 'whatsapp' && canSendDirectly && cleanPhone) {
+                                try {
+                                    const { data: adminConfig } = await supabase.from('profiles').select('whatsapp_api_url, whatsapp_api_key').eq('is_admin', true).not('whatsapp_api_url', 'is', null).limit(1).single();
+                                    const evUrl = profile?.whatsapp_api_url || adminConfig?.whatsapp_api_url;
+                                    const evKey = profile?.whatsapp_api_key || adminConfig?.whatsapp_api_key;
+                                    
+                                    if (evUrl && evKey && whatsappInstance) {
+                                        const sendUrl = `${evUrl.replace(/\/$/, "")}/message/sendText/${whatsappInstance}`;
+                                        const resp = await fetch(sendUrl, {
+                                            method: 'POST',
+                                            headers: { 'apikey': evKey, 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ number: cleanPhone, text: args.message, delay: 1000 })
+                                        });
+                                        autoSent = resp.ok;
+                                    }
+                                } catch (e) {
+                                    console.error("Auto-send WhatsApp failed:", e);
+                                }
+                            }
+
                             result = {
-                                type: 'whatsapp_action',
+                                type: autoSent ? 'whatsapp_direct_sent' : 'whatsapp_action',
                                 data: { 
                                     clientName,
                                     phone: cleanPhone || args.phone, 
                                     message: args.message, 
                                     link: `https://wa.me/${cleanPhone}?text=${encodedMessage}`,
-                                    canSendDirectly: true
+                                    canSendDirectly,
+                                    autoSent
                                 }
                             };
                         } else if (call.function.name === "get_client_snapshot") {
-                            let query = supabase.from('clientes').select('id, nome, telefone, observacoes').ilike('nome', `%${args.clientName}%`);
+                            let query = supabase.from('clientes').select('id, nome, telefone, observacoes');
+                            const keywords = args.clientName.split(/\s+/).filter((k: string) => k.length > 0);
+                            keywords.forEach((word: string) => {
+                                query = query.ilike('nome', `%${word}%`);
+                            });
                             
                             if (orgId) {
                                 query = query.eq('organization_id', orgId);
@@ -786,7 +827,12 @@ Dono(a) da Empresa: ${profile?.first_name || 'N/A'}
                             // Buscar cliente por nome ou ID
                             let clientId = args.clientId;
                             if (!clientId && args.clientName) {
-                                let clientQuery = supabase.from('clientes').select('id').ilike('nome', `%${args.clientName}%`);
+                                let clientQuery = supabase.from('clientes').select('id');
+                                const keywords = args.clientName.split(/\s+/).filter((k: string) => k.length > 0);
+                                keywords.forEach((word: string) => {
+                                    clientQuery = clientQuery.ilike('nome', `%${word}%`);
+                                });
+                                
                                 if (orgId) {
                                     clientQuery = clientQuery.eq('organization_id', orgId);
                                 } else {
@@ -839,7 +885,13 @@ Dono(a) da Empresa: ${profile?.first_name || 'N/A'}
                                 const isPlaceholder = !finalPhone || finalPhone.includes('999999999');
 
                                 if (isPlaceholder && item.clientName) {
-                                    const { data: client } = await supabase.from('clientes').select('nome, telefone').ilike('nome', `%${item.clientName}%`).limit(1).maybeSingle();
+                                    let query = supabase.from('clientes').select('nome, telefone');
+                                    const keywords = item.clientName.split(/\s+/).filter((k: string) => k.length > 0);
+                                    keywords.forEach((word: string) => {
+                                        query = query.ilike('nome', `%${word}%`);
+                                    });
+                                    const { data: client } = await query.limit(1).maybeSingle();
+                                    
                                     if (client?.telefone) {
                                         finalPhone = client.telefone;
                                         resolvedClientName = client.nome;
@@ -862,17 +914,57 @@ Dono(a) da Empresa: ${profile?.first_name || 'N/A'}
                                 successCount++;
                             }
 
+                            // FALLBACK LOGIC: Check user instance, then admin instance
+                            let whatsappInstance = profile?.whatsapp_instance_id;
+                            if (!whatsappInstance) {
+                                const { data: admin } = await supabase.from('profiles').select('whatsapp_instance_id').eq('is_admin', true).not('whatsapp_instance_id', 'is', null).limit(1).single();
+                                whatsappInstance = admin?.whatsapp_instance_id;
+                            }
+                            const canSendDirectly = !!whatsappInstance;
+
+                            // AUTO-SEND BULK if on WhatsApp platform
+                            let autoSentCount = 0;
+                            if (platform === 'whatsapp' && canSendDirectly && clientsToMessage.length > 0) {
+                                try {
+                                    const { data: adminConfig } = await supabase.from('profiles').select('whatsapp_api_url, whatsapp_api_key').eq('is_admin', true).not('whatsapp_api_url', 'is', null).limit(1).single();
+                                    const evUrl = profile?.whatsapp_api_url || adminConfig?.whatsapp_api_url;
+                                    const evKey = profile?.whatsapp_api_key || adminConfig?.whatsapp_api_key;
+
+                                    if (evUrl && evKey && whatsappInstance) {
+                                        for (const client of clientsToMessage) {
+                                            const sendUrl = `${evUrl.replace(/\/$/, "")}/message/sendText/${whatsappInstance}`;
+                                            await fetch(sendUrl, {
+                                                method: 'POST',
+                                                headers: { 'apikey': evKey, 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({ number: client.cleanPhone, text: client.message, delay: 500 })
+                                            });
+                                            autoSentCount++;
+                                            // Delay light to prevent Edge Function timeout if too many, but still give some space
+                                            if (clientsToMessage.length > 5) await new Promise(r => setTimeout(r, 300));
+                                        }
+                                    }
+                                } catch (e) {
+                                    console.error("Auto-send Bulk failed:", e);
+                                }
+                            }
+
                             result = {
-                                type: 'bulk_whatsapp_action',
+                                type: autoSentCount > 0 ? 'bulk_whatsapp_sent' : 'bulk_whatsapp_action',
                                 data: {
                                     successCount,
                                     errorCount,
                                     clientsToMessage,
-                                    canSendDirectly: true // Assuming if they reached here and have integration
+                                    canSendDirectly,
+                                    autoSent: autoSentCount > 0,
+                                    autoSentCount
                                 }
                             };
                         } else if (call.function.name === "search_clients") {
-                            let query = supabase.from('clientes').select('id, nome, telefone, email, valor_metro').ilike('nome', `%${args.query}%`);
+                            let query = supabase.from('clientes').select('id, nome, telefone, email, valor_metro');
+                            const keywords = args.query.split(/\s+/).filter((k: string) => k.length > 0);
+                            keywords.forEach((word: string) => {
+                                query = query.ilike('nome', `%${word}%`);
+                            });
                             
                             if (orgId) {
                                 query = query.eq('organization_id', orgId);

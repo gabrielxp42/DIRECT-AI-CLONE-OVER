@@ -289,24 +289,41 @@ const PedidosPage: React.FC = () => {
   // --- Funções de PDF ---
   const handleDownloadPDF = async (pedido: Pedido) => {
     try {
-      // Se tiver etiqueta liberada ou um ID de reserva, tentar buscar/sincronizar
       if (pedido.shipping_label_status === 'released' || pedido.shipping_label_id) {
         setLoading(true);
 
-        const isSuperFrete = !(pedido as any).transportadora?.toLowerCase().includes('frenet');
-        const labelId = pedido.shipping_label_id;
+        // 1. Tentar buscar registro no banco para saber o provedor real e se já temos URL
+        const { data: labelData } = await supabase
+          .from('shipping_labels')
+          .select('*')
+          .or(`pedido_id.eq.${pedido.id},external_id.eq.${pedido.shipping_label_id}`)
+          .maybeSingle();
 
-        // Se for SuperFrete e tivermos o ID, podemos construir a URL diretamente como fazemos na Logística
-        if (isSuperFrete && labelId && labelId !== 'undefined') {
+        if (labelData?.pdf_url) {
+          window.open(labelData.pdf_url, '_blank');
+          showSuccess("Etiqueta aberta!");
+          setLoading(false);
+          return;
+        }
+
+        const provider = labelData?.provider || (pedido as any).transportadora?.toLowerCase().includes('frenet') ? 'frenet' : 'superfrete';
+        const labelId = labelData?.external_id || pedido.shipping_label_id;
+
+        // 2. Se for SuperFrete e tivermos o ID, podemos construir a URL diretamente
+        if (provider === 'superfrete' && labelId && labelId !== 'undefined') {
           console.log("[Pedidos] Construindo URL direta para SuperFrete:", labelId);
           const payload = JSON.stringify({ order_id: String(labelId) });
           const base64Payload = btoa(payload);
           const constructedUrl = `https://etiqueta.superfrete.com/_etiqueta/pdf/${base64Payload}?format=A4`;
 
+          // Salvar no banco para a próxima vez
+          if (labelData?.id) {
+            await supabase.from('shipping_labels').update({ pdf_url: constructedUrl }).eq('id', labelData.id);
+          }
+
           window.open(constructedUrl, '_blank');
           showSuccess("Etiqueta aberta!");
 
-          // Tenta atualizar o status em background se for a primeira vez que abrimos e estava como pendente
           if (pedido.shipping_label_status !== 'released') {
             await supabase.from('pedidos').update({ shipping_label_status: 'released' }).eq('id', pedido.id);
             queryClient.invalidateQueries({ queryKey: ["pedidos"] });
@@ -316,27 +333,12 @@ const PedidosPage: React.FC = () => {
           return;
         }
 
-        // Caso contrário (Frenet ou outro), faz a busca via proxy
-        // 1. Tentar buscar registro no banco
-        const { data: labelData } = await supabase
-          .from('shipping_labels')
-          .select('*')
-          .or(`pedido_id.eq.${pedido.id},external_id.eq.${pedido.shipping_label_id}`)
-          .maybeSingle();
-
-        if (labelData && labelData.pdf_url) {
-          window.open(labelData.pdf_url, '_blank');
-          showSuccess("Etiqueta aberta!");
-          setLoading(false);
-          return;
-        }
-
-        // 3. Sincronizar via Proxy
+        // 3. Sincronizar via Proxy (para Frenet ou se SuperFrete direto falhar)
         if (labelId) {
           const token = await getValidToken();
-          const provider = isSuperFrete ? 'superfrete' : 'frenet';
+          const functionName = `${provider}-proxy`;
 
-          const syncResponse = await fetch(`${SUPABASE_URL}/functions/v1/${provider}-proxy`, {
+          const syncResponse = await fetch(`${SUPABASE_URL}/functions/v1/${functionName}`, {
             method: 'POST',
             headers: {
               'apikey': SUPABASE_ANON_KEY,
@@ -695,38 +697,12 @@ const PedidosPage: React.FC = () => {
         }
       }
 
-      // --- Lógica de Inventário Unificada ---
-      if (pedidoFull) {
-        const wasConsuming = isInventoryConsumingStatus(statusAnterior);
-        const isNowConsuming = isInventoryConsumingStatus(newStatus);
+      // Note: Inventory management (deduction/restoration) is now handled automatically 
+      // by the database trigger 'trg_inventory_status_change' on status updates.
 
-        if (!wasConsuming && isNowConsuming) {
-          console.log(`[Inventory] Status mudou para ${newStatus}. Deduzindo estoque...`);
-          await deductInsumosFromPedido(pedidoFull);
-        } else if (wasConsuming && !isNowConsuming) {
-          console.log(`[Inventory] Status mudou para ${newStatus}. Restaurando estoque...`);
-          await restoreInsumosFromPedido(pedidoFull);
-        }
-      }
 
-      // --- Lógica de Alerta de Pagamento (Gabi Executiva - Dinheiro no Bolso) ---
-      if ((newStatus === 'pago' || markAsPaid) && statusAnterior !== 'pago' && pedidoFull) {
-        try {
-          // A inserção do agent_insight ativa o trigger process_new_insight que envia a msg pro WhatsApp
-          // O Gabi Executiva Agent agora vai ignorar se o 'payment' estiver desligado? 
-          // Correção: O agente gabi-executiva-agent tem config e manda alertas. Vamos inserir e deixar que lá ele decida,
-          // Ou melhor: checa lá e aqui. Aqui inserimos com description específica.
-          await supabase.from('agent_insights').insert({
-            user_id: session?.user.id,
-            insight_type: 'executive_alert',
-            title: '💰 Pagamento Recebido!',
-            description: `Um pedido acaba de ser marcado como PAGO! 🎉\n\nDetalhes:\n- Pedido: #${pedidoFull.order_number}\n- Cliente: ${pedidoFull.clientes?.nome || 'Cliente'}\n- Valor: R$ ${(pedidoFull.valor_total || 0).toFixed(2)}\n\nMantenha o bom trabalho!`,
-            data: { type: 'payment', order_id: pedidoFull.id }
-          });
-        } catch (e) {
-          console.error("Erro ao gerar insight de pagamento:", e);
-        }
-      }
+      // Notificação de pagamento é gerenciada pelo trigger 'on_order_paid' no banco.
+      // Não inserir agent_insights aqui para evitar duplicação de WhatsApp.
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["pedidos"] });
