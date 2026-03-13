@@ -1519,10 +1519,10 @@ const findClientWithMultipleStrategies = async (clientName: string) => {
       console.log('❌ [findClient] Erro na busca ILIKE normalizada:', error);
     }
 
-    // Strategy 3: Broad search and client-side filtering
+    // Strategy 3: Broad search and client-side filtering (word-by-word)
     try {
-      console.log(`📍 [findClient] Tentativa 3: Busca ampla e filtragem client-side`);
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=id,nome,organization_id,telefone,observacoes&${orgFilter}&limit=100`, {
+      console.log(`📍 [findClient] Tentativa 3: Busca ampla e filtragem client-side (por palavras)`);
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?select=id,nome,organization_id,telefone,observacoes&${orgFilter}&limit=200`, {
         method: 'GET',
         headers: headers
       });
@@ -1530,9 +1530,23 @@ const findClientWithMultipleStrategies = async (clientName: string) => {
       if (response.ok) {
         const allClients = await response.json();
         if (allClients && allClients.length > 0) {
-          const filteredClients = (allClients as any[]).filter(client =>
+          // Strip punctuation/dashes and split into words for word-by-word matching
+          const stripPunctuation = (s: string) => s.replace(/[-–—_.,;:!?()'"\/\\|@#$%&*+={}\[\]<>~`^]/g, ' ').replace(/\s+/g, ' ').trim();
+          const searchWords = stripPunctuation(normalizedClientName).split(' ').filter(w => w.length > 1);
+          
+          // First try: contiguous substring match (original logic)
+          let filteredClients = (allClients as any[]).filter(client =>
             removeAccents(client.nome.toLowerCase()).includes(normalizedClientName)
           );
+
+          // Second try: all words must appear in the client name (handles dashes, separators)
+          if (filteredClients.length === 0 && searchWords.length > 0) {
+            filteredClients = (allClients as any[]).filter(client => {
+              const clientNorm = stripPunctuation(removeAccents(client.nome.toLowerCase()));
+              return searchWords.every(word => clientNorm.includes(word));
+            });
+          }
+
           if (filteredClients.length > 0) {
             console.log(`✅ [findClient] Busca ampla + client-side encontrou ${filteredClients.length} cliente(s):`, filteredClients.map((c: any) => c.nome));
             return filteredClients;
