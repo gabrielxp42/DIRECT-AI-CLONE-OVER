@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { ShippingAnimation } from '@/components/marketing/ShippingAnimation'
 import { OrderCreationAnimation } from '@/components/marketing/OrderCreationAnimation'
+import { VetorizaShowcase } from '@/components/VetorizaShowcase'
 
 const Login = () => {
   const { session, supabase, isLoading } = useSession();
@@ -23,6 +24,14 @@ const Login = () => {
   const [currentSlide, setCurrentSlide] = useState(0);
 
   const updates = [
+    {
+      id: 'vetoriza',
+      label: 'Vetoriza AI',
+      desc: 'Converta imagens em vetores e crie bordados 3D em segundos com inteligência artificial.',
+      icon: <Sparkles size={24} />,
+      color: '#EAB308',
+      animation: <VetorizaShowcase />
+    },
     {
       id: 'whatsapp',
       label: 'Gabi AI + WhatsApp',

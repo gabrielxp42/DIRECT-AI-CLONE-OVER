@@ -1,5 +1,5 @@
-
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useSession } from '@/contexts/SessionProvider';
 import { supabase } from '@/integrations/supabase/client';
 import {
@@ -141,7 +141,16 @@ type AffiliateStat = {
 };
 
 export default function Admin() {
-    const { profile } = useSession();
+    const { profile, activeSubProfile } = useSession();
+    const navigate = useNavigate();
+    const isBoss = !profile?.is_multi_profile_enabled || activeSubProfile?.role === 'chefe';
+
+    useEffect(() => {
+        if (!isBoss) {
+            toast.error("Acesso restrito apenas ao Chefe.");
+            navigate('/dashboard');
+        }
+    }, [isBoss, navigate]);
     const [users, setUsers] = useState<AdminProfile[]>([]);
     const [logs, setLogs] = useState<SystemLog[]>([]);
     const [stats, setStats] = useState<GlobalStats>({
@@ -577,12 +586,12 @@ export default function Admin() {
         return matchesSearch && u.subscription_status === statusFilter;
     });
 
-    if (!profile?.is_admin) {
+    if (!profile?.is_admin || !isBoss) {
         return (
             <div className="flex flex-col items-center justify-center h-[80vh] text-center text-muted-foreground">
                 <ShieldAlert className="w-16 h-16 mb-4 text-destructive" />
                 <h2 className="text-3xl font-bold">Acesso Restrito</h2>
-                <p>Efetue login como administrador.</p>
+                <p>{!isBoss ? "Apenas o perfil Chefe pode acessar o financeiro." : "Efetue login como administrador."}</p>
             </div>
         );
     }

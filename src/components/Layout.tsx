@@ -27,19 +27,23 @@ import { TrendingUp } from 'lucide-react';
 import { TaskDock } from './TaskDock';
 import { ModalQueueProvider } from '@/contexts/ModalQueueContext';
 import { ActivityTracker } from './ActivityTracker';
-const staticNavItems = [
-  { href: '/dashboard', icon: Home, label: 'Dashboard' },
-  { href: '/pedidos', icon: ShoppingCart, label: 'Pedidos' },
-  { href: '/clientes', icon: Users, label: 'Clientes' },
-  { href: '/produtos', icon: Package, label: 'Produtos' },
+import { ProfileSelector } from './ProfileSelector';
+import { useSession } from '@/contexts/SessionProvider';
 
-  { href: '/insumos', icon: Layers, label: 'Insumos' },
-  { href: '/reports', icon: BarChart3, label: 'Relatórios' },
-  { href: '/logistica', icon: Truck, label: 'Logística' },
-  { href: '/gabi', icon: Bot, label: 'Gabi' },
+const staticNavItems = [
+  { href: '/dashboard', icon: Home, label: 'Dashboard', permission: 'view_dashboard' },
+  { href: '/pedidos', icon: ShoppingCart, label: 'Pedidos', permission: 'view_pedidos' },
+  { href: '/clientes', icon: Users, label: 'Clientes', permission: 'view_clientes' },
+  { href: '/produtos', icon: Package, label: 'Produtos', permission: 'view_produtos' },
+  { href: '/insumos', icon: Layers, label: 'Insumos', permission: 'view_insumos' },
+  { href: '/reports', icon: BarChart3, label: 'Relatórios', permission: 'view_reports' },
+  { href: '/logistica', icon: Truck, label: 'Logística', permission: 'view_logistica' },
+  { href: '/gabi', icon: Bot, label: 'Gabi', permission: 'view_gabi' },
+  { href: '/vetorizar', icon: ImageIcon, label: 'Vetorizar', permission: 'view_vetorizar' },
 ];
 
 const Layout = () => {
+  const { profile, activeSubProfile } = useSession();
   const { isOpen, open: openAIAssistant } = useAIAssistant();
   const isMobile = useIsMobile();
   const location = useLocation();
@@ -59,15 +63,16 @@ const Layout = () => {
 
   // Verificar se há insumos em estoque baixo (uso de <= para precisão)
   const { companyProfile } = useCompanyProfile();
-  const { profile } = useAuth();
+  const { hasPermission } = useSession();
 
   const navItems = React.useMemo(() => {
-    const items = [...staticNavItems];
+    const items = staticNavItems.filter(item => hasPermission(item.permission));
+    
     if (profile?.is_affiliate) {
-      items.push({ href: '/affiliate', icon: TrendingUp, label: 'Afiliados' });
+      items.push({ href: '/affiliate', icon: TrendingUp, label: 'Afiliados', permission: 'view_dashboard' });
     }
     return items;
-  }, [profile]);
+  }, [profile, hasPermission]);
 
   const hasLowStock = React.useMemo(() => {
     return insumos?.some(i => (i.quantidade_atual || 0) <= (i.quantidade_minima || 0));
@@ -244,6 +249,12 @@ const Layout = () => {
 
       <TaskDock />
       <ActivityTracker />
+      
+      {/* Sistema de Perfis Estilo Netflix */}
+      {profile?.is_multi_profile_enabled && !activeSubProfile && (
+        <ProfileSelector />
+      )}
+
       {!isOpen && !isMobile && (
         <button
           className="fixed bottom-4 right-4 h-16 w-16 rounded-full shadow-[0_0_30px_rgba(255,165,0,0.4)] z-50 transition-all duration-300 hover:scale-110 active:scale-95 flex items-center justify-center overflow-hidden group"

@@ -1676,7 +1676,7 @@ const PedidosPage: React.FC = () => {
                             e.stopPropagation();
                             handleDownloadPDF(pedido);
                           }}
-                          className="h-8 w-8 text-slate-500 hover:text-primary hover:bg-primary/5"
+                          className="h-8 w-8 text-slate-600 hover:text-slate-900"
                         >
                           <FileText className="h-4 w-4" />
                         </Button>
@@ -1684,128 +1684,159 @@ const PedidosPage: React.FC = () => {
                       <TooltipContent>Baixar PDF</TooltipContent>
                     </Tooltip>
 
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8 text-slate-500 hover:text-primary hover:bg-primary/5"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <Share2 className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-56 p-2">
-                        <DropdownMenuLabel className="text-xs uppercase font-bold text-muted-foreground tracking-wider mb-1">
-                          Compartilhar Pedido
-                        </DropdownMenuLabel>
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleCopySummary(pedido); }} className="cursor-pointer">
-                          <Copy className="h-4 w-4 mr-2 text-amber-500" />
-                          Copiar Resumo
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleShareWhatsApp(pedido); }} className={`cursor-pointer ${isPlusMode ? 'bg-gradient-to-r from-orange-500/10 via-yellow-500/10 to-purple-500/10' : ''}`}>
-                          {isPlusMode ? (
-                            <>
-                              <Sparkles className="h-4 w-4 mr-2 text-orange-500" />
-                              Enviar Direto ⚡
-                            </>
-                          ) : (
-                            <>
-                              <MessageSquare className="h-4 w-4 mr-2 text-green-500" />
-                              Enviar no WhatsApp
-                            </>
-                          )}
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDownloadCardImage(pedido.id, pedido.order_number); }} className="cursor-pointer">
-                          <Download className="h-4 w-4 mr-2 text-blue-500" />
-                          Baixar Imagem (Card)
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleCopyCardImage(pedido.id); }} className="cursor-pointer">
-                          <ImageIcon className="h-4 w-4 mr-2 text-purple-500" />
-                          Copiar Imagem (Card)
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8 text-slate-500 hover:text-primary hover:bg-primary/5"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <Printer className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handlePrintPDF(pedido); }}>
-                          Nota (A4)
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); printThermalReceipt(pedido); }}>
-                          Cupom (80mm)
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={(e) => { e.stopPropagation(); handleStatusChange(pedido); }}
-                          className="h-8 w-8 text-slate-500 hover:text-primary hover:bg-primary/5"
-                        >
-                          <Wrench className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Alterar Status</TooltipContent>
-                    </Tooltip>
-
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={(e) => e.stopPropagation()}
-                          className="h-8 w-8 text-slate-500 hover:text-primary hover:bg-primary/5"
-                        >
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleViewPedido(pedido.id); }}>
-                          <Eye className="h-4 w-4 mr-2" />
-                          Ver Detalhes
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setShippingModal({ open: true, pedido }); }}>
-                          <Truck className="h-4 w-4 mr-2" />
-                          Cotar Frete (Logística)
-                        </DropdownMenuItem>
-                        {pedido.status_history && pedido.status_history.length > 0 && (
-                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleViewStatusHistory(pedido); }}>
-                            <History className="h-4 w-4 mr-2" />
-                            Histórico de Status
+                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8 text-slate-600 hover:text-slate-900"
+                            title="Compartilhar"
+                          >
+                            <Share2 className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56 p-2">
+                          <DropdownMenuLabel className="text-xs uppercase font-bold text-muted-foreground tracking-wider mb-1">
+                            Compartilhar Pedido
+                          </DropdownMenuLabel>
+                          <DropdownMenuItem onClick={() => handleCopySummary(pedido)} className="cursor-pointer gap-2">
+                            <Copy className="h-4 w-4 text-amber-500" />
+                            Copiar Resumo
                           </DropdownMenuItem>
-                        )}
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleEditPedido(pedido); }}>
-                          <Edit className="h-4 w-4 mr-2" />
-                          Editar
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onSelect={() => setPedidoToDelete(pedido)}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <Trash2 className="h-4 w-4 mr-2 text-destructive" />
-                          <span className="text-destructive">Excluir</span>
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                          <DropdownMenuItem onClick={() => handleShareWhatsApp(pedido)} className={cn("cursor-pointer gap-2", isPlusMode ? 'bg-gradient-to-r from-orange-500/10 via-yellow-500/10 to-purple-500/10' : '')}>
+                            {isPlusMode ? (
+                              <>
+                                <Sparkles className="h-4 w-4 text-orange-500" />
+                                Enviar Direto ⚡
+                              </>
+                            ) : (
+                              <>
+                                <MessageSquare className="h-4 w-4 text-green-500" />
+                                Enviar no WhatsApp
+                              </>
+                            )}
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => handleDownloadCardImage(pedido.id, pedido.order_number)} className="cursor-pointer gap-2">
+                            <Download className="h-4 w-4 text-blue-500" />
+                            Baixar Imagem (Card)
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleCopyCardImage(pedido.id)} className="cursor-pointer gap-2">
+                            <ImageIcon className="h-4 w-4 text-purple-500" />
+                            Copiar Imagem (Card)
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+
+                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8 text-slate-600 hover:text-slate-900"
+                            title="Imprimir Pedido"
+                          >
+                            <Printer className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56 p-2">
+                          <DropdownMenuLabel className="text-xs uppercase font-bold text-muted-foreground tracking-wider mb-1">
+                            Opções de Impressão
+                          </DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => handlePrintPDF(pedido)} className="cursor-pointer gap-2">
+                            <Printer className="h-4 w-4 text-primary" />
+                            <span>Nota (A4)</span>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => printThermalReceipt(pedido)} className="cursor-pointer gap-2">
+                            <ScrollText className="h-4 w-4 text-indigo-500" />
+                            <span>Cupom (80mm)</span>
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => handleStatusChange(pedido)}
+                            className="h-8 w-8 text-slate-600 hover:text-slate-900"
+                          >
+                            <Wrench className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Alterar Status</TooltipContent>
+                      </Tooltip>
+                    </div>
+
+                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8 text-slate-600 hover:text-slate-900 shadow-sm"
+                            title="Mais ações"
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56 p-2">
+                          <DropdownMenuLabel className="text-xs uppercase font-bold text-muted-foreground tracking-wider mb-1">
+                            Ações
+                          </DropdownMenuLabel>
+                          <DropdownMenuItem onClick={() => handleViewPedido(pedido.id)} className="cursor-pointer gap-2">
+                            <Eye className="h-4 w-4 text-blue-500" />
+                            <span>Ver Detalhes</span>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setShippingModal({ open: true, pedido })} className="cursor-pointer gap-2">
+                            <Truck className="h-4 w-4 text-primary" />
+                            <span>Cotar Frete (Logística)</span>
+                          </DropdownMenuItem>
+                          {pedido.status_history && pedido.status_history.length > 0 && (
+                            <DropdownMenuItem onClick={() => handleViewStatusHistory(pedido)} className="cursor-pointer gap-2">
+                              <History className="h-4 w-4 text-indigo-500" />
+                              <span>Histórico de Status</span>
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem onClick={() => handleEditPedido(pedido)} className="cursor-pointer gap-2">
+                            <Edit className="h-4 w-4 text-slate-600" />
+                            <span>Editar</span>
+                          </DropdownMenuItem>
+                          
+                          <DropdownMenuSeparator />
+                          
+                          <DropdownMenuItem onClick={() => {
+                            const companyInfo = getCompanyInfoForPDF(companyProfile);
+                            generateOrderPDF(pedido, 'print', tiposProducao || [], companyInfo);
+                          }} className="cursor-pointer gap-2">
+                            <Printer className="h-4 w-4 text-primary" />
+                            <span>Imprimir Nota (A4)</span>
+                          </DropdownMenuItem>
+                          
+                          <DropdownMenuItem onClick={() => printThermalReceipt(pedido)} className="cursor-pointer gap-2">
+                            <ScrollText className="h-4 w-4 text-orange-500" />
+                            <span>Imprimir Cupom (80mm)</span>
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onSelect={() => setPedidoToDelete(pedido)}
+                            className="text-red-600 focus:text-red-700 cursor-pointer gap-2"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            <span>Excluir</span>
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </div>
                 </CardContent>
-              </Card>
-            ))}
+                </Card>
+              ))}
           </div>
 
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-4">

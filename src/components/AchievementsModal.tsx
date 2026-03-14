@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/dialog";
 import { Trophy, Star, Target, Zap, TrendingUp, Users, Crown, Medal } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useSession } from '@/contexts/SessionProvider';
 
 interface Achievement {
     id: string;
@@ -24,6 +25,9 @@ interface AchievementsModalProps {
 }
 
 export const AchievementsModal = ({ isOpen, onClose, stats }: AchievementsModalProps) => {
+    const { hasPermission } = useSession();
+    const canViewFinancials = hasPermission('view_financial_goals') || hasPermission('view_financial_dashboard');
+
     const milestones: Achievement[] = [
         // Produção
         { id: 'p1', category: 'production', title: 'Start na Máquina', description: 'Imprimiu os primeiros 100m.', icon: Zap, unlocked: (stats?.totalMeters || 0) >= 100 },
@@ -35,10 +39,12 @@ export const AchievementsModal = ({ isOpen, onClose, stats }: AchievementsModalP
         { id: 'g2', category: 'growth', title: 'Dominando o Bairro', description: 'Chegou a 50 clientes na carteira.', icon: Medal, unlocked: (stats?.customersCount || 0) >= 50 },
         { id: 'g3', category: 'growth', title: 'Pai de Todos', description: 'Exército de 200+ clientes cadastrados.', icon: Star, unlocked: (stats?.customersCount || 0) >= 200 },
 
-        // Vendas
-        { id: 's1', category: 'sales', title: 'Primeiro Buffet', description: 'Faturou R$ 5.000 em vendas.', icon: TrendingUp, unlocked: (stats?.totalSales || 0) >= 5000 },
-        { id: 's2', category: 'sales', title: 'Gráfica de Respeito', description: 'Ultrapassou R$ 20.000 em faturamento.', icon: Trophy, unlocked: (stats?.totalSales || 0) >= 20000 },
-        { id: 's3', category: 'sales', title: 'Tubarão do Mercado', description: 'Marca histórica de R$ 50.000+.', icon: Crown, unlocked: (stats?.totalSales || 0) >= 50000 },
+        // Vendas (Condicional)
+        ...(canViewFinancials ? [
+            { id: 's1', category: 'sales', title: 'Primeiro Buffet', description: 'Faturou R$ 5.000 em vendas.', icon: TrendingUp, unlocked: (stats?.totalSales || 0) >= 5000 },
+            { id: 's2', category: 'sales', title: 'Gráfica de Respeito', description: 'Ultrapassou R$ 20.000 em faturamento.', icon: Trophy, unlocked: (stats?.totalSales || 0) >= 20000 },
+            { id: 's3', category: 'sales', title: 'Tubarão do Mercado', description: 'Marca histórica de R$ 50.000+.', icon: Crown, unlocked: (stats?.totalSales || 0) >= 50000 },
+        ] as Achievement[] : []),
     ];
 
     const unlockedCount = milestones.filter(m => m.unlocked).length;
@@ -75,12 +81,14 @@ export const AchievementsModal = ({ isOpen, onClose, stats }: AchievementsModalP
                     {/* Category Progression Bars */}
                     <div className="grid grid-cols-3 gap-2 mt-4 bg-white/5 p-2 rounded-xl border border-white/10">
                         {['production', 'growth', 'sales'].map((cat) => {
+                            if (cat === 'sales' && !canViewFinancials) return null;
+
                             const catTotal = milestones.filter(m => m.category === cat).length;
                             const catUnlocked = milestones.filter(m => m.category === cat && m.unlocked).length;
                             const perc = (catUnlocked / catTotal) * 100;
                             const labels = { production: 'Produção', growth: 'Base', sales: 'Vendas' };
                             return (
-                                <div key={cat} className="space-y-1">
+                                <div key={cat} className={cn("space-y-1", !canViewFinancials && cat === 'sales' && "hidden")}>
                                     <div className="flex justify-between text-[8px] font-black uppercase tracking-tighter text-zinc-400">
                                         <span>{labels[cat as keyof typeof labels]}</span>
                                         <span>{catUnlocked}/{catTotal}</span>

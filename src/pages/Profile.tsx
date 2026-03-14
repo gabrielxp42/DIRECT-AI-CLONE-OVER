@@ -355,14 +355,42 @@ export default function Profile() {
 
                                     <div className="flex flex-col gap-4 mt-8">
                                         {subscription.isActive && (
-                                            <Button
-                                                onClick={handleManageSubscription}
-                                                variant="outline"
-                                                className="w-full h-14 bg-white/5 border-white/10 hover:bg-white/10 text-white font-black uppercase tracking-widest text-xs rounded-2xl gap-3"
-                                            >
-                                                <CreditCard className="w-4 h-4 text-primary" />
-                                                Gerenciar Pagamentos e Assinatura
-                                            </Button>
+                                            <div className="space-y-4">
+                                                <Button
+                                                    onClick={handleManageSubscription}
+                                                    variant="outline"
+                                                    className="w-full h-14 bg-white/5 border-white/10 hover:bg-white/10 text-white font-black uppercase tracking-widest text-xs rounded-2xl gap-3"
+                                                >
+                                                    <CreditCard className="w-4 h-4 text-primary" />
+                                                    Gerenciar Pagamentos e Assinatura
+                                                </Button>
+
+                                                <div className="relative group/team">
+                                                    {/* Floating Popup requested by user */}
+                                                    <motion.div 
+                                                        initial={{ opacity: 0, y: 10, scale: 0.9 }}
+                                                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                                                        transition={{ delay: 2, duration: 0.5 }}
+                                                        className="absolute -top-16 left-1/2 -translate-x-1/2 w-full max-w-[280px] z-50 pointer-events-none"
+                                                    >
+                                                        <div className="bg-primary text-black p-3 rounded-2xl shadow-[0_10px_30px_rgba(255,242,0,0.3)] text-center">
+                                                            <p className="text-[10px] font-black uppercase italic leading-tight">
+                                                                Configure o que cada usuário pode fazer e ver no sistema
+                                                            </p>
+                                                            <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-primary rotate-45" />
+                                                        </div>
+                                                    </motion.div>
+
+                                                    <Button
+                                                        onClick={() => navigate('/settings#team-section')}
+                                                        className="w-full h-16 bg-white/10 border-white/20 hover:bg-white/20 text-white font-black uppercase tracking-widest text-xs rounded-2xl gap-3 relative overflow-hidden"
+                                                    >
+                                                        <Users className="w-5 h-5 text-primary" />
+                                                        Gerenciar Equipe e Permissões
+                                                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent w-20 h-full -skew-x-12 group-hover/team:animate-shimmer" />
+                                                    </Button>
+                                                </div>
+                                            </div>
                                         )}
 
                                         {!subscription.isActive && (

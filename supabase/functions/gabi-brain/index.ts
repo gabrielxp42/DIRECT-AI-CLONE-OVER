@@ -41,7 +41,16 @@ serve(async (req) => {
         const inputText = payload.text || payload.message || "";
         const history = payload.history || [];
         const platform = payload.platform || 'web';
-        const { customer_phone, customer_name, user_id: provided_user_id, is_boss } = payload;
+        const { 
+            customer_phone, 
+            customer_name, 
+            user_id: provided_user_id, 
+            is_boss,
+            from_me,
+            operator_phone,
+            boss_group_id,
+            media_type
+        } = payload;
 
         let userId: string | undefined = provided_user_id;
         const authHeader = req.headers.get('Authorization');
@@ -68,7 +77,7 @@ serve(async (req) => {
 
         const date = new Date().toLocaleString('pt-BR', { timeZone: TIME_ZONE });
         const isGroup = customer_phone?.includes('@g.us');
-        const interlocutorName = customer_name || profile?.first_name || 'Colega';
+        const interlocutorName = from_me ? 'Operador (Equipe)' : (is_boss ? (profile?.first_name || 'Chefe') : (customer_name || 'Cliente'));
 
         const systemPrompt = `Você é a GABI, a parceira inseparável e braço direito de ${profile?.first_name || 'quem gere'} a DIRECT AI.
 Sua missão é ajudar a cuidar da empresa com inteligência, organização impecável e, acima de tudo, alma. Você não é uma ferramenta, você é parte do time.
@@ -81,20 +90,38 @@ Sua missão é ajudar a cuidar da empresa com inteligência, organização impec
 ### 🚨 CONTEXTO DE OPERAÇÃO:
 ${is_boss ? `- **VOCÊ ESTÁ FALANDO COM O GESTOR/PATRÃO (${interlocutorName}).**
 - Sua prioridade é fornecer insights, resumos e dados precisos.
-- Se ele pedir um resumo, chame get_financial_report ou get_orders_summary imediatamente.
-- Seja proativa: se notar algo importante nos dados, mencione.` :
+- **Relay Reverso (PRODUÇÃO -> CLIENTE)**: Se o Gestor ou Designer disser algo como "Gabi, avisa o cliente que...", você deve identificar o cliente (buscando por nome se necessário) e usar a ferramenta send_whatsapp_message para enviar a mensagem ao cliente.
+- Se ele pedir um resumo, chame get_financial_report ou get_orders_summary imediatamente.` :
                 (isGroup ? `- **VOCÊ ESTÁ EM UM GRUPO DE WHATSAPP.** Vários membros podem falar com você.
 - O interlocutor atual chama-se: **${interlocutorName}**.
 - Se ele não for o(a) ${profile?.first_name || 'Chefe'}, seja prestativa mas lembre-se que suas ferramentas de dados são focadas na gestão da empresa do(a) ${profile?.first_name}.` :
-                    `- Você está conversando diretamente com: **${interlocutorName}**.`)}
+                    `- Você está conversando diretamente com o CLIENTE: **${interlocutorName}**.`)}
 - **PLATAFORMA:** ${platform === 'whatsapp' ? 'WhatsApp' : 'Interface Web'}.
 
+### 🚨 REGRA DE OURO 2.0 - REPASSE INTELIGENTE (RELAY):
+Você tem visão total do histórico. 
+Se você detectar que o interlocutor é um CLIENTE, você deve:
+1. **Identificar Decisões Cruciais**: Se o cliente enviar informações técnicas (Medidas, CEP, Links Drive/WeTransfer, Aprovação de Arte, Pedido de Alteração, Comprovantes), você DEVE:
+   - Notificar o Operador/Patrão via WhatsApp (ferramenta 'send_whatsapp_message').
+   - **OBRIGATÓRIO**: Repassar essa informação para o CHAT INTERNO (ferramenta 'repass_to_chat') com o título "🔔 Alerta de Informação Técnica".
+2. **AÇÃO PROATIVA**: Use a ferramenta 'send_whatsapp_message' para o OPERADOR (${operator_phone || 'Não Configurado'}) ou para o GRUPO DE GESTÃO (${boss_group_id || 'Não Configurado'}).
+   - **MENSAGEM DE REPASSE**: Inicie com "Gabi informa: O cliente ${customer_name} enviou uma informação decisiva: [Resumo inteligente]".
+3. **MÍDIAS**: Se o cliente enviar FOTO, VÍDEO ou DOCUMENTO, informe ao operador via WhatsApp E repasse para o chat interno.
+4. **Responda ao Cliente**: Seja a Gabi: "Beleza, já anotei aqui!", "Legal, vou passar para o pessoal do design agora mesmo".
+
+### 🚨 REGRA DE OURO 3.0 - RELAY REVERSO (PATRÃO/OPERADOR -> CLIENTE):
+Se o interlocutor for o GESTOR ou OPERADOR:
+1. Se ele disser para você avisar algo ao cliente (ex: "Gabi, avisa o fulano que ficou pronto"), você DEVE:
+   - Identificar o cliente no histórico ou usar 'search_clients'.
+   - Chamar 'send_whatsapp_message' para o cliente com uma mensagem educada assinada por você.
+   - Responder confirmando: "Feito! Já mandei o recado para o ${customer_name}."
+2. **Sincronia**: Sempre que o OPERADOR responder algo importante ao cliente no WhatsApp, você deve repassar um resumo para o chat interno ('repass_to_chat') para que o Patrão fique ciente.
+
 ### REGRAS DE OURO DA COMUNICAÇÃO:
-1. **Tratamento Humano**: Chame o interlocutor pelo nome (**${interlocutorName}**). Nada de "Patrão" ou "Senhor".
-2. **Organização Visual**: Use negritos, emojis sutis e listas.
-3. **RESUMO COMPLETO**: Se perguntarem sobre o dia, mostre Total de Pedidos, Pagos vs Pendentes, Metragem e Faturamento Real.
-4. **Senso de Urgência com Carinho**: Se houver algo pendente, sugira ações gentis de cobrança ou acompanhamento.
-5. **Sem Protocolos**: Fale naturalmente: "Beleza, já vi aqui", "Pode deixar", "O que você acha?".
+1. **Tratamento Humano**: Chame pelo nome (**${interlocutorName}**). Use emojis sutis.
+2. **Organização Visual**: Use negritos e listas para dados financeiros ou de pedidos.
+3. **Senso de Urgência**: Valorize faturamento e prazos.
+4. **Sem Protocolos**: Fale naturalmente como uma parceira de negócios.
 
 ### SCHEMA E CONTEXTO:
 ${DATABASE_SCHEMA}
@@ -117,7 +144,7 @@ Dono(a) da Empresa: ${profile?.first_name || 'N/A'}
 - **FRETE:** SEMPRE use calculate_shipping. Mostra as opções em um card.`;
 
         const chatMessages: any[] = [
-            { role: 'system', content: systemPrompt + extraContext },
+            { role: 'system', content: systemPrompt + extraContext + (from_me ? `\n\n### 🚨 NOTA:\nO interlocutor atual é o **OPERADOR/EQUIPE** da loja falando com o cliente. Você não deve responder ao cliente agora, mas deve observar se ele disse algo importante para repassar ao chat interno (repass_to_chat).` : '') + (media_type && media_type !== 'text' ? `\n\n### 🚨 ALERTA DE MÍDIA:\nO usuário acabou de enviar um arquivo do tipo: **${media_type.toUpperCase()}**.` : '') },
             ...history.map((m: any) => ({
                 role: m.role,
                 content: m.content || "", // ESSENCIAL: OpenAI não aceita null no content
@@ -129,7 +156,7 @@ Dono(a) da Empresa: ${profile?.first_name || 'N/A'}
                 (m.role === 'assistant' && (m.content || m.tool_calls)) ||
                 m.role === 'tool'
             ).slice(-15),
-            { role: 'user', content: inputText || "[Mensagem]" }
+            { role: 'user', content: inputText || (media_type ? `[Arquivo de ${media_type}]` : "[Mensagem]") }
         ];
 
         const tools = [
@@ -437,6 +464,20 @@ Dono(a) da Empresa: ${profile?.first_name || 'N/A'}
                         required: ["expression"]
                     }
                 }
+            },
+            {
+                type: "function",
+                function: {
+                    name: "repass_to_chat",
+                    description: "Repassa um resumo de uma conversa de WhatsApp para o chat interno de gestão da Gabi. Use isso para manter o patrão informado sobre o que acontece no WhatsApp.",
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            message: { type: "string", description: "O resumo ou a mensagem a ser repassada. Seja direta e informativa." }
+                        },
+                        required: ["message"]
+                    }
+                }
             }
         ];
 
@@ -581,6 +622,36 @@ Dono(a) da Empresa: ${profile?.first_name || 'N/A'}
                                     autoSent
                                 }
                             };
+                        } else if (call.function.name === "repass_to_chat") {
+                            // Encontrar conversa ativa para este usuário
+                            const { data: conv } = await supabase.from('agent_conversations')
+                                .select('id')
+                                .eq('user_id', userId)
+                                .eq('is_active', true)
+                                .order('last_message_at', { ascending: false })
+                                .limit(1)
+                                .maybeSingle();
+                            
+                            let targetConversationId = conv?.id;
+                            
+                            if (!targetConversationId) {
+                                // Título padrão para logs externos
+                                const { data: newConv } = await supabase.from('agent_conversations')
+                                    .insert({ user_id: userId, title: 'Logs de WhatsApp', is_active: true })
+                                    .select()
+                                    .single();
+                                targetConversationId = newConv?.id;
+                            }
+
+                            if (targetConversationId) {
+                                await supabase.from('agent_messages').insert({
+                                    conversation_id: targetConversationId,
+                                    role: 'assistant',
+                                    content: `📢 **Relatório WhatsApp**\n\n${args.message}`
+                                });
+                            }
+                            
+                            result = { status: "success", message: "Mensagem repassada para o chat interno." };
                         } else if (call.function.name === "get_client_snapshot") {
                             let query = supabase.from('clientes').select('id, nome, telefone, observacoes');
                             const keywords = args.clientName.split(/\s+/).filter((k: string) => k.length > 0);

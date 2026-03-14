@@ -33,7 +33,7 @@ export interface DashboardStats {
   lifetimeOrders: number;
 }
 
-const fetchDashboardData = async (userId: string | undefined): Promise<DashboardStats> => {
+const fetchDashboardData = async (userId: string | undefined, hasFinancialPermission: boolean): Promise<DashboardStats> => {
   if (!userId) {
     console.error("[Dashboard] Erro: userId não definido.");
     return {} as DashboardStats; // Retorna vazio se não houver usuário
@@ -138,16 +138,6 @@ const fetchDashboardData = async (userId: string | undefined): Promise<Dashboard
       user_id: `eq.${userId}`
     })).then(data => {
       const filtered = data.filter((d: any) => d.user_id === userId);
-
-      // LOG DE INSPEÇÃO: Mostra os 5 pedidos mais caros que compõem o total
-      const topOrders = [...filtered]
-        .sort((a, b) => b.valor_total - a.valor_total)
-        .slice(0, 5)
-        .map(o => ({ Pedido: o.order_number, Valor: o.valor_total, Status: o.status }));
-
-      console.log(`[Segurança Dashboard] Verificando dados para: ${userId}`);
-      console.table(topOrders);
-
       return filtered;
     })
   ]);
@@ -217,14 +207,12 @@ const fetchDashboardData = async (userId: string | undefined): Promise<Dashboard
     if (!isPaidOrder(order)) return sum;
     return sum + calculateOrderRollMeters(order);
   }, 0);
-
-
-  // Calculate sales with strict deduplication
+  // Calculate sales with strict deduplication
   const calculateSales = (orders: any[]) => {
     if (!orders || !Array.isArray(orders)) return 0;
+    if (!hasFinancialPermission) return 0; // PRUNING AGRESSIVO
 
     // Usamos um Map para garantir que cada ID de pedido seja contado apenas UMA vez
-    // Isso evita problemas se o Supabase retornar duplicados por causa de joins
     const uniqueOrders = new Map<string, any>();
     orders.forEach(o => {
       if (o && o.id) uniqueOrders.set(o.id, o);
@@ -260,23 +248,20 @@ const fetchDashboardData = async (userId: string | undefined): Promise<Dashboard
   const lifetimeData = lifetimeOrdersData || [];
   const lifetimeSales = calculateSales(lifetimeData);
   const lifetimeMeters = lifetimeData.reduce((sum: number, order: any) => {
-    // lifetimeData is already filtered by status in query, but let's ensure roll logic
     return sum + calculateOrderRollMeters(order);
   }, 0);
 
   const lifetimeOrders = lifetimeData.length;
 
-  const newCustomers = currentCustomersCount; // Approximate or exact from doCount
-  const activeOrdersCount = pendingOrdersCount; // Reusing pending count
-  const averageTicket = currentOrders?.length ? totalSales / currentOrders.length : 0;
-  const previousAverageTicket = previousOrders?.length ? previousTotalSales / previousOrders.length : 0;
+  const newCustomers = currentCustomersCount; 
+  const activeOrdersCount = pendingOrdersCount; 
+  const averageTicket = (hasFinancialPermission && currentOrders?.length) ? totalSales / currentOrders.length : 0;
+  const previousAverageTicket = (hasFinancialPermission && previousOrders?.length) ? previousTotalSales / previousOrders.length : 0;
 
-  const previousNewCustomers = previousCustomersCount;
-
-  const salesGrowth = previousTotalSales > 0 ? ((totalSales - previousTotalSales) / previousTotalSales) * 100 : 0;
+  const salesGrowth = (hasFinancialPermission && previousTotalSales > 0) ? ((totalSales - previousTotalSales) / previousTotalSales) * 100 : 0;
   const metersGrowth = previousTotalMeters > 0 ? ((totalMeters - previousTotalMeters) / previousTotalMeters) * 100 : 0;
-  const customersGrowth = previousNewCustomers > 0 ? ((newCustomers - previousNewCustomers) / previousNewCustomers) * 100 : 0;
-  const ticketGrowth = previousAverageTicket > 0 ? ((averageTicket - previousAverageTicket) / previousAverageTicket) * 100 : 0;
+  const customersGrowth = previousCustomersCount > 0 ? ((newCustomers - previousCustomersCount) / previousCustomersCount) * 100 : 0;
+  const ticketGrowth = (hasFinancialPermission && previousAverageTicket > 0) ? ((averageTicket - previousAverageTicket) / previousAverageTicket) * 100 : 0;
 
   return {
     totalSales,
@@ -308,15 +293,17 @@ const fetchDashboardData = async (userId: string | undefined): Promise<Dashboard
 };
 
 export const useDashboardData = () => {
-  const { session, isLoading: sessionLoading } = useSession();
+  const { session, isLoading: sessionLoading, hasPermission } = useSession();
   const accessToken = session?.access_token;
   const isEnabled = !sessionLoading && !!accessToken;
 
+  const canViewFinancials = hasPermission('view_financial_dashboard') || hasPermission('view_financial_goals');
+
   return useQuery<DashboardStats>({
-    queryKey: ["dashboard-stats-v2", session?.user?.id], // V2 força o reset do cache antigo
-    queryFn: () => fetchDashboardData(session?.user?.id),
+    queryKey: ["dashboard-stats-v3", session?.user?.id, canViewFinancials],
+    queryFn: () => fetchDashboardData(session?.user?.id, canViewFinancials),
     enabled: !!accessToken && !sessionLoading,
-    staleTime: 1000 * 30, // 30 segundos (reduzido de 5min para atualizar Meta Relâmpago mais rápido)
-    refetchInterval: 30 * 1000, // Refetch a cada 30 segundos
+    staleTime: 1000 * 30, // 30 segundos
+    refetchInterval: 30 * 1000, 
   });
-};
+};

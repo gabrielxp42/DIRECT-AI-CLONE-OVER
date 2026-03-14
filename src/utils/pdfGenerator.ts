@@ -278,16 +278,12 @@ export const generateOrderPDF = async (
   if (action === 'print') {
     const pdfBlob = doc.output('blob');
     const pdfUrl = URL.createObjectURL(pdfBlob);
-    const printWindow = window.open(pdfUrl, '_blank');
-    if (printWindow) {
-      printWindow.onload = () => {
-        printWindow.focus();
-        printWindow.print();
-        setTimeout(() => URL.revokeObjectURL(pdfUrl), 1000);
-      };
-    } else {
-      window.location.href = pdfUrl;
-    }
+    window.open(pdfUrl, '_blank');
+    
+    // Revoke object URL after some time to allow the browser to load it
+    setTimeout(() => {
+      URL.revokeObjectURL(pdfUrl);
+    }, 10000);
   } else {
     const clientName = pedido.clientes?.nome?.replace(/[^a-zA-Z0-9]/g, '_') || 'Cliente_Desconhecido';
     doc.save(`PEDIDO_${pedido.order_number}_${clientName}.pdf`);

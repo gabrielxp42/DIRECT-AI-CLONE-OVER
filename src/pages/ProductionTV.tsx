@@ -25,9 +25,14 @@ export default function ProductionTV() {
     const fetchPedidos = async () => {
         if (!session?.user?.id) return;
 
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
         let query = supabase
             .from('pedidos')
             .select('*, clientes(nome), pedido_items(*)')
+            .in('status', ['pago', 'processando', 'aguardando retirada'])
+            .gte('created_at', thirtyDaysAgo.toISOString())
             .order('order_number', { ascending: false });
 
         if (profile?.organization_id) {
@@ -117,7 +122,10 @@ export default function ProductionTV() {
 
                         <div className="flex-1 overflow-y-auto space-y-4 no-scrollbar pr-2">
                             <AnimatePresence mode="popLayout">
-                                {pedidos.filter(p => p.production_status === col.id).map(pedido => (
+                                {pedidos
+                                    .filter(p => p.production_status === col.id)
+                                    .slice(0, 20) // TV mode limit is smaller for better visibility
+                                    .map(pedido => (
                                     <motion.div
                                         key={pedido.id}
                                         layoutId={pedido.id}

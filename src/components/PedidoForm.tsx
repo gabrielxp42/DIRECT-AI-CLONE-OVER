@@ -146,7 +146,7 @@ interface PedidoFormProps {
 const DRAFT_STORAGE_KEY = "pedido_form_draft_v2";
 
 export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clientes, produtos, initialData }: PedidoFormProps) => {
-  const { supabase, session } = useSession();
+  const { supabase, session, organizationId } = useSession();
   const queryClient = useQueryClient();
   const { data: tiposProducao } = useTiposProducao();
   const [filteredClientes, setFilteredClientes] = useState<Cliente[]>([]);
@@ -584,71 +584,26 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
   };
 
   const handleQuickClientSubmit = async (clientData: { nome: string; telefone?: string; email?: string; endereco?: string; valor_metro?: number }) => {
-    if (!session) {
-      showError("Sessão não encontrada. Por favor, recarregue a página.");
-      return;
-    }
-
     setIsCreatingClient(true);
     try {
-      // CRÍTICO: Obter token válido ANTES da requisição
-      const validToken = await getValidToken();
-      const effectiveToken = validToken || session.access_token;
+      const { data: newCliente, error } = await supabase
+        .from('clientes')
+        .insert([{
+          ...clientData,
+          telefone: clientData.telefone || null,
+          email: clientData.email || null,
+          endereco: clientData.endereco || null,
+          valor_metro: clientData.valor_metro || null,
+          user_id: session?.user?.id,
+          organization_id: organizationId,
+          status: 'ativo'
+        }])
+        .select()
+        .single();
 
-      if (!effectiveToken) {
-        showError("Sessão inválida. Por favor, faça login novamente.");
-        return;
-      }
-
-      const headers = {
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${effectiveToken}`,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=representation'
-      };
-
-      const clienteData = {
-        ...clientData,
-        telefone: clientData.telefone || null,
-        email: clientData.email || null,
-        endereco: clientData.endereco || null,
-        valor_metro: clientData.valor_metro || null,
-        user_id: session.user.id,
-        status: 'ativo'
-      };
-
-      const url = `${SUPABASE_URL}/rest/v1/clientes`;
-      const response = await fetch(url, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify([clienteData])
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Erro ao criar cliente: ${response.status} ${response.statusText} - ${errorText}`);
-      }
-
-      // Fazer parse seguro do JSON
-      const contentType = response.headers.get('content-type');
-      const text = await response.text();
-
-      if (!text || !text.trim()) {
-        throw new Error("Resposta vazia ao criar cliente.");
-      }
-
-      let result;
-      try {
-        result = JSON.parse(text);
-      } catch (parseError) {
-        console.error('❌ [handleQuickClientSubmit] Erro ao fazer parse JSON:', parseError, 'Texto:', text.substring(0, 100));
-        throw new Error("Resposta inválida do servidor ao criar cliente.");
-      }
-
-      // PostgREST retorna array mesmo com single, pegar o primeiro elemento
-      const newCliente = Array.isArray(result) ? (result.length > 0 ? result[0] : null) : result;
-
-      if (!newCliente || !newCliente.id) {
+      if (error) throw error;
+      
+      if (!newCliente) {
         throw new Error("Resposta inválida ao criar cliente. Cliente não foi retornado corretamente.");
       }
 

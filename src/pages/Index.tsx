@@ -39,7 +39,9 @@ const Index = () => {
   const { data: stats, isLoading, error } = useDashboardData();
   const { data: tiposProducao } = useTiposProducao();
   const { open: openAIAssistant } = useAIAssistant();
-  const { isLoading: sessionLoading } = useSession();
+  const { isLoading: sessionLoading, activeSubProfile, profile, hasPermission } = useSession();
+  const isBoss = !profile?.is_multi_profile_enabled || activeSubProfile?.role === 'chefe';
+  const canViewFinancials = hasPermission('view_financial_dashboard') || hasPermission('view_financial_goals');
   const { isTourOpen, currentStep, steps, startTour, nextStep, prevStep, closeTour, shouldAutoStart } = useTour(WELCOME_TOUR, 'welcome');
 
   useEffect(() => {
@@ -161,17 +163,19 @@ const Index = () => {
               className="snap-start"
             />
           </div>
-          <div className="flex-shrink-0 w-32 md:w-auto snap-start">
-            <QuickActionCard
-              title="Faltam Pagar"
-              icon={DollarSign}
-              to="/pedidos"
-              filterState={{ filterStatus: 'pendente-pagamento' }}
-              count={isLoading ? '...' : stats?.pendingPaymentOrdersCount}
-              variant="rose"
-              className="snap-start"
-            />
-          </div>
+          {canViewFinancials && (
+            <div className="flex-shrink-0 w-32 md:w-auto snap-start">
+              <QuickActionCard
+                title="Faltam Pagar"
+                icon={DollarSign}
+                to="/pedidos"
+                filterState={{ filterStatus: 'pendente-pagamento' }}
+                count={isLoading ? '...' : stats?.pendingPaymentOrdersCount}
+                variant="rose"
+                className="snap-start"
+              />
+            </div>
+          )}
           <div className="flex-shrink-0 w-32 md:w-auto snap-start">
             <QuickActionCard
               title="Aguardando"
@@ -198,18 +202,20 @@ const Index = () => {
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
-        <DashboardShortcutCard
-          title="Vendas Totais"
-          icon={DollarSign}
-          to="/reports"
-          loading={isLoading}
-          count={formatCurrency(stats?.totalSales || 0)}
-          className={getGrowthColor(stats?.salesGrowth || 0)}
-        >
-          <p className={`text-xs ${getGrowthColor(stats?.salesGrowth || 0)}`}>
-            {formatGrowth(stats?.salesGrowth || 0)} do último mês
-          </p>
-        </DashboardShortcutCard>
+        {canViewFinancials && (
+          <DashboardShortcutCard
+            title="Vendas Totais"
+            icon={DollarSign}
+            to="/reports"
+            loading={isLoading}
+            count={formatCurrency(stats?.totalSales || 0)}
+            className={getGrowthColor(stats?.salesGrowth || 0)}
+          >
+            <p className={`text-xs ${getGrowthColor(stats?.salesGrowth || 0)}`}>
+              {formatGrowth(stats?.salesGrowth || 0)} do último mês
+            </p>
+          </DashboardShortcutCard>
+        )}
 
         <DashboardShortcutCard
           title="Total de Metros (ML)"
@@ -269,18 +275,20 @@ const Index = () => {
           </p>
         </DashboardShortcutCard>
 
-        <DashboardShortcutCard
-          title="Ticket Médio"
-          icon={Activity}
-          to="/reports"
-          loading={isLoading}
-          count={formatCurrency(stats?.averageTicket || 0)}
-          className={getGrowthColor(stats?.ticketGrowth || 0)}
-        >
-          <p className={`text-xs ${getGrowthColor(stats?.ticketGrowth || 0)}`}>
-            {formatGrowth(stats?.ticketGrowth || 0)} do último mês
-          </p>
-        </DashboardShortcutCard>
+        {canViewFinancials && (
+          <DashboardShortcutCard
+            title="Ticket Médio"
+            icon={Activity}
+            to="/reports"
+            loading={isLoading}
+            count={formatCurrency(stats?.averageTicket || 0)}
+            className={getGrowthColor(stats?.ticketGrowth || 0)}
+          >
+            <p className={`text-xs ${getGrowthColor(stats?.ticketGrowth || 0)}`}>
+              {formatGrowth(stats?.ticketGrowth || 0)} do último mês
+            </p>
+          </DashboardShortcutCard>
+        )}
       </div>
 
       <div className="mt-8 text-center space-y-4">

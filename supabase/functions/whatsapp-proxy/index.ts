@@ -172,6 +172,45 @@ Deno.serve(async (req: Request) => {
         } else if (body.action === 'send-text') {
             const { data: p } = await supabaseAdmin.from('profiles').select('whatsapp_instance_id').eq('id', user.id).single();
             let instanceId = p?.whatsapp_instance_id;
+            let messageToSend = body.message;
+
+            // --- AI MEDIATION (GABI BRAIN) ---
+            if (body.mediate) {
+                console.log(`[Proxy] Mediating message through Gabi (gpt-4o-mini)...`);
+                try {
+                    const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+                        method: "POST",
+                        headers: {
+                            "Authorization": `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({
+                            model: "gpt-4o-mini",
+                            messages: [
+                                {
+                                    role: "system",
+                                    content: "Você é a Gabi, assistente inteligente e mediadora da DIRECT AI. Sua tarefa é transformar os comandos rápidos do operador em mensagens profissionais, educadas e gentis via WhatsApp. Assine como Gabi. Use emojis sutis. Mantenha o profissionalismo."
+                                },
+                                {
+                                    role: "user",
+                                    content: `Operador disse: "${body.message}". Reformule isso para o cliente.`
+                                }
+                            ],
+                            temperature: 0.7
+                        })
+                    });
+
+                    if (openaiRes.ok) {
+                        const aiData = await openaiRes.json();
+                        messageToSend = aiData.choices[0].message.content;
+                        console.log(`[Proxy] Mediated message: ${messageToSend}`);
+                    }
+                } catch (err) {
+                    console.error("[Proxy] Mediation failed:", err);
+                    // Fallback to original message
+                }
+            }
+
 
             if (!instanceId) {
                 // Fallback to Admin instance
@@ -186,12 +225,35 @@ Deno.serve(async (req: Request) => {
                 headers: { 'Content-Type': 'application/json', 'apikey': EVOLUTION_KEY },
                 body: JSON.stringify({
                     number: body.phone,
-                    text: body.message,
+                    text: messageToSend,
                     delay: 1200,
                     linkPreview: false
                 })
             });
             result = await safeJson(resp);
+            if (body.mediate && result && !result.error) {
+                result.mediated_message = messageToSend;
+            }
+            
+            // --- LOG SEND TO DATABASE (FOR GABI CONTEXT) ---
+            if (resp.ok && !result.error) {
+              const { data: { user } } = await supabase.auth.getUser();
+              await supabaseAdmin.from('whatsapp_messages').insert({
+                user_id: user?.id,
+                phone: body.phone,
+                message: messageToSend,
+                direction: 'sent',
+                sender_type: 'operator',
+                message_type: 'text',
+                metadata: {
+                  instanceId,
+                  original_prompt: body.mediate ? body.message : undefined,
+                  mediated: !!body.mediate,
+                  evolution_resp: result
+                }
+              }).catch((err: any) => console.error("[Proxy] Error logging sent message:", err));
+            }
+
             console.log(`[Proxy] Text sent to ${body.phone} via ${instanceId}, status: ${resp.status}`);
         } else if (body.action === 'send-media') {
             const { data: p } = await supabaseAdmin.from('profiles').select('whatsapp_instance_id').eq('id', user.id).single();
@@ -229,6 +291,26 @@ Deno.serve(async (req: Request) => {
                 body: JSON.stringify(mediaPayload)
             });
             result = await safeJson(resp);
+
+            // --- LOG SEND TO DATABASE (FOR GABI CONTEXT) ---
+            if (resp.ok && !result.error) {
+              const { data: { user } } = await supabase.auth.getUser();
+              await supabaseAdmin.from('whatsapp_messages').insert({
+                user_id: user?.id,
+                phone: body.phone,
+                message: body.message || `[Media: ${body.mediaType || 'file'}]`,
+                direction: 'sent',
+                sender_type: 'operator',
+                message_type: body.mediaType === 'image' ? 'image' : 'file',
+                metadata: {
+                  instanceId,
+                  mediaUrl: body.mediaUrl,
+                  fileName: body.mediaName,
+                  evolution_resp: result
+                }
+              }).catch((err: any) => console.error("[Proxy] Error logging sent media:", err));
+            }
+
             console.log(`[Proxy] Media sent to ${body.phone} via ${instanceId}, status: ${resp.status}`);
         } else {
             console.warn(`[Proxy] Unknown action: ${body.action}`);

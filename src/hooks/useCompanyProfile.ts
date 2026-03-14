@@ -33,6 +33,8 @@ export interface CompanyProfile {
     superfrete_token: string | null; // Novo campo
     frenet_access_key: string | null;
     frenet_access_password: string | null;
+    operator_phone: string | null;
+    whatsapp_boss_group_id: string | null;
 }
 
 export interface CompanyProfileUpdate {
@@ -66,6 +68,8 @@ export interface CompanyProfileUpdate {
     frenet_access_key?: string;
     frenet_access_password?: string;
     sync_frenet_balance?: boolean;
+    operator_phone?: string | null;
+    whatsapp_boss_group_id?: string | null;
 }
 
 // Helper to format full address
@@ -123,7 +127,7 @@ export const useCompanyProfile = () => {
                 const token = await getValidToken();
                 if (!token) return null;
 
-                const url = `${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}&select=company_name,company_slogan,company_phone,company_whatsapp,company_email,company_website,company_address_street,company_address_number,company_address_neighborhood,company_address_city,company_address_state,company_address_zip,company_address_complement,company_pix_key,company_pix_key_type,company_logo_url,sidebar_shortcuts,company_primary_color,gabi_templates,company_business_hours,wallet_balance,frenet_balance,logistics_provider,frenet_token,superfrete_token,frenet_access_key,frenet_access_password`;
+                const url = `${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}&select=company_name,company_slogan,company_phone,company_whatsapp,company_email,company_website,company_address_street,company_address_number,company_address_neighborhood,company_address_city,company_address_state,company_address_zip,company_address_complement,company_pix_key,company_pix_key_type,company_logo_url,sidebar_shortcuts,company_primary_color,gabi_templates,company_business_hours,wallet_balance,frenet_balance,logistics_provider,frenet_token,superfrete_token,frenet_access_key,frenet_access_password,operator_phone,whatsapp_boss_group_id`;
 
                 const response = await fetch(url, {
                     method: 'GET',

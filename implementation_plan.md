@@ -33,16 +33,8 @@ Este plano detalha a implementação das melhorias aprovadas para o sistema DIRE
     - [x] Criar tabela `insumos` (Script SQL gerado).
     - [x] Criar lógica de baixa automática (Script SQL `estoque_automacao.sql` criado e UI atualizada).
     - [x] Interface para gestão de insumos (CRUD).
-    - [x] Alertas de estoque baixo (Visual na listagem).
-- [x] **Melhorias de UX/UI (Dashboard 2.0)**
-    - [x] Ações Rápidas (Quick Actions) no Dashboard com abertura direta de modais.
-    - [x] Sugestões de Comandos (Chips) no Chat da IA.
-    - [x] Card de Resumo Rápido com métricas visuais.
-    - [x] Responsividade otimizada (botões ocultos no mobile).
-    - [x] Gráficos de vendas e metragem na página de Relatórios.
 - [ ] **Controle de Despesas (Fluxo de Caixa)**
     - Criar tabela `despesas`.
-    - Interface para lançamento de contas (luz, aluguel, matéria-prima).
     - Atualizar relatórios para mostrar Lucro Líquido (Receita - Despesas).
 
 ## Fase 4: Polimento Final

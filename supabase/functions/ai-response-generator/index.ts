@@ -10,6 +10,7 @@ Deno.serve(async (req: Request) => {
     if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
     try {
+        const payload = await req.json();
         const {
             user_id,
             message,
@@ -19,8 +20,9 @@ Deno.serve(async (req: Request) => {
             customer_phone,
             customer_name,
             is_boss,
-            quoted_message
-        } = await req.json();
+            quoted_message,
+            media_type
+        } = payload;
 
         const supabase = createClient(
             Deno.env.get('SUPABASE_URL') ?? '',
@@ -90,7 +92,7 @@ Deno.serve(async (req: Request) => {
             .eq('user_id', user_id)
             .eq('phone', customer_phone.split('@')[0])
             .order('created_at', { ascending: false })
-            .limit(10);
+            .limit(20);
 
         const history = (rawHistory || [])
             .map((m: any) => ({
@@ -113,9 +115,13 @@ Deno.serve(async (req: Request) => {
                 history: history,
                 platform: 'whatsapp',
                 is_boss: is_boss,
+                from_me: payload.from_me || false,
                 customer_name: customer_name,
                 customer_phone: customer_phone,
-                user_id: user_id
+                user_id: user_id,
+                operator_phone: (req as any).operator_phone || payload.operator_phone,
+                boss_group_id: (req as any).boss_group_id || payload.boss_group_id,
+                media_type: media_type || 'text'
             }
         });
 
@@ -134,10 +140,33 @@ Deno.serve(async (req: Request) => {
             details: { response_preview: finalResponse.substring(0, 100) }
         });
 
-        // --- 4. DELIVERY: Send back via Evolution API ---
-        const { data: profile } = await supabase.from('profiles').select('whatsapp_api_url, whatsapp_api_key, whatsapp_instance_id').eq('id', user_id).single();
+        // --- 4. ANTI-SPAM DEBOUNCE (Relay) ---
+        const isRelayMessage = finalResponse.includes("Gabi informa:") || finalResponse.includes("informação importante");
+        
+        if (isRelayMessage) {
+            const { data: recentRelays } = await supabase
+                .from('whatsapp_messages')
+                .select('id')
+                .eq('user_id', user_id)
+                .eq('phone', customer_phone.split('@')[0])
+                .ilike('message', '%Gabi informa:%')
+                .gt('created_at', new Date(Date.now() - 20000).toISOString()) // 20 segundos
+                .limit(1);
 
-        if (profile?.whatsapp_api_url && profile?.whatsapp_api_key && profile?.whatsapp_instance_id) {
+            if (recentRelays && recentRelays.length > 0) {
+                console.log(`[Generator] Anti-Spam: Skipping redundant relay for ${customer_phone}`);
+                return new Response(JSON.stringify({ response: "REDUNDANT_RELAY_SKIPPED" }), {
+                    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                });
+            }
+        }
+
+        // --- 5. DELIVERY: Send back via Evolution API ---
+        const { data: profile } = await supabase.from('profiles').select('whatsapp_api_url, whatsapp_api_key, whatsapp_instance_id, ai_auto_reply_enabled').eq('id', user_id).single();
+
+        const canReplyToCustomer = (is_boss || profile?.ai_auto_reply_enabled) && !payload.from_me;
+
+        if (canReplyToCustomer && profile?.whatsapp_api_url && profile?.whatsapp_api_key && profile?.whatsapp_instance_id) {
             const evolutionUrl = profile.whatsapp_api_url.replace(/\/$/, "");
             console.log(`[Generator] Delivering message to ${customer_phone} via ${profile.whatsapp_instance_id}...`);
 
@@ -187,14 +216,21 @@ Deno.serve(async (req: Request) => {
             console.warn("[Generator] Skipping delivery: WhatsApp API not configured for user", user_id);
         }
 
-        // --- 5. Log Sent Message ---
+        // --- 6. Log for History (For Gabi and Operator context) ---
+        // Se foi enviado ao cliente, logamos como 'sent'.
+        // Se NÃO foi enviado (auto-reply off), logamos como uma "Nota da Gabi" para o Operador ver no Chat.
         await supabase.from('whatsapp_messages').insert({
             user_id,
             phone: customer_phone.split('@')[0],
             message: finalResponse,
-            direction: 'sent',
+            direction: canReplyToCustomer ? 'sent' : 'received', 
+            sender_type: canReplyToCustomer ? 'ia' : 'ia_note',
             analyzed: true,
-            analysis_result: { source: 'gabi-brain-unified', version: '2.0' }
+            metadata: { 
+                source: 'gabi-brain-relay', 
+                auto_reply_enabled: !!profile?.ai_auto_reply_enabled,
+                is_relay: isRelayMessage
+            }
         });
 
         return new Response(JSON.stringify({ response: finalResponse }), {

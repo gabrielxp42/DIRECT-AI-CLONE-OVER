@@ -8,6 +8,7 @@ import { MessageSquare, Send, X, Bot, Sparkles, Mic, Paperclip, Share2, Calculat
 import { Badge } from '@/components/ui/badge';
 import { getOpenAIClient, type ChatMessage } from '@/integrations/openai/client';
 import { openAIFunctions, callOpenAIFunction } from '@/integrations/openai/aiTools';
+import { useCompanyProfile } from "@/hooks/useCompanyProfile";
 import { useToast } from '@/hooks/use-toast';
 import { formatMessage } from "../utils/messageFormatter";
 import { AudioRecorder } from './AudioRecorder';
@@ -46,6 +47,7 @@ export const AIAssistant = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { addTask, updateTask } = useBackgroundTasks();
+  const { data: companyProfile } = useCompanyProfile();
 
   // Keep messagesRef in sync
   useEffect(() => {
@@ -63,16 +65,28 @@ export const AIAssistant = () => {
         const manager = new AgentMemoryManager(user.id);
         setMemoryManager(manager);
 
-        // Carregar memórias e insights iniciais
+        // Carregar memórias, insights e HISTÓRICO iniciais
         try {
-          const [loadedMemories, loadedInsights] = await Promise.all([
+          const [loadedMemories, loadedInsights, loadedHistory] = await Promise.all([
             manager.getRelevantMemories(10, 0, ''),
-            manager.getActiveInsights()
+            manager.getActiveInsights(),
+            manager.getConversationHistory(20)
           ]);
           setMemories(loadedMemories);
           setInsights(loadedInsights);
+
+          if (loadedHistory && loadedHistory.length > 0) {
+            console.log('📜 [AIAssistant] Histórico carregado, restaurando mensagens...');
+            const historyMessages: ChatMessage[] = loadedHistory.map(m => ({
+              role: m.role as any,
+              content: m.content || '',
+              function_call: m.function_call,
+              function_result: m.function_result
+            }));
+            setMessages(historyMessages);
+          }
         } catch (err) {
-          console.error('❌ [AIAssistant] Erro ao carregar memórias:', err);
+          console.error('❌ [AIAssistant] Erro ao carregar dados iniciais:', err);
         }
       }
     };
@@ -119,6 +133,11 @@ export const AIAssistant = () => {
     const currentHistory = messagesRef.current;
 
     setMessages(prev => [...prev, userMessage]);
+    
+    if (memoryManager) {
+      memoryManager.addMessage('user', content);
+    }
+
     setInput("");
     setIsLoading(true);
     setLoadingStatus("Gabi está pesquisando no banco de dados...");
@@ -128,7 +147,11 @@ export const AIAssistant = () => {
       const { data, error: invokeError } = await supabase.functions.invoke('gabi-brain', {
         body: {
           message: content,
-          history: currentHistory.slice(-10) // Use the snapped history
+          history: currentHistory.slice(-10), // Use the snapped history
+          is_boss: true,
+          platform: 'web',
+          operator_phone: companyProfile?.operator_phone,
+          boss_group_id: companyProfile?.whatsapp_boss_group_id
         }
       });
 
@@ -171,6 +194,10 @@ export const AIAssistant = () => {
           role: 'assistant',
           content: data.text
         }]);
+
+        if (memoryManager) {
+          memoryManager.addMessage('assistant', data.text);
+        }
 
         // Sugestões dinâmicas
         const suggestions = data.text.match(/([A-Z][^.!?]*\?)/g);

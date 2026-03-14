@@ -90,7 +90,7 @@ import { fetchReportData, SalesReport } from "@/utils/reportUtils";
 import { ReportsGabiInsight } from "@/components/ReportsGabiInsight";
 
 const Reports: React.FC = () => {
-  const { session, isLoading: sessionLoading, organizationId } = useSession();
+  const { session, isLoading: sessionLoading, organizationId, hasPermission } = useSession();
   const accessToken = session?.access_token;
   const [selectedPeriod, setSelectedPeriod] = useState("month");
   const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>(undefined); // Usar DateRange | undefined
@@ -220,10 +220,30 @@ const Reports: React.FC = () => {
   // Get unique service names for filter
   // REMOVIDO: Lógica de uniqueServices, pois a tab foi removida.
 
+  if (sessionLoading) {
+    return (
+      <div className="flex h-[80vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   if (error) {
     return (
       <div className="text-center py-8">
         <p className="text-red-600">Erro ao carregar relatórios: {error.message}</p>
+      </div>
+    );
+  }
+
+  if (!hasPermission('view_reports')) {
+    return (
+      <div className="flex h-[80vh] flex-col items-center justify-center gap-4">
+        <div className="p-4 rounded-full bg-red-500/10 text-red-500">
+          <BarChart3 className="h-10 w-10" />
+        </div>
+        <h2 className="text-2xl font-black uppercase italic tracking-tighter">Acesso Negado</h2>
+        <p className="text-muted-foreground text-center max-w-md">Você não tem permissão para visualizar os relatórios financeiros. Solicite acesso ao Chefe.</p>
       </div>
     );
   }
@@ -391,101 +411,105 @@ _Gerado por Direct AI_`;
         <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
 
           {/* Receita Total */}
-          <Card id="reports-revenue-card" className="hover:shadow-md transition-all border-l-4 border-l-green-500 shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
-              <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Receita Total</CardTitle>
-              <DollarSign className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent className="p-4 pt-0">
-              {isLoading ? <Skeleton className="h-8 w-3/4" /> : (
-                <>
-                  <div className="text-xl sm:text-2xl font-black text-foreground">{formatCurrency(reportData?.totalRevenue || 0)}</div>
-                  <div className={`text-xs flex items-center mt-1 font-medium ${getGrowthColor(reportData?.monthlyGrowth.revenue || 0)}`}>
-                    {React.createElement(getGrowthIcon(reportData?.monthlyGrowth.revenue || 0), { className: "h-3 w-3 mr-1" })}
-                    {formatGrowth(reportData?.monthlyGrowth.revenue || 0)} este mês
-                  </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Lucro Estimado (Movido para cima para agrupar co Receita) */}
-          <Card id="reports-profit-card" className="hover:shadow-md transition-all border-l-4 border-l-emerald-600 shadow-sm bg-emerald-50/30 dark:bg-emerald-950/10 relative overflow-hidden">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
-              <CardTitle className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-2">
-                Lucro Estimado
-                {reportData && !isEditingMargin && (
-                  <button
-                    onClick={() => {
-                      setIsEditingMargin(true);
-                      setTempMargin((reportData.targetProfitMargin * 100).toFixed(0));
-                    }}
-                    className="flex items-center gap-1.5 px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/50 hover:bg-emerald-200 dark:hover:bg-emerald-800 rounded-full transition-all text-[10px] font-bold text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
-                    title="Ajustar Margem de Lucro"
-                  >
-                    <Edit2 className="h-2.5 w-2.5" />
-                    <span className="hidden sm:inline">AJUSTAR MARGEM</span>
-                    <span className="sm:hidden">AJUSTAR</span>
-                  </button>
+          {hasPermission('view_financial_dashboard') && (
+            <Card id="reports-revenue-card" className="hover:shadow-md transition-all border-l-4 border-l-green-500 shadow-sm">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
+                <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Receita Total</CardTitle>
+                <DollarSign className="h-4 w-4 text-green-600" />
+              </CardHeader>
+              <CardContent className="p-4 pt-0">
+                {isLoading ? <Skeleton className="h-8 w-3/4" /> : (
+                  <>
+                    <div className="text-xl sm:text-2xl font-black text-foreground">{formatCurrency(reportData?.totalRevenue || 0)}</div>
+                    <div className={`text-xs flex items-center mt-1 font-medium ${getGrowthColor(reportData?.monthlyGrowth.revenue || 0)}`}>
+                      {React.createElement(getGrowthIcon(reportData?.monthlyGrowth.revenue || 0), { className: "h-3 w-3 mr-1" })}
+                      {formatGrowth(reportData?.monthlyGrowth.revenue || 0)} este mês
+                    </div>
+                  </>
                 )}
-              </CardTitle>
-              <div className="bg-emerald-100 dark:bg-emerald-900/50 p-1 rounded-full">
-                <DollarSign className="h-3 w-3 text-emerald-700 dark:text-emerald-400" />
-              </div>
-            </CardHeader>
-            <CardContent className="p-4 pt-0">
-              {isLoading ? <Skeleton className="h-8 w-3/4" /> : (
-                <>
-                  <div className="text-xl sm:text-2xl font-black text-emerald-700 dark:text-emerald-400">
-                    {formatCurrency(reportData?.estimatedProfit || 0)}
-                  </div>
-                  <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1 min-h-[24px]">
-                    {isEditingMargin ? (
-                      <div className="flex items-center gap-1 animate-in fade-in slide-in-from-left-2 duration-200 bg-white dark:bg-slate-900 p-1 rounded-md border border-emerald-200 dark:border-emerald-800 shadow-sm">
-                        <span className="font-bold text-emerald-700 dark:text-emerald-400 ml-1">Sua Margem:</span>
-                        <div className="relative flex items-center">
-                          <input
-                            type="number"
-                            className="w-14 h-7 px-1 text-center bg-emerald-50 dark:bg-emerald-950 border-none rounded font-black text-emerald-700 dark:text-emerald-400 focus:outline-none focus:ring-0"
-                            value={tempMargin}
-                            onChange={(e) => setTempMargin(e.target.value)}
-                            autoFocus
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') updateMarginMutation.mutate(Number(tempMargin));
-                              if (e.key === 'Escape') setIsEditingMargin(false);
-                            }}
-                          />
-                          <span className="ml-0.5 text-emerald-700/70 font-bold">%</span>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Lucro Estimado */}
+          {hasPermission('view_financial_dashboard') && (
+            <Card id="reports-profit-card" className="hover:shadow-md transition-all border-l-4 border-l-emerald-600 shadow-sm bg-emerald-50/30 dark:bg-emerald-950/10 relative overflow-hidden">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
+                <CardTitle className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-2">
+                  Lucro Estimado
+                  {reportData && !isEditingMargin && (
+                    <button
+                      onClick={() => {
+                        setIsEditingMargin(true);
+                        setTempMargin((reportData.targetProfitMargin * 100).toFixed(0));
+                      }}
+                      className="flex items-center gap-1.5 px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/50 hover:bg-emerald-200 dark:hover:bg-emerald-800 rounded-full transition-all text-[10px] font-bold text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+                      title="Ajustar Margem de Lucro"
+                    >
+                      <Edit2 className="h-2.5 w-2.5" />
+                      <span className="hidden sm:inline">AJUSTAR MARGEM</span>
+                      <span className="sm:hidden">AJUSTAR</span>
+                    </button>
+                  )}
+                </CardTitle>
+                <div className="bg-emerald-100 dark:bg-emerald-900/50 p-1 rounded-full">
+                  <DollarSign className="h-3 w-3 text-emerald-700 dark:text-emerald-400" />
+                </div>
+              </CardHeader>
+              <CardContent className="p-4 pt-0">
+                {isLoading ? <Skeleton className="h-8 w-3/4" /> : (
+                  <>
+                    <div className="text-xl sm:text-2xl font-black text-emerald-700 dark:text-emerald-400">
+                      {formatCurrency(reportData?.estimatedProfit || 0)}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1 min-h-[24px]">
+                      {isEditingMargin ? (
+                        <div className="flex items-center gap-1 animate-in fade-in slide-in-from-left-2 duration-200 bg-white dark:bg-slate-900 p-1 rounded-md border border-emerald-200 dark:border-emerald-800 shadow-sm">
+                          <span className="font-bold text-emerald-700 dark:text-emerald-400 ml-1">Sua Margem:</span>
+                          <div className="relative flex items-center">
+                            <input
+                              type="number"
+                              className="w-14 h-7 px-1 text-center bg-emerald-50 dark:bg-emerald-950 border-none rounded font-black text-emerald-700 dark:text-emerald-400 focus:outline-none focus:ring-0"
+                              value={tempMargin}
+                              onChange={(e) => setTempMargin(e.target.value)}
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') updateMarginMutation.mutate(Number(tempMargin));
+                                if (e.key === 'Escape') setIsEditingMargin(false);
+                              }}
+                            />
+                            <span className="ml-0.5 text-emerald-700/70 font-bold">%</span>
+                          </div>
+                          <button
+                            onClick={() => updateMarginMutation.mutate(Number(tempMargin))}
+                            disabled={updateMarginMutation.isPending}
+                            className="p-1 px-2.5 bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-1 text-[10px] font-bold"
+                          >
+                            {updateMarginMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                            SALVAR
+                          </button>
+                          <button
+                            onClick={() => setIsEditingMargin(false)}
+                            className="p-1 text-slate-400 hover:text-slate-500"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
                         </div>
-                        <button
-                          onClick={() => updateMarginMutation.mutate(Number(tempMargin))}
-                          disabled={updateMarginMutation.isPending}
-                          className="p-1 px-2.5 bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-1 text-[10px] font-bold"
-                        >
-                          {updateMarginMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
-                          SALVAR
-                        </button>
-                        <button
-                          onClick={() => setIsEditingMargin(false)}
-                          className="p-1 text-slate-400 hover:text-slate-500"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col gap-0.5">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-emerald-600/70">Calculado sobre</span>
-                          <Badge variant="outline" className="h-5 px-1.5 font-bold border-emerald-200 text-emerald-700 bg-emerald-50 dark:bg-transparent dark:text-emerald-400">{(reportData?.targetProfitMargin ? reportData.targetProfitMargin * 100 : 30).toFixed(0)}%</Badge>
-                          <span className="text-emerald-600/70">de margem</span>
+                      ) : (
+                        <div className="flex flex-col gap-0.5">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-emerald-600/70">Calculado sobre</span>
+                            <Badge variant="outline" className="h-5 px-1.5 font-bold border-emerald-200 text-emerald-700 bg-emerald-50 dark:bg-transparent dark:text-emerald-400">{(reportData?.targetProfitMargin ? reportData.targetProfitMargin * 100 : 30).toFixed(0)}%</Badge>
+                            <span className="text-emerald-600/70">de margem</span>
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
+                      )}
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Pedidos */}
           <Card className="hover:shadow-md transition-all border-l-4 border-l-blue-500 shadow-sm">
@@ -507,24 +531,26 @@ _Gerado por Direct AI_`;
           </Card>
 
           {/* Ticket Médio */}
-          <Card className="hover:shadow-md transition-all border-l-4 border-l-purple-500 shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
-              <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Ticket Médio</CardTitle>
-              <div className="bg-purple-100 dark:bg-purple-900/50 p-1 rounded-full">
-                <Package className="h-3 w-3 text-purple-700 dark:text-purple-400" />
-              </div>
-            </CardHeader>
-            <CardContent className="p-4 pt-0">
-              {isLoading ? <Skeleton className="h-8 w-3/4" /> : (
-                <>
-                  <div className="text-xl sm:text-2xl font-black text-foreground">{formatCurrency(reportData?.averageOrderValue || 0)}</div>
-                  <p className="text-xs text-muted-foreground mt-1 font-medium">
-                    Por pedido realizado
-                  </p>
-                </>
-              )}
-            </CardContent>
-          </Card>
+          {hasPermission('view_financial_dashboard') && (
+            <Card className="hover:shadow-md transition-all border-l-4 border-l-purple-500 shadow-sm">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
+                <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Ticket Médio</CardTitle>
+                <div className="bg-purple-100 dark:bg-purple-900/50 p-1 rounded-full">
+                  <Package className="h-3 w-3 text-purple-700 dark:text-purple-400" />
+                </div>
+              </CardHeader>
+              <CardContent className="p-4 pt-0">
+                {isLoading ? <Skeleton className="h-8 w-3/4" /> : (
+                  <>
+                    <div className="text-xl sm:text-2xl font-black text-foreground">{formatCurrency(reportData?.averageOrderValue || 0)}</div>
+                    <p className="text-xs text-muted-foreground mt-1 font-medium">
+                      Por pedido realizado
+                    </p>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Coluna da Direita: Consumo de Material (Ocupa toda a altura) */}
@@ -692,16 +718,20 @@ _Gerado por Direct AI_`;
       <Tabs id="reports-tabs-section" defaultValue="commission" className="space-y-4">
         <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
           <TabsList className="grid w-max md:w-full grid-cols-4 h-auto">
-            <TabsTrigger value="commission" className="py-2 px-3 md:px-4 flex items-center gap-1 md:gap-2 text-xs md:text-sm">
-              <DollarSign className="h-3 w-3 md:h-4 md:w-4" />
-              <span className="hidden sm:inline">Comissão</span>
-              <span className="sm:hidden">Com.</span>
-            </TabsTrigger>
-            <TabsTrigger value="financial" className="py-2 px-3 md:px-4 flex items-center gap-1 md:gap-2 text-xs md:text-sm">
-              <DollarSign className="h-3 w-3 md:h-4 md:w-4" />
-              <span className="hidden sm:inline">Financeiro</span>
-              <span className="sm:hidden">Fin.</span>
-            </TabsTrigger>
+            {hasPermission('view_commission_report') && (
+              <TabsTrigger value="commission" className="py-2 px-3 md:px-4 flex items-center gap-1 md:gap-2 text-xs md:text-sm">
+                <DollarSign className="h-3 w-3 md:h-4 md:w-4" />
+                <span className="hidden sm:inline">Comissão</span>
+                <span className="sm:hidden">Com.</span>
+              </TabsTrigger>
+            )}
+            {hasPermission('view_financial_dashboard') && (
+              <TabsTrigger value="financial" className="py-2 px-3 md:px-4 flex items-center gap-1 md:gap-2 text-xs md:text-sm">
+                <DollarSign className="h-3 w-3 md:h-4 md:w-4" />
+                <span className="hidden sm:inline">Financeiro</span>
+                <span className="sm:hidden">Fin.</span>
+              </TabsTrigger>
+            )}
             <TabsTrigger value="customers" className="py-2 px-3 md:px-4 flex items-center gap-1 md:gap-2 text-xs md:text-sm">
               <User className="h-3 w-3 md:h-4 md:w-4" />
               <span className="hidden sm:inline">Clientes</span>

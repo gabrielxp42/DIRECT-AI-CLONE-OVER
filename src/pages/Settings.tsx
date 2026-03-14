@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Input } from '@/components/ui/input';
@@ -35,8 +35,9 @@ import {
     CheckSquare,
     Square,
     Calculator,
-    Zap,
-    ChevronDown
+    ChevronDown,
+    Users,
+    Zap
 } from 'lucide-react';
 import { useSession } from '@/contexts/SessionProvider';
 import { cn } from '@/lib/utils';
@@ -58,6 +59,7 @@ import { DemoDataGenerator } from '@/components/DemoDataGenerator';
 import { GabiSuccessModal } from '@/components/GabiSuccessModal';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/components/ui/use-toast';
+import { SubProfileManager } from '@/components/SubProfileManager';
 import {
     Dialog,
     DialogContent,
@@ -164,7 +166,8 @@ export default function Settings() {
     const isInitialized = useRef(false);
     const [isLocalUpdating, setIsLocalUpdating] = useState(false);
     const [isMagicModalOpen, setIsMagicModalOpen] = useState(false);
-    const { session } = useSession();
+    const { session, hasPermission } = useSession();
+    const navigate = useNavigate();
     const { methods: paymentMethods, toggleMethod: togglePaymentMethod } = usePaymentMethods();
 
     const [magicCode, setMagicCode] = useState('');
@@ -366,6 +369,21 @@ export default function Settings() {
                         Tentar Recarregar
                     </Button>
                 )}
+            </div>
+        );
+    }
+
+    if (!hasPermission('manage_settings')) {
+        return (
+            <div className="flex h-[80vh] flex-col items-center justify-center gap-4">
+                <div className="p-4 rounded-full bg-red-500/10 text-red-500">
+                    <Lock className="h-10 w-10" />
+                </div>
+                <h2 className="text-2xl font-black uppercase italic tracking-tighter">Acesso Negado</h2>
+                <p className="text-muted-foreground text-center max-w-md">Você não tem permissão para gerenciar as configurações da empresa. Solicite acesso ao Chefe.</p>
+                <Button onClick={() => navigate('/dashboard')} variant="outline" className="mt-4">
+                    Voltar ao Início
+                </Button>
             </div>
         );
     }
@@ -582,6 +600,11 @@ export default function Settings() {
                         </div>
                     </CardContent>
                 </Card>
+
+                {/* Team & Multi-Profile Section */}
+                <div id="team-section" className="mt-8 mb-4">
+                    <SubProfileManager />
+                </div>
 
                 <div className="grid grid-cols-1 gap-6">
                     {/* Company Info */}
@@ -880,6 +903,52 @@ export default function Settings() {
                                         </button>
                                     );
                                 })}
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Gabi AI Configuration */}
+                    <Card id="gabi-config-section" className="border-border/50 shadow-sm overflow-hidden bg-gradient-to-br from-indigo-500/5 to-purple-500/5">
+                        <CardHeader className="pb-4 bg-muted/30">
+                            <StepBadge
+                                step={8}
+                                title="Configuração Gabi (IA)"
+                                explanation="Gabi usa esses dados para repassar mensagens de clientes para você ou seu operador."
+                            />
+                        </CardHeader>
+                        <CardContent className="pt-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-2">
+                                    <Label htmlFor="operator_phone" className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                                        <Phone className="w-3 h-3" /> Telefone do Operador / Produção
+                                    </Label>
+                                    <Input
+                                        id="operator_phone"
+                                        value={formData.operator_phone || companyProfile?.operator_phone || ''}
+                                        onChange={(e) => handleInputChange('operator_phone', e.target.value)}
+                                        placeholder="Ex: 5511999999999"
+                                        className="h-11 md:h-10"
+                                    />
+                                    <p className="text-[10px] text-muted-foreground italic">
+                                        Número que receberá notificações de novos pedidos e solicitações via WhatsApp.
+                                    </p>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label htmlFor="whatsapp_boss_group_id" className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                                        <Users className="w-3 h-3" /> ID do Grupo de Gestão (Patrão)
+                                    </Label>
+                                    <Input
+                                        id="whatsapp_boss_group_id"
+                                        value={formData.whatsapp_boss_group_id || companyProfile?.whatsapp_boss_group_id || ''}
+                                        onChange={(e) => handleInputChange('whatsapp_boss_group_id', e.target.value)}
+                                        placeholder="Ex: 120363023456@g.us"
+                                        className="h-11 md:h-10"
+                                    />
+                                    <p className="text-[10px] text-muted-foreground italic">
+                                        Se falar por um grupo, a Gabi tratará todos como "Chefe". Deixe vazio se não usar.
+                                    </p>
+                                </div>
                             </div>
                         </CardContent>
                     </Card>

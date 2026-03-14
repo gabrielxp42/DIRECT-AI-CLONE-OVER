@@ -69,7 +69,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { generateOrderPDF } from '@/utils/pdfGenerator';
+import { generateOrderPDF, generateOrderPDFBase64 } from '@/utils/pdfGenerator';
 import { printThermalReceipt } from '@/utils/thermalPrinter';
 import { StatusChangeDialog } from '@/components/StatusChangeDialog';
 import { StatusHistoryDialog } from '@/components/StatusHistoryDialog';
@@ -78,6 +78,9 @@ import { generateOrderSummary } from '@/utils/orderSummary';
 import { ShippingSection } from './ShippingSection';
 import { ShippingModal } from './ShippingModal';
 import { FreightQuoteModal } from './FreightQuoteModal';
+import { WhatsAppActionDialog } from './WhatsAppActionDialog';
+import { useIsPlusMode } from '@/hooks/useIsPlusMode';
+import { useBackgroundTasks } from '@/hooks/useBackgroundTasks';
 import { toast } from "sonner";
 
 interface PedidoDetailsProps {
@@ -111,6 +114,22 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
   const [isShippingModalOpen, setIsShippingModalOpen] = useState(false);
   const [isFreightModalOpen, setIsFreightModalOpen] = useState(false);
   const { companyProfile } = useCompanyProfile();
+  const plusModeInfo = useIsPlusMode();
+  const { addTask, updateTask, updateStep } = useBackgroundTasks();
+
+  const [whatsAppDialog, setWhatsAppDialog] = useState<{
+    open: boolean;
+    loading: boolean;
+    pedido: Pedido | null;
+    summary: string;
+    error?: string | null;
+  }>({
+    open: false,
+    pedido: null,
+    summary: '',
+    error: null,
+    loading: false
+  });
 
   const fetchPedidoDetails = async () => {
     if (!session || !pedidoId) return;
@@ -253,22 +272,160 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
   const handleWhatsAppShare = () => {
     if (!pedido) return;
 
-    // Usar o utilitário unificado com template e chave PIX do perfil
-    const message = generateOrderSummary(
+    const summary = generateOrderSummary(
       pedido,
       companyProfile?.gabi_templates?.['resumo-padrao'],
       companyProfile?.company_pix_key
     );
 
-    const encodedMessage = encodeURIComponent(message);
-    const telephone = pedido.clientes?.telefone || '';
-    const phoneStr = telephone.replace(/\D/g, '');
+    const { isWhatsAppReady } = plusModeInfo;
 
-    const whatsappUrl = phoneStr
-      ? `https://api.whatsapp.com/send?phone=55${phoneStr}&text=${encodedMessage}`
-      : `https://api.whatsapp.com/send?text=${encodedMessage}`;
+    if (isWhatsAppReady) {
+      setWhatsAppDialog({ open: true, loading: false, pedido, summary, error: null });
+    } else {
+      const telephone = pedido.clientes?.telefone || '';
+      const phoneStr = telephone.replace(/\D/g, '');
+      const encodedMessage = encodeURIComponent(summary);
 
-    window.open(whatsappUrl, '_blank');
+      const whatsappUrl = phoneStr
+        ? `https://api.whatsapp.com/send?phone=55${phoneStr}&text=${encodedMessage}`
+        : `https://api.whatsapp.com/send?text=${encodedMessage}`;
+
+      window.open(whatsappUrl, '_blank');
+    }
+  };
+
+  const handleConfirmWhatsAppSend = async (data: { phone?: string; attachPdf?: boolean; includeText?: boolean; includePix?: boolean } = {}) => {
+    if (!pedido) return;
+
+    const summary = whatsAppDialog.summary;
+    const phone = (data.phone || pedido.clientes?.telefone || '').replace(/\D/g, '');
+    const formattedPhone = phone.startsWith('55') ? phone : `55${phone}`;
+
+    setWhatsAppDialog(prev => ({ ...prev, open: false }));
+
+    const steps = [];
+    if (data.attachPdf) {
+      steps.push({ id: 'pdf-gen', label: 'Gerar PDF', status: 'pending' as const });
+      steps.push({ id: 'pdf-send', label: 'Enviar PDF', status: 'pending' as const });
+    }
+    if (data.includeText) {
+      steps.push({ id: 'text-send', label: 'Enviar Resumo', status: 'pending' as const });
+    }
+
+    const taskId = addTask({
+      title: `Pedido #${pedido.order_number}`,
+      description: `Enviando para ${pedido.clientes?.nome || 'Cliente'}`,
+      status: 'processing',
+      progress: 0,
+      steps
+    });
+
+    const processEnvio = async () => {
+      try {
+        if (data.attachPdf) {
+          updateTask(taskId, { progress: 10 });
+          updateStep(taskId, 'pdf-gen', 'loading');
+
+          const companyInfo = getCompanyInfoForPDF(companyProfile);
+          const pdfBase64 = await generateOrderPDFBase64(pedido, [], companyInfo);
+          const fileName = `pedido_${pedido.id}_${Date.now()}.pdf`;
+
+          updateStep(taskId, 'pdf-gen', 'completed');
+          updateStep(taskId, 'pdf-send', 'loading');
+          updateTask(taskId, { progress: 40 });
+
+          const binaryString = window.atob(pdfBase64);
+          const bytes = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+
+          const { error: uploadError } = await supabase.storage.from('order-pdfs').upload(fileName, bytes, {
+            contentType: 'application/pdf',
+            upsert: true
+          });
+
+          let fileUrlToUse = '';
+          if (!uploadError) {
+            const { data: signedData } = await supabase.storage.from('order-pdfs').createSignedUrl(fileName, 3600);
+            if (signedData?.signedUrl) fileUrlToUse = signedData.signedUrl;
+          }
+
+          const pdfResp = await fetch(`${SUPABASE_URL}/functions/v1/whatsapp-proxy`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session?.access_token}`,
+              'apikey': SUPABASE_ANON_KEY
+            },
+            body: JSON.stringify({
+              action: 'send-media',
+              phone: formattedPhone,
+              mediaUrl: fileUrlToUse,
+              mediaBase64: pdfBase64,
+              mediaName: `Pedido_${pedido.order_number}.pdf`,
+              mediaType: 'document',
+              message: ''
+            })
+          });
+
+          const pdfResult = await pdfResp.json();
+          if (!pdfResp.ok || pdfResult?.error) {
+            throw new Error(pdfResult?.message || 'Falha ao enviar PDF');
+          }
+
+          updateStep(taskId, 'pdf-send', 'completed');
+          updateTask(taskId, { progress: 70 });
+
+          supabase.storage.from('order-pdfs').remove([fileName]).catch(err => {
+            console.warn("[Storage] Erro ao limpar arquivo temporário:", err);
+          });
+        }
+
+        if (data.includeText) {
+          updateStep(taskId, 'text-send', 'loading');
+          if (data.attachPdf) await new Promise(r => setTimeout(r, 1000));
+
+          const textResp = await fetch(`${SUPABASE_URL}/functions/v1/whatsapp-proxy`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session?.access_token}`,
+              'apikey': SUPABASE_ANON_KEY
+            },
+            body: JSON.stringify({
+              action: 'send-text',
+              phone: formattedPhone,
+              message: (data.includePix && companyProfile?.company_pix_key)
+                ? `${summary.trim()}\n\n💰 *DADOS PARA PAGAMENTO*\nChave Pix: ${companyProfile.company_pix_key}`
+                : summary.trim()
+            })
+          });
+
+          const textResult = await textResp.json();
+          if (!textResp.ok || textResult?.error) {
+            throw new Error(textResult?.message || 'Erro ao enviar texto');
+          }
+
+          updateStep(taskId, 'text-send', 'completed');
+        }
+
+        updateTask(taskId, { status: 'completed', progress: 100 });
+        toast.success(`Pedido #${pedido.order_number} enviado com sucesso!`);
+
+      } catch (err: any) {
+        console.error('Erro no envio em background:', err);
+        updateTask(taskId, {
+          status: 'error',
+          error: err.message || 'Erro desconhecido',
+          progress: 100
+        });
+        toast.error(`Falha ao enviar Pedido #${pedido.order_number}`);
+      }
+    };
+
+    processEnvio();
   };
 
 
@@ -352,8 +509,8 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
           status: newStatus as any,
           tracking_code: trackingCode || prev.tracking_code,
           pago_at: shouldMarkAsPaid ? new Date().toISOString() : (['pendente', 'cancelado'].includes(newStatus) ? null : prev.pago_at),
-          metodo_pagamento: shouldMarkAsPaid ? (metodo_pagamento || observacao?.trim() || prev.metodo_pagamento) : prev.metodo_pagamento
-        };
+          metodo_pagamento: shouldMarkAsPaid ? (metodo_pagamento || observacao?.trim() || (prev as any).metodo_pagamento) : (prev as any).metodo_pagamento
+        } as any;
       });
       // Recarregar histórico
       await fetchPedidoDetails();
@@ -840,6 +997,19 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
               toast.error("Erro ao aplicar cotação: " + err.message);
             }
           }}
+        />
+      )}
+      {pedido && (
+        <WhatsAppActionDialog
+          isOpen={whatsAppDialog.open}
+          onOpenChange={(open) => setWhatsAppDialog(prev => ({ ...prev, open }))}
+          customerName={pedido.clientes?.nome || 'Cliente'}
+          phone={pedido.clientes?.telefone || ''}
+          messagePreview={whatsAppDialog.summary}
+          pixKey={companyProfile?.company_pix_key}
+          onConfirm={handleConfirmWhatsAppSend}
+          isLoading={whatsAppDialog.loading}
+          errorMessage={whatsAppDialog.error}
         />
       )}
     </Dialog >

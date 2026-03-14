@@ -57,8 +57,48 @@ type Profile = {
   stripe_customer_id?: string | null;
   pwa_version?: string | null;
   last_active_at?: string | null;
+  is_multi_profile_enabled?: boolean;
+  role_permissions?: Record<UserRole, Record<string, boolean>>;
 };
 
+export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, Record<string, boolean>> = {
+  chefe: {}, // Tem acesso total via lógica de bypass
+  designer: { 
+    view_dashboard: true, 
+    view_pedidos: true, 
+    view_kanban: true, 
+    edit_kanban: true, 
+    view_vetorizar: true,
+    view_produtos: true 
+  },
+  operador: { 
+    view_dashboard: true, 
+    view_kanban: true, 
+    edit_kanban: true, 
+    view_insumos: true,
+    view_logistica: true
+  },
+  atendente: { 
+    view_dashboard: true, 
+    view_pedidos: true, 
+    view_clientes: true, 
+    view_logistica: true,
+    view_produtos: true
+  }
+};
+
+export type UserRole = 'chefe' | 'designer' | 'operador' | 'atendente';
+
+export type SubProfile = {
+  id: string;
+  parent_profile_id: string;
+  name: string;
+  role: UserRole;
+  whatsapp_number: string | null;
+  avatar_url: string | null;
+  pin: string | null;
+  is_active: boolean;
+};
 
 type SessionContextType = {
   session: Session | null;
@@ -67,6 +107,9 @@ type SessionContextType = {
   isSyncing: boolean;
   organizationId: string | null;
   profile: Profile | null;
+  activeSubProfile: SubProfile | null;
+  switchSubProfile: (subProfile: SubProfile | null) => void;
+  hasPermission: (permission: string) => boolean;
 };
 
 const SessionContext = createContext<SessionContextType | null>(null);
@@ -77,6 +120,7 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
   const [isSyncing, setIsSyncing] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [organizationId, setOrganizationId] = useState<string | null>(null);
+  const [activeSubProfile, setActiveSubProfile] = useState<SubProfile | null>(null);
   const navigate = useNavigate();
 
   // Usar uma ref para evitar closures obsoletas em callbacks assíncronos
@@ -215,6 +259,8 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
           setSession(null);
           setProfile(null);
           setOrganizationId(null);
+          setActiveSubProfile(null);
+          localStorage.removeItem('direct_ai_active_sub_profile');
           clearTokenRefresh();
           setIsLoading(false);
         } else if (event === 'PASSWORD_RECOVERY') {
@@ -271,6 +317,50 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
     };
   }, [navigate]); // Re-subscribe if user ID changes (login/logout)
 
+  const switchSubProfile = (subProfile: SubProfile | null) => {
+    setActiveSubProfile(subProfile);
+    if (subProfile) {
+      localStorage.setItem('direct_ai_active_sub_profile', JSON.stringify(subProfile));
+    } else {
+      localStorage.removeItem('direct_ai_active_sub_profile');
+    }
+  };
+
+  useEffect(() => {
+    const saved = localStorage.getItem('direct_ai_active_sub_profile');
+    if (saved) {
+      try {
+        setActiveSubProfile(JSON.parse(saved));
+      } catch (e) {
+        console.error('Error parsing saved sub profile', e);
+      }
+    }
+  }, []);
+  
+  const hasPermission = (permission: string): boolean => {
+    // 1. Se não houver perfil carregado ainda, negamos por segurança (exceto se estiver carregando)
+    if (!profile) return false;
+
+    // 2. Se for o chefe (perfil principal ou sub-perfil chefe), ou se multi-perfil estiver desativado, acesso total
+    if (!profile.is_multi_profile_enabled || activeSubProfile?.role === 'chefe') return true;
+
+    // 3. Se multi-perfil está ativo mas nenhum sub-perfil foi selecionado, só deixamos ver o Dashboard/Início
+    // por segurança, forçando a seleção de perfil que acontece no Layout/ProfileSelector
+    if (!activeSubProfile) return permission === 'view_dashboard';
+    
+    // 4. Verificar permissões personalizadas do banco
+    const customPermissions = profile.role_permissions?.[activeSubProfile.role];
+    if (customPermissions && typeof customPermissions === 'object') {
+      if (permission in customPermissions) {
+        return !!customPermissions[permission];
+      }
+    }
+
+    // 5. Fallback para permissões padrão se não houver customização ou a chave não existir
+    const defaultPermissions = DEFAULT_ROLE_PERMISSIONS[activeSubProfile.role];
+    return !!defaultPermissions?.[permission];
+  };
+
   const memoizedValue = useMemo(() => ({
     session,
     supabase: supabaseClient,
@@ -278,7 +368,10 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
     isSyncing,
     organizationId,
     profile,
-  }), [session, isLoading, isSyncing, organizationId, profile]);
+    activeSubProfile,
+    switchSubProfile,
+    hasPermission,
+  }), [session, isLoading, isSyncing, organizationId, profile, activeSubProfile]);
 
   return (
     <SessionContext.Provider value={memoizedValue}>

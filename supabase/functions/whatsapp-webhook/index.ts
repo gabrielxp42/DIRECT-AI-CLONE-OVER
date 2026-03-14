@@ -92,16 +92,26 @@ Deno.serve(async (req: Request) => {
                 }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
             }
 
-            // Extract content
-            let msgText = data.message?.conversation || data.message?.extendedTextMessage?.text || data.message?.imageMessage?.caption || "";
+            // Extract content and media type
+            let msgText = data.message?.conversation || data.message?.extendedTextMessage?.text || data.message?.imageMessage?.caption || data.message?.videoMessage?.caption || "";
             const audioBase64 = payload.base64 || data.message?.audioMessage?.base64 || "";
+            
+            let mediaType = "text";
+            if (audioBase64 || data.message?.audioMessage) mediaType = "audio";
+            else if (data.message?.imageMessage) mediaType = "image";
+            else if (data.message?.videoMessage) mediaType = "video";
+            else if (data.message?.documentWithCaptionMessage || data.message?.documentMessage) mediaType = "document";
 
             // REPLIES/QUOTED MESSAGES SUPPORT (Omniscient Gabi)
             let quotedText = "";
-            const contextInfo = data.message?.extendedTextMessage?.contextInfo;
+            const contextInfo = data.message?.extendedTextMessage?.contextInfo || 
+                                data.message?.imageMessage?.contextInfo || 
+                                data.message?.videoMessage?.contextInfo ||
+                                data.message?.audioMessage?.contextInfo;
+
             if (contextInfo?.quotedMessage) {
                 const qm = contextInfo.quotedMessage;
-                quotedText = qm.conversation || qm.extendedTextMessage?.text || "[Mídia/Voz]";
+                quotedText = qm.conversation || qm.extendedTextMessage?.text || qm.imageMessage?.caption || "[Mídia/Voz]";
                 console.log(`[Webhook] User is replying to: "${quotedText.substring(0, 50)}..."`);
             }
 
@@ -109,11 +119,12 @@ Deno.serve(async (req: Request) => {
             const { data: insertedMsg } = await supabaseAdmin.from('whatsapp_messages').insert({
                 user_id: profile.id,
                 phone: remoteJid.split('@')[0],
-                message: msgText || (audioBase64 ? "[Mensagem de Voz]" : "[Mídia]"),
+                message: msgText || (mediaType === 'audio' ? "[Mensagem de Voz]" : `[${mediaType.toUpperCase()}]`),
                 direction: fromMe ? 'sent' : 'received',
                 status: 'delivered',
                 client_name: data.pushName || null,
-                external_id: data.key?.id || null
+                external_id: data.key?.id || null,
+                metadata: { media_type: mediaType }
             }).select('id').single();
 
             // AI Logic: Respond if it's NOT from me AND AI is enabled AND it's the Boss's conversation (private or group)
@@ -137,8 +148,12 @@ Deno.serve(async (req: Request) => {
             // GABI responde se: 
             // 1. Não fui eu quem mandou
             // 2. A auto-resposta está ligada OU é o Patrão falando (GABI Executiva)
-            if (!fromMe && (profile.ai_auto_reply_enabled || isBoss)) {
-                console.log(`[Webhook] TRIGGERING GABI RESPONSE for ${customer_name}...`);
+            // 5. DECIDIR SE CHAMA O GERADOR DE IA
+            // Chamamos se: É o patrão OR auto-reply está ligado OR temos operator_phone/boss_group_id (REPASSE)
+            const shouldMonitor = profile.operator_phone || profile.whatsapp_boss_group_id;
+            
+            if (profile.ai_auto_reply_enabled || isBoss || shouldMonitor) {
+                console.log(`[Webhook] TRIGGERING GABI RESPONSE for ${customer_name}... ${!profile.ai_auto_reply_enabled && !isBoss ? '(RELAY MODE)' : ''}`);
 
                 await supabaseAdmin.functions.invoke('ai-response-generator', {
                     body: {
@@ -150,11 +165,15 @@ Deno.serve(async (req: Request) => {
                         db_message_id: insertedMsg?.id,
                         customer_name,
                         is_boss: isBoss,
-                        platform: 'whatsapp'
+                        from_me: fromMe, // PASSAR FLAG DE ORIGEM
+                        platform: 'whatsapp',
+                        operator_phone: profile.operator_phone,
+                        boss_group_id: profile.whatsapp_boss_group_id,
+                        media_type: mediaType
                     }
                 });
             } else {
-                console.log(`[Webhook] IGNORED. fromMe: ${fromMe}, enabled: ${profile.ai_auto_reply_enabled}, isBoss: ${isBoss}`);
+                console.log(`[Webhook] IGNORED. fromMe: ${fromMe}, enabled: ${profile.ai_auto_reply_enabled}, isBoss: ${isBoss}, hasRelay: ${!!shouldMonitor}`);
             }
         }
 

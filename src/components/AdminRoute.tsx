@@ -7,14 +7,17 @@ import LoadingScreen from '@/components/LoadingScreen';
 // Even if a hacker bypasses this React component, the database will reject their requests.
 
 const AdminRoute = ({ children }: { children: React.ReactNode }) => {
-    const { session, profile, isLoading } = useSession();
+    const { session, profile, isLoading, activeSubProfile } = useSession();
 
     if (isLoading) {
         return <LoadingScreen />;
     }
 
     // Double check: Must be authenticated AND have is_admin flag
-    if (!session || !profile?.is_admin) {
+    // AND if multi-profile is enabled, only the 'chefe' can access
+    const isBoss = !profile?.is_multi_profile_enabled || activeSubProfile?.role === 'chefe';
+
+    if (!session || !profile?.is_admin || !isBoss) {
         // Redirect suspicious attempts to home or login logic
         return <Navigate to="/dashboard" replace />;
     }

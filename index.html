@@ -43,8 +43,15 @@
 
   <!-- Anti-Clone Scripts (Bloqueio Básico de Inspeção) -->
   <script>
-    // Bloquear Botão Direito (Menu de Contexto)
-    document.addEventListener('contextmenu', event => event.preventDefault());
+    // Bloquear Botão Direito (Menu de Contexto) de forma inteligente
+    document.addEventListener('contextmenu', event => {
+      // Liberar seletivamente para áreas que possuem menu próprio (ex: Kanban)
+      const target = event.target as HTMLElement;
+      if (target?.closest('[data-context-menu="true"]')) {
+        return;
+      }
+      event.preventDefault();
+    });
 
     // Dificultar Atalhos de DevTools
     document.onkeydown = function (e) {

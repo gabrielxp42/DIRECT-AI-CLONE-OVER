@@ -24,7 +24,7 @@ export const printThermalReceipt = (pedido: Pedido) => {
 
   // Extract Freight from services (backwards compatibility) + New dedicated field
   let freightValue = Number(pedido.valor_frete || 0);
-  const servicesWithoutFreight = pedido.servicos.filter(s => {
+  const servicesWithoutFreight = (pedido.servicos || []).filter(s => {
     if (s.nome.toLowerCase().includes('frete') || s.nome.toLowerCase().includes('entrega')) {
       if (!pedido.valor_frete) { // Only add if dedicated field is 0/missing
         freightValue += (s.valor_unitario * s.quantidade);

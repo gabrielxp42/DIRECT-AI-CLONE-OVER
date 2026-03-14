@@ -28,7 +28,7 @@ interface Goal {
 }
 
 export const SmartGoalCard = ({ stats }: { stats: any }) => {
-    const { profile, supabase } = useSession();
+    const { profile, supabase, hasPermission } = useSession();
     const navigate = useNavigate();
     const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
     const [celebrationMilestone, setCelebrationMilestone] = useState<any | null>(null);
@@ -195,6 +195,8 @@ export const SmartGoalCard = ({ stats }: { stats: any }) => {
 
     // Lógica Inteligente de Seleção de Meta
     const activeGoal: Goal = useMemo(() => {
+        const canViewFinancials = hasPermission('view_financial_goals') || hasPermission('view_financial_dashboard');
+
         // Prioridade 2: Metas de Produção (Gargalo de Máquina) - LIFETIME POWER
         const totalMeters = stats?.lifetimeMeters || stats?.totalMeters || 0;
 
@@ -219,83 +221,68 @@ export const SmartGoalCard = ({ stats }: { stats: any }) => {
         // SANITIZAÇÃO AGRESSIVA: Filtramos qualquer resquício de dados leaked no cálculo da meta
         const currentSales = (stats?.lifetimeSales || stats?.totalSales || 0);
 
-        // Se o valor for absurdamente alto e o usuário não tiver pedidos condizentes, 
-        // indicamos uma possível inconsistência.
-        if (currentSales > 100000 && (stats?.lifetimeOrders || 0) < 10) {
-            console.warn("Detectada meta inflada por dados externos. Ajustando visão...");
-        }
+        if (canViewFinancials) {
+            // Se o valor for absurdamente alto e o usuário não tiver pedidos condizentes, 
+            // indicamos uma possível inconsistência.
+            if (currentSales > 100000 && (stats?.lifetimeOrders || 0) < 10) {
+                console.warn("Detectada meta inflada por dados externos. Ajustando visão...");
+            }
 
-        // Lógica de Escada Infinita (Infinite Scaling Logic) 2.0
-        let nextSalesTarget = 0;
-        let stepSize = 0;
+            // Lógica de Escada Infinita (Infinite Scaling Logic) 2.0
+            let nextSalesTarget = 0;
+            let stepSize = 0;
 
-        if (currentSales < 50000) {
-            // Fase Inicial: Degraus menores para manter motivação
-            if (currentSales < 5000) nextSalesTarget = 5000; // 0 -> 5k
-            else if (currentSales < 20000) nextSalesTarget = 20000; // 5k -> 20k
-            else nextSalesTarget = 50000; // 20k -> 50k
-        } else {
-            // Fase Empire: Degraus dinâmicos baseados no tamanho do império
-            if (currentSales < 250000) stepSize = 50000;    // 50k steps
-            else if (currentSales < 1000000) stepSize = 100000; // 100k steps
-            else stepSize = 500000; // 500k steps para milionários
+            if (currentSales < 50000) {
+                // Fase Inicial: Degraus menores para manter motivação
+                if (currentSales < 5000) nextSalesTarget = 5000; // 0 -> 5k
+                else if (currentSales < 20000) nextSalesTarget = 20000; // 5k -> 20k
+                else nextSalesTarget = 50000; // 20k -> 50k
+            } else {
+                // Fase Empire: Degraus dinâmicos baseados no tamanho do império
+                if (currentSales < 250000) stepSize = 50000;    // 50k steps
+                else if (currentSales < 1000000) stepSize = 100000; // 100k steps
+                else stepSize = 500000; // 500k steps para milionários
 
-            // Arredonda para o próximo degrau
-            nextSalesTarget = Math.ceil((currentSales + 1) / stepSize) * stepSize;
-        }
+                // Arredonda para o próximo degrau
+                nextSalesTarget = Math.ceil((currentSales + 1) / stepSize) * stepSize;
+            }
 
-        // --- TRAVA DE SEGURANÇA ANT-FANTASMA ---
-        // Se a meta calculada for absurdamente maior que o faturamento local esperado (ex: > 300k e o user é novo),
-        // nós permitimos um fallback ou logamos para correção.
-        if (currentSales > 300000 && stats?.lifetimeOrders < 50) {
-            console.warn("⚠️ [Meta Segura] Detectado faturamento alto com poucos pedidos. Possível herança de dados leaked.");
-            console.log(`Current Sales: ${currentSales}, Lifetime Orders: ${stats?.lifetimeOrders}`);
-        }
-
-        const missing = nextSalesTarget - currentSales;
-        const percentDone = (currentSales / nextSalesTarget) * 100;
-
-        // Prioridade 4: Metas de Clientes (Base) - Check secundário inteligente
-        const customers = stats?.customersCount || 0;
-        // Só sugere focar em cliente se a venda estiver 'confortável' (>80% da meta atual) E a base for pequena
-        const customerTarget = customers < 10 ? 10 : 50;
-
-        if (customers < customerTarget && percentDone > 75) {
+            const missing = nextSalesTarget - currentSales;
             return {
-                id: 'growth_clients',
-                type: 'growth',
-                title: "Expansão de Carteira 🤝",
-                description: `Sua base precisa acompanhar seu faturamento. Atinja ${customerTarget} clientes.`,
-                target: customerTarget,
-                current: customers,
-                unit: 'clis',
-                icon: Users,
-                color: 'text-purple-500',
-                aiInsight: "Produção tá top, mas cadê os clientes novos? 🤔 Diversifica essa base pra gente dominar o bairro todo! Vamo faturar com força! 🤝💰",
-                actionPath: '/clientes',
-                actionLabel: 'Novo Cliente'
+                id: `revenue_target_${nextSalesTarget}`,
+                type: 'sales',
+                title: currentSales > 100000 ? "Empire Builder 👑" : "Tubarão do Mercado 🦈",
+                description: `Próximo marco histórico: R$ ${nextSalesTarget.toLocaleString('pt-BR')}. Falta R$ ${missing.toLocaleString('pt-BR')}.`,
+                target: nextSalesTarget,
+                current: currentSales,
+                unit: 'R$',
+                icon: DollarSign,
+                color: 'text-green-500',
+                aiInsight: currentSales > 300000
+                    ? `VOCÊ É UMA MÁQUINA! 🤖💥 Já passamos de R$ ${(currentSales / 1000).toFixed(0)}k acumulados. A próxima barreira de R$ ${(nextSalesTarget / 1000).toFixed(0)}k é logo ali. Mantenha o ritmo! 🔥`
+                    : "Seu faturamento tá consistente, mas eu sei que você pode MAIS! 🚀 Pelos meus cálculos, a gente bate essa meta rapidinho. BORA! 💰✨",
+                actionPath: '/pedidos',
+                actionLabel: 'Vender Mais'
             };
         }
 
-        // Default: Meta de Vendas (O Motor Principal)
+        // Fallback: Se não puder ver vendas, a meta padrão vira CRESCIMENTO (Clientes)
         return {
-            id: `revenue_target_${nextSalesTarget}`,
-            type: 'sales',
-            title: currentSales > 100000 ? "Empire Builder 👑" : "Tubarão do Mercado 🦈",
-            description: `Próximo marco histórico: R$ ${nextSalesTarget.toLocaleString('pt-BR')}. Falta R$ ${missing.toLocaleString('pt-BR')}.`,
-            target: nextSalesTarget,
-            current: currentSales,
-            unit: 'R$',
-            icon: DollarSign,
-            color: 'text-green-500',
-            aiInsight: currentSales > 300000
-                ? `VOCÊ É UMA MÁQUINA! 🤖💥 Já passamos de R$ ${(currentSales / 1000).toFixed(0)}k acumulados. A próxima barreira de R$ ${(nextSalesTarget / 1000).toFixed(0)}k é logo ali. Mantenha o ritmo! 🔥`
-                : "Seu faturamento tá consistente, mas eu sei que você pode MAIS! 🚀 Pelos meus cálculos, a gente bate essa meta rapidinho. BORA! 💰✨",
-            actionPath: '/pedidos',
-            actionLabel: 'Vender Mais'
+            id: 'growth_fallback',
+            type: 'growth',
+            title: "Crescimento Constante 🚀",
+            description: `Seu foco agora é expandir a base de clientes para fortalecer o negócio.`,
+            target: 100,
+            current: stats?.customersCount || 0,
+            unit: 'clis',
+            icon: Users,
+            color: 'text-purple-500',
+            aiInsight: "Foque em conquistar novos clientes! Uma base sólida garante o futuro da sua estamparia. 🤝🚀",
+            actionPath: '/clientes',
+            actionLabel: 'Novos Clientes'
         };
 
-    }, [stats]);
+    }, [stats, hasPermission]);
 
     const progress = Math.min((activeGoal.current / activeGoal.target) * 100, 100);
     const isCompleted = progress >= 100;
