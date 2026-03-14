@@ -17,8 +17,13 @@ const ProtectedRoute = () => {
   }
 
   if (!session) {
-    console.warn('🛡️ [ProtectedRoute] No session found, redirecting to /login');
-    return <Navigate to="/login" replace />;
+    if (!isLoading) {
+      console.warn('🛡️ [ProtectedRoute] No session and not loading. Redirecting to /login from:', window.location.pathname);
+      return <Navigate to="/login" replace />;
+    } else {
+      console.log('🛡️ [ProtectedRoute] No session but state is LOADING. Still showing LoadingScreen...');
+      return <LoadingScreen />;
+    }
   }
 
   console.log('🛡️ [ProtectedRoute] Session valid, permitting access');

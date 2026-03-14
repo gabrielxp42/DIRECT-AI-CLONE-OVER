@@ -64,6 +64,7 @@ type SessionContextType = {
   session: Session | null;
   supabase: SupabaseClient;
   isLoading: boolean;
+  isSyncing: boolean;
   organizationId: string | null;
   profile: Profile | null;
 };
@@ -73,16 +74,17 @@ const SessionContext = createContext<SessionContextType | null>(null);
 export const SessionProvider = ({ children }: { children: React.ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [organizationId, setOrganizationId] = useState<string | null>(null);
   const navigate = useNavigate();
 
   // Usar uma ref para evitar closures obsoletas em callbacks assíncronos
-  const stateRef = useRef({ profile, session });
+  const stateRef = useRef({ profile, session, organizationId, isSyncing });
 
   useEffect(() => {
-    stateRef.current = { profile, session };
-  }, [profile, session]);
+    stateRef.current = { profile, session, organizationId, isSyncing };
+  }, [profile, session, organizationId, isSyncing]);
 
   // Affiliate Tracking Component-level logic
   useEffect(() => {
@@ -145,6 +147,20 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
 
   useEffect(() => {
     let mounted = true;
+    
+    // Capturar parâmetros de auth IMEDIATAMENTE antes que o Supabase os limpe
+    const hasInitialAuthParams = window.location.hash.includes('access_token=') || 
+                       window.location.hash.includes('type=recovery') ||
+                       window.location.hash.includes('type=signup') ||
+                       window.location.hash.includes('type=invite') ||
+                       window.location.search.includes('token_hash=') ||
+                       window.location.search.includes('type=recovery') ||
+                       window.location.search.includes('type=signup') ||
+                       window.location.search.includes('code=');
+
+    if (hasInitialAuthParams) {
+      console.log('🛡️ [SessionProvider] Auth params detected on mount, holding loading state');
+    }
 
     const initializeFull = async () => {
       console.log('🔍 [SessionProvider] Initializing session...');
@@ -178,8 +194,14 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
         console.error('❌ [SessionProvider] Initialization error:', error);
       } finally {
         if (mounted) {
-          setIsLoading(false);
-          console.log('🏁 [SessionProvider] Initialization complete');
+          // SE existe um hash de auth capturado no mount, NÃO encerramos o loading aqui. 
+          // Deixamos o onAuthStateChange cuidar disso após processar o token.
+          if (!hasInitialAuthParams) {
+            setIsLoading(false);
+            console.log('🏁 [SessionProvider] Initialization complete (No hash detected)');
+          } else {
+            console.log('⏳ [SessionProvider] Auth hash detected on mount, waiting for event to finish loading...');
+          }
         }
       }
     };
@@ -204,11 +226,13 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
           
           const currentProfile = stateRef.current.profile;
           if (!currentProfile || currentProfile.id !== currentSession.user.id) {
+            setIsSyncing(true);
             const p = await fetchProfileWithRetry(currentSession.user.id, currentSession.access_token);
             if (p && mounted) {
               setProfile(p);
               setOrganizationId(p.organization_id);
             }
+            setIsSyncing(false);
           }
 
           if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
@@ -216,7 +240,13 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
           }
           setIsLoading(false);
         } else {
-          setIsLoading(false);
+          // Se não há sessão, só paramos o loading se NÃO tiver hash pendente no mount
+          if (!hasInitialAuthParams) {
+            console.log('🏁 [SessionProvider] No session and no initial hash, stopping loading');
+            setIsLoading(false);
+          } else {
+            console.log('⏳ [SessionProvider] No session yet but initial hash existed, keep loading...');
+          }
         }
       }
     );
@@ -245,9 +275,10 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
     session,
     supabase: supabaseClient,
     isLoading,
+    isSyncing,
     organizationId,
     profile,
-  }), [session, isLoading, organizationId, profile]);
+  }), [session, isLoading, isSyncing, organizationId, profile]);
 
   return (
     <SessionContext.Provider value={memoizedValue}>

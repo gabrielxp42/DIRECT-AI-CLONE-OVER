@@ -15,10 +15,12 @@ export default function LandingPage() {
         if (!isLoading && session) {
             // Se houver hash/query de autenticação/recuperação, deixar o SessionProvider/AuthConfirm/App lidar
             const hasAuthParams = 
+                window.location.hash.includes('access_token=') || 
                 window.location.hash.includes('type=recovery') || 
-                window.location.hash.includes('access_token=') ||
                 window.location.hash.includes('type=invite') ||
+                window.location.hash.includes('type=signup') ||
                 window.location.search.includes('type=recovery') ||
+                window.location.search.includes('type=signup') ||
                 window.location.search.includes('token_hash=');
 
             if (hasAuthParams) {

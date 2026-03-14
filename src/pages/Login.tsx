@@ -163,10 +163,12 @@ const Login = () => {
   if (session) {
     // Se houver hash/query de recuperação ou convite, não redirecionar para dashboard
     const hasAuthParams = 
+        window.location.hash.includes('access_token=') || 
         window.location.hash.includes('type=recovery') || 
-        window.location.hash.includes('access_token=') ||
         window.location.hash.includes('type=invite') ||
+        window.location.hash.includes('type=signup') ||
         window.location.search.includes('type=recovery') ||
+        window.location.search.includes('type=signup') ||
         window.location.search.includes('token_hash=');
 
     if (hasAuthParams) {
