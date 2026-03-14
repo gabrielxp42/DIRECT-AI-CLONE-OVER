@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, useRef, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { Session, SupabaseClient } from '@supabase/supabase-js';
 import { supabase as supabaseClient, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/integrations/supabase/client';
 import { setupTokenRefresh, clearTokenRefresh } from '@/utils/tokenRefresh';
@@ -74,6 +75,7 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
   const [isLoading, setIsLoading] = useState(true);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [organizationId, setOrganizationId] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   // Usar uma ref para evitar closures obsoletas em callbacks assíncronos
   const stateRef = useRef({ profile, session });
@@ -194,6 +196,10 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
           setOrganizationId(null);
           clearTokenRefresh();
           setIsLoading(false); // Explicit stop after sign out
+        } else if (event === 'PASSWORD_RECOVERY') {
+          console.log('🔑 [SessionProvider] Password recovery event detected, redirecting...');
+          setIsLoading(false);
+          navigate('/reset-password');
         } else if (currentSession) {
           console.log('🔑 [SessionProvider] Session active for user:', currentSession.user.id);
 
