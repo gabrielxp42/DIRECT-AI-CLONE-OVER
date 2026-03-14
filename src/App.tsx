@@ -37,6 +37,7 @@ const Profile = lazy(() => import("./pages/Profile"));
 const GabiSettings = lazy(() => import("./pages/GabiSettings"));
 const Affiliate = lazy(() => import("./pages/Affiliate"));
 const LandingPage = lazy(() => import("./pages/LandingPage"));
+const AuthConfirm = lazy(() => import("./pages/AuthConfirm"));
 const Logistics = lazy(() => import("./pages/Logistics"));
 const Vetorizador = lazy(() => import("./pages/Vetorizador"));
 import ProductionKanban from "./pages/ProductionKanban";
@@ -89,6 +90,7 @@ const App = () => (
                       <Route path="/privacy" element={<Legal />} />
                       <Route path="/checkout" element={<Checkout />} />
                       <Route path="/landing-page" element={<LandingPage />} />
+                      <Route path="/auth/confirm" element={<AuthConfirm />} />
                       <Route path="/producao/tv" element={<ProductionTV />} />
                       <Route path="/index.html" element={<Navigate to="/" replace />} />
                       <Route path="/" element={<LandingPage />} />

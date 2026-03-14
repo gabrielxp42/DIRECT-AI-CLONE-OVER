@@ -474,15 +474,15 @@ const Checkout = () => {
         { number: 3, label: 'Acesso', icon: Sparkles },
     ];
 
-    if (session && !profile && (!isLoading || isApplyingCode)) {
+    if (session && !profile && (isLoading || isApplyingCode)) {
         return (
-            <div className="flex min-h-screen w-full bg-[#020817] items-center justify-center relative z-[9999]">
-                <div className="absolute inset-0 bg-gradient-to-br from-[#0a0a0a] via-[#111] to-black opacity-90"></div>
-                <div className="text-center space-y-6 relative z-10 animate-in fade-in zoom-in duration-500">
-                    <div className="inline-flex p-6 rounded-[2rem] bg-white/5 border border-white/10 mb-2 shadow-2xl shadow-[#FFF200]/5 ring-1 ring-white/10">
-                        <Loader2 className="h-10 w-10 animate-spin text-[#FFF200]" />
+            <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center p-4">
+                <div className="text-center space-y-6 max-w-sm animate-in fade-in zoom-in duration-500">
+                    <div className="relative inline-block">
+                        <Loader2 className="h-16 w-16 animate-spin text-[#FFF200]" />
+                        <div className="absolute inset-0 blur-xl bg-[#FFF200]/20 animate-pulse"></div>
                     </div>
-                    <div className="space-y-3">
+                    <div className="space-y-2 text-center">
                         <h2 className="text-2xl font-black text-white tracking-tight uppercase italic">Sincronizando</h2>
                         <p className="text-zinc-500 font-bold text-xs tracking-widest uppercase opacity-70">Reconhecendo sua conta Direct AI...</p>
                     </div>

@@ -1,54 +1,30 @@
-
 import { useSession } from '@/contexts/SessionProvider';
+import { useSubscription } from '@/hooks/useSubscription';
 import { Navigate, Outlet } from 'react-router-dom';
 import LoadingScreen from '@/components/LoadingScreen';
-import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 
 const SubscriptionGuard = () => {
-    const { session, isLoading } = useSession();
-    const [isChecking, setIsChecking] = useState(true);
-    const [isAuthorized, setIsAuthorized] = useState(false);
+    const { session, profile, isLoading } = useSession();
+    const sub = useSubscription();
 
-    useEffect(() => {
-        const checkSubscription = async () => {
-            if (!session?.user) {
-                setIsChecking(false);
-                return;
-            }
-
-            try {
-                const { data: profile } = await supabase
-                    .from('profiles')
-                    .select('subscription_status, is_admin')
-                    .eq('id', session.user.id)
-                    .single();
-
-                // Permite Acesso se for 'active' ou Administrador
-                // Se for null, 'trial', 'expired', 'canceled' -> Redireciona para o checkout
-                if (profile?.is_admin || profile?.subscription_status === 'active') {
-                    setIsAuthorized(true);
-                } else {
-                    setIsAuthorized(false);
-                }
-            } catch (error) {
-                console.error('Error checking subscription:', error);
-                setIsAuthorized(false);
-            } finally {
-                setIsChecking(false);
-            }
-        };
-
-        if (!isLoading) {
-            checkSubscription();
-        }
-    }, [session, isLoading]);
-
-    if (isLoading || isChecking) {
+    // Se a sessão ainda está carregando, mostramos o loading
+    if (isLoading) {
         return <LoadingScreen />;
     }
 
+    // Se não houver sessão, redirecionamos para o login
+    if (!session) {
+        return <Navigate to="/login" replace />;
+    }
+
+    // Regras de Autorização:
+    // 1. Administradores têm acesso total
+    // 2. Planos Ativos têm acesso total
+    // 3. Usuários em Trial (teste) que NÃO expiraram têm acesso
+    const isAuthorized = profile?.is_admin || sub.isActive || (sub.isTrial && !sub.isExpired);
+
     if (!isAuthorized) {
+        console.warn('🚫 [SubscriptionGuard] Acesso negado: Assinatura inativa ou expirada. Redirecionando para checkout.');
         return <Navigate to="/checkout" replace />;
     }
 

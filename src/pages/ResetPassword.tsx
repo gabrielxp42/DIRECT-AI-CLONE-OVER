@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Loader2, Lock, AlertCircle, ArrowRight, CheckCircle2 } from 'lucide-react';
@@ -15,6 +15,19 @@ const ResetPassword = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
+    const [verifying, setVerifying] = useState(true);
+
+    useEffect(() => {
+        const checkSession = async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                console.warn('⚠️ [ResetPassword] No active session found for password reset');
+                setError('Este link de recuperação parece ser inválido ou expirou. Por favor, solicite um novo link.');
+            }
+            setVerifying(false);
+        };
+        checkSession();
+    }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -79,7 +92,12 @@ const ResetPassword = () => {
                     </div>
                 </div>
 
-                {success ? (
+                {verifying ? (
+                    <div className="flex flex-col items-center justify-center py-10 space-y-4">
+                        <Loader2 className="h-10 w-10 animate-spin text-[#FFF200]" />
+                        <p className="text-zinc-400">Verificando validade do link...</p>
+                    </div>
+                ) : success ? (
                     <div className="text-center space-y-6 py-4 animate-in fade-in slide-in-from-bottom-4">
                         <div className="flex justify-center">
                             <div className="p-4 rounded-full bg-green-500/10 border border-green-500/20">
@@ -95,6 +113,19 @@ const ResetPassword = () => {
                             className="w-full bg-[#FFF200] text-black hover:bg-[#ffe600] rounded-2xl h-14 font-extrabold"
                         >
                             IR PARA LOGIN
+                        </Button>
+                    </div>
+                ) : error && !password ? (
+                    <div className="space-y-6">
+                        <div className="p-6 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-200 text-center space-y-4">
+                            <AlertCircle className="h-12 w-12 text-red-400 mx-auto" />
+                            <p className="font-medium text-lg">{error}</p>
+                        </div>
+                        <Button
+                            onClick={() => navigate('/login')}
+                            className="w-full h-14 rounded-2xl font-extrabold bg-white/5 text-white hover:bg-white/10"
+                        >
+                            VOLTAR PARA LOGIN
                         </Button>
                     </div>
                 ) : (

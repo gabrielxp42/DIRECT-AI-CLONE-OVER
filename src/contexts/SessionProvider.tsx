@@ -127,16 +127,31 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
     }
   };
 
-  useEffect(() => {
-    const initialize = async () => {
-      console.log('🔍 [SessionProvider] Initializing session...');
+  // Perfil fetch com RETRY (fundamental para o trigger do Supabase no Google Login)
+  const fetchProfileWithRetry = async (userId: string, token: string, retries = 3, delay = 1000): Promise<Profile | null> => {
+    for (let i = 0; i < retries; i++) {
+      console.log(`⏳ [SessionProvider] Fetching profile (Attempt ${i + 1}/${retries})...`);
+      const p = await fetchProfileData(userId, token);
+      if (p) return p;
+      
+      if (i < retries - 1) {
+        console.log(`🤔 [SessionProvider] Profile not found yet, retrying in ${delay}ms...`);
+        await new Promise(res => setTimeout(res, delay));
+        delay *= 2; // Exponential backoff
+      }
+    }
+    return null;
+  };
 
+  useEffect(() => {
+    let mounted = true;
+
+    const initializeFull = async () => {
+      console.log('🔍 [SessionProvider] Initializing session...');
       try {
         const token = await getValidToken();
 
-        if (token) {
-          console.log('✅ [SessionProvider] Token detected, fetching full session data...');
-
+        if (token && mounted) {
           const getAuthKey = (storage: Storage) => Object.keys(storage).find(key => key.includes('auth-token'));
           let authKey = getAuthKey(localStorage);
           let storage = localStorage;
@@ -151,121 +166,80 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
 
           if (fullSession && fullSession.user) {
             setSession(fullSession);
-            console.log('👤 [SessionProvider] Session restored for user:', fullSession.user.id);
-
-            const p = await fetchProfileData(fullSession.user.id, token);
-            if (p) {
-              console.log('📄 [SessionProvider] Profile data loaded successfully');
+            const p = await fetchProfileWithRetry(fullSession.user.id, token);
+            if (p && mounted) {
               setProfile(p);
               setOrganizationId(p.organization_id);
-            } else {
-              console.warn('⚠️ [SessionProvider] Profile fetch returned no data');
             }
-
-            supabaseClient.auth.setSession({
-              access_token: token,
-              refresh_token: fullSession.refresh_token
-            }).catch(err => {
-              console.error('❌ [SessionProvider] Error setting supabase session:', err);
-            });
-
             setupTokenRefresh();
-          } else {
-            console.log('ℹ️ [SessionProvider] Stored auth token found but Session object is missing/invalid');
           }
-        } else {
-          console.log('ℹ️ [SessionProvider] No active session found via TokenGuard');
         }
       } catch (error) {
-        console.error('❌ [SessionProvider] Fatal initialization error:', error);
+        console.error('❌ [SessionProvider] Initialization error:', error);
       } finally {
-        console.log('🏁 [SessionProvider] Initialization lifecycle complete');
-        setIsLoading(false);
+        if (mounted) {
+          setIsLoading(false);
+          console.log('🏁 [SessionProvider] Initialization complete');
+        }
       }
     };
 
-    // Configurar listener para mudanças futuras
     const { data: { subscription: authSub } } = supabaseClient.auth.onAuthStateChange(
       async (event, currentSession) => {
-        console.log(`🔐 [SessionProvider] Auth state change event: ${event}`);
+        if (!mounted) return;
+        console.log(`🔐 [SessionProvider] Event: ${event}`);
 
         if (event === 'SIGNED_OUT') {
-          console.log('🚪 [SessionProvider] User signed out, clearing state');
           setSession(null);
           setProfile(null);
           setOrganizationId(null);
           clearTokenRefresh();
-          setIsLoading(false); // Explicit stop after sign out
+          setIsLoading(false);
         } else if (event === 'PASSWORD_RECOVERY') {
-          console.log('🔑 [SessionProvider] Password recovery event detected, redirecting...');
+          console.log('🔑 [SessionProvider] Password recovery active');
           setIsLoading(false);
           navigate('/reset-password');
         } else if (currentSession) {
-          console.log('🔑 [SessionProvider] Session active for user:', currentSession.user.id);
-
-          setSession(prev => {
-            if (prev?.access_token === currentSession.access_token) return prev;
-            return currentSession;
-          });
-
+          setSession(prev => (prev?.access_token === currentSession.access_token ? prev : currentSession));
+          
           const currentProfile = stateRef.current.profile;
           if (!currentProfile || currentProfile.id !== currentSession.user.id) {
-            console.log('⏳ [SessionProvider] Profile missing or changed, fetching...');
-            const p = await fetchProfileData(currentSession.user.id, currentSession.access_token);
-            if (p) {
+            const p = await fetchProfileWithRetry(currentSession.user.id, currentSession.access_token);
+            if (p && mounted) {
               setProfile(p);
               setOrganizationId(p.organization_id);
-              console.log('✅ [SessionProvider] Profile sync complete');
             }
           }
 
           if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
             setupTokenRefresh();
           }
-
-          // Note: setIsLoading(false) usually happens after initialize completes, 
-          // but we ensure it here too for sign-in edge cases.
           setIsLoading(false);
-        } else if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
-          // If we have no session but these events fire, the loading might hang if we don't handle it
+        } else {
           setIsLoading(false);
         }
       }
     );
 
-    // REALTIME: Listen for profile updates (e.g. Admin gifts a plan)
-    const channel = supabaseClient
-      .channel('public:profiles')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'profiles',
-          filter: session ? `id=eq.${session.user.id}` : undefined,
-        },
-        async (payload) => {
-          console.log('⚡ [SessionProvider] Realtime profile update received:', payload);
-          if (payload.new) {
-            // Merge new data into existing profile state
-            setProfile((prev) => prev ? { ...prev, ...payload.new } : (payload.new as Profile));
+    initializeFull();
 
-            // If it's a gift or major change, show success log
-            if (payload.new.is_gifted_plan && !payload.old.is_gifted_plan) {
-              console.log('🎁 Presente recebido em tempo real!');
-            }
+    const channel = supabaseClient
+      .channel('public:profiles_updates')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' },
+        (payload) => {
+          if (mounted && stateRef.current.session?.user?.id === payload.new.id) {
+            console.log('⚡ [SessionProvider] Profile update synced');
+            setProfile(prev => prev ? { ...prev, ...payload.new } : (payload.new as Profile));
           }
         }
-      )
-      .subscribe();
-
-    initialize();
+      ).subscribe();
 
     return () => {
+      mounted = false;
       authSub.unsubscribe();
       supabaseClient.removeChannel(channel);
     };
-  }, [session?.user?.id]); // Re-subscribe if user ID changes (login/logout)
+  }, [navigate]); // Re-subscribe if user ID changes (login/logout)
 
   const memoizedValue = useMemo(() => ({
     session,
