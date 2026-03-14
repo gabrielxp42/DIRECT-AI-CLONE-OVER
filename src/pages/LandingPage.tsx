@@ -13,6 +13,14 @@ export default function LandingPage() {
 
         // Redirecionar se já estiver logado
         if (!isLoading && session) {
+            // Se houver hash de autenticação/recuperação, deixar o SessionProvider/App lidar
+            if (window.location.hash.includes('type=recovery') || 
+                window.location.hash.includes('access_token=') ||
+                window.location.hash.includes('type=invite')) {
+                console.log('🔑 [LandingPage] Auth/Recovery hash detected, skipping dashboard redirect');
+                return;
+            }
+
             console.log('🏠 [LandingPage] User is authenticated, redirecting to /dashboard');
             navigate('/dashboard', { replace: true });
         }
