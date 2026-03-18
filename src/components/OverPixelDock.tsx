@@ -36,8 +36,8 @@ const APPS: AppDef[] = [
     id: 'dtf-factory',
     name: 'DTF Factory',
     description: 'Montador de Estampas',
-    status: 'wip',
-    path: null,
+    status: 'active',
+    path: '/dtf-factory',
     iconType: 'dtf',
   },
   {

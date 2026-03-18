@@ -106,6 +106,7 @@ export default defineConfig(() => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "@dtf": path.resolve(__dirname, "./src/features/dtf-factory"),
     },
   },
   build: {

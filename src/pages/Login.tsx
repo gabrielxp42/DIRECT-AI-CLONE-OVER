@@ -128,10 +128,14 @@ const Login = () => {
 
   const handleGoogleLogin = async () => {
     try {
+      // Salvar a rota de destino desejada antes de redirecionar para o OAuth
+      localStorage.setItem('auth_redirect', mode === 'signup' ? '/checkout' : '/dashboard');
+      
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location.origin + (mode === 'signup' ? '/checkout' : '/dashboard')
+          // Usar SEMPRE a rota /auth/callback que está configurada no Supabase
+          redirectTo: `${window.location.origin}/auth/callback`,
         }
       });
       if (error) throw error;

@@ -115,17 +115,20 @@ const Layout = () => {
   const gridTemplate = isExpanded ? 'md:grid-cols-[280px_1fr]' : 'md:grid-cols-[64px_1fr]';
 
   const handleLauncherAppClick = (appId: string) => {
+    console.log('App clicked:', appId);
     if (appId === 'direct-ai') {
       navigate('/dashboard');
+      setShowLauncher(false);
+    } else if (appId === 'dtf-factory') {
+      navigate('/dtf-factory');
       setShowLauncher(false);
     } else if (appId === 'montador') {
       navigate('/montador');
       setShowLauncher(false);
     } else {
       toast({
-        title: '🚧 Em Construção',
-        description: 'Este aplicativo está sendo desenvolvido. Em breve!',
-        duration: 3000,
+        title: "Em breve",
+        description: "Este aplicativo estará disponível na próxima atualização.",
       });
     }
   };
@@ -475,12 +478,16 @@ const Layout = () => {
                 className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-white/5 transition-all group"
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.92 }}
-                title="DTF Factory — Em breve"
+                title="DTF Factory"
               >
-                <div className="w-12 h-12 rounded-full flex items-center justify-center border border-amber-500/20 bg-amber-500/5 group-hover:border-amber-500/35 transition-all opacity-50 group-hover:opacity-75">
-                  <Layers className="w-5 h-5 text-amber-400/60" />
+                {/* Active dot */}
+                {location.pathname === '/dtf-factory' && (
+                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-full bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.6)]" />
+                )}
+                <div className="w-12 h-12 rounded-full flex items-center justify-center border border-white/5 bg-white/5 group-hover:border-orange-500/50 group-hover:shadow-[0_0_20px_rgba(249,115,22,0.2)] transition-all overflow-hidden">
+                  <img src="/dtf-fabric-logo.png" alt="DTF Factory" className="w-full h-full object-cover" />
                 </div>
-                <span className="text-[9px] font-bold text-white/30 group-hover:text-white/50 transition-colors tracking-wide">DTF</span>
+                <span className="text-[9px] font-bold text-white/50 group-hover:text-white/80 transition-colors tracking-wide">DTF</span>
               </motion.button>
 
               {/* O Montador */}

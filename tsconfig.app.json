@@ -23,7 +23,8 @@
 
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@dtf/*": ["./src/features/dtf-factory/*"]
     }
   },
   "include": ["src"]

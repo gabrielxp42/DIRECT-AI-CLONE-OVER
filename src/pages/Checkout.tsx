@@ -254,10 +254,13 @@ const Checkout = () => {
 
     const handleGoogleLogin = async () => {
         try {
+            // Salvar a rota de destino para o callback saber onde ir
+            localStorage.setItem('auth_redirect', '/checkout');
+
             const { error } = await supabase.auth.signInWithOAuth({
                 provider: 'google',
                 options: {
-                    redirectTo: window.location.origin + '/checkout'
+                    redirectTo: `${window.location.origin}/auth/callback`
                 }
             });
             if (error) throw error;

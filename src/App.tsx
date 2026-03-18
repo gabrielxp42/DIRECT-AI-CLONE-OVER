@@ -39,6 +39,8 @@ const Affiliate = lazy(() => import("./pages/Affiliate"));
 const LandingPage = lazy(() => import("./pages/LandingPage"));
 const OverPixelLauncher = lazy(() => import("./pages/OverPixelLauncher"));
 const AuthConfirm = lazy(() => import("./pages/AuthConfirm"));
+const AuthCallback = lazy(() => import("./pages/AuthCallback"));
+const DTFFactory = lazy(() => import("./pages/DTFFactory.tsx"));
 const Logistics = lazy(() => import("./pages/Logistics"));
 const Vetorizador = lazy(() => import("./pages/Vetorizador"));
 import ProductionKanban from "./pages/ProductionKanban";
@@ -94,6 +96,9 @@ const App = () => (
                       <Route path="/checkout" element={<Checkout />} />
                       <Route path="/landing-page" element={<LandingPage />} />
                       <Route path="/auth/confirm" element={<AuthConfirm />} />
+                      <Route path="/auth/callback" element={<AuthCallback />} />
+                      <Route path="/dtf-factory" element={<DTFFactory />} />
+                      <Route path="/montador" element={<MontadorPage />} />
                       <Route path="/producao/tv" element={<ProductionTV />} />
                       <Route path="/index.html" element={<Navigate to="/" replace />} />
                       <Route path="/" element={<OverPixelLauncher />} />
@@ -119,7 +124,6 @@ const App = () => (
                             <Route path="/affiliate" element={<Affiliate />} />
                             <Route path="/vetorizar" element={<Vetorizador />} />
                             <Route path="/producao" element={<ProductionKanban />} />
-                            <Route path="/montador" element={<MontadorPage />} />
 
                             <Route path="/admin" element={
                               <AdminRoute>
