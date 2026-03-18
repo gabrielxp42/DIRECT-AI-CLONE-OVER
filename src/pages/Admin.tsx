@@ -104,6 +104,7 @@ type AdminProfile = {
     trial_days?: number;
     completed_tours?: string[] | null;
     ai_credits?: number;
+    uid?: string;
 };
 
 type GlobalStats = {
@@ -1702,27 +1703,102 @@ export default function Admin() {
                                             <Button
                                                 onClick={async () => {
                                                     if (!selectedUser) return;
+                                                    const targetId = selectedUser.id;
+                                                    const targetEmail = selectedUser.email;
+                                                    const targetUid = (selectedUser as any).uid;
+                                                    
+                                                    console.log("🎁 Enviando presente:", { targetId, targetEmail, targetUid });
+                                                    toast.info(`Processando presente para ${targetEmail}...`);
+
                                                     try {
-                                                        const { error: creditError } = await supabase.rpc('add_ai_credits', {
-                                                            p_user_id: selectedUser.id,
+                                                        // 1. Tenta usar a RPC (Caminho mais seguro)
+                                                        // Tenta primeiro com o ID que temos, se falhar tentamos com o UID se existir
+                                                        let rpcError: any = null;
+                                                        const idToTry = targetUid || targetId;
+                                                        
+                                                        const { error: firstRpcError } = await supabase.rpc('add_ai_credits', {
+                                                            p_user_id: idToTry,
                                                             p_amount: 150
                                                         });
-                                                        if (creditError) throw creditError;
+                                                        rpcError = firstRpcError;
 
-                                                        const { error: profileError } = await supabase
-                                                            .from('profiles_v2')
-                                                            .update({
-                                                                is_vetoriza_ai_gifted: true,
-                                                                is_vetoriza_ai_gifted_viewed: false
-                                                            })
-                                                            .eq('id', selectedUser.id);
-                                                        if (profileError) throw profileError;
+                                                        if (rpcError) {
+                                                            console.warn("RPC add_ai_credits falhou, tentando fallback direto:", rpcError);
+                                                            
+                                                            // Fallback 1: Atualiza profiles_v2 (Nova tabela)
+                                                            // Buscamos o registro exato para garantir que não estamos atualizando o usuário errado
+                                                            const { data: profileV2, error: findError } = await supabase
+                                                                .from('profiles_v2')
+                                                                .select('id, uid, ai_credits')
+                                                                .or(`id.eq.${targetId}${targetUid ? `,uid.eq.${targetUid}` : ''}${targetEmail ? `,email.eq.${targetEmail}` : ''}`)
+                                                                .maybeSingle();
 
-                                                        toast.success("Presente Vetoriza AI enviado (+150 créditos)!");
+                                                            if (findError) throw findError;
+                                                            
+                                                            const actualId = profileV2?.id || targetId;
+                                                            const actualUid = profileV2?.uid || targetUid || targetId;
+                                                            const currentV2Credits = profileV2?.ai_credits || 0;
+
+                                                            console.log("🛠️ Fallback V2:", { actualId, actualUid, currentV2Credits });
+
+                                                            const { error: v2Error, count: v2Count } = await supabase
+                                                                .from('profiles_v2')
+                                                                .update({
+                                                                    ai_credits: currentV2Credits + 150,
+                                                                    is_vetoriza_ai_gifted: true,
+                                                                    is_vetoriza_ai_gifted_viewed: false
+                                                                }, { count: 'exact' })
+                                                                .or(`id.eq.${actualId}${actualUid ? `,uid.eq.${actualUid}` : ''}`);
+
+                                                            if (v2Error || v2Count === 0) {
+                                                                console.warn("Falha ao atualizar profiles_v2, tentando profiles (legacy)...");
+                                                                
+                                                                // Fallback 2: Tabela profiles (Legacy) usando EMAIL se possível para evitar confusão de IDs
+                                                                const { data: profileLegacy } = await supabase
+                                                                    .from('profiles')
+                                                                    .select('id, ai_credits' as any)
+                                                                    .or(`id.eq.${actualUid}${targetEmail ? `,email.eq.${targetEmail}` : ''}`)
+                                                                    .maybeSingle();
+                                                                
+                                                                const legacyId = (profileLegacy as any)?.id || actualUid;
+                                                                const currentLegacyCredits = (profileLegacy as any)?.ai_credits || 0;
+
+                                                                const { error: legacyError } = await supabase
+                                                                    .from('profiles')
+                                                                    .update({
+                                                                        ai_credits: currentLegacyCredits + 150,
+                                                                        ...({ is_vetoriza_ai_gifted: true, is_vetoriza_ai_gifted_viewed: false } as any)
+                                                                    } as any)
+                                                                    .eq('id', legacyId);
+                                                                
+                                                                if (legacyError) throw new Error("Falha total na atualização em ambas tabelas: " + legacyError.message);
+                                                            }
+                                                        } else {
+                                                            // Se a RPC funcionou, apenas garantimos que os campos de visualização de presente estão certos
+                                                            // Buscamos o registro para garantir o ID correto
+                                                            const { data: p } = await supabase
+                                                                .from('profiles_v2')
+                                                                .select('id, uid')
+                                                                .or(`id.eq.${targetId}${targetUid ? `,uid.eq.${targetUid}` : ''}${targetEmail ? `,email.eq.${targetEmail}` : ''}`)
+                                                                .maybeSingle();
+                                                            
+                                                            if (p) {
+                                                                await supabase
+                                                                    .from('profiles_v2')
+                                                                    .update({
+                                                                        is_vetoriza_ai_gifted: true,
+                                                                        is_vetoriza_ai_gifted_viewed: false
+                                                                    })
+                                                                    .or(`id.eq.${p.id}${p.uid ? `,uid.eq.${p.uid}` : ''}`);
+                                                            }
+                                                        }
+
+                                                        toast.success(`Presente enviado com sucesso para ${targetEmail}!`);
                                                         setIsDetailOpen(false);
                                                         fetchData();
                                                     } catch (err: any) {
-                                                        toast.error("Erro ao enviar presente: " + err.message);
+                                                        console.error("Erro fatal ao enviar presente:", err);
+                                                        toast.error(`Falha ao enviar para ${targetEmail}: ` + err.message);
                                                     }
                                                 }}
                                                 className="w-full h-14 bg-gradient-to-r from-amber-400 to-amber-600 hover:from-amber-500 hover:to-amber-700 text-black font-black uppercase tracking-widest rounded-2xl shadow-lg border-b-4 border-amber-800 active:border-b-0 active:translate-y-1 transition-all flex items-center justify-center gap-2"

@@ -60,6 +60,9 @@ type Profile = {
   last_active_at?: string | null;
   is_multi_profile_enabled?: boolean;
   role_permissions?: Record<UserRole, Record<string, boolean>>;
+  is_vetoriza_ai_gifted?: boolean;
+  is_vetoriza_ai_gifted_viewed?: boolean;
+  ai_credits?: number;
 };
 
 export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, Record<string, boolean>> = {
@@ -308,7 +311,7 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
       .channel('public:profiles_v2_updates')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles_v2' },
         (payload) => {
-          if (mounted && stateRef.current.session?.user?.id === payload.new.id) {
+          if (mounted && (stateRef.current.session?.user?.id === payload.new.uid || stateRef.current.session?.user?.id === payload.new.id)) {
             console.log('⚡ [SessionProvider] Profile update synced');
             setProfile(prev => prev ? { ...prev, ...payload.new } : (payload.new as Profile));
           }
@@ -321,6 +324,25 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
       supabaseClient.removeChannel(channel);
     };
   }, [navigate]); // Re-subscribe if user ID changes (login/logout)
+
+  // Listener para atualização em tempo real (ex: pelo useRealtimeSync)
+  useEffect(() => {
+    const handleRefresh = async () => {
+      if (session?.user?.id) {
+        console.log('🔄 [SessionProvider] Refreshing profile due to external change...');
+        const token = await getValidToken();
+        if (token) {
+          const p = await fetchProfileWithRetry(session.user.id, token);
+          if (p) {
+            setProfile(p);
+          }
+        }
+      }
+    };
+
+    window.addEventListener('refresh-profile', handleRefresh);
+    return () => window.removeEventListener('refresh-profile', handleRefresh);
+  }, [session?.user?.id]);
 
   const switchSubProfile = (subProfile: SubProfile | null) => {
     setActiveSubProfile(subProfile);

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import Sidebar from './sidebar/Sidebar';
 import CanvasPreview from './CanvasPreview';
 import { LineConfig } from '@/features/montador/lib/types';
@@ -199,8 +199,51 @@ export default function MontadorInterface() {
         }
     }, []);
 
+    // --- OVERPIXEL BRIDGE ---
+    useEffect(() => {
+        const checkBridge = async () => {
+            const savedState = localStorage.getItem('OVERPIXEL_BRIDGE_STATE');
+            if (!savedState) return;
+
+            try {
+                const { type, data } = JSON.parse(savedState);
+                if (type === 'VETORIZA_TO_MONTADOR') {
+                    console.log('[Montador] Received design from Vetoriza AI', data);
+                    
+                    // Clear state
+                    localStorage.removeItem('OVERPIXEL_BRIDGE_STATE');
+
+                    // Helper to convert URL to File
+                    const res = await fetch(data.image);
+                    const blob = await res.blob();
+                    const file = new File([blob], "vetoriza-design.png", { type: "image/png" });
+
+                    // Process and add to canvas
+                    const { dimensions, croppedImageUrl } = await getImageDimensions(file);
+                    
+                    const newLine: LineConfig = {
+                        id: Math.random().toString(36).substr(2, 9),
+                        imageUrl: croppedImageUrl,
+                        dimensions: dimensions,
+                        result: { success: true, copies: 1, rotation: 0 } as any,
+                        yOffset: 0,
+                        quantity: 1,
+                        spacingPx: undefined
+                    };
+
+                    setLines(prev => [...prev, newLine]);
+                }
+            } catch (err) {
+                console.error('[Montador] Bridge error:', err);
+            }
+        };
+
+        const timer = setTimeout(checkBridge, 1000);
+        return () => clearTimeout(timer);
+    }, []);
+
     return (
-        <div className="flex flex-col md:flex-row h-screen w-full bg-[#050505] text-white overflow-hidden font-sans selection:bg-orange-500/30">
+        <div className="flex flex-col md:flex-row h-full flex-1 w-full bg-[#050505] text-white overflow-hidden font-sans selection:bg-orange-500/30">
             
             {/* Mobile Backdrop & Modal for Sidebar */}
             {isSidebarOpen && (

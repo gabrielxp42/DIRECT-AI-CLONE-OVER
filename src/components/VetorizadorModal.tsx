@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 import {
     Upload,
     Sparkles,
@@ -33,6 +34,7 @@ interface VetorizadorModalProps {
 type ProcessingStatus = 'idle' | 'uploading' | 'processing' | 'done' | 'error';
 
 export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({ isOpen, onClose }) => {
+    const navigate = useNavigate();
     const { supabase } = useSession();
     const [status, setStatus] = useState<ProcessingStatus>('idle');
     const [originalImage, setOriginalImage] = useState<string | null>(null);
@@ -385,6 +387,43 @@ export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({ isOpen, onCl
         }
     };
 
+    const handleTransferToFactory = (halftonePreset?: string) => {
+        if (!resultImage) return;
+        
+        const transferState = {
+            type: 'VETORIZA_TO_FACTORY',
+            data: {
+                image: resultImage,
+                prompt: inlinePrompt || userPrompt || 'Vetorização via Gabi AI',
+                halftonePreset: halftonePreset || 'halftone_medio_preto',
+                timestamp: Date.now()
+            }
+        };
+        
+        localStorage.setItem('OVERPIXEL_BRIDGE_STATE', JSON.stringify(transferState));
+        toast.success('Preparando produção no DTF Factory...');
+        onClose();
+        navigate('/dtf-factory');
+    };
+
+    const handleTransferToMontador = () => {
+        if (!resultImage) return;
+        
+        const transferState = {
+            type: 'VETORIZA_TO_MONTADOR',
+            data: {
+                image: resultImage,
+                prompt: inlinePrompt || userPrompt || 'Vetorização via Gabi AI',
+                timestamp: Date.now()
+            }
+        };
+        
+        localStorage.setItem('OVERPIXEL_BRIDGE_STATE', JSON.stringify(transferState));
+        toast.success('Enviando para o Montador de Layout...');
+        onClose();
+        navigate('/montador');
+    };
+
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
             <DialogContent className="w-[95vw] max-w-[1200px] h-[90vh] p-0 overflow-hidden rounded-[2.5rem] border border-white/10 shadow-[0_0_80px_rgba(0,0,0,0.8)] bg-zinc-950/60 backdrop-blur-3xl dialog-content-vec" hideCloseButton>
@@ -570,6 +609,40 @@ export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({ isOpen, onCl
                                                         <button className="action-btn-vec ghost" onClick={handleReset}>
                                                             Reset
                                                         </button>
+                                                    </div>
+
+                                                    {/* NEW PRODUCTION BRIDGE SECTION */}
+                                                    <div className="production-bridge-vec fade-in mt-6 pt-6 border-t border-white/5">
+                                                        <h4 className="text-[10px] uppercase tracking-[0.2em] text-white/30 font-bold mb-4">Ações de Produção</h4>
+                                                        <div className="flex flex-col gap-3">
+                                                            <button 
+                                                                className="bridge-card-vec factory group"
+                                                                onClick={() => handleTransferToFactory()}
+                                                            >
+                                                                <div className="bridge-card-icon-vec">
+                                                                    <Zap size={20} className="text-cyan-400" />
+                                                                </div>
+                                                                <div className="bridge-card-info-vec">
+                                                                    <span className="bridge-title-vec">Preparar DTF (Halftone)</span>
+                                                                    <span className="bridge-desc-vec">Aplicar retícula e salvar para impressão</span>
+                                                                </div>
+                                                                <Sparkles size={16} className="text-cyan-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                            </button>
+
+                                                            <button 
+                                                                className="bridge-card-vec montador group"
+                                                                onClick={handleTransferToMontador}
+                                                            >
+                                                                <div className="bridge-card-icon-vec">
+                                                                    <Layers size={20} className="text-orange-400" />
+                                                                </div>
+                                                                <div className="bridge-card-info-vec">
+                                                                    <span className="bridge-title-vec">Adicionar ao Montador</span>
+                                                                    <span className="bridge-desc-vec">Enviar para o seu layout de produção</span>
+                                                                </div>
+                                                                <Sparkles size={16} className="text-orange-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             )}

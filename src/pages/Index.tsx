@@ -1,16 +1,6 @@
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-import { DollarSign, Users, Activity, Ruler, Clock, Scissors, Printer, Wrench, Package, CheckSquare, ChevronDown, Sparkles, Trophy } from "lucide-react";
+  DollarSign, Users, Activity, Ruler, Clock, Scissors, Printer, Wrench, Package, CheckSquare, ChevronDown, Sparkles, Trophy, Zap, TrendingUp, Bot, Layers
+} from "lucide-react";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { useTiposProducao } from "@/hooks/useDataFetch";
 import { cn } from "@/lib/utils";
@@ -20,10 +10,10 @@ import { useAIAssistant } from '@/contexts/AIAssistantProvider';
 import { DashboardShortcutCard } from "@/components/DashboardShortcutCard";
 import { AIMessagesWidget } from "@/components/AIMessagesWidget";
 import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
 
 import { DashboardQuickActions } from "@/components/DashboardQuickActions";
 import { DailySummaryCard } from "@/components/DailySummaryCard";
-// import { MagicOnboarding } from '@/components/MagicOnboarding';
 import { SmartGoalCard } from '@/components/SmartGoalCard';
 import { AIAttentionBubble } from "@/components/AIAttentionBubble";
 import { AILowStockAlert } from "@/components/AILowStockAlert";
@@ -33,7 +23,7 @@ import { useTour } from "@/hooks/useTour";
 import { WELCOME_TOUR } from "@/utils/tours";
 import { Button } from "@/components/ui/button";
 import { ShippingFeatureModal } from "@/components/modals/ShippingFeatureModal";
-// import { MagicOnboarding } from "@/components/MagicOnboarding";
+import './Dashboard.css';
 
 const Index = () => {
   const { data: stats, isLoading, error } = useDashboardData();
@@ -46,7 +36,7 @@ const Index = () => {
 
   useEffect(() => {
     if (shouldAutoStart && !sessionLoading) {
-      const timer = setTimeout(startTour, 5000); // Aumentado para 5s para dar tempo de outros modais (como frete) respirarem
+      const timer = setTimeout(startTour, 5000);
       return () => clearTimeout(timer);
     }
   }, [shouldAutoStart, sessionLoading, startTour]);
@@ -58,10 +48,8 @@ const Index = () => {
     const isMobile = window.innerWidth < 768;
     setAccordionValue(isMobile ? "" : "resumo");
 
-    // Check if user has seen the new shipping feature modal
     const hasSeenFeature = localStorage.getItem('has_seen_shipping_feature_v3.4');
     if (!hasSeenFeature) {
-      // Small delay to not conflict with other initializations
       setTimeout(() => setShowShippingFeature(true), 1500);
     }
   }, []);
@@ -88,7 +76,7 @@ const Index = () => {
   };
 
   const getGrowthColor = (growth: number) => {
-    return growth >= 0 ? 'text-green-600' : 'text-red-600';
+    return growth >= 0 ? 'text-cyan-400' : 'text-rose-400';
   };
 
   if (error) {
@@ -102,106 +90,98 @@ const Index = () => {
   }
 
   return (
-    <div className="pb-24 overflow-x-hidden">
-      <h1 className="text-xl md:text-3xl font-black mb-6 text-left uppercase tracking-tighter italic">
-        Dashboard
-      </h1>
+    <div className="dashboard-container pb-24 px-4 md:px-6">
+      {/* Background Elements */}
+      <div className="dashboard-bg-blobs">
+        <div className="dashboard-blob dashboard-blob-1" />
+        <div className="dashboard-blob dashboard-blob-2" />
+      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8 items-start">
-        <div id="ai-assistant-widget" className="flex flex-col gap-4">
-          <div className="relative space-y-4">
-            <AILowStockAlert />
-            <AIAttentionBubble />
-            <AIMessagesWidget />
+      <header className="relative z-10 flex justify-between items-center mb-10 pt-4">
+        <div>
+          <h1 className="text-3xl md:text-5xl font-black dashboard-title-gradient italic uppercase tracking-tighter">
+            Dashboard
+          </h1>
+          <p className="text-xs font-bold text-muted-foreground tracking-widest uppercase mt-2 opacity-50">Direct AI Ecosystem | Central Control</p>
+        </div>
+        <div className="hidden md:flex gap-3">
+           <Button variant="ghost" size="icon" className="dashboard-glass-card rounded-full"><Activity className="w-4 h-4" /></Button>
+           <Button variant="ghost" size="icon" className="dashboard-glass-card rounded-full"><TrendingUp className="w-4 h-4" /></Button>
+        </div>
+      </header>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8 items-start relative z-10">
+        <div id="ai-assistant-widget" className="lg:col-span-12 xl:col-span-8 flex flex-col gap-4">
+          <div className="dashboard-glass-card p-6 border-cyan-500/20 shadow-lg shadow-cyan-500/5 relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+               <Bot className="w-32 h-32" />
+            </div>
+            <div className="relative z-10 space-y-4">
+              <AILowStockAlert />
+              <AIAttentionBubble />
+              <AIMessagesWidget />
+            </div>
           </div>
         </div>
 
-        <div id="onboarding-container" className="h-full">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20">
-              <Trophy className="h-4 w-4 text-primary" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold">Minhas Metas</p>
-              <p className="text-xs text-muted-foreground">Evolução do seu negócio</p>
-            </div>
-          </div>
-          <SmartGoalCard stats={stats} />
+        <div id="onboarding-container" className="lg:col-span-12 xl:col-span-4 h-full">
+           <div className="dashboard-glass-card p-6 h-full flex flex-col">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20 shadow-inner">
+                  <Trophy className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm font-black uppercase tracking-tight">Minhas Metas</p>
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase opacity-60">Evolução do seu negócio</p>
+                </div>
+              </div>
+              <SmartGoalCard stats={stats} />
+           </div>
         </div>
       </div>
 
-      <div id="quick-actions-container" className="mb-8 hidden md:block">
+      <div id="quick-actions-container" className="mb-8 hidden md:block relative z-10">
         <DashboardQuickActions />
       </div>
 
-      <div id="status-charts-container" className="mb-10">
-        <h2 className="text-lg md:text-xl font-black mb-4 flex items-center gap-2 uppercase italic tracking-tighter">
-          <span className="bg-blue-500/10 text-blue-500 p-1 rounded border border-blue-500/20">📊</span> Status dos Pedidos
-        </h2>
+      <div id="status-charts-container" className="mb-10 relative z-10">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
+             <Layers className="h-4 w-4 text-blue-500" />
+          </div>
+          <h2 className="text-xl font-black italic uppercase tracking-tighter">Status dos Pedidos</h2>
+        </div>
 
-        {/* Usando o mesmo estilo de scroll horizontal do onboarding para os status se for mobile */}
-        <div className="flex md:grid md:grid-cols-5 gap-3 overflow-x-auto no-scrollbar -mx-3 px-3 pb-2 snap-x snap-mandatory w-full max-w-full">
-          <div className="flex-shrink-0 w-32 md:w-auto snap-start">
-            <QuickActionCard
-              title="Pendentes"
-              icon={Clock}
-              to="/pedidos"
-              filterState={{ filterStatus: 'pendente' }}
-              count={isLoading ? '...' : stats?.pendingOrdersCount}
-              variant="amber"
-              className="snap-start"
-            />
-          </div>
-          <div className="flex-shrink-0 w-32 md:w-auto snap-start">
-            <QuickActionCard
-              title="Processando"
-              icon={Wrench}
-              to="/pedidos"
-              filterState={{ filterStatus: 'processando' }}
-              count={isLoading ? '...' : stats?.processingOrdersCount}
-              variant="blue"
-              className="snap-start"
-            />
-          </div>
-          {canViewFinancials && (
-            <div className="flex-shrink-0 w-32 md:w-auto snap-start">
+        <div className="flex md:grid md:grid-cols-5 gap-4 overflow-x-auto no-scrollbar -mx-3 px-3 pb-2 snap-x snap-mandatory w-full max-w-full">
+          {[
+            { title: "Pendentes", icon: Clock, variant: "amber", status: "pendente", count: stats?.pendingOrdersCount },
+            { title: "Processando", icon: Wrench, variant: "blue", status: "processando", count: stats?.processingOrdersCount },
+            { title: "Faltam Pagar", icon: DollarSign, variant: "rose", status: "pendente-pagamento", count: stats?.pendingPaymentOrdersCount, hidden: !canViewFinancials },
+            { title: "Aguardando", icon: Package, variant: "indigo", status: "aguardando retirada", count: stats?.awaitingPickupOrdersCount },
+            { title: "Entregues", icon: CheckSquare, variant: "emerald", status: "entregue", count: stats?.deliveredOrdersCount }
+          ].filter(i => !i.hidden).map((item, idx) => (
+            <motion.div 
+              key={item.title} 
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: idx * 0.05 }}
+              className="flex-shrink-0 w-40 md:w-auto snap-start"
+            >
               <QuickActionCard
-                title="Faltam Pagar"
-                icon={DollarSign}
+                title={item.title}
+                icon={item.icon}
                 to="/pedidos"
-                filterState={{ filterStatus: 'pendente-pagamento' }}
-                count={isLoading ? '...' : stats?.pendingPaymentOrdersCount}
-                variant="rose"
-                className="snap-start"
+                filterState={{ filterStatus: item.status }}
+                count={isLoading ? '...' : item.count}
+                variant={item.variant as any}
+                className="dashboard-glass-card border-none hover:shadow-xl transition-all"
               />
-            </div>
-          )}
-          <div className="flex-shrink-0 w-32 md:w-auto snap-start">
-            <QuickActionCard
-              title="Aguardando"
-              icon={Package}
-              to="/pedidos"
-              filterState={{ filterStatus: 'aguardando retirada' }}
-              count={isLoading ? '...' : stats?.awaitingPickupOrdersCount}
-              variant="indigo"
-              className="snap-start"
-            />
-          </div>
-          <div className="flex-shrink-0 w-32 md:w-auto snap-start">
-            <QuickActionCard
-              title="Entregues"
-              icon={CheckSquare}
-              to="/pedidos"
-              filterState={{ filterStatus: 'entregue' }}
-              count={isLoading ? '...' : stats?.deliveredOrdersCount}
-              variant="emerald"
-              className="snap-start"
-            />
-          </div>
+            </motion.div>
+          ))}
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 relative z-10">
         {canViewFinancials && (
           <DashboardShortcutCard
             title="Vendas Totais"
@@ -209,9 +189,9 @@ const Index = () => {
             to="/reports"
             loading={isLoading}
             count={formatCurrency(stats?.totalSales || 0)}
-            className={getGrowthColor(stats?.salesGrowth || 0)}
+            className={cn("dashboard-glass-card", getGrowthColor(stats?.salesGrowth || 0))}
           >
-            <p className={`text-xs ${getGrowthColor(stats?.salesGrowth || 0)}`}>
+            <p className={`text-xs font-bold ${getGrowthColor(stats?.salesGrowth || 0)}`}>
               {formatGrowth(stats?.salesGrowth || 0)} do último mês
             </p>
           </DashboardShortcutCard>
@@ -223,14 +203,14 @@ const Index = () => {
           to="/reports"
           loading={isLoading}
           count={formatMeters(stats?.totalMeters || 0)}
-          className={getGrowthColor(stats?.metersGrowth || 0)}
+          className={cn("dashboard-glass-card", getGrowthColor(stats?.metersGrowth || 0))}
         >
           <div className="flex flex-col gap-1">
-            <p className={`text-xs ${getGrowthColor(stats?.metersGrowth || 0)}`}>
+            <p className={`text-xs font-bold ${getGrowthColor(stats?.metersGrowth || 0)}`}>
               {formatGrowth(stats?.metersGrowth || 0)} do último mês
             </p>
             {!isLoading && stats?.productionTotals && Object.keys(stats.productionTotals).length > 0 && (
-              <div className="flex flex-wrap items-center gap-2 mt-1 border-t pt-1 border-gray-100 dark:border-gray-800">
+              <div className="flex flex-wrap items-center gap-2 mt-3 border-t pt-3 border-white/5">
                 {Object.entries(stats.productionTotals).map(([tipo, total]) => {
                   const tipoInfo = tiposProducao?.find(t => t.nome.toLowerCase() === tipo);
                   const isVinil = tipo === 'vinil';
@@ -238,22 +218,22 @@ const Index = () => {
                   const isUnidade = tipoInfo?.unidade_medida === 'unidade';
 
                   let Icon = Ruler;
-                  let colorClass = "text-gray-600 bg-gray-50 dark:bg-gray-900/20";
+                  let colorClass = "text-gray-400 bg-white/5";
 
                   if (isVinil) {
                     Icon = Scissors;
-                    colorClass = "text-orange-600 bg-orange-50 dark:bg-orange-900/20";
+                    colorClass = "text-amber-400 bg-amber-400/10";
                   } else if (isDTF) {
                     Icon = Printer;
-                    colorClass = "text-blue-600 bg-blue-50 dark:bg-blue-900/20";
+                    colorClass = "text-blue-400 bg-blue-400/10";
                   } else if (tipoInfo) {
                     Icon = isUnidade ? Package : Ruler;
-                    colorClass = "text-primary bg-primary/5 dark:bg-primary/900/20";
+                    colorClass = "text-cyan-400 bg-cyan-400/10";
                   }
 
                   return (
-                    <span key={tipo} className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded flex items-center gap-1", colorClass)}>
-                      <Icon className="h-2.5 w-2.5" /> {total.toFixed(isUnidade ? 0 : 1)}{isUnidade ? 'und' : 'm'}
+                    <span key={tipo} className={cn("text-[10px] font-black uppercase px-2 py-1 rounded-lg border border-white/5 flex items-center gap-1.5", colorClass)}>
+                      <Icon className="h-3 w-3" /> {total.toFixed(isUnidade ? 0 : 1)}{isUnidade ? 'und' : 'm'}
                     </span>
                   );
                 })}
@@ -268,9 +248,9 @@ const Index = () => {
           to="/clientes"
           loading={isLoading}
           count={`+${stats?.newCustomers || 0}`}
-          className={getGrowthColor(stats?.customersGrowth || 0)}
+          className={cn("dashboard-glass-card", getGrowthColor(stats?.customersGrowth || 0))}
         >
-          <p className={`text-xs ${getGrowthColor(stats?.customersGrowth || 0)}`}>
+          <p className={`text-xs font-bold ${getGrowthColor(stats?.customersGrowth || 0)}`}>
             {formatGrowth(stats?.customersGrowth || 0)} do último mês
           </p>
         </DashboardShortcutCard>
@@ -282,27 +262,27 @@ const Index = () => {
             to="/reports"
             loading={isLoading}
             count={formatCurrency(stats?.averageTicket || 0)}
-            className={getGrowthColor(stats?.ticketGrowth || 0)}
+            className={cn("dashboard-glass-card", getGrowthColor(stats?.ticketGrowth || 0))}
           >
-            <p className={`text-xs ${getGrowthColor(stats?.ticketGrowth || 0)}`}>
+            <p className={`text-xs font-bold ${getGrowthColor(stats?.ticketGrowth || 0)}`}>
               {formatGrowth(stats?.ticketGrowth || 0)} do último mês
             </p>
           </DashboardShortcutCard>
         )}
       </div>
 
-      <div className="mt-8 text-center space-y-4">
-        <p className="text-lg text-muted-foreground">
-          Bem-vindo ao seu assistente de vendas!
+      <div className="mt-16 text-center space-y-6 relative z-10">
+        <p className="text-xl font-medium dashboard-title-gradient opacity-80 italic">
+          Bem-vindo ao Direct AI
         </p>
         {!isTourOpen && (
           <Button
             variant="outline"
-            size="sm"
+            size="lg"
             onClick={startTour}
-            className="text-xs text-primary bg-primary/5 border-primary/20 hover:bg-primary/10"
+            className="dashboard-glass-card text-xs font-black uppercase tracking-widest text-primary hover:bg-primary/10 border-primary/20"
           >
-            <Sparkles className="mr-2 h-3 w-3" />
+            <Sparkles className="mr-2 h-4 w-4" />
             Reiniciar Tutorial
           </Button>
         )}
@@ -325,4 +305,4 @@ const Index = () => {
   );
 };
 
-export default Index;
+export default Index;

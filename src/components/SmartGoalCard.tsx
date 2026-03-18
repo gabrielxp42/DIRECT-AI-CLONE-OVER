@@ -296,7 +296,7 @@ export const SmartGoalCard = ({ stats }: { stats: any }) => {
                 activeGoal.type === 'sales' && "via-green-500/20"
             )} />
 
-            <Card className="border-zinc-200 dark:border-white/5 bg-white dark:bg-zinc-950/80 backdrop-blur-xl shadow-xl overflow-hidden relative">
+            <Card className="border-zinc-200 dark:border-white/5 bg-card dark:bg-card/80 backdrop-blur-xl shadow-xl overflow-hidden relative">
                 <div className="absolute top-0 right-0 p-3 opacity-5 pointer-events-none">
                     <Target className="w-24 h-24 text-zinc-900 dark:text-white" />
                 </div>

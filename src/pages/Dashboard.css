@@ -1,0 +1,84 @@
+/* Dashboard Liquid Glass Styles */
+.dashboard-container {
+  position: relative;
+  min-height: 100vh;
+  padding-bottom: 100px;
+  overflow: hidden;
+}
+
+.dashboard-bg-blobs {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  filter: blur(100px);
+  opacity: 0.15;
+  pointer-events: none;
+}
+
+.dashboard-blob {
+  position: absolute;
+  border-radius: 50%;
+  animation: dashboard-float 25s infinite ease-in-out;
+}
+
+@keyframes dashboard-float {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(50px, -30px) scale(1.1); }
+}
+
+.dashboard-blob-1 {
+  width: 600px;
+  height: 600px;
+  background: var(--accent-cyan, #22d3ee);
+  top: -200px;
+  left: -100px;
+}
+
+.dashboard-blob-2 {
+  width: 500px;
+  height: 500px;
+  background: var(--accent-violet, #a78bfa);
+  bottom: -100px;
+  right: -200px;
+  animation-delay: -7s;
+}
+
+.dashboard-glass-card {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.dark .dashboard-glass-card {
+  background: rgba(15, 23, 42, 0.3);
+  border-color: rgba(255, 255, 255, 0.05);
+}
+
+.dashboard-glass-card:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.15);
+  transform: translateY(-2px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+}
+
+.dashboard-title-gradient {
+  background: linear-gradient(135deg, #fff 0%, rgba(255,255,255,0.5) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.stat-icon-container {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 16px;
+}

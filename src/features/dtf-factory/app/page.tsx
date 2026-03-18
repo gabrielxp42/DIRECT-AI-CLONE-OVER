@@ -597,6 +597,77 @@ export default function HomePage() {
     }
   }, [contextReady, isContextMode, loadedImages, isAutoMode, run, halftonePreset, session]);
 
+  // --- OVERPIXEL BRIDGE LISTENER ---
+  useEffect(() => {
+    const checkBridge = async () => {
+      const savedState = localStorage.getItem('OVERPIXEL_BRIDGE_STATE');
+      if (!savedState) return;
+
+      try {
+        const { type, data } = JSON.parse(savedState);
+        if (type === 'VETORIZA_TO_FACTORY') {
+          console.log('[DTF Factory] Received design from Vetoriza AI', data);
+          
+          // Clear the bridge state so it doesn't reload on every mount
+          localStorage.removeItem('OVERPIXEL_BRIDGE_STATE');
+          
+          showNotification('Design recebido do Vetoriza AI!', 'success');
+
+          // Helper to convert URL to File
+          const convertToFile = async (url: string): Promise<File> => {
+            const res = await fetch(url);
+            const blob = await res.blob();
+            return new File([blob], "vetoriza-design.png", { type: "image/png" });
+          };
+
+          const file = await convertToFile(data.image);
+
+          if (isProMode) {
+            // Add a new widget for this design
+            const newId = addWidget('auto');
+            updateWidget(newId, {
+              prompt: data.prompt,
+              uploadedImages: [data.image],
+              halftonePreset: data.halftonePreset || 'halftone_medio_preto'
+            });
+            // Auto open the new widget logic could go here if needed
+          } else {
+            // Standard Mode: Load into the main screen
+            setPrompt(data.prompt);
+            setImageFiles([file]);
+            setImagePreviews([data.image]);
+            setHalftonePreset(data.halftonePreset || 'halftone_medio_preto');
+            setAspectRatio('auto');
+            setWidgetStep('aspect_ratio');
+            
+            // Suggest dimensions based on aspect ratio
+            const img = new Image();
+            img.onload = () => {
+              const ratio = img.width / img.height;
+              const w = 30; // 30cm default
+              const h = parseFloat((w / ratio).toFixed(1));
+              setWidthCm(w);
+              setHeightCm(h);
+              setMaxDimensions({
+                wCm: 300,
+                hCm: 1000,
+                wPx: Math.round(300 * CM_TO_PX),
+                hPx: Math.round(1000 * CM_TO_PX)
+              });
+            };
+            img.src = data.image;
+          }
+        }
+      } catch (err) {
+        console.error('[DTF Factory] Bridge error:', err);
+      }
+    };
+
+    // Delay slightly to ensure contexts are ready
+    const timer = setTimeout(checkBridge, 1000);
+    return () => clearTimeout(timer);
+  }, [isProMode, addWidget, updateWidget, session]);
+
   // Sync pipeline state to widget (for Pro Mode visualization)
   useEffect(() => {
     if (apiProcessingWidgetId && state.step !== 'idle') {
@@ -767,7 +838,7 @@ export default function HomePage() {
       {/* Header - Apenas modo Pro (Desktop) */}
       {isProMode && (
         <header className="fixed top-0 left-0 right-0 z-50 px-6 py-4 flex items-center justify-between bg-black/20 backdrop-blur-xl border-b border-white/5" style={{ paddingTop: '40px' }}>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => window.dispatchEvent(new CustomEvent('toggle-launcher'))}>
             <img src="./logo.png" alt="Overpixel" className="w-10 h-10 rounded-xl" />
             <div>
               <h1 className="text-xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">
@@ -958,7 +1029,7 @@ export default function HomePage() {
       {/* Main Content */}
       {isProMode ? (
         /* ══════════ MODO PRO: Multi-Widget Grid ══════════ */
-        <main className="flex-1 flex flex-col h-screen pt-[96px] overflow-hidden md:pb-0 pb-20">
+        <main className="flex-1 flex flex-col h-screen pt-0 overflow-hidden md:pb-0 pb-20">
           <WidgetGrid />
         </main>
       ) : (
@@ -978,7 +1049,7 @@ export default function HomePage() {
                   </span>
                 ))}
               </div>
-              <style jsx>{`
+              <style>{`
                   .marquee-track {
                     animation: marquee-scroll 30s linear infinite;
                   }

@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, ShoppingCart, Users, BarChart3, Package, MessageSquare, Layers, Sparkles, Image as ImageIcon, Bot, Truck, Grid2x2, X, LayoutGrid, CloudCog, Wand2 } from 'lucide-react';
+import { Home, ShoppingCart, Users, BarChart3, Package, MessageSquare, Layers, Sparkles, Image as ImageIcon, Bot, Truck, Grid2x2, X, LayoutGrid, CloudCog, Wand2, Settings } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AIAssistant } from './AIAssistant';
 import { ThemeToggle } from './ThemeToggle';
@@ -32,7 +32,13 @@ import { ModalQueueProvider } from '@/contexts/ModalQueueContext';
 import { ActivityTracker } from './ActivityTracker';
 import { ProfileSelector } from './ProfileSelector';
 import { useSession } from '@/contexts/SessionProvider';
-import OverPixelLauncher from '@/pages/OverPixelLauncher';
+import OverPixelLauncher from '@/modules/launcher/Launcher';
+
+// Lazy Load Persistent Apps for Instance Memory
+const DTFFactory = React.lazy(() => import('../pages/DTFFactory'));
+const MontadorPage = React.lazy(() => import('../pages/Montador'));
+
+const PERSISTENT_APP_ROUTES = ['/dtf-factory', '/montador'];
 
 const staticNavItems = [
   { href: '/dashboard', icon: Home, label: 'Dashboard', permission: 'view_dashboard' },
@@ -57,6 +63,50 @@ const Layout = () => {
   const [isCalculatorOpen, setIsCalculatorOpen] = React.useState(false);
   const [isVetorizadorOpen, setIsVetorizadorOpen] = React.useState(false);
   const [showLauncher, setShowLauncher] = React.useState(false);
+  const [showLauncherSettings, setShowLauncherSettings] = React.useState(false);
+
+  // Instance Memory State (Visited Persistent Apps)
+  const [visitedPersistentApps, setVisitedPersistentApps] = React.useState<Set<string>>(new Set());
+
+  React.useEffect(() => {
+    if (PERSISTENT_APP_ROUTES.includes(location.pathname)) {
+      setVisitedPersistentApps(prev => new Set([...prev, location.pathname]));
+    }
+  }, [location.pathname]);
+
+  // Global Liquid Glass State (Surgical 2026)
+  const [glassTone, setGlassTone] = React.useState(() => localStorage.getItem('op-glass-tone') || 'cyan');
+  const [glassOpacity, setGlassOpacity] = React.useState(() => Number(localStorage.getItem('op-glass-opacity')) || 0.15);
+  const [glassBlur, setGlassBlur] = React.useState(() => Number(localStorage.getItem('op-glass-blur')) || 70);
+
+  // Sync Master Variables
+  React.useEffect(() => {
+    const root = document.documentElement;
+    localStorage.setItem('op-glass-tone', glassTone);
+    localStorage.setItem('op-glass-opacity', glassOpacity.toString());
+    localStorage.setItem('op-glass-blur', glassBlur.toString());
+
+    // Map Tone to RGB
+    const toneMap: Record<string, string> = {
+      'clear': '255, 255, 255',
+      'dark': '0, 0, 0',
+      'cyan': '6, 182, 212',
+      'rose': '225, 29, 72'
+    };
+
+    const rgb = toneMap[glassTone] || '6, 182, 212';
+    root.style.setProperty('--glass-rgb', rgb);
+    root.style.setProperty('--glass-opacity', glassOpacity.toString());
+    
+    // Dynamic Blur: Scaled from 40px to 90px based on 5% to 80% opacity
+    const dynamicBlur = 40 + (glassOpacity * 60);
+    root.style.setProperty('--glass-blur', `${dynamicBlur}px`);
+    
+    root.style.setProperty('--glass-border-opacity', (glassOpacity + 0.15).toString());
+  }, [glassTone, glassOpacity]);
+  const [launcherTheme, setLauncherTheme] = React.useState<'light' | 'dark'>(() => {
+    return (localStorage.getItem('op-launcher-sidebar-theme') as 'light' | 'dark') || 'dark';
+  });
 
   // Listen for open-vetorizador event (e.g. from GiftVetorizaModal)
   React.useEffect(() => {
@@ -65,25 +115,65 @@ const Layout = () => {
     return () => window.removeEventListener('open-vetorizador', handler);
   }, []);
 
-  // Close launcher on navigation
-  React.useEffect(() => {
+  const lastToggleRef = React.useRef(0);
+  const closeLauncher = React.useCallback(() => {
+    const now = Date.now();
+    if (now - lastToggleRef.current < 100) return;
+    lastToggleRef.current = now;
+    console.log('[Layout] closeLauncher() called');
     setShowLauncher(false);
-  }, [location.pathname]);
+    setShowLauncherSettings(false);
+  }, []);
 
-  // Click outside to close launcher
-  const launcherRef = React.useRef<HTMLDivElement>(null);
+  const toggleLauncher = React.useCallback(() => {
+    const now = Date.now();
+    if (now - lastToggleRef.current < 100) return;
+    lastToggleRef.current = now;
+    setShowLauncher(prev => {
+      console.log(`[Layout] toggleLauncher() -> ${!prev}`);
+      return !prev;
+    });
+  }, []);
+
+  // Keyboard Shortcuts (Esc to close)
   React.useEffect(() => {
-    if (!showLauncher) return;
-    
-    const handleClickOutside = (e: MouseEvent) => {
-      if (launcherRef.current && !launcherRef.current.contains(e.target as Node)) {
-        setShowLauncher(false);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && showLauncher) {
+        closeLauncher();
       }
     };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showLauncher, closeLauncher]);
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showLauncher]);
+  // Close launcher on navigation
+  React.useEffect(() => {
+    if (showLauncher) {
+      console.log(`[Layout] Auto-closing launcher due to navigation -> ${location.pathname}`);
+      closeLauncher();
+    }
+  }, [location.pathname, closeLauncher]);
+
+  // Listen for toggle-launcher event from integrated apps
+  React.useEffect(() => {
+    const handler = (e: any) => {
+      const forceState = e.detail?.force;
+      if (forceState === 'close') closeLauncher();
+      else if (forceState === 'open') setShowLauncher(true);
+      else toggleLauncher();
+    };
+    window.addEventListener('toggle-launcher', handler);
+    return () => window.removeEventListener('toggle-launcher', handler);
+  }, [closeLauncher, toggleLauncher]);
+
+  // Sync theme
+  React.useEffect(() => {
+    const handler = (e: any) => {
+      setLauncherTheme(e.detail?.theme || 'dark');
+    };
+    window.addEventListener('launcher-theme-changed', handler);
+    return () => window.removeEventListener('launcher-theme-changed', handler);
+  }, []);
 
   // Ativar sincronização em tempo real (Supabase Realtime)
   useRealtimeSync();
@@ -111,20 +201,28 @@ const Layout = () => {
   // Desativa o zoom para todas as páginas dentro do Layout por padrão
   useViewportZoom(false);
 
-  const sidebarWidth = isExpanded ? 'w-[280px]' : 'w-[64px]';
-  const gridTemplate = isExpanded ? 'md:grid-cols-[280px_1fr]' : 'md:grid-cols-[64px_1fr]';
 
-  const handleLauncherAppClick = (appId: string) => {
-    console.log('App clicked:', appId);
-    if (appId === 'direct-ai') {
-      navigate('/dashboard');
-      setShowLauncher(false);
-    } else if (appId === 'dtf-factory') {
-      navigate('/dtf-factory');
-      setShowLauncher(false);
-    } else if (appId === 'montador') {
-      navigate('/montador');
-      setShowLauncher(false);
+  
+  const isFullScreenApp = ['/dtf-factory', '/montador'].includes(location.pathname);
+  const hideShell = isFullScreenApp && !showLauncher;
+
+  const sidebarWidth = hideShell ? 'w-0 border-0 overflow-hidden opacity-0' : (isExpanded ? 'w-[280px]' : 'w-[64px]');
+  const gridTemplate = hideShell ? 'grid-cols-1' : (isExpanded ? 'md:grid-cols-[280px_1fr]' : 'md:grid-cols-[64px_1fr]');
+
+  const handleLauncherAppClick = (appId: string, route?: string) => {
+    console.log(`[Layout] Launcher App Clicked: ${appId} -> Routing to: ${route || 'default'}`);
+    
+    // Use explicit route if provided by Launcher, otherwise fallback to mapping
+    const targetRoute = route || (
+      appId === 'direct-ai' ? '/dashboard' :
+      appId === 'dtf-factory' ? '/dtf-factory' :
+      appId === 'montador' ? '/montador' :
+      null
+    );
+
+    if (targetRoute) {
+      closeLauncher();
+      navigate(targetRoute);
     } else {
       toast({
         title: "Em breve",
@@ -139,7 +237,8 @@ const Layout = () => {
       {/* Sidebar - Desktop (Primeira Coluna do Grid) */}
       <div
         className={cn(
-          "hidden border-r bg-sidebar transition-all duration-300 ease-in-out md:flex flex-col h-full shadow-lg hover:shadow-xl",
+          "border-r bg-sidebar transition-all duration-300 ease-in-out flex-col h-full shadow-lg hover:shadow-xl",
+          hideShell ? "hidden" : "hidden md:flex",
           sidebarWidth
         )}
         onMouseEnter={() => setIsExpanded(true)}
@@ -262,14 +361,17 @@ const Layout = () => {
       </div>
 
       {/* Main Content (Segunda Coluna do Grid) */}
-      <div className="flex flex-col">
-        <header className="fixed top-0 left-0 right-0 z-40 w-full border-b bg-background/80 backdrop-blur-md transition-all duration-300">
+      <div className="flex flex-col min-h-screen">
+        <header className={cn(
+          "fixed top-0 left-0 right-0 z-40 w-full border-b bg-background/80 backdrop-blur-md transition-all duration-300",
+          hideShell && "translate-y-[-100%] opacity-0 pointer-events-none"
+        )}>
           {/* Safe Area Spacer for iOS/Mobile */}
           <div className="h-safe-top pt-safe" />
 
           <div className="flex h-14 items-center gap-4 px-4 lg:h-[60px] lg:px-6">
             <button
-              onClick={() => setShowLauncher(!showLauncher)}
+              onClick={toggleLauncher}
               className="flex items-center gap-2 font-semibold hover:opacity-80 transition-opacity"
             >
               <svg width="28" height="17" viewBox="0 0 200 120" className="flex-shrink-0">
@@ -302,13 +404,62 @@ const Layout = () => {
         </header>
 
         {/* Global Spacers to prevent content from going under the fixed header */}
-        <div className="h-14 lg:h-[60px]" />
-        <div className="h-safe-top pt-safe" />
+        {!hideShell && (
+          <>
+            <div className="h-14 lg:h-[60px]" />
+            <div className="h-safe-top pt-safe" />
+          </>
+        )}
 
         <SubscriptionAlert />
 
-        <main className="flex flex-1 flex-col gap-3 p-3 sm:gap-4 sm:p-4 lg:gap-6 lg:p-6 w-full max-w-[100vw] overflow-x-hidden">
-          <Outlet />
+        <main className={cn(
+          "flex flex-1 flex-col w-full max-w-[100vw] overflow-x-hidden relative",
+          hideShell ? "p-0 gap-0" : (location.pathname === '/' || location.pathname === '/dashboard') ? "p-0 gap-0" : "gap-3 p-3 sm:gap-4 sm:p-4 lg:gap-6 lg:p-6"
+        )}>
+          {/* Layer 1: Traditional Router Outlet (Standard Pages) */}
+          <AnimatePresence mode="wait">
+              {!PERSISTENT_APP_ROUTES.includes(location.pathname) && (
+                <motion.div
+                  key={location.pathname}
+                  initial={{ opacity: 0, scale: 0.96, y: 10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 1.04, y: -10 }}
+                  transition={{ 
+                    duration: 0.6, 
+                    ease: [0.16, 1, 0.3, 1],
+                    opacity: { duration: 0.4 }
+                  }}
+                  className="flex flex-col flex-1 w-full h-full"
+                >
+                  <Outlet />
+                </motion.div>
+              )}
+          </AnimatePresence>
+
+          {/* Layer 2: Persistent App Instance (DTF Factory) */}
+          {visitedPersistentApps.has('/dtf-factory') && (
+            <div className={cn(
+              "flex-col flex-1 w-full h-full",
+              location.pathname !== '/dtf-factory' && "hidden pointer-events-none invisible h-0 overflow-hidden"
+            )}>
+              <React.Suspense fallback={null}>
+                <DTFFactory />
+              </React.Suspense>
+            </div>
+          )}
+
+          {/* Layer 3: Persistent App Instance (Montador) */}
+          {visitedPersistentApps.has('/montador') && (
+            <div className={cn(
+              "flex-col flex-1 w-full h-full",
+              location.pathname !== '/montador' && "hidden pointer-events-none invisible h-0 overflow-hidden"
+            )}>
+              <React.Suspense fallback={null}>
+                <MontadorPage />
+              </React.Suspense>
+            </div>
+          )}
         </main>
         {location.pathname !== '/settings' && (
           <MobileBottomNav
@@ -358,29 +509,31 @@ const Layout = () => {
         </button>
       )}
 
-      {/* OverPixel Launcher Frame — Top bar + Left sidebar expanding around content */}
+      {/* OverPixel Launcher Frame — Consolidated 2026 */}
       <AnimatePresence>
         {showLauncher && (
-          <>
-            {/* Backdrop — dims the content behind */}
+          <motion.div 
+            className="fixed inset-0 z-[9990] flex items-center justify-center pointer-events-none"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            {/* Background Blur Overlay (Click outside to close) */}
             <motion.div
-              className="fixed inset-0 z-[9990] bg-black/60 backdrop-blur-sm"
-              onClick={() => setShowLauncher(false)}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
+              onClick={closeLauncher}
+              className="fixed inset-0 z-[9991] bg-black/40 backdrop-filter blur-md pointer-events-auto"
             />
 
-            {/* Top Bar */}
+            {/* Top Bar Framework */}
             <motion.div
-              className="fixed top-0 left-0 right-0 z-[9992] h-16 flex items-center justify-between px-6"
-              style={{
-                background: 'rgba(8, 8, 18, 0.92)',
-                backdropFilter: 'blur(30px)',
-                borderBottom: '1px solid rgba(6, 182, 212, 0.12)',
-                boxShadow: '0 4px 30px rgba(0, 0, 0, 0.4)',
-              }}
+              className={cn(
+                "fixed top-0 left-0 right-0 z-[9992] h-16 flex items-center justify-between px-6 launcher-top-bar pointer-events-auto",
+                launcherTheme === 'light' ? 'launcher-bar-glass-light' : 'launcher-bar-glass-dark'
+              )}
               initial={{ y: -64, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: -64, opacity: 0 }}
@@ -399,7 +552,6 @@ const Layout = () => {
               <div className="flex items-center gap-4">
                 {/* Credits / Moeda OverPixel */}
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-cyan-500/15 bg-cyan-500/5 hover:bg-cyan-500/10 transition-colors cursor-pointer group" title="Créditos OverPixel">
-                  {/* Custom coin icon — mini OverPixel logo as coin */}
                   <div className="w-6 h-6 rounded-full flex items-center justify-center bg-gradient-to-br from-cyan-400/20 to-cyan-600/20 border border-cyan-400/30 group-hover:border-cyan-400/50 transition-all shadow-[0_0_8px_rgba(6,182,212,0.15)]">
                     <svg width="12" height="8" viewBox="0 0 200 120">
                       <circle cx="72" cy="60" r="38" fill="none" stroke="#67e8f9" strokeWidth="12" />
@@ -407,24 +559,24 @@ const Layout = () => {
                     </svg>
                   </div>
                   <span className="text-xs font-bold text-cyan-300/80 tabular-nums">
-                    {(profile as any)?.credits ?? 0}
+                    {(profile as any)?.ai_credits ?? 0}
                   </span>
-                  <span className="text-[9px] font-bold tracking-wider text-cyan-400/40 uppercase hidden sm:inline">OPX</span>
+                  <span className="text-[9px] font-bold tracking-wider text-cyan-400/40 uppercase hidden sm:inline">CRÉDITOS IA</span>
                 </div>
 
                 {/* Profile */}
-                <div className="flex items-center gap-2 px-2 py-1.5 rounded-full hover:bg-white/5 transition-colors cursor-pointer" title={profile?.full_name || 'Perfil'}>
+                <div className="flex items-center gap-2 px-2 py-1.5 rounded-full hover:bg-white/5 transition-colors cursor-pointer" title={(profile as any)?.full_name || (profile as any)?.name || 'Perfil'}>
                   <div className="w-7 h-7 rounded-full bg-gradient-to-br from-fuchsia-500/40 to-cyan-500/40 border border-white/10 flex items-center justify-center text-[11px] font-bold text-white/80">
-                    {profile?.full_name?.charAt(0)?.toUpperCase() || 'U'}
+                    {((profile as any)?.full_name || (profile as any)?.name)?.charAt(0)?.toUpperCase() || 'U'}
                   </div>
                   <span className="text-xs font-medium text-white/50 hidden sm:inline max-w-[100px] truncate">
-                    {profile?.full_name || 'Usuário'}
+                    {(profile as any)?.full_name || (profile as any)?.name || 'Usuário'}
                   </span>
                 </div>
 
                 {/* Close */}
                 <button
-                  onClick={() => setShowLauncher(false)}
+                  onClick={closeLauncher}
                   className="p-2 rounded-lg text-white/30 hover:text-white hover:bg-white/5 transition-all"
                 >
                   <X className="w-5 h-5" />
@@ -432,22 +584,27 @@ const Layout = () => {
               </div>
             </motion.div>
 
-            <OverPixelLauncher 
-              isOpen={showLauncher} 
-              onClose={() => setShowLauncher(false)}
-              onAppClick={handleLauncherAppClick}
-              ref={launcherRef}
-            />
+            {/* Launcher Card Card Card */}
+            <div className="z-[9995] pointer-events-auto">
+              <OverPixelLauncher 
+                isOpen={showLauncher} 
+                onClose={closeLauncher}
+                onAppClick={handleLauncherAppClick}
+                isInline={true}
+                showSettings={showLauncherSettings}
+                glassTone={glassTone}
+                onToneChange={setGlassTone}
+                glassOpacity={glassOpacity}
+                onOpacityChange={setGlassOpacity}
+              />
+            </div>
 
-            {/* Left Sidebar — App Icons */}
+            {/* Left Sidebar — Launcher Icons Framework */}
             <motion.div
-              className="fixed top-16 left-0 bottom-0 z-[9991] w-[80px] flex flex-col items-center py-6 gap-2"
-              style={{
-                background: 'rgba(8, 8, 18, 0.92)',
-                backdropFilter: 'blur(30px)',
-                borderRight: '1px solid rgba(6, 182, 212, 0.08)',
-                boxShadow: '4px 0 30px rgba(0, 0, 0, 0.3)',
-              }}
+              className={cn(
+                "fixed top-16 left-0 bottom-0 z-[9993] w-[80px] flex flex-col items-center py-6 gap-2 launcher-side-bar pointer-events-auto",
+                launcherTheme === 'light' ? 'launcher-bar-glass-light' : 'launcher-bar-glass-dark'
+              )}
               initial={{ x: -80, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: -80, opacity: 0 }}
@@ -498,8 +655,12 @@ const Layout = () => {
                 whileTap={{ scale: 0.92 }}
                 title="O Montador — Builder de Layouts"
               >
-                <div className="w-12 h-12 rounded-full flex items-center justify-center border border-violet-500/30 bg-violet-500/10 group-hover:border-violet-500/50 transition-all">
-                  <LayoutGrid className="w-5 h-5 text-violet-400" />
+                {/* Active dot */}
+                {location.pathname === '/montador' && (
+                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-full bg-violet-500 shadow-[0_0_8px_rgba(139,92,246,0.6)]" />
+                )}
+                <div className="w-12 h-12 rounded-full flex items-center justify-center border border-white/5 bg-white/5 group-hover:border-violet-500/50 group-hover:shadow-[0_0_20px_rgba(139,92,246,0.2)] transition-all overflow-hidden">
+                  <img src="/montador/logo-montador-fast.png" alt="O Montador" className="w-full h-full object-cover scale-150" />
                 </div>
                 <span className="text-[9px] font-bold text-white/50 group-hover:text-white/80 transition-colors tracking-wide">Montador</span>
               </motion.button>
@@ -521,21 +682,41 @@ const Layout = () => {
               {/* Spacer */}
               <div className="flex-1" />
 
-              {/* Home / Launcher */}
+              {/* Home / Launcher (Primary Entry Point) */}
               <motion.button
-                onClick={() => { navigate('/'); setShowLauncher(false); }}
-                className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-cyan-500/10 transition-all group"
+                onClick={() => { 
+                  if (!showLauncher) {
+                    setShowLauncher(true);
+                  } else {
+                    closeLauncher();
+                    // If already on dashboard, just close. Otherwise navigate home.
+                    if (location.pathname !== '/') navigate('/');
+                  }
+                }}
+                className={cn(
+                  "flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all group",
+                  showLauncher ? "bg-cyan-500/20" : "hover:bg-cyan-500/10"
+                )}
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.92 }}
                 title="OverPixel Launcher"
               >
-                <div className="w-12 h-12 rounded-full flex items-center justify-center border border-cyan-500/15 bg-cyan-500/5 group-hover:border-cyan-500/30 transition-all">
-                  <Home className="w-5 h-5 text-cyan-400/50 group-hover:text-cyan-400/80 transition-colors" />
+                <div className={cn(
+                  "w-12 h-12 rounded-full flex items-center justify-center border transition-all",
+                  showLauncher ? "border-cyan-400/60 bg-cyan-400/10 shadow-[0_0_15px_rgba(6,182,212,0.3)]" : "border-cyan-500/15 bg-cyan-500/5 group-hover:border-cyan-500/30"
+                )}>
+                  <Home className={cn(
+                    "w-5 h-5 transition-colors",
+                    showLauncher ? "text-cyan-400" : "text-cyan-400/50 group-hover:text-cyan-400/80"
+                  )} />
                 </div>
-                <span className="text-[9px] font-bold text-cyan-400/30 group-hover:text-cyan-400/60 transition-colors tracking-wide">Home</span>
+                <span className={cn(
+                  "text-[9px] font-bold transition-colors tracking-wide",
+                  showLauncher ? "text-cyan-400" : "text-cyan-400/30 group-hover:text-cyan-400/60"
+                )}>Home</span>
               </motion.button>
             </motion.div>
-          </>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

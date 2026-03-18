@@ -37,7 +37,7 @@ const Profile = lazy(() => import("./pages/Profile"));
 const GabiSettings = lazy(() => import("./pages/GabiSettings"));
 const Affiliate = lazy(() => import("./pages/Affiliate"));
 const LandingPage = lazy(() => import("./pages/LandingPage"));
-const OverPixelLauncher = lazy(() => import("./pages/OverPixelLauncher"));
+const OverPixelLauncher = lazy(() => import("./modules/launcher/Launcher"));
 const AuthConfirm = lazy(() => import("./pages/AuthConfirm"));
 const AuthCallback = lazy(() => import("./pages/AuthCallback"));
 const DTFFactory = lazy(() => import("./pages/DTFFactory.tsx"));
@@ -97,8 +97,6 @@ const App = () => (
                       <Route path="/landing-page" element={<LandingPage />} />
                       <Route path="/auth/confirm" element={<AuthConfirm />} />
                       <Route path="/auth/callback" element={<AuthCallback />} />
-                      <Route path="/dtf-factory" element={<DTFFactory />} />
-                      <Route path="/montador" element={<MontadorPage />} />
                       <Route path="/producao/tv" element={<ProductionTV />} />
                       <Route path="/index.html" element={<Navigate to="/" replace />} />
                       <Route path="/" element={<OverPixelLauncher />} />
@@ -130,6 +128,8 @@ const App = () => (
                                 <Admin />
                               </AdminRoute>
                             } />
+                            <Route path="/dtf-factory" element={null} />
+                            <Route path="/montador" element={null} />
                             <Route path="*" element={<NotFound />} />
                           </Route>
                         </Route>

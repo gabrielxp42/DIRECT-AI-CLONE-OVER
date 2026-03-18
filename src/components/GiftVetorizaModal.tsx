@@ -1,7 +1,7 @@
 
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useSession } from "@/contexts/SessionProvider";
 import { Sparkles, Gift, Zap, ChevronRight, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -80,6 +80,14 @@ export function GiftVetorizaModal() {
     return (
         <Dialog open={isOpen && isAllowed(MODAL_ID)} onOpenChange={markAsViewed}>
             <DialogContent className="gift-modal-box w-[95vw] max-w-[550px] p-0 overflow-hidden rounded-[1.5rem] sm:rounded-[2.5rem] border border-white/10 shadow-[0_0_100px_rgba(0,0,0,0.9)] bg-zinc-950/80 backdrop-blur-3xl">
+                <div className="sr-only">
+                    <DialogHeader>
+                        <DialogTitle>Vetoriza AI - Presente Recebido</DialogTitle>
+                        <DialogDescription>
+                            Você recebeu 150 créditos de IA do administrador como presente exclusivo.
+                        </DialogDescription>
+                    </DialogHeader>
+                </div>
                 {/* Responsive scaling for smaller viewports */}
                 <style>{`
                     .gift-modal-box {

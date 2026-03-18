@@ -57,7 +57,7 @@ interface WidgetCardProps {
     config: WidgetConfig;
 }
 
-export default function WidgetCard({ config }: WidgetCardProps) {
+const WidgetCard = React.forwardRef<HTMLDivElement, WidgetCardProps>(({ config }, ref) => {
     const { updateWidget, removeWidget, duplicateWidget, globalGenerationTimestamp, setWidgetGenerating } = useWidgets();
     const { tokenBalance, session, refreshBalance, updateBalanceOptimistically } = useLauncherAuth();
     const { styles } = usePromptStyles();
@@ -567,6 +567,7 @@ export default function WidgetCard({ config }: WidgetCardProps) {
     return (
         <>
             <motion.div
+                ref={ref}
                 layout
                 initial={{ opacity: 0, scale: 0.95, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -806,4 +807,7 @@ export default function WidgetCard({ config }: WidgetCardProps) {
             />
         </>
     );
-}
+});
+
+WidgetCard.displayName = 'WidgetCard';
+export default WidgetCard;

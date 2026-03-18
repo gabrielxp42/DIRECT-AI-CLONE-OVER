@@ -79,9 +79,12 @@ export const useRealtimeSync = () => {
                     filter: `uid=eq.${userId}`
                 },
                 (payload) => {
-                    console.log('[Realtime] Alteração em Perfil (Balance/Settings) detectada:', payload.eventType);
+                    console.log('[Realtime] Alteração em Perfil detectada:', payload.eventType);
                     queryClient.invalidateQueries({ queryKey: ['companyProfile'] });
                     queryClient.invalidateQueries({ queryKey: ['profile_logistics_settings'] });
+                    
+                    // Dispara um evento global para que o SessionProvider possa atualizar
+                    window.dispatchEvent(new CustomEvent('refresh-profile'));
                 }
             )
             .on(

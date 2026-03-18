@@ -28,12 +28,12 @@ export const QuickActionCard: React.FC<QuickActionCardProps> = ({
   const navigate = useNavigate();
 
   const variantStyles = {
-    amber: "bg-transparent border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/5 dark:bg-zinc-900/40",
-    blue: "bg-transparent border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-500/5 dark:bg-zinc-900/40",
-    rose: "bg-transparent border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-500/5 dark:bg-zinc-900/40",
-    indigo: "bg-transparent border-indigo-500/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/5 dark:bg-zinc-900/40",
-    emerald: "bg-transparent border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/5 dark:bg-zinc-900/40",
-    zinc: "bg-transparent border-zinc-500/30 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-500/5 dark:bg-zinc-900/40",
+    amber: "bg-transparent border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/5 dark:bg-card/40",
+    blue: "bg-transparent border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-500/5 dark:bg-card/40",
+    rose: "bg-transparent border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-500/5 dark:bg-card/40",
+    indigo: "bg-transparent border-indigo-500/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/5 dark:bg-card/40",
+    emerald: "bg-transparent border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/5 dark:bg-card/40",
+    zinc: "bg-transparent border-zinc-500/30 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-500/5 dark:bg-card/40",
   };
 
   const handleClick = () => {
