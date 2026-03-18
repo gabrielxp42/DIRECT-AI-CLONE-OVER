@@ -56,9 +56,9 @@ export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({ isOpen, onCl
         if (!user) return;
 
         const { data, error } = await supabase
-            .from('profiles')
+            .from('profiles_v2')
             .select('ai_credits')
-            .eq('id', user.id)
+            .eq('uid', user.id)
             .single();
 
         if (!error && data) {

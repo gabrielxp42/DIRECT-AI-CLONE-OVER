@@ -6,7 +6,7 @@ Deno.serve(async (req: Request) => {
         SUPABASE_SERVICE_ROLE_KEY: !!Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'),
         EVOLUTION_API_URL: !!Deno.env.get('EVOLUTION_API_URL'),
         EVOLUTION_API_KEY: !!Deno.env.get('EVOLUTION_API_KEY'),
-        OPENAI_API_KEY: !!Deno.env.get('OPENAI_API_KEY'),
+        OPENAI_API_KEY2: !!Deno.env.get('OPENAI_API_KEY2'),
         GABI_BRAIN_URL: !!Deno.env.get('GABI_BRAIN_URL')
     };
 

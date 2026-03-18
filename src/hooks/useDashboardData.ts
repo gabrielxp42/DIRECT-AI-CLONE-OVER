@@ -127,7 +127,7 @@ const fetchDashboardData = async (userId: string | undefined, hasFinancialPermis
     // Pending Payment: not paid, not cancelled, not delivered
     doCount('pedidos', new URLSearchParams({ status: 'not.in.(pago,cancelado,entregue)', user_id: `eq.${userId}` })),
     // Onboarding counts
-    userId ? doFetch('profiles', new URLSearchParams({ id: `eq.${userId}`, select: 'company_name', limit: '1' })) : Promise.resolve([]),
+    userId ? doFetch('profiles_v2', new URLSearchParams({ uid: `eq.${userId}`, select: 'company_name', limit: '1' })) : Promise.resolve([]),
     doCount('produtos', new URLSearchParams({ user_id: `eq.${userId}` })),
     doCount('clientes', new URLSearchParams({ user_id: `eq.${userId}` })),
     doCount('pedidos', new URLSearchParams({ user_id: `eq.${userId}` })),

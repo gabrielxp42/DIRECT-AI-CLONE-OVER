@@ -7,7 +7,11 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/integrations/supabase/client'
 export const getValidToken = async (): Promise<string | null> => {
     try {
         // 1. Pegar sessão do localStorage ou sessionStorage
-        const getAuthKey = (storage: Storage) => Object.keys(storage).find(key => key.includes('auth-token'));
+        const getAuthKey = (storage: Storage) => {
+            const projectRef = SUPABASE_URL.match(/https:\/\/(.*?)\.supabase\.co/)?.[1];
+            const exactKey = projectRef ? `sb-${projectRef}-auth-token` : null;
+            return Object.keys(storage).find(key => exactKey ? key === exactKey : key.includes('auth-token'));
+        };
 
         let authKey = getAuthKey(localStorage);
         let storage = localStorage;

@@ -1,0 +1,89 @@
+/* ============================================
+   GabiAvatar — Neon Eyes Identity System
+   ============================================ */
+
+/* Neon glow pulse */
+@keyframes gabiGlow {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+/* Blink animation — squash the eyes vertically */
+@keyframes gabiBlink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  96% { transform: scaleY(0.05); }
+}
+
+/* Infinity path drawing */
+@keyframes gabiInfinityDraw {
+  0% { stroke-dashoffset: 200; }
+  100% { stroke-dashoffset: 0; }
+}
+
+/* Shake for error state */
+@keyframes gabiShake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-2px); }
+  40% { transform: translateX(2px); }
+  60% { transform: translateX(-1.5px); }
+  80% { transform: translateX(1.5px); }
+}
+
+/* Listening pulse */
+@keyframes gabiListenPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+
+/* Success flash */
+@keyframes gabiSuccessFlash {
+  0% { opacity: 0; transform: scale(0.5); }
+  50% { opacity: 1; transform: scale(1.2); }
+  100% { opacity: 0; transform: scale(1.5); }
+}
+
+.gabi-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.gabi-avatar svg {
+  overflow: visible;
+}
+
+/* Eye group — applies blink */
+.gabi-eyes {
+  transform-origin: center center;
+  animation: gabiBlink 5s ease-in-out infinite;
+}
+
+/* Neon glow filter layer */
+.gabi-eye-glow {
+  animation: gabiGlow 3s ease-in-out infinite;
+}
+
+/* Thinking state — eyes merge to infinity */
+.gabi-avatar--thinking .gabi-eyes {
+  animation: none;
+}
+
+.gabi-avatar--thinking .gabi-infinity {
+  animation: gabiInfinityDraw 1.5s ease-in-out infinite alternate;
+}
+
+/* Error state */
+.gabi-avatar--error .gabi-eyes {
+  animation: gabiShake 0.5s ease-in-out 3;
+}
+
+/* Listening state */
+.gabi-avatar--listening .gabi-eyes {
+  animation: gabiListenPulse 1.2s ease-in-out infinite;
+}
+
+/* Success flash overlay */
+.gabi-success-flash {
+  animation: gabiSuccessFlash 0.8s ease-out forwards;
+}

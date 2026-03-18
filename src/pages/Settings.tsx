@@ -104,13 +104,13 @@ const MagicMessageRotator = () => {
                 if (!user) return;
 
                 const { error } = await supabase
-                    .from('profiles')
+                    .from('profiles_v2')
                     .update({
                         subscription_tier: 'pro_max',
                         is_whatsapp_plus_gifted: true,
                         is_whatsapp_plus_active: true
                     })
-                    .eq('id', user.id);
+                    .eq('uid', user.id);
 
                 if (error) throw error;
 
@@ -182,13 +182,13 @@ export default function Settings() {
                 if (!user) return;
 
                 const { error } = await supabase
-                    .from('profiles')
+                    .from('profiles_v2')
                     .update({
                         subscription_tier: 'pro_max',
                         is_whatsapp_plus_gifted: true,
                         is_whatsapp_plus_active: true
                     })
-                    .eq('id', user.id);
+                    .eq('uid', user.id);
 
                 if (error) throw error;
 

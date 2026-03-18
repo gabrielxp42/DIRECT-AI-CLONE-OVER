@@ -28,12 +28,12 @@ export const useDeviceTracker = () => {
                 if (!lastTracked || (now - parseInt(lastTracked)) > THROTTLE_MS || profile.pwa_version !== appVersion) {
 
                     await supabase
-                        .from('profiles')
+                        .from('profiles_v2')
                         .update({
                             pwa_version: appVersion,
                             last_active_at: new Date().toISOString()
                         })
-                        .eq('id', session.user.id);
+                        .eq('uid', session.user.id);
 
                     localStorage.setItem('last_device_track', now.toString());
                 }

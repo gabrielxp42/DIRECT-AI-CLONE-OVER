@@ -23,7 +23,7 @@ export function AdminUserRadar() {
         try {
             const { data, error } = await supabase
                 .from('system_logs')
-                .select('id, created_at, message, details, user_id, profile:profiles(company_name, email)')
+                .select('id, created_at, message, details, user_id, profile:profiles_v2(company_name, email)')
                 .eq('category', 'page_view')
                 .order('created_at', { ascending: false })
                 .limit(50);

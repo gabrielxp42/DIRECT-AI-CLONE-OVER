@@ -9,6 +9,7 @@ import { getValidToken } from '@/utils/tokenGuard';
 
 type Profile = {
   id: string;
+  uid: string;
   organization_id: string | null;
   trial_start_date: string | null;
   subscription_tier?: string | null;
@@ -145,7 +146,7 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
   const fetchProfileData = async (userId: string, token: string) => {
     try {
       // Usar fetch direto como no restante do projeto para máxima estabilidade
-      const url = `${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}&select=*`;
+      const url = `${SUPABASE_URL}/rest/v1/profiles_v2?uid=eq.${userId}&select=*`;
       const response = await fetch(url, {
         headers: {
           'apikey': SUPABASE_ANON_KEY,
@@ -212,7 +213,11 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
         const token = await getValidToken();
 
         if (token && mounted) {
-          const getAuthKey = (storage: Storage) => Object.keys(storage).find(key => key.includes('auth-token'));
+          const getAuthKey = (storage: Storage) => {
+            const projectRef = SUPABASE_URL.match(/https:\/\/(.*?)\.supabase\.co/)?.[1];
+            const exactKey = projectRef ? `sb-${projectRef}-auth-token` : null;
+            return Object.keys(storage).find(key => exactKey ? key === exactKey : key.includes('auth-token'));
+          };
           let authKey = getAuthKey(localStorage);
           let storage = localStorage;
 
@@ -300,8 +305,8 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
     initializeFull();
 
     const channel = supabaseClient
-      .channel('public:profiles_updates')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' },
+      .channel('public:profiles_v2_updates')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles_v2' },
         (payload) => {
           if (mounted && stateRef.current.session?.user?.id === payload.new.id) {
             console.log('⚡ [SessionProvider] Profile update synced');

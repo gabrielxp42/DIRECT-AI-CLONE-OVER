@@ -64,9 +64,9 @@ export const useTour = (steps: TutorialStep[], tourId: string) => {
                 const uniqueTours = Array.from(new Set(updatedTours));
 
                 const { error } = await supabase
-                    .from('profiles')
+                    .from('profiles_v2')
                     .update({ completed_tours: uniqueTours })
-                    .eq('id', profile.id);
+                    .eq('uid', profile.id);
 
                 if (error) {
                     console.error('Error saving tour progress:', error);

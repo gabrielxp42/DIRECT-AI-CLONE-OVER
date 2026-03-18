@@ -59,7 +59,7 @@ export function AdminWalletManager() {
         setIsSearching(true);
         try {
             const { data, error } = await supabase
-                .from('profiles')
+                .from('profiles_v2')
                 .select('id, email, company_name, wallet_balance, frenet_balance, ai_credits, subscription_status')
                 .order('company_name', { ascending: true });
 
@@ -139,9 +139,9 @@ export function AdminWalletManager() {
             // 1. Update balance
             const newBalance = currentBalance + numAmount;
             const { error: updateError } = await supabase
-                .from('profiles')
+                .from('profiles_v2')
                 .update({ [fieldToUpdate]: newBalance })
-                .eq('id', selectedUser.id);
+                .eq('uid', selectedUser.id);
 
             if (updateError) throw updateError;
 

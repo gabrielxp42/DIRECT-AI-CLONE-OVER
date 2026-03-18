@@ -64,10 +64,12 @@ export interface AgentInsight {
 
 export class AgentMemoryManager {
     private userId: string;
+    private organizationId?: string;
     private currentConversationId?: string;
 
-    constructor(userId: string) {
+    constructor(userId: string, organizationId?: string) {
         this.userId = userId;
+        this.organizationId = organizationId;
     }
 
     // ============================================
@@ -94,6 +96,7 @@ export class AgentMemoryManager {
                 },
                 body: JSON.stringify({
                     user_id: this.userId,
+                    organization_id: this.organizationId,
                     title: title || 'Nova conversa',
                     is_active: true
                 })
@@ -123,9 +126,13 @@ export class AgentMemoryManager {
             const token = await getValidToken();
             if (!token) throw new Error('Token inválido');
 
-            // Busca conversa ativa
-            const response = await fetch(
-                `${SUPABASE_URL}/rest/v1/agent_conversations?user_id=eq.${this.userId}&is_active=eq.true&order=last_message_at.desc&limit=1`,
+            // Busca conversa ativa filtrando por usuário e organização
+            let url = `${SUPABASE_URL}/rest/v1/agent_conversations?user_id=eq.${this.userId}&is_active=eq.true&order=last_message_at.desc&limit=1`;
+            if (this.organizationId) {
+                url += `&organization_id=eq.${this.organizationId}`;
+            }
+
+            const response = await fetch(url,
                 {
                     headers: {
                         'apikey': SUPABASE_ANON_KEY,
@@ -268,6 +275,7 @@ export class AgentMemoryManager {
 
             const body: any = {
                 p_user_id: this.userId,
+                p_organization_id: this.organizationId || null,
                 p_memory_type: memoryType,
                 p_category: options.category || null,
                 p_content: content,
@@ -360,7 +368,8 @@ export class AgentMemoryManager {
                             query_embedding: embedding,
                             match_threshold: 0.5, // Similaridade mínima
                             match_count: limit,
-                            p_user_id: this.userId
+                            p_user_id: this.userId,
+                            p_organization_id: this.organizationId || null
                         })
                     });
 

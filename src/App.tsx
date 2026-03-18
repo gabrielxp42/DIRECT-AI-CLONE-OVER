@@ -37,11 +37,14 @@ const Profile = lazy(() => import("./pages/Profile"));
 const GabiSettings = lazy(() => import("./pages/GabiSettings"));
 const Affiliate = lazy(() => import("./pages/Affiliate"));
 const LandingPage = lazy(() => import("./pages/LandingPage"));
+const OverPixelLauncher = lazy(() => import("./pages/OverPixelLauncher"));
 const AuthConfirm = lazy(() => import("./pages/AuthConfirm"));
 const Logistics = lazy(() => import("./pages/Logistics"));
 const Vetorizador = lazy(() => import("./pages/Vetorizador"));
 import ProductionKanban from "./pages/ProductionKanban";
 const ProductionTV = lazy(() => import("./pages/ProductionTV"));
+const MontadorPage = lazy(() => import("./pages/Montador"));
+import { OverPixelDock } from './components/OverPixelDock';
 
 
 // Configurar QueryClient com opções otimizadas
@@ -93,7 +96,7 @@ const App = () => (
                       <Route path="/auth/confirm" element={<AuthConfirm />} />
                       <Route path="/producao/tv" element={<ProductionTV />} />
                       <Route path="/index.html" element={<Navigate to="/" replace />} />
-                      <Route path="/" element={<LandingPage />} />
+                      <Route path="/" element={<OverPixelLauncher />} />
                       <Route element={<ProtectedRoute />}>
                         <Route element={<SubscriptionGuard />}>
                           <Route element={
@@ -116,6 +119,7 @@ const App = () => (
                             <Route path="/affiliate" element={<Affiliate />} />
                             <Route path="/vetorizar" element={<Vetorizador />} />
                             <Route path="/producao" element={<ProductionKanban />} />
+                            <Route path="/montador" element={<MontadorPage />} />
 
                             <Route path="/admin" element={
                               <AdminRoute>
@@ -129,6 +133,7 @@ const App = () => (
                     </Routes>
                   </Suspense>
                 </ErrorBoundary>
+                <OverPixelDock />
               </DynamicThemeProvider>
             </SessionProvider>
           </BrowserRouter>

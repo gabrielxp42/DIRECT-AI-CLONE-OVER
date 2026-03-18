@@ -1,8 +1,11 @@
 import * as React from 'react';
-import { Outlet, Link, useLocation } from 'react-router-dom';
-import { Home, ShoppingCart, Users, BarChart3, Package, MessageSquare, Layers, Sparkles, Image as ImageIcon, Bot, Truck } from 'lucide-react';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
+import { Home, ShoppingCart, Users, BarChart3, Package, MessageSquare, Layers, Sparkles, Image as ImageIcon, Bot, Truck, Grid2x2, X, LayoutGrid, CloudCog, Wand2 } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { AIAssistant } from './AIAssistant';
 import { ThemeToggle } from './ThemeToggle';
+import { GabiAvatar } from './GabiAvatar';
+import { useToast } from '@/hooks/use-toast';
 import { UserNav } from './UserNav';
 import { MobileBottomNav } from './MobileBottomNav';
 import { useAIAssistant } from '@/contexts/AIAssistantProvider';
@@ -29,6 +32,7 @@ import { ModalQueueProvider } from '@/contexts/ModalQueueContext';
 import { ActivityTracker } from './ActivityTracker';
 import { ProfileSelector } from './ProfileSelector';
 import { useSession } from '@/contexts/SessionProvider';
+import OverPixelLauncher from '@/pages/OverPixelLauncher';
 
 const staticNavItems = [
   { href: '/dashboard', icon: Home, label: 'Dashboard', permission: 'view_dashboard' },
@@ -47,9 +51,12 @@ const Layout = () => {
   const { isOpen, open: openAIAssistant } = useAIAssistant();
   const isMobile = useIsMobile();
   const location = useLocation();
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const { data: insumos } = useInsumos();
   const [isCalculatorOpen, setIsCalculatorOpen] = React.useState(false);
   const [isVetorizadorOpen, setIsVetorizadorOpen] = React.useState(false);
+  const [showLauncher, setShowLauncher] = React.useState(false);
 
   // Listen for open-vetorizador event (e.g. from GiftVetorizaModal)
   React.useEffect(() => {
@@ -57,6 +64,26 @@ const Layout = () => {
     window.addEventListener('open-vetorizador', handler);
     return () => window.removeEventListener('open-vetorizador', handler);
   }, []);
+
+  // Close launcher on navigation
+  React.useEffect(() => {
+    setShowLauncher(false);
+  }, [location.pathname]);
+
+  // Click outside to close launcher
+  const launcherRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (!showLauncher) return;
+    
+    const handleClickOutside = (e: MouseEvent) => {
+      if (launcherRef.current && !launcherRef.current.contains(e.target as Node)) {
+        setShowLauncher(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showLauncher]);
 
   // Ativar sincronização em tempo real (Supabase Realtime)
   useRealtimeSync();
@@ -87,6 +114,22 @@ const Layout = () => {
   const sidebarWidth = isExpanded ? 'w-[280px]' : 'w-[64px]';
   const gridTemplate = isExpanded ? 'md:grid-cols-[280px_1fr]' : 'md:grid-cols-[64px_1fr]';
 
+  const handleLauncherAppClick = (appId: string) => {
+    if (appId === 'direct-ai') {
+      navigate('/dashboard');
+      setShowLauncher(false);
+    } else if (appId === 'montador') {
+      navigate('/montador');
+      setShowLauncher(false);
+    } else {
+      toast({
+        title: '🚧 Em Construção',
+        description: 'Este aplicativo está sendo desenvolvido. Em breve!',
+        duration: 3000,
+      });
+    }
+  };
+
   return (
     <ModalQueueProvider>
     <div className={cn("grid min-h-screen w-full transition-all duration-300", gridTemplate)}>
@@ -100,21 +143,24 @@ const Layout = () => {
         onMouseLeave={() => setIsExpanded(false)}
       >
         <div className="flex h-full flex-col gap-2">
-          {/* Header do Sidebar */}
+          {/* Header do Sidebar — Click to toggle launcher */}
           <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-4 overflow-hidden">
-            <Link to="/dashboard" className="flex items-center gap-3 font-semibold text-sidebar-foreground">
-              {companyProfile?.company_logo_url ? (
-                <img src={companyProfile.company_logo_url} alt="Company Logo" className="h-8 w-8 object-contain flex-shrink-0" />
-              ) : (
-                <img src="/logo.png" alt="Direct DTF Logo" className="h-8 w-8 flex-shrink-0" />
-              )}
+            <button
+              onClick={() => setShowLauncher(!showLauncher)}
+              className="flex items-center gap-3 font-semibold text-sidebar-foreground hover:opacity-80 transition-all"
+            >
+              {/* OverPixel mini logo as sidebar trigger */}
+              <svg width="32" height="20" viewBox="0 0 200 120" className="flex-shrink-0">
+                <circle cx="72" cy="60" r="34" fill="none" stroke="#67e8f9" strokeWidth="8" opacity={showLauncher ? 1 : 0.6} />
+                <circle cx="128" cy="60" r="34" fill="none" stroke="#67e8f9" strokeWidth="8" opacity={showLauncher ? 1 : 0.6} />
+              </svg>
               <span className={cn(
                 "text-lg font-bold whitespace-nowrap transition-opacity duration-200",
                 isExpanded ? "opacity-100" : "opacity-0"
               )}>
                 {companyProfile?.company_name || 'DIRECT AI'}
               </span>
-            </Link>
+            </button>
           </div>
 
           {/* Navegação e Ferramentas */}
@@ -176,6 +222,30 @@ const Layout = () => {
             />
           </div>
 
+          {/* App Switcher — Back to OverPixel */}
+          <div className="p-2 border-t border-sidebar-border">
+            <Link
+              to="/"
+              className={cn(
+                "flex items-center gap-3 rounded-lg px-3 py-2.5 transition-all duration-300 text-sidebar-foreground/60 hover:text-cyan-400 hover:bg-cyan-500/10 group",
+                isExpanded ? "" : "justify-center"
+              )}
+              title="Trocar de aplicativo"
+            >
+              {/* Mini OverPixel logo */}
+              <svg width="20" height="12" viewBox="0 0 200 120" className="flex-shrink-0">
+                <circle cx="72" cy="60" r="34" fill="none" stroke="currentColor" strokeWidth="8" opacity={0.8} />
+                <circle cx="128" cy="60" r="34" fill="none" stroke="currentColor" strokeWidth="8" opacity={0.8} />
+              </svg>
+              <span className={cn(
+                "text-xs font-bold tracking-wider uppercase whitespace-nowrap transition-opacity duration-300",
+                isExpanded ? "opacity-100" : "opacity-0 w-0"
+              )}>
+                OverPixel
+              </span>
+            </Link>
+          </div>
+
           {/* Footer do Sidebar */}
           <div className="p-4 border-t border-sidebar-border overflow-hidden">
             <p className={cn(
@@ -195,21 +265,33 @@ const Layout = () => {
           <div className="h-safe-top pt-safe" />
 
           <div className="flex h-14 items-center gap-4 px-4 lg:h-[60px] lg:px-6">
-            <Link to="/dashboard" className="flex items-center gap-2 font-semibold hover:opacity-80 transition-opacity">
-              {companyProfile?.company_logo_url ? (
-                <img src={companyProfile.company_logo_url} alt="Company Logo" className="h-8 w-8 object-contain" />
-              ) : (
-                <img src="/logo.png" alt="Direct AI Logo" className="h-8 w-8" />
-              )}
+            <button
+              onClick={() => setShowLauncher(!showLauncher)}
+              className="flex items-center gap-2 font-semibold hover:opacity-80 transition-opacity"
+            >
+              <svg width="28" height="17" viewBox="0 0 200 120" className="flex-shrink-0">
+                <circle cx="72" cy="60" r="34" fill="none" stroke="#67e8f9" strokeWidth="9" opacity={0.8} />
+                <circle cx="128" cy="60" r="34" fill="none" stroke="#67e8f9" strokeWidth="9" opacity={0.8} />
+              </svg>
               <span className="tracking-tighter font-black italic">
                 {companyProfile?.company_name || 'DIRECT AI'}
               </span>
-            </Link>
+            </button>
 
 
             <div className="w-full flex-1" />
 
             <div className="flex items-center gap-2">
+              <Link
+                to="/"
+                className="p-2 rounded-lg hover:bg-cyan-500/10 transition-colors group"
+                title="Trocar de aplicativo"
+              >
+                <svg width="18" height="11" viewBox="0 0 200 120" className="text-muted-foreground group-hover:text-cyan-400 transition-colors">
+                  <circle cx="72" cy="60" r="34" fill="none" stroke="currentColor" strokeWidth="9" />
+                  <circle cx="128" cy="60" r="34" fill="none" stroke="currentColor" strokeWidth="9" />
+                </svg>
+              </Link>
               <ThemeToggle />
               <UserNav />
             </div>
@@ -272,6 +354,183 @@ const Layout = () => {
           <div className="absolute top-3 right-3 h-3 w-3 rounded-full bg-red-500 border-2 border-white dark:border-zinc-950 z-20 animate-pulse" />
         </button>
       )}
+
+      {/* OverPixel Launcher Frame — Top bar + Left sidebar expanding around content */}
+      <AnimatePresence>
+        {showLauncher && (
+          <>
+            {/* Backdrop — dims the content behind */}
+            <motion.div
+              className="fixed inset-0 z-[9990] bg-black/60 backdrop-blur-sm"
+              onClick={() => setShowLauncher(false)}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+            />
+
+            {/* Top Bar */}
+            <motion.div
+              className="fixed top-0 left-0 right-0 z-[9992] h-16 flex items-center justify-between px-6"
+              style={{
+                background: 'rgba(8, 8, 18, 0.92)',
+                backdropFilter: 'blur(30px)',
+                borderBottom: '1px solid rgba(6, 182, 212, 0.12)',
+                boxShadow: '0 4px 30px rgba(0, 0, 0, 0.4)',
+              }}
+              initial={{ y: -64, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: -64, opacity: 0 }}
+              transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+            >
+              {/* Left — Logo + Brand */}
+              <div className="flex items-center gap-3">
+                <svg width="36" height="22" viewBox="0 0 200 120" style={{ filter: 'drop-shadow(0 0 8px rgba(6, 182, 212, 0.5))' }}>
+                  <circle cx="72" cy="60" r="34" fill="none" stroke="#67e8f9" strokeWidth="7" />
+                  <circle cx="128" cy="60" r="34" fill="none" stroke="#67e8f9" strokeWidth="7" />
+                </svg>
+                <span className="text-sm font-light tracking-[0.4em] text-cyan-400/80 uppercase hidden sm:inline">OverPixel</span>
+              </div>
+
+              {/* Center / Right — Credits + Profile + Close */}
+              <div className="flex items-center gap-4">
+                {/* Credits / Moeda OverPixel */}
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-cyan-500/15 bg-cyan-500/5 hover:bg-cyan-500/10 transition-colors cursor-pointer group" title="Créditos OverPixel">
+                  {/* Custom coin icon — mini OverPixel logo as coin */}
+                  <div className="w-6 h-6 rounded-full flex items-center justify-center bg-gradient-to-br from-cyan-400/20 to-cyan-600/20 border border-cyan-400/30 group-hover:border-cyan-400/50 transition-all shadow-[0_0_8px_rgba(6,182,212,0.15)]">
+                    <svg width="12" height="8" viewBox="0 0 200 120">
+                      <circle cx="72" cy="60" r="38" fill="none" stroke="#67e8f9" strokeWidth="12" />
+                      <circle cx="128" cy="60" r="38" fill="none" stroke="#67e8f9" strokeWidth="12" />
+                    </svg>
+                  </div>
+                  <span className="text-xs font-bold text-cyan-300/80 tabular-nums">
+                    {(profile as any)?.credits ?? 0}
+                  </span>
+                  <span className="text-[9px] font-bold tracking-wider text-cyan-400/40 uppercase hidden sm:inline">OPX</span>
+                </div>
+
+                {/* Profile */}
+                <div className="flex items-center gap-2 px-2 py-1.5 rounded-full hover:bg-white/5 transition-colors cursor-pointer" title={profile?.full_name || 'Perfil'}>
+                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-fuchsia-500/40 to-cyan-500/40 border border-white/10 flex items-center justify-center text-[11px] font-bold text-white/80">
+                    {profile?.full_name?.charAt(0)?.toUpperCase() || 'U'}
+                  </div>
+                  <span className="text-xs font-medium text-white/50 hidden sm:inline max-w-[100px] truncate">
+                    {profile?.full_name || 'Usuário'}
+                  </span>
+                </div>
+
+                {/* Close */}
+                <button
+                  onClick={() => setShowLauncher(false)}
+                  className="p-2 rounded-lg text-white/30 hover:text-white hover:bg-white/5 transition-all"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </motion.div>
+
+            <OverPixelLauncher 
+              isOpen={showLauncher} 
+              onClose={() => setShowLauncher(false)}
+              onAppClick={handleLauncherAppClick}
+              ref={launcherRef}
+            />
+
+            {/* Left Sidebar — App Icons */}
+            <motion.div
+              className="fixed top-16 left-0 bottom-0 z-[9991] w-[80px] flex flex-col items-center py-6 gap-2"
+              style={{
+                background: 'rgba(8, 8, 18, 0.92)',
+                backdropFilter: 'blur(30px)',
+                borderRight: '1px solid rgba(6, 182, 212, 0.08)',
+                boxShadow: '4px 0 30px rgba(0, 0, 0, 0.3)',
+              }}
+              initial={{ x: -80, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: -80, opacity: 0 }}
+              transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1], delay: 0.05 }}
+            >
+              {/* Direct AI (Gabi) */}
+              <motion.button
+                onClick={() => handleLauncherAppClick('direct-ai')}
+                className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-white/5 transition-all group relative"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.92 }}
+                title="Direct AI — Gabi"
+              >
+                {/* Active dot */}
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-full bg-fuchsia-500 shadow-[0_0_8px_rgba(217,70,239,0.6)]" />
+                <div className="w-12 h-12 rounded-full flex items-center justify-center border border-fuchsia-500/30 bg-fuchsia-500/10 group-hover:border-fuchsia-500/50 group-hover:shadow-[0_0_20px_rgba(217,70,239,0.2)] transition-all">
+                  <GabiAvatar mood="idle" size={32} />
+                </div>
+                <span className="text-[9px] font-bold text-white/50 group-hover:text-white/80 transition-colors tracking-wide">Gabi</span>
+              </motion.button>
+
+              {/* Separator */}
+              <div className="w-8 h-px bg-white/5 my-1" />
+
+              {/* DTF Factory */}
+              <motion.button
+                onClick={() => handleLauncherAppClick('dtf-factory')}
+                className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-white/5 transition-all group"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.92 }}
+                title="DTF Factory — Em breve"
+              >
+                <div className="w-12 h-12 rounded-full flex items-center justify-center border border-amber-500/20 bg-amber-500/5 group-hover:border-amber-500/35 transition-all opacity-50 group-hover:opacity-75">
+                  <Layers className="w-5 h-5 text-amber-400/60" />
+                </div>
+                <span className="text-[9px] font-bold text-white/30 group-hover:text-white/50 transition-colors tracking-wide">DTF</span>
+              </motion.button>
+
+              {/* O Montador */}
+              <motion.button
+                onClick={() => handleLauncherAppClick('montador')}
+                className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-white/5 transition-all group"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.92 }}
+                title="O Montador — Builder de Layouts"
+              >
+                <div className="w-12 h-12 rounded-full flex items-center justify-center border border-violet-500/30 bg-violet-500/10 group-hover:border-violet-500/50 transition-all">
+                  <LayoutGrid className="w-5 h-5 text-violet-400" />
+                </div>
+                <span className="text-[9px] font-bold text-white/50 group-hover:text-white/80 transition-colors tracking-wide">Montador</span>
+              </motion.button>
+
+              {/* Melhorador Cloud */}
+              <motion.button
+                onClick={() => handleLauncherAppClick('melhorador')}
+                className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-white/5 transition-all group"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.92 }}
+                title="Melhorador Cloud — Em breve"
+              >
+                <div className="w-12 h-12 rounded-full flex items-center justify-center border border-sky-500/20 bg-sky-500/5 group-hover:border-sky-500/35 transition-all opacity-50 group-hover:opacity-75">
+                  <Wand2 className="w-5 h-5 text-sky-400/60" />
+                </div>
+                <span className="text-[9px] font-bold text-white/30 group-hover:text-white/50 transition-colors tracking-wide">Cloud</span>
+              </motion.button>
+
+              {/* Spacer */}
+              <div className="flex-1" />
+
+              {/* Home / Launcher */}
+              <motion.button
+                onClick={() => { navigate('/'); setShowLauncher(false); }}
+                className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-cyan-500/10 transition-all group"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.92 }}
+                title="OverPixel Launcher"
+              >
+                <div className="w-12 h-12 rounded-full flex items-center justify-center border border-cyan-500/15 bg-cyan-500/5 group-hover:border-cyan-500/30 transition-all">
+                  <Home className="w-5 h-5 text-cyan-400/50 group-hover:text-cyan-400/80 transition-colors" />
+                </div>
+                <span className="text-[9px] font-bold text-cyan-400/30 group-hover:text-cyan-400/60 transition-colors tracking-wide">Home</span>
+              </motion.button>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
     </ModalQueueProvider>
   );

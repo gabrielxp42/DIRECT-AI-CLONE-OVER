@@ -80,7 +80,7 @@ Deno.serve(async (req: Request) => {
         }
 
         const GEMINI_KEY = adminProfile.gemini_api_key;
-        const OPENAI_KEY = Deno.env.get('OPENAI_API_KEY');
+        const OPENAI_KEY = Deno.env.get('OPENAI_API_KEY2');
         const MODEL = adminProfile.gemini_training_model || 'gemini-1.5-flash';
 
         if (!OPENAI_KEY) {

@@ -66,9 +66,9 @@ export const WalletRechargeModal = ({ open, onOpenChange, currentBalance = 0, pr
 
     const fetchProfile = async () => {
         const { data } = await supabase
-            .from('profiles')
+            .from('profiles_v2')
             .select('cpf_cnpj, logistics_provider')
-            .eq('id', session?.user?.id)
+            .eq('uid', session?.user?.id)
             .single();
 
         if (data) {

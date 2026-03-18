@@ -112,9 +112,9 @@ const Reports: React.FC = () => {
       if (!session?.user?.id) throw new Error("Usuário não autenticado");
 
       const { error } = await supabase
-        .from('profiles')
+        .from('profiles_v2')
         .update({ target_profit_margin: newMargin / 100 })
-        .eq('id', session.user.id);
+        .eq('uid', session.user.id);
 
       if (error) throw error;
       return newMargin;

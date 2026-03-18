@@ -1,0 +1,218 @@
+/* ============================================
+   OverPixel Dock — Floating App Switcher
+   Always available, anywhere in the app
+   ============================================ */
+
+@keyframes dockSlideIn {
+  from { opacity: 0; transform: translateY(20px) scale(0.9); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes dockPanelSlide {
+  from { opacity: 0; transform: translateY(12px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Dock trigger button */
+.overpixel-dock-trigger {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  z-index: 9999;
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  background: rgba(10, 10, 20, 0.75);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(6, 182, 212, 0.15);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: dockSlideIn 0.5s ease-out;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3),
+              0 0 20px rgba(6, 182, 212, 0.06);
+}
+
+.overpixel-dock-trigger:hover {
+  background: rgba(10, 10, 20, 0.9);
+  border-color: rgba(6, 182, 212, 0.35);
+  transform: scale(1.08);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4),
+              0 0 30px rgba(6, 182, 212, 0.12);
+}
+
+.overpixel-dock-trigger:active {
+  transform: scale(0.95);
+}
+
+.overpixel-dock-trigger svg {
+  filter: drop-shadow(0 0 6px rgba(6, 182, 212, 0.4));
+}
+
+/* Expanded dock panel */
+.overpixel-dock-panel {
+  position: fixed;
+  bottom: 76px;
+  left: 20px;
+  z-index: 9998;
+  min-width: 220px;
+  background: rgba(10, 10, 20, 0.88);
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  padding: 12px;
+  animation: dockPanelSlide 0.25s ease-out;
+  box-shadow: 0 12px 50px rgba(0, 0, 0, 0.5),
+              0 0 40px rgba(6, 182, 212, 0.05);
+}
+
+/* Panel header */
+.overpixel-dock-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  margin-bottom: 8px;
+}
+
+.overpixel-dock-header-text {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: rgba(6, 182, 212, 0.7);
+}
+
+/* App item in dock */
+.overpixel-dock-app {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  text-decoration: none;
+}
+
+.overpixel-dock-app:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.overpixel-dock-app:active {
+  transform: scale(0.97);
+}
+
+/* App icon in dock */
+.overpixel-dock-app-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.overpixel-dock-app-icon--gabi {
+  background: rgba(217, 70, 239, 0.1);
+  border: 1px solid rgba(217, 70, 239, 0.2);
+}
+
+.overpixel-dock-app-icon--dtf {
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.15);
+}
+
+/* App info text */
+.overpixel-dock-app-name {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1;
+}
+
+.overpixel-dock-app-status {
+  font-size: 0.6rem;
+  font-weight: 600;
+  margin-top: 3px;
+}
+
+.overpixel-dock-app-status--active {
+  color: rgba(217, 70, 239, 0.8);
+}
+
+.overpixel-dock-app-status--wip {
+  color: rgba(245, 158, 11, 0.6);
+}
+
+/* Active indicator dot */
+.overpixel-dock-active-dot {
+  position: absolute;
+  left: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #d946ef;
+  box-shadow: 0 0 8px rgba(217, 70, 239, 0.6);
+}
+
+/* Backdrop overlay */
+.overpixel-dock-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9997;
+  background: transparent;
+}
+
+/* Home button in dock */
+.overpixel-dock-home {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  padding-top: 12px;
+}
+
+.overpixel-dock-home:hover {
+  background: rgba(6, 182, 212, 0.08);
+}
+
+.overpixel-dock-home-text {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(6, 182, 212, 0.6);
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .overpixel-dock-trigger {
+    bottom: 80px; /* above mobile nav */
+    left: 16px;
+    width: 42px;
+    height: 42px;
+    border-radius: 14px;
+  }
+
+  .overpixel-dock-panel {
+    bottom: 130px;
+    left: 16px;
+    right: 16px;
+    min-width: auto;
+  }
+}

@@ -47,7 +47,7 @@ interface AgentTraining {
     total_cost_usd: number;
     started_at: string;
     last_analysis_at: string;
-    profiles: {
+    profile: {
         company_name: string;
         company_email: string;
     };
@@ -114,7 +114,7 @@ export function AdminAIMonitoring() {
                 .from('ai_agent_training')
                 .select(`
           *,
-          profiles (
+          profile:profiles_v2 (
             company_name,
             company_email
           )
@@ -352,12 +352,12 @@ export function AdminAIMonitoring() {
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2 mb-1">
                                                 <h4 className="font-semibold truncate">
-                                                    {agent.profiles?.company_name || 'Empresa'}
+                                                    {agent.profile?.company_name || 'Empresa'}
                                                 </h4>
                                                 {getStatusBadge(agent.training_status)}
                                             </div>
                                             <p className="text-xs text-muted-foreground truncate">
-                                                {agent.profiles?.company_email}
+                                                {agent.profile?.company_email}
                                             </p>
                                         </div>
 
@@ -410,7 +410,7 @@ export function AdminAIMonitoring() {
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                             <Brain className="w-5 h-5 text-primary" />
-                            Detalhes do Agente - {selectedAgent?.profiles?.company_name}
+                            Detalhes do Agente - {selectedAgent?.profile?.company_name}
                         </DialogTitle>
                         <DialogDescription>
                             Métricas detalhadas de aprendizado e performance

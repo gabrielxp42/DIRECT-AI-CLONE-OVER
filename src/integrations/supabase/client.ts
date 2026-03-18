@@ -3,9 +3,9 @@ import { createClient } from '@supabase/supabase-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 // Credenciais fornecidas pelo usuário para o projeto zdbjzrpgliqicwvncfpc
-export const SUPABASE_URL = "https://zdbjzrpgliqicwvncfpc.supabase.co";
+export const SUPABASE_URL = "https://myylkpoisqijfnptlnyk.supabase.co";
 // CHAVE PÚBLICA (ANON KEY) - Chave correta para uso no lado do cliente.
-export const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpkYmp6cnBnbGlxaWN3dm5jZnBjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc2ODI3MzUsImV4cCI6MjA3MzI1ODczNX0.VOrT3YAVhCqkbSmV-POeb4sVTgmu756sivqT1_9vCr4";
+export const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im15eWxrcG9pc3FpamZucHRsbnlrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY0MzQxNTIsImV4cCI6MjA3MjAxMDE1Mn0.me7aXILmeIHvjbkYWUVczOZt7gxrz8Rddv515Xa9ZTU";
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";

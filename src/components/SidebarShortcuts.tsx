@@ -21,7 +21,7 @@ export const SidebarShortcuts = ({ isExpanded, onOpenCalculator, onOpenVetorizad
     const { profile } = useAuth();
     const { activeShortcuts, handleShortcutAction, definitions } = useShortcuts(onOpenCalculator);
 
-    const isGifted = (profile as any)?.is_vetoriza_ai_gifted === true;
+    const isGifted = (profile as any)?.is_vetoriza_ai_gifted === true || (profile as any)?.is_admin === true;
 
     return (
         <div className="mt-8 mb-4">

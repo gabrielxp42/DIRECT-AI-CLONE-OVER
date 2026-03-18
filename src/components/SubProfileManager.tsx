@@ -48,16 +48,16 @@ export function SubProfileManager() {
 
     useEffect(() => {
         fetchSubProfiles();
-    }, [profile?.id]);
+    }, [profile?.uid]);
 
     const fetchSubProfiles = async () => {
-        if (!profile?.id) return;
+        if (!profile?.uid) return;
         setLoading(true);
         try {
             const { data, error } = await supabase
                 .from('sub_profiles')
                 .select('*')
-                .eq('user_id', profile.id)
+                .eq('parent_profile_id', profile.uid)
                 .order('created_at', { ascending: true });
 
             if (error) throw error;

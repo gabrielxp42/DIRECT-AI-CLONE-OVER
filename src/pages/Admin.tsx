@@ -204,19 +204,33 @@ export default function Admin() {
         try {
             // Fetch Users
             const { data: usersData, error: usersError } = await supabase
-                .from('profiles')
+                .from('profiles_v2')
                 .select('*')
                 .order('created_at', { ascending: false });
 
             if (usersError) throw usersError;
 
-            // Fetch stats for all users in parallel
-            const usersWithStats = await Promise.all(usersData.map(async (u) => {
-                const [{ count: pCount }, { count: cCount }] = await Promise.all([
-                    supabase.from('pedidos').select('*', { count: 'exact', head: true }).eq('user_id', u.id),
-                    supabase.from('clientes').select('*', { count: 'exact', head: true }).eq('user_id', u.id)
-                ]);
-                return { ...u, pedidos_count: pCount || 0, clientes_count: cCount || 0 };
+            // Fetch stats for all users efficiently via RPC
+            const { data: statsData, error: statsError } = await supabase.rpc('get_admin_user_stats');
+
+            if (statsError) {
+                console.error("Erro ao buscar stats via RPC:", statsError);
+            }
+
+            const statsMap = new Map();
+            if (statsData) {
+                statsData.forEach((s: any) => {
+                    statsMap.set(s.user_id, {
+                        pedidos_count: Number(s.pedidos_count) || 0,
+                        clientes_count: Number(s.clientes_count) || 0
+                    });
+                });
+            }
+
+            const usersWithStats = usersData.map(u => ({
+                ...u,
+                pedidos_count: statsMap.get(u.id)?.pedidos_count || 0,
+                clientes_count: statsMap.get(u.id)?.clientes_count || 0
             }));
 
             setUsers(usersWithStats as AdminProfile[]);
@@ -224,7 +238,7 @@ export default function Admin() {
             // Fetch Logs (Recent 50) excluding page_view for standard logs
             const { data: logsData, error: logsError } = await supabase
                 .from('system_logs')
-                .select('*, profile:profiles(company_name, email)')
+                .select('*, profile:users(company_name, email)')
                 .neq('category', 'page_view')
                 .order('created_at', { ascending: false })
                 .limit(50);
@@ -347,7 +361,7 @@ export default function Admin() {
             // Fetch pending withdrawals
             const { data: withdrawalsData, error: wError } = await supabase
                 .from('affiliate_withdrawals')
-                .select('*, profile:profiles(company_name, email)')
+                .select('*, profile:users(company_name, email)')
                 .in('status', ['pending', 'approved'])
                 .order('created_at', { ascending: true });
 
@@ -380,7 +394,7 @@ export default function Admin() {
                 setEvolutionStatus('error');
             }
         } catch (e: any) {
-            console.error(e);
+            // console.error muted to avoid panic on local or missing function environments
             setEvolutionStatus('error');
             if (showToast) toast.error("Falha na conexão: " + e.message);
         }
@@ -476,9 +490,9 @@ export default function Admin() {
             }
 
             const { error } = await supabase
-                .from('profiles')
+                .from('profiles_v2')
                 .update(finalForm)
-                .eq('id', selectedUser.id);
+                .eq('uid', selectedUser.id);
 
             if (error) throw error;
             toast.success('Usuário atualizado!');
@@ -576,10 +590,16 @@ export default function Admin() {
     };
 
     const filteredUsers = users.filter(u => {
-        const matchesSearch = (
-            u.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            u.company_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            u.id.includes(searchTerm)
+        // Show all users who have registered (using public.users list)
+        const isGabiUser = true;
+        
+        if (!isGabiUser) return false;
+
+        const searchLower = searchTerm.toLowerCase().trim();
+        const matchesSearch = !searchLower || (
+            (u.email || '').toLowerCase().includes(searchLower) ||
+            (u.company_name || '').toLowerCase().includes(searchLower) ||
+            (u.id || '').includes(searchLower)
         );
 
         if (statusFilter === 'all') return matchesSearch;
@@ -834,7 +854,7 @@ export default function Admin() {
                             <Table className="min-w-[800px]">
                                 <TableHeader>
                                     <TableRow className="hover:bg-transparent border-zinc-100 dark:border-zinc-800">
-                                        <TableHead className="font-black uppercase tracking-widest text-[10px] p-6">Empresa / Usuário</TableHead>
+                                        <TableHead className="font-black uppercase tracking-widest text-[10px] p-6">Usuário (Email) / Empresa</TableHead>
                                         <TableHead className="font-black uppercase tracking-widest text-[10px] p-6">Status</TableHead>
                                         <TableHead className="font-black uppercase tracking-widest text-[10px] p-6 text-center">Pedidos</TableHead>
                                         <TableHead className="font-black uppercase tracking-widest text-[10px] p-6 text-center">Clientes</TableHead>
@@ -849,13 +869,13 @@ export default function Admin() {
                                             <TableCell className="p-6">
                                                 <div className="flex items-center gap-4">
                                                     <Avatar className="h-10 w-10 border-2 border-primary/20">
-                                                        <AvatarFallback className="bg-primary/10 text-primary font-black">
-                                                            {user.company_name?.substring(0, 2).toUpperCase() || 'US'}
+                                                        <AvatarFallback className="bg-primary/10 text-primary font-black uppercase">
+                                                            {user.email?.substring(0, 2).toUpperCase() || 'US'}
                                                         </AvatarFallback>
                                                     </Avatar>
                                                     <div className="flex flex-col">
-                                                        <span className="font-black italic text-zinc-900 dark:text-white uppercase leading-none mb-1">{user.company_name || 'Usuário Beta'}</span>
-                                                        <span className="text-xs text-muted-foreground font-medium">{user.email}</span>
+                                                        <span className="font-black italic text-zinc-900 dark:text-white leading-none mb-1">{user.email || 'Sem E-mail'}</span>
+                                                        <span className="text-xs text-muted-foreground font-medium uppercase">{user.company_name || 'Sem Empresa cadastrada'}</span>
                                                     </div>
                                                 </div>
                                             </TableCell>
@@ -1229,12 +1249,12 @@ export default function Admin() {
 
                                         try {
                                             const { error } = await supabase
-                                                .from('profiles')
+                                                .from('profiles_v2')
                                                 .update({
                                                     whatsapp_api_url: url,
                                                     whatsapp_api_key: key
                                                 })
-                                                .eq('id', profile?.id);
+                                                .eq('uid', profile?.id);
 
                                             if (error) throw error;
                                             toast.success("Credenciais Globais Salvas!");
@@ -1690,7 +1710,7 @@ export default function Admin() {
                                                         if (creditError) throw creditError;
 
                                                         const { error: profileError } = await supabase
-                                                            .from('profiles')
+                                                            .from('profiles_v2')
                                                             .update({
                                                                 is_vetoriza_ai_gifted: true,
                                                                 is_vetoriza_ai_gifted_viewed: false
@@ -1720,7 +1740,7 @@ export default function Admin() {
                                                         const updatedTours = Array.from(new Set([...currentTours, 'milestone:white_label_unlock']));
 
                                                         const { error: profileError } = await supabase
-                                                            .from('profiles')
+                                                            .from('profiles_v2')
                                                             .update({
                                                                 completed_tours: updatedTours
                                                             })

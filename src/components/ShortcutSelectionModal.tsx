@@ -72,10 +72,11 @@ export const ShortcutSelectionModal = ({ isOpen, onClose }: ShortcutSelectionMod
 
     // Sync from DB when opening
     React.useEffect(() => {
-        if (isOpen && companyProfile?.sidebar_shortcuts) {
-            // Ensure array and valid IDs
-            const current = Array.isArray(companyProfile.sidebar_shortcuts)
-                ? (companyProfile.sidebar_shortcuts as string[])
+        if (isOpen) {
+            const savedShortcuts = companyProfile?.sidebar_shortcuts;
+            // Ensure array and valid IDs, otherwise fallback to defaults
+            const current = (Array.isArray(savedShortcuts) && savedShortcuts.length > 0)
+                ? (savedShortcuts as string[])
                 : ['calculator', 'new_pedido', 'talk_gabi', 'new_cliente'];
             setSelectedIds(current);
         }

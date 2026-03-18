@@ -174,9 +174,9 @@ const Insumos = () => {
             // 1. Fetch current links
             const [prodLinks, typeLinks, prods, types] = await Promise.all([
                 supabase.from('produto_insumos').select('*, produtos(nome)').eq('insumo_id', insumo.id),
-                supabase.from('tipo_producao_insumos').select('*, tipos_producao(nome)').eq('insumo_id', insumo.id),
+                supabase.from('tipo_producao_insumos_v2').select('*, tipos_producao_v2(nome)').eq('insumo_id', insumo.id),
                 supabase.from('produtos').select('id, nome'),
-                supabase.from('tipos_producao').select('id, nome')
+                supabase.from('tipos_producao_v2').select('id, nome')
             ]);
 
             setAssociatedProducts(prodLinks.data || []);
@@ -221,7 +221,7 @@ const Insumos = () => {
     const handleLinkType = async (tipoId: string, consumo: number) => {
         if (!selectedInsumo) return;
         try {
-            const { error } = await supabase.from('tipo_producao_insumos').insert([{
+            const { error } = await supabase.from('tipo_producao_insumos_v2').insert([{
                 tipo_producao_id: tipoId,
                 insumo_id: selectedInsumo.id,
                 consumo: consumo,
@@ -238,7 +238,7 @@ const Insumos = () => {
 
     const handleUnlinkType = async (linkId: string) => {
         try {
-            const { error } = await supabase.from('tipo_producao_insumos').delete().eq('id', linkId);
+            const { error } = await supabase.from('tipo_producao_insumos_v2').delete().eq('id', linkId);
             if (error) throw error;
             showSuccess("Vínculo removido.");
             if (selectedInsumo) handleOpenLinks(selectedInsumo);
@@ -798,7 +798,7 @@ const Insumos = () => {
                                         associatedTypes.map(link => (
                                             <div key={link.id} className="flex items-center justify-between p-3 rounded-lg border bg-background group">
                                                 <div className="flex flex-col">
-                                                    <span className="font-medium text-sm">{link.tipos_producao?.nome}</span>
+                                                    <span className="font-medium text-sm">{link.tipos_producao_v2?.nome}</span>
                                                     <span className="text-xs text-muted-foreground">Consumo Base: {link.consumo} {selectedInsumo?.unidade}</span>
                                                 </div>
                                                 <Button

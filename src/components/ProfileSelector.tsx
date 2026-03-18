@@ -36,6 +36,10 @@ export const ProfileSelector: React.FC = () => {
   const [editingSub, setEditingSub] = useState<SubProfile | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showSetupPinModal, setShowSetupPinModal] = useState(false);
+  const [newPin, setNewPin] = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
+  const [isSettingUp, setIsSettingUp] = useState(false);
   
   // States for Create/Edit
   const [editName, setEditName] = useState('');
@@ -74,7 +78,7 @@ export const ProfileSelector: React.FC = () => {
       const { data, error } = await supabase
         .from('sub_profiles')
         .select('*')
-        .eq('parent_profile_id', profile.id)
+        .eq('parent_profile_id', profile.uid)
         .eq('is_active', true);
 
       if (error) {
@@ -130,6 +134,38 @@ export const ProfileSelector: React.FC = () => {
     } else {
       toast.error('PIN incorreto');
       setPinInput('');
+    }
+  };
+
+  const handleSetupPinSubmit = async () => {
+    if (!selectingProfile) return;
+    if (newPin.length < 4) {
+      toast.error('O PIN deve ter pelo menos 4 dígitos');
+      return;
+    }
+    if (newPin !== confirmPin) {
+      toast.error('Os PINs não coincidem');
+      return;
+    }
+
+    setIsSettingUp(true);
+    try {
+      const { error } = await supabase
+        .from('sub_profiles')
+        .update({ pin: newPin })
+        .eq('id', selectingProfile.id);
+
+      if (error) throw error;
+
+      toast.success('PIN configurado com sucesso!');
+      switchSubProfile({ ...selectingProfile, pin: newPin });
+      setShowSetupPinModal(false);
+      setNewPin('');
+      setConfirmPin('');
+    } catch (error) {
+      toast.error('Erro ao salvar PIN');
+    } finally {
+      setIsSettingUp(false);
     }
   };
 
@@ -194,6 +230,14 @@ export const ProfileSelector: React.FC = () => {
       setShowPinModal(true);
       return;
     }
+
+    // Se for o CHEFE e não tiver PIN, exigir configuração
+    if (sub.role === 'chefe' && !sub.pin) {
+      setSelectingProfile(sub);
+      setShowSetupPinModal(true);
+      return;
+    }
+
     switchSubProfile(sub);
     toast.success(`Entrando como ${sub.name}`);
   };
@@ -217,12 +261,12 @@ export const ProfileSelector: React.FC = () => {
       // Se o perfil editado for o CHEFE, sincronizar o WhatsApp com as notificações globais
       if (editRole === 'chefe') {
         await supabase
-          .from('profiles')
+          .from('profiles_v2')
           .update({ 
             whatsapp_boss_group_id: editPhone,
             whatsapp_boss_notifications_enabled: true 
           })
-          .eq('id', profile.id);
+          .eq('uid', profile.uid);
         toast.info('WhatsApp do Chefe sincronizado com Gabi Executiva!');
       }
 
@@ -278,9 +322,9 @@ export const ProfileSelector: React.FC = () => {
     setSavingPermissions(true);
     try {
       const { error } = await supabase
-        .from('profiles')
+        .from('profiles_v2')
         .update({ role_permissions: tempPermissions })
-        .eq('id', profile.id);
+        .eq('uid', profile.uid);
 
       if (error) throw error;
       toast.success('Permissões de cargo atualizadas!');
@@ -747,6 +791,82 @@ export const ProfileSelector: React.FC = () => {
           </div>
         )}
       </AnimatePresence>
+      {/* PIN Setup Modal - Para o Chefe no primeiro acesso */}
+      <AnimatePresence>
+        {showSetupPinModal && (
+          <div className="fixed inset-0 z-[250] flex items-center justify-center px-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/80 backdrop-blur-xl"
+            />
+            
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-md bg-zinc-900 border border-white/10 rounded-[3rem] p-10 shadow-2xl overflow-hidden"
+            >
+              <div className="space-y-8 relative z-10">
+                <div className="text-center space-y-2">
+                  <div className="w-16 h-16 rounded-2xl bg-primary/20 flex items-center justify-center text-primary mx-auto mb-4">
+                    <ShieldCheck size={32} />
+                  </div>
+                  <h3 className="text-3xl font-black text-white italic tracking-tighter uppercase">Configurar PIN</h3>
+                  <p className="text-zinc-500 font-medium">Como este é seu primeiro acesso como Chefe, defina seu PIN de segurança.</p>
+                </div>
+
+                <div className="space-y-6">
+                  <div className="space-y-2">
+                    <label className="text-[10px] uppercase tracking-widest font-black text-zinc-500 ml-4">Novo PIN (4+ dígitos)</label>
+                    <input 
+                      type="password" 
+                      value={newPin} 
+                      onChange={(e) => setNewPin(e.target.value)} 
+                      placeholder="••••" 
+                      className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-center text-2xl tracking-[0.5em] text-white font-bold outline-none focus:ring-2 focus:ring-primary/50" 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] uppercase tracking-widest font-black text-zinc-500 ml-4">Confirmar PIN</label>
+                    <input 
+                      type="password" 
+                      value={confirmPin} 
+                      onChange={(e) => setConfirmPin(e.target.value)} 
+                      placeholder="••••" 
+                      className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-center text-2xl tracking-[0.5em] text-white font-bold outline-none focus:ring-2 focus:ring-primary/50" 
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-4 pt-4">
+                  <Button 
+                    variant="ghost" 
+                    onClick={() => {
+                      setShowSetupPinModal(false);
+                      setNewPin('');
+                      setConfirmPin('');
+                    }} 
+                    className="flex-1 rounded-2xl h-14 text-zinc-400 font-bold hover:bg-white/5"
+                  >
+                    Voltar
+                  </Button>
+                  <Button 
+                    disabled={isSettingUp}
+                    onClick={handleSetupPinSubmit} 
+                    className="flex-1 rounded-2xl h-14 bg-primary text-black font-black uppercase italic shadow-xl"
+                  >
+                    {isSettingUp ? 'Salvando...' : 'Confirmar'}
+                  </Button>
+                </div>
+              </div>
+              <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 blur-3xl rounded-full" />
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 };

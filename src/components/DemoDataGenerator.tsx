@@ -14,6 +14,7 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog";
 import { supabase } from '@/integrations/supabase/client';
+import { useCompanyProfile } from '@/hooks/useCompanyProfile';
 
 export const DemoDataGenerator = () => {
     const { session } = useSession();
@@ -21,6 +22,7 @@ export const DemoDataGenerator = () => {
     const [isOpen, setIsOpen] = useState(false);
     const [progress, setProgress] = useState(0);
     const [clearExisting, setClearExisting] = useState(false);
+    const { companyProfile } = useCompanyProfile();
 
     const generateData = async () => {
         if (!session?.user?.id) return;
@@ -29,6 +31,13 @@ export const DemoDataGenerator = () => {
 
         try {
             const userId = session.user.id;
+            const orgId = companyProfile?.organization_id;
+
+            if (!orgId) {
+                toast.error('ID da organização não encontrado. Aguarde o carregamento do perfil.');
+                setIsLoading(false);
+                return;
+            }
 
             // 0. LIMPAR DADOS
             if (clearExisting) {
@@ -45,16 +54,9 @@ export const DemoDataGenerator = () => {
             ];
 
             for (const t of typesConfig) {
-                const { data: existing } = await supabase
-                    .from('tipos_producao')
-                    .select('id')
-                    .eq('user_id', userId)
-                    .ilike('nome', t.nome)
-                    .maybeSingle();
-
-                if (!existing) {
-                    await supabase.from('tipos_producao').insert({
+                    await supabase.from('tipos_producao_v2').insert({
                         user_id: userId,
+                        organization_id: orgId,
                         nome: t.nome,
                         color: t.color,
                         icon: t.icon,
@@ -62,7 +64,6 @@ export const DemoDataGenerator = () => {
                         is_active: true
                     });
                 }
-            }
 
             // 1. Fetch clients
             const { data: clientes, error: cliError } = await supabase
@@ -102,14 +103,51 @@ export const DemoDataGenerator = () => {
 
             const pedidosBatch: any[] = [];
             const itemsBatch: any[] = [];
-            const historyBatch: any[] = [];
-            const randomInt = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
+            const { data: maxOrderData, error: maxOrderError } = await supabase
+                .from('pedidos')
+                .select('order_number')
+                .not('order_number', 'is', null)
+                .order('order_number', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+            let orderCounter = (maxOrderData?.order_number || 1000) + 1;
 
             const addDemoOrder = (client: any, daysAgo: number, forceStatus?: string, isPaid = true) => {
                 const pedidoId = crypto.randomUUID();
                 const createdAt = addHours(subDays(new Date(), daysAgo), randomInt(8, 19)).toISOString();
-                const status = forceStatus || (isPaid ? 'entregue' : 'pendente');
-                const pagoAt = (isPaid && (status === 'entregue' || status === 'pago')) ? createdAt : null;
+                
+                // Randomize status specifically for more recent orders to show in Kanban
+                let status = forceStatus;
+                if (!status) {
+                    if (daysAgo < 3) {
+                        // High probability of being in production for very recent orders
+                        const r = Math.random();
+                        if (r < 0.4) status = 'pago';
+                        else if (r < 0.8) status = 'processando';
+                        else status = 'aguardando retirada';
+                    } else if (daysAgo < 10) {
+                        const r = Math.random();
+                        if (r < 0.2) status = 'pago';
+                        else if (r < 0.4) status = 'processando';
+                        else if (r < 0.6) status = 'aguardando retirada';
+                        else status = 'entregue';
+                    } else {
+                        status = isPaid ? 'entregue' : 'pendente';
+                    }
+                }
+
+                const productionStatuses: any[] = ['design', 'queued', 'printing', 'finishing', 'ready'];
+                let production_status: any = 'design';
+                
+                if (status === 'pago' || status === 'processando' || status === 'aguardando retirada') {
+                    production_status = productionStatuses[randomInt(0, 4)];
+                } else if (status === 'entregue') {
+                    production_status = 'ready';
+                }
+
+                const currentOrderNumber = orderCounter++;
+                const pagoAt = (isPaid && (status === 'entregue' || status === 'pago' || status === 'processando' || status === 'aguardando retirada')) ? createdAt : null;
 
                 const numItems = randomInt(1, 2);
                 let total = 0;
@@ -134,17 +172,21 @@ export const DemoDataGenerator = () => {
                         produto_nome: prod.name,
                         quantidade: qtx,
                         preco_unitario: prod.price,
-                        tipo: prod.type as any
+                        tipo: prod.type as any,
+                        organization_id: orgId
                     });
                 }
 
                 pedidosBatch.push({
                     id: pedidoId,
                     user_id: userId,
+                    organization_id: orgId,
                     cliente_id: client.id,
+                    order_number: currentOrderNumber,
                     valor_total: total,
                     subtotal_produtos: total,
                     status,
+                    production_status,
                     created_at: createdAt,
                     pago_at: pagoAt,
                     total_metros: totalMetros,
@@ -160,6 +202,7 @@ export const DemoDataGenerator = () => {
                     status_novo: status,
                     status_anterior: 'novo',
                     user_id: userId,
+                    organization_id: orgId,
                     created_at: createdAt
                 });
             };

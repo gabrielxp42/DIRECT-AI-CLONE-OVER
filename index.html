@@ -46,8 +46,8 @@
     // Bloquear Botão Direito (Menu de Contexto) de forma inteligente
     document.addEventListener('contextmenu', event => {
       // Liberar seletivamente para áreas que possuem menu próprio (ex: Kanban)
-      const target = event.target as HTMLElement;
-      if (target?.closest('[data-context-menu="true"]')) {
+      const target = event.target;
+      if (target && target.closest && target.closest('[data-context-menu="true"]')) {
         return;
       }
       event.preventDefault();

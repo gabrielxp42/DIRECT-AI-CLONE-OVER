@@ -30,9 +30,9 @@ export function AdminGeminiConfig() {
             if (!user) return;
 
             const { data, error } = await supabase
-                .from('profiles')
+                .from('profiles_v2')
                 .select('gemini_api_key, gemini_training_model, gemini_response_model, ai_auto_reply_enabled, kieai_api_key')
-                .eq('id', user.id)
+                .eq('uid', user.id)
                 .single();
 
             if (error) throw error;
@@ -61,9 +61,9 @@ export function AdminGeminiConfig() {
             if (!user) return;
 
             const { error } = await supabase
-                .from('profiles')
+                .from('profiles_v2')
                 .update(config)
-                .eq('id', user.id);
+                .eq('uid', user.id);
 
             if (error) throw error;
 

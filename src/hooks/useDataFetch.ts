@@ -245,7 +245,7 @@ export const usePedidos = () => {
 // --- Fetch Tipos de Producao ---
 const fetchTiposProducao = async (token: string, userId: string, organizationId: string | null): Promise<TipoProducao[]> => {
   const params = new URLSearchParams({
-    select: "*,tipo_producao_insumos(*,insumos(nome,unidade))",
+    select: "*,tipo_producao_insumos_v2(*,insumos(nome,unidade))",
     order: "order_index.asc,nome.asc",
   });
   if (organizationId) {
@@ -253,7 +253,7 @@ const fetchTiposProducao = async (token: string, userId: string, organizationId:
   } else {
     params.append("user_id", `eq.${userId}`);
   }
-  return fetchTable<TipoProducao>(token, "tipos_producao", params);
+  return fetchTable<TipoProducao>(token, "tipos_producao_v2", params);
 };
 
 export const useTiposProducao = () => {
@@ -282,7 +282,7 @@ export const useAddTipoProducao = () => {
     mutationFn: async (newTipo: Omit<TipoProducao, "id" | "user_id" | "created_at">) => {
       if (!session?.user?.id || !supabase) throw new Error("Autenticação necessária");
       const { data, error } = await supabase
-        .from("tipos_producao")
+        .from("tipos_producao_v2")
         .insert([{ ...newTipo, user_id: session.user.id, organization_id: profile?.organization_id }])
         .select();
       if (error) throw error;
@@ -300,7 +300,7 @@ export const useUpdateTipoProducao = () => {
     mutationFn: async ({ id, ...updateData }: Partial<TipoProducao> & { id: string }) => {
       if (!supabase) throw new Error("Cliente Supabase não inicializado");
       const { data, error } = await supabase
-        .from("tipos_producao")
+        .from("tipos_producao_v2")
         .update({ ...updateData, organization_id: profile?.organization_id })
         .eq("id", id)
         .select();
@@ -318,7 +318,7 @@ export const useDeleteTipoProducao = () => {
   return useMutation({
     mutationFn: async (id: string) => {
       if (!supabase) throw new Error("Cliente Supabase não inicializado");
-      const { error } = await supabase.from("tipos_producao").delete().eq("id", id);
+      const { error } = await supabase.from("tipos_producao_v2").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["tipos_producao"] }),
@@ -333,7 +333,7 @@ export const useAddTipoProducaoInsumo = () => {
     mutationFn: async (newLink: { tipo_producao_id: string; insumo_id: string; consumo: number }) => {
       if (!supabase || !session?.user?.id) throw new Error("Não autenticado");
       const { data, error } = await supabase
-        .from("tipo_producao_insumos")
+        .from("tipo_producao_insumos_v2")
         .insert([{ ...newLink, user_id: session.user.id, organization_id: profile?.organization_id }])
         .select();
       if (error) throw error;
@@ -350,7 +350,7 @@ export const useDeleteTipoProducaoInsumo = () => {
   return useMutation({
     mutationFn: async (id: string) => {
       if (!supabase) throw new Error("Supabase não disponível");
-      const { error } = await supabase.from("tipo_producao_insumos").delete().eq("id", id);
+      const { error } = await supabase.from("tipo_producao_insumos_v2").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["tipos_producao"] }),
@@ -546,12 +546,12 @@ export const deductInsumosFromPedido = async (pedido: Pedido) => {
 
       // Se não pegou insumo do produto, busca da categoria (tipo)
       if (temp_insumos.length === 0 && resolvedTipo) {
-        let q = supabase.from('tipos_producao').select('id').ilike('nome', resolvedTipo).eq('is_active', true);
+        let q = supabase.from('tipos_producao_v2').select('id').ilike('nome', resolvedTipo).eq('is_active', true);
         if (pedido.organization_id) q = q.eq('organization_id', pedido.organization_id);
         else q = q.eq('user_id', pedido.user_id);
         const { data: tipo } = await q.maybeSingle();
         if (tipo) {
-          const { data: ti } = await supabase.from('tipo_producao_insumos').select('insumo_id, consumo').eq('tipo_producao_id', tipo.id);
+          const { data: ti } = await supabase.from('tipo_producao_insumos_v2').select('insumo_id, consumo').eq('tipo_producao_id', tipo.id);
           if (ti) temp_insumos.push(...ti);
         }
       }
@@ -617,12 +617,12 @@ export const restoreInsumosFromPedido = async (pedido: Pedido) => {
         }
       }
       if (temp_insumos.length === 0 && resolvedTipo) {
-        let q = supabase.from('tipos_producao').select('id').ilike('nome', resolvedTipo).eq('is_active', true);
+        let q = supabase.from('tipos_producao_v2').select('id').ilike('nome', resolvedTipo).eq('is_active', true);
         if (pedido.organization_id) q = q.eq('organization_id', pedido.organization_id);
         else q = q.eq('user_id', pedido.user_id);
         const { data: tipo } = await q.maybeSingle();
         if (tipo) {
-          const { data: ti } = await supabase.from('tipo_producao_insumos').select('insumo_id, consumo').eq('tipo_producao_id', tipo.id);
+          const { data: ti } = await supabase.from('tipo_producao_insumos_v2').select('insumo_id, consumo').eq('tipo_producao_id', tipo.id);
           if (ti) temp_insumos.push(...ti);
         }
       }

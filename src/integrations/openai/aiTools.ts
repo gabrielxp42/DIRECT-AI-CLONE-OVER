@@ -75,7 +75,7 @@ const getUserContext = async (): Promise<UserContext | null> => {
     const userId = userData.id;
 
     // Buscar o organization_id no perfil do usuário
-    const profileResponse = await fetch(`${SUPABASE_URL}/rest/v1/profiles?select=organization_id&id=eq.${userId}&limit=1`, {
+    const profileResponse = await fetch(`${SUPABASE_URL}/rest/v1/profiles_v2?select=organization_id&uid=eq.${userId}&limit=1`, {
       headers: {
         'apikey': SUPABASE_ANON_KEY,
         'Authorization': `Bearer ${token}`
@@ -267,7 +267,7 @@ const update_branding = async (args: { primary_color?: string; company_name?: st
     if (args.company_name) updates.company_name = args.company_name;
     if (args.logo_url) updates.company_logo_url = args.logo_url;
 
-    const updateResponse = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}`, {
+    const updateResponse = await fetch(`${SUPABASE_URL}/rest/v1/profiles_v2?uid=eq.${userId}`, {
       method: 'PATCH',
       headers: {
         'apikey': SUPABASE_ANON_KEY,
@@ -344,7 +344,7 @@ const send_whatsapp_message = async (args: { phone?: string; message: string; cl
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { data: profile } = await supabase
-          .from('profiles')
+          .from('profiles_v2')
           .select('*')
           .eq('id', user.id)
           .single();
@@ -404,7 +404,7 @@ export const prepare_bulk_whatsapp_messages = async (args: {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { data: profile } = await supabase
-          .from('profiles')
+          .from('profiles_v2')
           .select('*')
           .eq('id', user.id)
           .single();
@@ -545,7 +545,7 @@ const get_gabi_templates = async () => {
     const token = await getValidToken();
     if (!token) throw new Error("Token não disponível");
 
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/profiles?select=gabi_templates&id=eq.${ctx.user_id}&limit=1`, {
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/profiles_v2?select=gabi_templates&uid=eq.${ctx.user_id}&limit=1`, {
       headers: {
         'apikey': SUPABASE_ANON_KEY,
         'Authorization': `Bearer ${token}`

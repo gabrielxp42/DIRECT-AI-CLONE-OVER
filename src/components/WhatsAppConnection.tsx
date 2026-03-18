@@ -216,11 +216,11 @@ export function WhatsAppConnection() {
 
             // Sync with profile if possible
             if (profile?.id) {
-                await supabase.from('profiles').update({
+                await supabase.from('profiles_v2').update({
                     whatsapp_status: 'disconnected',
                     whatsapp_qr_cache: null,
                     whatsapp_instance_id: null
-                }).eq('id', profile.id);
+                }).eq('uid', profile.id);
             }
 
             toast.success("Desconectado com sucesso.");

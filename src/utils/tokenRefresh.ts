@@ -10,7 +10,9 @@ let isRefreshing = false;
 const refreshTokenWithFetch = async (): Promise<boolean> => {
     try {
         // Pegar refresh_token do localStorage
-        const authKey = Object.keys(localStorage).find(key => key.includes('auth-token'));
+        const projectRef = SUPABASE_URL.match(/https:\/\/(.*?)\.supabase\.co/)?.[1];
+        const exactKey = projectRef ? `sb-${projectRef}-auth-token` : null;
+        const authKey = Object.keys(localStorage).find(key => exactKey ? key === exactKey : key.includes('auth-token'));
         if (!authKey) {
             console.log('[TokenRefresh] No auth key found in localStorage');
             return false;
@@ -93,7 +95,9 @@ export const setupTokenRefresh = () => {
     const scheduleRefresh = async () => {
         try {
             // Pegar sessão do localStorage
-            const authKey = Object.keys(localStorage).find(key => key.includes('auth-token'));
+            const projectRef = SUPABASE_URL.match(/https:\/\/(.*?)\.supabase\.co/)?.[1];
+            const exactKey = projectRef ? `sb-${projectRef}-auth-token` : null;
+            const authKey = Object.keys(localStorage).find(key => exactKey ? key === exactKey : key.includes('auth-token'));
             if (!authKey) {
                 console.log('[TokenRefresh] No session found, skipping refresh');
                 return;

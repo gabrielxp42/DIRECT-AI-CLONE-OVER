@@ -1,9 +1,9 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
-const API_KEY = Deno.env.get("OPENAI_API_KEY");
+const API_KEY = Deno.env.get("OPENAI_API_KEY2");
 
 if (!API_KEY) {
-    console.error("OPENAI_API_KEY is not set in Supabase Edge Function environment.");
+    console.error("OPENAI_API_KEY2 is not set in Supabase Edge Function environment.");
 }
 
 Deno.serve(async (req: Request) => {

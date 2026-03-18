@@ -51,9 +51,9 @@ export const LogisticsSettings: React.FC = () => {
         queryKey: ['profile_logistics_settings', userId],
         queryFn: async () => {
             const { data, error } = await supabase
-                .from('profiles')
+                .from('profiles_v2')
                 .select('logistics_provider, superfrete_token, frenet_token, frenet_access_key, frenet_access_password')
-                .eq('id', userId!)
+                .eq('uid', userId!)
                 .single();
             if (error) throw error;
             return data;

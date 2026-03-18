@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from '@/components/ui/button';
@@ -24,6 +24,7 @@ import { useAIAssistant } from '@/contexts/AIAssistantProvider';
 import { LiveGabi } from './LiveGabi';
 import { LiveGabiGemini } from './LiveGabiGemini';
 import { useBackgroundTasks } from '@/hooks/useBackgroundTasks';
+import { GabiAvatar, type GabiMood } from './GabiAvatar';
 
 export const AIAssistant = () => {
   const { isOpen, close: closeAssistant } = useAIAssistant();
@@ -49,6 +50,13 @@ export const AIAssistant = () => {
   const { addTask, updateTask } = useBackgroundTasks();
   const { data: companyProfile } = useCompanyProfile();
 
+  // Derive Gabi's mood from current state
+  const currentMood: GabiMood = useMemo(() => {
+    if (isLoading) return 'thinking';
+    if (isLive) return 'listening';
+    return 'idle';
+  }, [isLoading, isLive]);
+
   // Keep messagesRef in sync
   useEffect(() => {
     messagesRef.current = messages;
@@ -61,8 +69,11 @@ export const AIAssistant = () => {
   useEffect(() => {
     const initAI = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const manager = new AgentMemoryManager(user.id);
+      
+      // Esperar o perfil da empresa carregar se o usuário estiver logado
+      if (user && companyProfile) {
+        console.log('🤖 [AIAssistant] Inicializando Gabi com Org:', companyProfile.organization_id);
+        const manager = new AgentMemoryManager(user.id, companyProfile.organization_id || undefined);
         setMemoryManager(manager);
 
         // Carregar memórias, insights e HISTÓRICO iniciais
@@ -91,7 +102,7 @@ export const AIAssistant = () => {
       }
     };
     initAI();
-  }, []);
+  }, [companyProfile?.organization_id]);
 
   useEffect(() => {
     if (isOpen) {
@@ -431,11 +442,7 @@ export const AIAssistant = () => {
           )}>
             <CardHeader className="flex flex-row items-center justify-between p-4 border-b border-white/5 bg-white/5 backdrop-blur-40 pt-safe">
               <div className="flex items-center gap-3">
-                <div className="p-0.5 rounded-full bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] shadow-lg">
-                  <div className="w-10 h-10 rounded-full bg-slate-950 flex items-center justify-center">
-                    <Bot className="w-5 h-5 text-white" />
-                  </div>
-                </div>
+                <GabiAvatar mood={currentMood} size={40} />
                 <div className="flex flex-col">
                   <span className="text-sm font-black uppercase tracking-widest text-white">Gabi AI</span>
                   <div className="flex items-center gap-1.5">
@@ -519,11 +526,7 @@ export const AIAssistant = () => {
                             ) : msg.role === 'assistant' && msg.content ? (
                               <div className="flex flex-col gap-2 w-full items-start">
                                 <div className="flex items-center gap-2 mb-1 px-1">
-                                  <div className="h-5 w-5 rounded-full bg-gradient-to-tr from-[#FF6B6B] to-[#6c5ce7] flex items-center justify-center p-[1px] shadow-lg shadow-purple-500/20">
-                                    <div className="w-full h-full rounded-full bg-slate-900 flex items-center justify-center">
-                                      <Sparkles className="h-2.5 w-2.5 text-primary" strokeWidth={3} />
-                                    </div>
-                                  </div>
+                                  <GabiAvatar mood="idle" size={20} />
                                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Gabi Intelligence</span>
                                 </div>
                                 <div className="relative max-w-[90%] rounded-2xl p-[1px] bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] shadow-[0_10px_40px_rgba(0,0,0,0.3)] animate-in slide-in-from-left-4 fade-in duration-300 group">
@@ -897,18 +900,14 @@ export const AIAssistant = () => {
                         );
                       })}
                       {isLoading && (
-                        <div className="flex gap-3 justify-start animate-in fade-in slide-in-from-left-2 duration-300">
-                          <div className="p-0.5 rounded-full bg-gradient-to-br from-[#FF6B6B] to-[#6c5ce7]">
-                            <div className="w-8 h-8 rounded-full bg-slate-950 flex items-center justify-center">
-                              <Bot className="w-4 h-4 text-white animate-pulse" />
-                            </div>
-                          </div>
+                        <div className="flex gap-3 justify-start items-center animate-in fade-in slide-in-from-left-2 duration-300">
+                          <GabiAvatar mood="thinking" size={36} />
                           <div className="max-w-[85%] p-3 rounded-2xl text-sm bg-slate-900/80 backdrop-blur-md text-slate-200 border border-white/5 rounded-tl-none shadow-xl">
                             <div className="flex items-center gap-3">
                               <div className="flex space-x-1">
-                                <div className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0s' }}></div>
-                                <div className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                                <div className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                                <div className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: '0s' }}></div>
+                                <div className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                                <div className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                               </div>
                               <span className="text-[11px] font-black uppercase tracking-widest text-zinc-400">{loadingStatus}</span>
                             </div>

@@ -40,7 +40,7 @@ Deno.serve(async (req: Request) => {
 
         // --- 1. Handle Audio (Whisper) ---
         let textMessage = message || "";
-        const OPENAI_KEY = Deno.env.get('OPENAI_API_KEY');
+        const OPENAI_KEY = Deno.env.get('OPENAI_API_KEY2');
 
         if (audio_base64) {
             console.log(`[Generator] Audio detected. Transcribing...`);

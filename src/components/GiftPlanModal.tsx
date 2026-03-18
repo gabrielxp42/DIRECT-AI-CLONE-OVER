@@ -91,7 +91,7 @@ export function GiftPlanModal() {
         if (Object.keys(updates).length === 0) return;
 
         try {
-            await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${session.user.id}`, {
+            await fetch(`${SUPABASE_URL}/rest/v1/profiles_v2?uid=eq.${session.user.id}`, {
                 method: 'PATCH',
                 headers: {
                     'apikey': SUPABASE_ANON_KEY,

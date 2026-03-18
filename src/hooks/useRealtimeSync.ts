@@ -75,8 +75,8 @@ export const useRealtimeSync = () => {
                 {
                     event: 'UPDATE',
                     schema: 'public',
-                    table: 'profiles',
-                    filter: `id=eq.${userId}`
+                    table: 'profiles_v2',
+                    filter: `uid=eq.${userId}`
                 },
                 (payload) => {
                     console.log('[Realtime] Alteração em Perfil (Balance/Settings) detectada:', payload.eventType);
