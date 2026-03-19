@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { 
   Sparkles, Home, Star, GripVertical, CheckCircle2, CloudLightning, Bot, Package, Settings
@@ -15,6 +15,95 @@ import {
 } from './components/Widgets';
 import './Launcher.css';
 
+type CSSVars = React.CSSProperties & Record<`--${string}`, string | number>;
+
+const hashString = (value: string) => {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i += 1) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+};
+
+const mulberry32 = (seed: number) => {
+  let t = seed >>> 0;
+  return () => {
+    t += 0x6D2B79F5;
+    let x = t;
+    x = Math.imul(x ^ (x >>> 15), x | 1);
+    x ^= x + Math.imul(x ^ (x >>> 7), x | 61);
+    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+  };
+};
+
+const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+
+const createFireflies = (count: number, seed: number) => {
+  const rand = mulberry32(seed);
+  return Array.from({ length: count }, (_, index) => {
+    const baseLeft = rand() * 100;
+    const baseTop = rand() * 100;
+    const size = clamp(2 + rand() * 3.5, 2, 5.5);
+    const wander = clamp(30 + rand() * 60, 30, 90);
+    const duration = clamp(18 + rand() * 22, 18, 40);
+    const flicker = clamp(2.5 + rand() * 4.5, 2.5, 7);
+    const delay = rand() * 4;
+    const brightness = clamp(0.35 + rand() * 0.55, 0.35, 0.9);
+    const x1 = (rand() - 0.5) * wander;
+    const y1 = (rand() - 0.5) * wander;
+    const x2 = (rand() - 0.5) * wander;
+    const y2 = (rand() - 0.5) * wander;
+    const x3 = (rand() - 0.5) * wander;
+    const y3 = (rand() - 0.5) * wander;
+    return {
+      key: `firefly-${seed}-${index}`,
+      left: baseLeft,
+      top: baseTop,
+      size,
+      duration,
+      flicker,
+      delay,
+      brightness,
+      x1,
+      y1,
+      x2,
+      y2,
+      x3,
+      y3,
+    };
+  });
+};
+
+const createSparks = (count: number, seed: number) => {
+  const rand = mulberry32(seed);
+  return Array.from({ length: count }, (_, index) => {
+    const left = rand() * 100;
+    const top = 78 + rand() * 30;
+    const size = clamp(1.8 + rand() * 2.8, 1.8, 4.6);
+    const duration = clamp(4 + rand() * 8, 4, 12);
+    const delay = -rand() * duration;
+    const x1 = (rand() - 0.5) * 18;
+    const x2 = (rand() - 0.5) * 28;
+    const x3 = (rand() - 0.5) * 38;
+    const rise = clamp(120 + rand() * 220, 120, 340);
+    const energy = clamp(0.35 + rand() * 0.75, 0.35, 1.1);
+    return {
+      key: `spark-${seed}-${index}`,
+      left,
+      top,
+      size,
+      duration,
+      delay,
+      x1,
+      x2,
+      x3,
+      rise,
+      energy,
+    };
+  });
+};
+
 interface OverPixelLauncherProps {
   isOpen?: boolean;
   onClose?: () => void;
@@ -25,15 +114,18 @@ interface OverPixelLauncherProps {
   onToneChange?: (tone: string) => void;
   glassOpacity?: number;
   onOpacityChange?: (opacity: number) => void;
+  isSidebarExpanded?: boolean;
+  mode?: 'full' | 'mobileOverlay';
+  activeAppOverride?: 'gabi' | 'dtf-factory' | 'montador' | 'melhorador';
 }
 
 // Custom App Logos
 const MontadorIcon = ({ className }: { className?: string }) => (
-  <img src="/montador/logo-montador-fast.png" alt="O Montador" className={cn("w-full h-full object-contain p-2", className)} />
+  <img src="/montador/logo-montador-fast.png" alt="O Montador" className={cn("w-full h-full object-contain", className)} />
 );
 
 const DTFFactoryLogo = ({ className }: { className?: string }) => (
-  <img src="/dtf-fabric-logo.png" alt="DTF Factory" className={cn("w-full h-full object-contain p-2", className)} />
+  <img src="/dtf-fabric-logo.png" alt="DTF Factory" className={cn("w-full h-full object-contain", className)} />
 );
 
 const DirectAILogo = ({ className }: { className?: string }) => (
@@ -66,9 +158,10 @@ const availableWidgets = [
 ];
 
 const OverPixelLauncher = React.forwardRef<HTMLDivElement, OverPixelLauncherProps>(
-  ({ isOpen, onClose, onAppClick, isInline, showSettings, glassTone, onToneChange, glassOpacity, onOpacityChange }, ref) => {
+  ({ isOpen, onClose, onAppClick, isInline, showSettings, glassTone, onToneChange, glassOpacity, onOpacityChange, isSidebarExpanded, mode = 'full', activeAppOverride }, ref) => {
     const navigate = useNavigate();
     const { profile, activeSubProfile } = useSession();
+    const location = useLocation();
     
     // States
     const [isEditingApps, setIsEditingApps] = useState(false);
@@ -82,7 +175,38 @@ const OverPixelLauncher = React.forwardRef<HTMLDivElement, OverPixelLauncherProp
     const [currentTime, setCurrentTime] = useState(new Date());
     const [localShowSettings, setLocalShowSettings] = useState(false);
 
-    // Sync Tone (Removed - Now handled by Layout.tsx via props)
+    // Current app context based on route
+    const currentAppId = useMemo(() => {
+      if (activeAppOverride === 'montador') return 'app-montador';
+      if (activeAppOverride === 'dtf-factory') return 'app-dtf-factory';
+      if (activeAppOverride === 'melhorador') return 'app-melhorador';
+      if (activeAppOverride === 'gabi') return 'app-gabi';
+      if (location.pathname.includes('montador')) return 'app-montador';
+      if (location.pathname.includes('dtf-factory')) return 'app-dtf-factory';
+      return 'app-gabi';
+    }, [activeAppOverride, location.pathname]);
+
+    const particleSeed = useMemo(() => hashString(currentAppId), [currentAppId]);
+
+    const dtfFireflies = useMemo(() => {
+      if (currentAppId !== 'app-dtf-factory') return [];
+      return createFireflies(18, particleSeed);
+    }, [currentAppId, particleSeed]);
+
+    const montadorSparks = useMemo(() => {
+      if (currentAppId !== 'app-montador') return [];
+      return createSparks(26, particleSeed);
+    }, [currentAppId, particleSeed]);
+
+    useEffect(() => {
+      const root = document.documentElement;
+      root.setAttribute('data-launcher-app', currentAppId.replace('app-', ''));
+      return () => {
+        if (root.getAttribute('data-launcher-app') === currentAppId.replace('app-', '')) {
+          root.removeAttribute('data-launcher-app');
+        }
+      };
+    }, [currentAppId]);
 
     // Sync Widgets
     useEffect(() => {
@@ -114,11 +238,11 @@ const OverPixelLauncher = React.forwardRef<HTMLDivElement, OverPixelLauncherProp
 
     const handleAppClickInternal = (appId: string, route: string | null) => {
       console.log(`[Launcher] App clicked: ${appId} -> Route: ${route || 'none'}`);
-      if (onAppClick) { 
+      if (onAppClick) {
         onAppClick(appId, route || undefined); 
         return; 
       }
-      if (route) { 
+      if (route) {
         navigate(route); 
         if (onClose) onClose(); 
       }
@@ -126,9 +250,61 @@ const OverPixelLauncher = React.forwardRef<HTMLDivElement, OverPixelLauncherProp
 
     const userName = activeSubProfile?.name || profile?.first_name || 'Usuário';
 
+    if (mode === 'mobileOverlay') {
+      return (
+        <div className={cn("ios-launcher-container mobile-overlay", currentAppId)} ref={ref}>
+          <div className={cn("ios-app-bg", currentAppId)} aria-hidden="true">
+            {currentAppId === 'app-dtf-factory' && (
+              <div className="dtf-firefly-layer">
+                {dtfFireflies.map((p) => {
+                  const style: CSSVars = {
+                    left: `${p.left}%`,
+                    top: `${p.top}%`,
+                    width: `${p.size}px`,
+                    height: `${p.size}px`,
+                    animationDuration: `${p.duration}s, ${p.flicker}s`,
+                    animationDelay: `${p.delay}s, ${p.delay * 0.35}s`,
+                    '--x1': `${p.x1}px`,
+                    '--y1': `${p.y1}px`,
+                    '--x2': `${p.x2}px`,
+                    '--y2': `${p.y2}px`,
+                    '--x3': `${p.x3}px`,
+                    '--y3': `${p.y3}px`,
+                    '--o': p.brightness,
+                  };
+                  return <span key={p.key} className="dtf-firefly" style={style} />;
+                })}
+              </div>
+            )}
+
+            {currentAppId === 'app-montador' && (
+              <div className="montador-spark-layer">
+                {montadorSparks.map((p) => {
+                  const style: CSSVars = {
+                    left: `${p.left}%`,
+                    top: `${p.top}%`,
+                    width: `${p.size}px`,
+                    height: `${p.size}px`,
+                    animationDuration: `${p.duration}s`,
+                    animationDelay: `${p.delay}s`,
+                    '--x1': `${p.x1}px`,
+                    '--x2': `${p.x2}px`,
+                    '--x3': `${p.x3}px`,
+                    '--rise': `${p.rise}px`,
+                    '--e': p.energy,
+                  };
+                  return <span key={p.key} className="montador-spark" style={style} />;
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
     return (
       <motion.div 
-        className={cn("ios-launcher-container", isInline && "inline-mode", `tone-${glassTone}`)} 
+        className={cn("ios-launcher-container", isInline && "inline-mode", `tone-${glassTone}`, currentAppId)} 
         ref={ref}
         initial={{ opacity: 0, scale: 1.05 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -136,6 +312,51 @@ const OverPixelLauncher = React.forwardRef<HTMLDivElement, OverPixelLauncherProp
         transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
       >
         <div className="ios-bg-mesh" />
+        <div className={cn("ios-app-bg", currentAppId)} aria-hidden="true">
+          {currentAppId === 'app-dtf-factory' && (
+            <div className="dtf-firefly-layer">
+              {dtfFireflies.map((p) => {
+                const style: CSSVars = {
+                  left: `${p.left}%`,
+                  top: `${p.top}%`,
+                  width: `${p.size}px`,
+                  height: `${p.size}px`,
+                  animationDuration: `${p.duration}s, ${p.flicker}s`,
+                  animationDelay: `${p.delay}s, ${p.delay * 0.35}s`,
+                  '--x1': `${p.x1}px`,
+                  '--y1': `${p.y1}px`,
+                  '--x2': `${p.x2}px`,
+                  '--y2': `${p.y2}px`,
+                  '--x3': `${p.x3}px`,
+                  '--y3': `${p.y3}px`,
+                  '--o': p.brightness,
+                };
+                return <span key={p.key} className="dtf-firefly" style={style} />;
+              })}
+            </div>
+          )}
+
+          {currentAppId === 'app-montador' && (
+            <div className="montador-spark-layer">
+              {montadorSparks.map((p) => {
+                const style: CSSVars = {
+                  left: `${p.left}%`,
+                  top: `${p.top}%`,
+                  width: `${p.size}px`,
+                  height: `${p.size}px`,
+                  animationDuration: `${p.duration}s`,
+                  animationDelay: `${p.delay}s`,
+                  '--x1': `${p.x1}px`,
+                  '--x2': `${p.x2}px`,
+                  '--x3': `${p.x3}px`,
+                  '--rise': `${p.rise}px`,
+                  '--e': p.energy,
+                };
+                return <span key={p.key} className="montador-spark" style={style} />;
+              })}
+            </div>
+          )}
+        </div>
 
         {/* New Sidebar Integration — Toggleable internally or externally */}
         <AnimatePresence>
@@ -199,14 +420,18 @@ const OverPixelLauncher = React.forwardRef<HTMLDivElement, OverPixelLauncherProp
                   className={cn("ios-app-container relative", isEditingApps && "ios-wiggle-animation")}
                   onClick={() => !isEditingApps && handleAppClickInternal(app.id, app.route)}
                 >
-                  <div className="ios-squircle relative" style={{ background: app.color }}>
+                  <div className="ios-squircle relative overflow-visible" style={{ background: app.color, borderRadius: '24px' }}>
                     <app.icon className="ios-squircle-logo text-white" />
                     {isEditingApps && (
                       <div className="absolute inset-0 flex items-center justify-center opacity-40 pointer-events-none">
                         <GripVertical className="text-white" />
                       </div>
                     )}
-                    {app.badge && <div className={cn("ios-badge", app.badgeClass)}>{app.badge}</div>}
+                    {app.badge && (
+                      <div className={cn("ios-badge", app.badgeClass)} style={{ borderRadius: '8px' }}>
+                        {app.badge}
+                      </div>
+                    )}
                   </div>
                   <div className="ios-app-name">{app.name}</div>
                 </Reorder.Item>

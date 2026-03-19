@@ -3,8 +3,28 @@ import { electronBridge } from './electronBridge';
 // Helper para converter Data URI para Blob diretamente
 export async function dataURItoBlob(dataURI: string): Promise<Blob> {
     try {
-        const response = await fetch(dataURI);
-        return await response.blob();
+        const commaIndex = dataURI.indexOf(',');
+        if (!dataURI.startsWith('data:') || commaIndex === -1) {
+            throw new Error('Invalid Data URI');
+        }
+
+        const header = dataURI.substring(0, commaIndex);
+        const dataPart = dataURI.substring(commaIndex + 1);
+        const isBase64 = header.includes(';base64');
+        const mimeMatch = /^data:([^;]+)/.exec(header);
+        const mimeType = mimeMatch?.[1] || 'application/octet-stream';
+
+        if (isBase64) {
+            const binary = atob(dataPart);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i += 1) {
+                bytes[i] = binary.charCodeAt(i);
+            }
+            return new Blob([bytes], { type: mimeType });
+        }
+
+        const decoded = decodeURIComponent(dataPart);
+        return new Blob([decoded], { type: mimeType });
     } catch (e) {
         console.error('Error converting Data URI to Blob:', e);
         throw new Error('Invalid Data URI');
@@ -43,19 +63,22 @@ export async function fetchWithRetry(url: string, retries = 5, delay = 1000): Pr
         console.warn(`⚠️ [IMAGE-UTILS] Browser fetch failed (Attempt ${6 - retries}/5). Error:`, e instanceof Error ? e.message : String(e));
 
         // 3. Se ainda tem retries, tenta via Electron Bridge como backup imediato
-        try {
-            console.log('[IMAGE-UTILS] Trying Electron Bridge fallback...');
-            const result = await electronBridge.downloadImage(url);
-            if (result.success && result.data) {
-                // Se o bridge retornou um data URI, converte direto sem fetch
-                if (result.data.startsWith('data:')) {
-                    return await dataURItoBlob(result.data);
+        // (Evita para blob: no modo web — isso vira fetch duplicado e não resolve abort)
+        if (!url.startsWith('blob:')) {
+            try {
+                console.log('[IMAGE-UTILS] Trying Electron Bridge fallback...');
+                const result = await electronBridge.downloadImage(url);
+                if (result.success && result.data) {
+                    // Se o bridge retornou um data URI, converte direto sem fetch
+                    if (result.data.startsWith('data:')) {
+                        return await dataURItoBlob(result.data);
+                    }
+                    const res = await fetch(result.data);
+                    return await res.blob();
                 }
-                const res = await fetch(result.data);
-                return await res.blob();
+            } catch (bridgeError) {
+                console.warn('[IMAGE-UTILS] Bridge fallback also failed (error suppressed to avoid spam)');
             }
-        } catch (bridgeError) {
-            console.warn('[IMAGE-UTILS] Bridge fallback also failed (error suppressed to avoid spam)');
         }
 
         // 4. Fallback final: Image Tag -> Canvas (se bridge falhou e browser fetch falhou)

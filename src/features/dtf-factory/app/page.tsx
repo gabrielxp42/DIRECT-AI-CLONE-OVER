@@ -839,7 +839,7 @@ export default function HomePage() {
       {isProMode && (
         <header className="fixed top-0 left-0 right-0 z-50 px-6 py-4 flex items-center justify-between bg-black/20 backdrop-blur-xl border-b border-white/5" style={{ paddingTop: '40px' }}>
           <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => window.dispatchEvent(new CustomEvent('toggle-launcher'))}>
-            <img src="./logo.png" alt="Overpixel" className="w-10 h-10 rounded-xl" />
+            <img src="/dtf-fabric-logo.png" alt="DTF Factory" className="w-10 h-10 rounded-xl object-contain" />
             <div>
               <h1 className="text-xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">
                 Gerador DTF
@@ -1066,7 +1066,7 @@ export default function HomePage() {
               style={{ WebkitAppRegion: 'drag' } as any}
             >
               <div className="flex items-center gap-2">
-                <img src="./logo.png" alt="Overpixel" className="w-6 h-6 rounded-lg" />
+                <img src="/dtf-fabric-logo.png" alt="DTF Factory" className="w-6 h-6 rounded-lg object-contain" />
                 <span className="text-sm font-bold text-white/80">Gerador DTF</span>
               </div>
               <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as any}>

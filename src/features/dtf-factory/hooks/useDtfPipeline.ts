@@ -159,7 +159,13 @@ async function resizeImageIfNecessary(imageUrl: string, targetW?: number, target
             ctx.imageSmoothingQuality = 'high';
 
             ctx.drawImage(img, 0, 0, targetW, targetH);
-            resolve(canvas.toDataURL('image/png'));
+            canvas.toBlob((blob) => {
+                if (!blob) {
+                    resolve(imageUrl);
+                    return;
+                }
+                resolve(URL.createObjectURL(blob));
+            }, 'image/png');
         };
         img.onerror = (e) => reject(e);
         img.src = imageUrl;

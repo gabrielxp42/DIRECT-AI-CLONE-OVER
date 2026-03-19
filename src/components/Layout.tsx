@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { Home, ShoppingCart, Users, BarChart3, Package, MessageSquare, Layers, Sparkles, Image as ImageIcon, Bot, Truck, Grid2x2, X, LayoutGrid, CloudCog, Wand2, Settings } from 'lucide-react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, animate, motion, useDragControls, useMotionValue } from 'framer-motion';
 import { AIAssistant } from './AIAssistant';
 import { ThemeToggle } from './ThemeToggle';
 import { GabiAvatar } from './GabiAvatar';
@@ -64,6 +64,11 @@ const Layout = () => {
   const [isVetorizadorOpen, setIsVetorizadorOpen] = React.useState(false);
   const [showLauncher, setShowLauncher] = React.useState(false);
   const [showLauncherSettings, setShowLauncherSettings] = React.useState(false);
+  const [mobileLauncherIndex, setMobileLauncherIndex] = React.useState(0);
+  const mobileCarouselX = useMotionValue(0);
+  const mobileCarouselDragControls = useDragControls();
+  const isMobileCarouselDraggingRef = React.useRef(false);
+  const mobileCarouselPointerStartRef = React.useRef<{ x: number; y: number } | null>(null);
 
   // Instance Memory State (Visited Persistent Apps)
   const [visitedPersistentApps, setVisitedPersistentApps] = React.useState<Set<string>>(new Set());
@@ -75,8 +80,8 @@ const Layout = () => {
   }, [location.pathname]);
 
   // Global Liquid Glass State (Surgical 2026)
-  const [glassTone, setGlassTone] = React.useState(() => localStorage.getItem('op-glass-tone') || 'cyan');
-  const [glassOpacity, setGlassOpacity] = React.useState(() => Number(localStorage.getItem('op-glass-opacity')) || 0.15);
+  const [glassTone, setGlassTone] = React.useState(() => localStorage.getItem('op-glass-tone') || 'clear');
+  const [glassOpacity, setGlassOpacity] = React.useState(() => Number(localStorage.getItem('op-glass-opacity')) || 0.12);
   const [glassBlur, setGlassBlur] = React.useState(() => Number(localStorage.getItem('op-glass-blur')) || 70);
 
   // Sync Master Variables
@@ -86,7 +91,7 @@ const Layout = () => {
     localStorage.setItem('op-glass-opacity', glassOpacity.toString());
     localStorage.setItem('op-glass-blur', glassBlur.toString());
 
-    // Map Tone to RGB
+    // Map Tone to RGB - Neutralized for "Glass" feel
     const toneMap: Record<string, string> = {
       'clear': '255, 255, 255',
       'dark': '0, 0, 0',
@@ -94,7 +99,7 @@ const Layout = () => {
       'rose': '225, 29, 72'
     };
 
-    const rgb = toneMap[glassTone] || '6, 182, 212';
+    const rgb = toneMap[glassTone] || '255, 255, 255';
     root.style.setProperty('--glass-rgb', rgb);
     root.style.setProperty('--glass-opacity', glassOpacity.toString());
     
@@ -102,6 +107,8 @@ const Layout = () => {
     const dynamicBlur = 40 + (glassOpacity * 60);
     root.style.setProperty('--glass-blur', `${dynamicBlur}px`);
     
+    // Header/Important content should remain bright
+    root.style.setProperty('--glass-content-opacity', '1');
     root.style.setProperty('--glass-border-opacity', (glassOpacity + 0.15).toString());
   }, [glassTone, glassOpacity]);
   const [launcherTheme, setLauncherTheme] = React.useState<'light' | 'dark'>(() => {
@@ -124,6 +131,42 @@ const Layout = () => {
     setShowLauncher(false);
     setShowLauncherSettings(false);
   }, []);
+
+  const mobileLauncherApps = React.useMemo(() => ([
+    { id: 'direct-ai', theme: 'gabi' as const, iconType: 'svg' as const, route: '/dashboard' },
+    { id: 'dtf-factory', theme: 'dtf-factory' as const, iconType: 'img' as const, iconSrc: '/dtf-fabric-logo.png', route: '/dtf-factory' },
+    { id: 'montador', theme: 'montador' as const, iconType: 'img' as const, iconSrc: '/montador/logo-montador-fast.png', route: '/montador' },
+    { id: 'melhorador', theme: 'melhorador' as const, iconType: 'img' as const, iconSrc: encodeURI('/logo melhorador cloud.png'), route: null },
+  ]), []);
+
+  const mod = React.useCallback((value: number, base: number) => ((value % base) + base) % base, []);
+
+  const mobileActiveApp = React.useMemo(() => {
+    const len = mobileLauncherApps.length;
+    const idx = mod(mobileLauncherIndex, len);
+    return mobileLauncherApps[idx];
+  }, [mobileLauncherApps, mobileLauncherIndex, mod]);
+
+  React.useEffect(() => {
+    if (!showLauncher || !isMobile) return;
+    const root = document.documentElement;
+    root.setAttribute('data-launcher-app', mobileActiveApp.theme);
+    return () => {
+      if (root.getAttribute('data-launcher-app') === mobileActiveApp.theme) {
+        root.removeAttribute('data-launcher-app');
+      }
+    };
+  }, [isMobile, mobileActiveApp.theme, showLauncher]);
+
+  React.useEffect(() => {
+    if (!showLauncher) return;
+    const toIndex = (path: string) => {
+      if (path.includes('/dtf-factory')) return 1;
+      if (path.includes('/montador')) return 2;
+      return 0;
+    };
+    setMobileLauncherIndex(toIndex(location.pathname));
+  }, [location.pathname, showLauncher]);
 
   const toggleLauncher = React.useCallback(() => {
     const now = Date.now();
@@ -148,11 +191,11 @@ const Layout = () => {
 
   // Close launcher on navigation
   React.useEffect(() => {
-    if (showLauncher) {
+    if (showLauncher && !isMobile) {
       console.log(`[Layout] Auto-closing launcher due to navigation -> ${location.pathname}`);
       closeLauncher();
     }
-  }, [location.pathname, closeLauncher]);
+  }, [isMobile, location.pathname, closeLauncher, showLauncher]);
 
   // Listen for toggle-launcher event from integrated apps
   React.useEffect(() => {
@@ -453,6 +496,7 @@ const Layout = () => {
           {visitedPersistentApps.has('/montador') && (
             <div className={cn(
               "flex-col flex-1 w-full h-full",
+              isMobile && location.pathname === '/montador' && "pt-14",
               location.pathname !== '/montador' && "hidden pointer-events-none invisible h-0 overflow-hidden"
             )}>
               <React.Suspense fallback={null}>
@@ -461,7 +505,39 @@ const Layout = () => {
             </div>
           )}
         </main>
-        {location.pathname !== '/settings' && (
+        {isMobile && location.pathname === '/montador' && (
+          <div className="fixed top-0 left-0 right-0 z-[60] h-14 px-4 flex items-center justify-between pointer-events-auto bg-black/55 backdrop-filter backdrop-blur-xl border-b border-orange-500/25 shadow-[0_0_22px_rgba(255,106,0,0.18)]">
+            <button
+              onClick={toggleLauncher}
+              className="flex items-center gap-2"
+              title="Abrir menu de aplicativos"
+            >
+              <img
+                src="/montador/logo-montador-fast.png"
+                alt="Montador"
+                className="w-7 h-7 rounded-lg object-contain"
+                draggable={false}
+                onDragStart={(e) => e.preventDefault()}
+              />
+              <span className="text-sm font-black tracking-wide text-white/85">MONTADOR</span>
+            </button>
+
+            <button
+              onClick={toggleLauncher}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-orange-500/25 bg-orange-500/10 hover:bg-orange-500/15 transition-colors"
+              title="Abrir menu de aplicativos"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-orange-400 shadow-[0_0_10px_rgba(255,106,0,0.6)] animate-pulse" />
+              <span className="text-xs font-bold text-white/80 tabular-nums">
+                {(profile as any)?.ai_credits ?? 0}
+              </span>
+              <span className="text-[10px] font-black tracking-widest text-white/35 uppercase">
+                TOKENS
+              </span>
+            </button>
+          </div>
+        )}
+        {location.pathname !== '/settings' && !(isMobile && location.pathname === '/montador') && (
           <MobileBottomNav
             onOpenCalculator={() => setIsCalculatorOpen(true)}
             onOpenVetorizador={() => setIsVetorizadorOpen(true)}
@@ -525,8 +601,15 @@ const Layout = () => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={closeLauncher}
-              className="fixed inset-0 z-[9991] bg-black/40 backdrop-filter blur-md pointer-events-auto"
+              className="fixed inset-0 z-[9991] bg-transparent backdrop-filter blur-md pointer-events-auto"
             />
+
+            {isMobile && (
+              <OverPixelLauncher
+                mode="mobileOverlay"
+                activeAppOverride={mobileActiveApp.theme}
+              />
+            )}
 
             {/* Top Bar Framework */}
             <motion.div
@@ -584,138 +667,199 @@ const Layout = () => {
               </div>
             </motion.div>
 
-            {/* Launcher Card Card Card */}
-            <div className="z-[9995] pointer-events-auto">
-              <OverPixelLauncher 
-                isOpen={showLauncher} 
-                onClose={closeLauncher}
-                onAppClick={handleLauncherAppClick}
-                isInline={true}
-                showSettings={showLauncherSettings}
-                glassTone={glassTone}
-                onToneChange={setGlassTone}
-                glassOpacity={glassOpacity}
-                onOpacityChange={setGlassOpacity}
-              />
-            </div>
+            {!isMobile && (
+              <div className="z-[9995] pointer-events-auto">
+                <OverPixelLauncher 
+                  isOpen={showLauncher} 
+                  onClose={closeLauncher}
+                  onAppClick={handleLauncherAppClick}
+                  isInline={true}
+                  showSettings={showLauncherSettings}
+                  glassTone={glassTone}
+                  onToneChange={setGlassTone}
+                  glassOpacity={glassOpacity}
+                  onOpacityChange={setGlassOpacity}
+                  isSidebarExpanded={isExpanded}
+                />
+              </div>
+            )}
 
             {/* Left Sidebar — Launcher Icons Framework */}
-            <motion.div
-              className={cn(
-                "fixed top-16 left-0 bottom-0 z-[9993] w-[80px] flex flex-col items-center py-6 gap-2 launcher-side-bar pointer-events-auto",
-                launcherTheme === 'light' ? 'launcher-bar-glass-light' : 'launcher-bar-glass-dark'
-              )}
-              initial={{ x: -80, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              exit={{ x: -80, opacity: 0 }}
-              transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1], delay: 0.05 }}
-            >
-              {/* Direct AI (Gabi) */}
-              <motion.button
-                onClick={() => handleLauncherAppClick('direct-ai')}
-                className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-white/5 transition-all group relative"
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.92 }}
-                title="Direct AI — Gabi"
-              >
-                {/* Active dot */}
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-full bg-fuchsia-500 shadow-[0_0_8px_rgba(217,70,239,0.6)]" />
-                <div className="w-12 h-12 rounded-full flex items-center justify-center border border-fuchsia-500/30 bg-fuchsia-500/10 group-hover:border-fuchsia-500/50 group-hover:shadow-[0_0_20px_rgba(217,70,239,0.2)] transition-all">
-                  <GabiAvatar mood="idle" size={32} />
-                </div>
-                <span className="text-[9px] font-bold text-white/50 group-hover:text-white/80 transition-colors tracking-wide">Gabi</span>
-              </motion.button>
-
-              {/* Separator */}
-              <div className="w-8 h-px bg-white/5 my-1" />
-
-              {/* DTF Factory */}
-              <motion.button
-                onClick={() => handleLauncherAppClick('dtf-factory')}
-                className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-white/5 transition-all group"
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.92 }}
-                title="DTF Factory"
-              >
-                {/* Active dot */}
-                {location.pathname === '/dtf-factory' && (
-                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-full bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.6)]" />
-                )}
-                <div className="w-12 h-12 rounded-full flex items-center justify-center border border-white/5 bg-white/5 group-hover:border-orange-500/50 group-hover:shadow-[0_0_20px_rgba(249,115,22,0.2)] transition-all overflow-hidden">
-                  <img src="/dtf-fabric-logo.png" alt="DTF Factory" className="w-full h-full object-cover" />
-                </div>
-                <span className="text-[9px] font-bold text-white/50 group-hover:text-white/80 transition-colors tracking-wide">DTF</span>
-              </motion.button>
-
-              {/* O Montador */}
-              <motion.button
-                onClick={() => handleLauncherAppClick('montador')}
-                className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-white/5 transition-all group"
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.92 }}
-                title="O Montador — Builder de Layouts"
-              >
-                {/* Active dot */}
-                {location.pathname === '/montador' && (
-                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-full bg-violet-500 shadow-[0_0_8px_rgba(139,92,246,0.6)]" />
-                )}
-                <div className="w-12 h-12 rounded-full flex items-center justify-center border border-white/5 bg-white/5 group-hover:border-violet-500/50 group-hover:shadow-[0_0_20px_rgba(139,92,246,0.2)] transition-all overflow-hidden">
-                  <img src="/montador/logo-montador-fast.png" alt="O Montador" className="w-full h-full object-cover scale-150" />
-                </div>
-                <span className="text-[9px] font-bold text-white/50 group-hover:text-white/80 transition-colors tracking-wide">Montador</span>
-              </motion.button>
-
-              {/* Melhorador Cloud */}
-              <motion.button
-                onClick={() => handleLauncherAppClick('melhorador')}
-                className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-white/5 transition-all group"
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.92 }}
-                title="Melhorador Cloud — Em breve"
-              >
-                <div className="w-12 h-12 rounded-full flex items-center justify-center border border-sky-500/20 bg-sky-500/5 group-hover:border-sky-500/35 transition-all opacity-50 group-hover:opacity-75">
-                  <Wand2 className="w-5 h-5 text-sky-400/60" />
-                </div>
-                <span className="text-[9px] font-bold text-white/30 group-hover:text-white/50 transition-colors tracking-wide">Cloud</span>
-              </motion.button>
-
-              {/* Spacer */}
-              <div className="flex-1" />
-
-              {/* Home / Launcher (Primary Entry Point) */}
-              <motion.button
-                onClick={() => { 
-                  if (!showLauncher) {
-                    setShowLauncher(true);
-                  } else {
-                    closeLauncher();
-                    // If already on dashboard, just close. Otherwise navigate home.
-                    if (location.pathname !== '/') navigate('/');
-                  }
-                }}
+            {!isMobile && (
+              <motion.div
                 className={cn(
-                  "flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all group",
-                  showLauncher ? "bg-cyan-500/20" : "hover:bg-cyan-500/10"
+                  "fixed top-16 left-0 bottom-0 z-[9993] w-[80px] flex flex-col items-center py-6 gap-2 launcher-side-bar pointer-events-auto",
+                  launcherTheme === 'light' ? 'launcher-bar-glass-light' : 'launcher-bar-glass-dark'
                 )}
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.92 }}
-                title="OverPixel Launcher"
+                initial={{ x: -80, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ x: -80, opacity: 0 }}
+                transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1], delay: 0.05 }}
               >
-                <div className={cn(
-                  "w-12 h-12 rounded-full flex items-center justify-center border transition-all",
-                  showLauncher ? "border-cyan-400/60 bg-cyan-400/10 shadow-[0_0_15px_rgba(6,182,212,0.3)]" : "border-cyan-500/15 bg-cyan-500/5 group-hover:border-cyan-500/30"
-                )}>
-                  <Home className={cn(
-                    "w-5 h-5 transition-colors",
-                    showLauncher ? "text-cyan-400" : "text-cyan-400/50 group-hover:text-cyan-400/80"
-                  )} />
+                <div className="flex flex-col items-center gap-4 mt-2">
+                  <motion.button 
+                    onClick={() => handleLauncherAppClick('direct-ai')}
+                    className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-white/5 transition-all group relative"
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.92 }}
+                    title="Direct AI — Gabi"
+                  >
+                    <div className="w-12 h-12 rounded-full flex items-center justify-center border border-fuchsia-500/30 bg-fuchsia-500/10 group-hover:border-fuchsia-500/50 group-hover:shadow-[0_0_20px_rgba(217,70,239,0.3)] transition-all">
+                      <GabiAvatar mood="idle" size={32} />
+                    </div>
+                  </motion.button>
+
+                  <motion.button 
+                    onClick={() => handleLauncherAppClick('dtf-factory')}
+                    className="w-14 h-14 flex items-center justify-center rounded-2xl hover:bg-white/5 transition-all ios-side-widget-blink"
+                    whileHover={{ scale: 1.08 }}
+                    whileTap={{ scale: 0.96 }}
+                    title="DTF Factory"
+                  >
+                    <img src="/dtf-fabric-logo.png" alt="DTF Factory" className="w-11 h-11 object-contain" />
+                  </motion.button>
+
+                  <motion.button 
+                    onClick={() => handleLauncherAppClick('montador')}
+                    className="w-14 h-14 flex items-center justify-center rounded-2xl hover:bg-white/5 transition-all ios-side-widget-blink"
+                    whileHover={{ scale: 1.08 }}
+                    whileTap={{ scale: 0.96 }}
+                    title="O Montador"
+                  >
+                    <img src="/montador/logo-montador-fast.png" alt="O Montador" className="w-11 h-11 object-contain" />
+                  </motion.button>
                 </div>
-                <span className={cn(
-                  "text-[9px] font-bold transition-colors tracking-wide",
-                  showLauncher ? "text-cyan-400" : "text-cyan-400/30 group-hover:text-cyan-400/60"
-                )}>Home</span>
-              </motion.button>
-            </motion.div>
+
+                <div className="flex-1" />
+              </motion.div>
+            )}
+
+            {isMobile && (
+              <motion.div
+                className={cn(
+                  "fixed left-0 right-0 bottom-0 z-[9993] h-24 px-6 launcher-bottom-bar pointer-events-auto flex items-center justify-center",
+                  launcherTheme === 'light' ? 'launcher-bar-glass-light' : 'launcher-bar-glass-dark'
+                )}
+                initial={{ y: 96, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: 96, opacity: 0 }}
+                transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1], delay: 0.05 }}
+              >
+                <motion.div
+                  className="flex items-center justify-center gap-6 select-none touch-pan-y"
+                  drag="x"
+                  style={{ x: mobileCarouselX }}
+                  dragControls={mobileCarouselDragControls}
+                  dragListener={false}
+                  dragConstraints={{ left: -120, right: 120 }}
+                  dragElastic={0.35}
+                  dragMomentum={false}
+                  onPointerDownCapture={(e) => {
+                    if (e.pointerType === 'mouse' && e.button !== 0) return;
+                    mobileCarouselPointerStartRef.current = { x: e.clientX, y: e.clientY };
+                  }}
+                  onPointerMoveCapture={(e) => {
+                    if (isMobileCarouselDraggingRef.current) return;
+                    const start = mobileCarouselPointerStartRef.current;
+                    if (!start) return;
+                    const dx = e.clientX - start.x;
+                    const dy = e.clientY - start.y;
+                    if (Math.abs(dx) + Math.abs(dy) < 10) return;
+                    mobileCarouselPointerStartRef.current = null;
+                    mobileCarouselDragControls.start(e);
+                  }}
+                  onPointerUpCapture={() => {
+                    mobileCarouselPointerStartRef.current = null;
+                  }}
+                  onDragStart={() => {
+                    isMobileCarouselDraggingRef.current = true;
+                  }}
+                  onDragEnd={(_, info) => {
+                    const swipe = info.offset.x + info.velocity.x * 0.2;
+                    const threshold = 70;
+                    const dir = swipe < -threshold ? 1 : swipe > threshold ? -1 : 0;
+                    if (dir !== 0) {
+                      const nextIndex = mobileLauncherIndex + dir;
+                      setMobileLauncherIndex(nextIndex);
+                      const nextApp = mobileLauncherApps[mod(nextIndex, mobileLauncherApps.length)];
+                      if (nextApp.route) {
+                        navigate(nextApp.route);
+                      } else {
+                        toast({
+                          title: "Em breve",
+                          description: "Este aplicativo estará disponível na próxima atualização.",
+                        });
+                      }
+                    }
+                    animate(mobileCarouselX, 0, { type: "spring", stiffness: 360, damping: 30 });
+                    window.setTimeout(() => {
+                      isMobileCarouselDraggingRef.current = false;
+                    }, 80);
+                  }}
+                >
+                  {[-1, 0, 1].map((delta) => {
+                    const len = mobileLauncherApps.length;
+                    const idx = ((mobileLauncherIndex + delta) % len + len) % len;
+                    const app = mobileLauncherApps[idx];
+                    const isActive = delta === 0;
+                    return (
+                      <motion.button
+                        key={`${app.id}-${idx}-${delta}`}
+                        onClick={() => {
+                          if (isMobileCarouselDraggingRef.current) return;
+                          if (isActive) {
+                            if (app.route) {
+                              navigate(app.route);
+                              closeLauncher();
+                              return;
+                            }
+                            toast({
+                              title: "Em breve",
+                              description: "Este aplicativo estará disponível na próxima atualização.",
+                            });
+                            return;
+                          }
+                          const nextIndex = mobileLauncherIndex + delta;
+                          setMobileLauncherIndex(nextIndex);
+                          const nextApp = mobileLauncherApps[mod(nextIndex, mobileLauncherApps.length)];
+                          if (nextApp.route) {
+                            navigate(nextApp.route);
+                          } else {
+                            toast({
+                              title: "Em breve",
+                              description: "Este aplicativo estará disponível na próxima atualização.",
+                            });
+                          }
+                        }}
+                        className={cn(
+                          "w-20 h-20 rounded-3xl flex items-center justify-center transition-all",
+                          isActive ? "bg-white/10 border border-white/10" : "bg-white/5 border border-white/5"
+                        )}
+                        animate={{ scale: isActive ? 1 : 0.86, opacity: isActive ? 1 : 0.7 }}
+                        transition={{ type: "spring", stiffness: 260, damping: 22 }}
+                        title={app.id}
+                      >
+                        {app.iconType === 'svg' ? (
+                          <svg width="48" height="28" viewBox="0 0 200 120" style={{ filter: 'drop-shadow(0 0 10px rgba(217,70,239,0.35))' }}>
+                            <circle cx="72" cy="60" r="34" fill="none" stroke="#d946ef" strokeWidth="8" />
+                            <circle cx="128" cy="60" r="34" fill="none" stroke="#d946ef" strokeWidth="8" />
+                          </svg>
+                        ) : (
+                          <img
+                            src={app.iconSrc}
+                            alt={app.id}
+                            draggable={false}
+                            onDragStart={(e) => e.preventDefault()}
+                            className="w-14 h-14 object-contain select-none"
+                            style={{ WebkitUserDrag: 'none', userSelect: 'none' } as React.CSSProperties}
+                          />
+                        )}
+                      </motion.button>
+                    );
+                  })}
+                </motion.div>
+              </motion.div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

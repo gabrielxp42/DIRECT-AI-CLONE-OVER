@@ -11,6 +11,7 @@ import {
     clearGallery, formatTimestamp, syncWithFiles
 } from '@dtf/services/galleryService';
 import { electronBridge } from '@dtf/lib/electronBridge';
+import { fetchWithRetry } from '../../lib/imageUtils';
 import InpaintingEditor from '@dtf/components/InpaintingEditor';
 
 interface GalleryPanelProps {
@@ -28,6 +29,7 @@ export default function GalleryPanel({ isOpen, onClose, onOpenHalftone, onStartI
     const [selectedItem, setSelectedItem] = useState<GalleryItem | null>(null);
     const [editingItem, setEditingItem] = useState<GalleryItem | null>(null);
     const [showConfirmClear, setShowConfirmClear] = useState(false);
+    const [isMobile, setIsMobile] = useState(() => (typeof window !== 'undefined' ? window.innerWidth < 768 : false));
     
     // Multi-selection state
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -74,6 +76,13 @@ export default function GalleryPanel({ isOpen, onClose, onOpenHalftone, onStartI
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [isOpen, fullScreenItem, onClose]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const handleResize = () => setIsMobile(window.innerWidth < 768);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
     // Update selectedItem if it changes in the list (e.g. via Sync)
     useEffect(() => {
@@ -132,7 +141,112 @@ export default function GalleryPanel({ isOpen, onClose, onOpenHalftone, onStartI
         removeGalleryItem(id);
         setItems(prev => prev.filter(i => i.id !== id));
         if (selectedItem?.id === id) setSelectedItem(null);
-    }, [selectedItem]);
+    }, [removeGalleryItem, selectedItem]);
+
+    const detailContent = useCallback((item: GalleryItem) => (
+        <div className="space-y-4">
+            <div className="group relative rounded-xl overflow-hidden border border-white/10 bg-black/40">
+                <div className="absolute inset-0 opacity-20 pointer-events-none"
+                    style={{ backgroundImage: 'radial-gradient(#333 1px, transparent 1px)', backgroundSize: '10px 10px' }}
+                />
+                <img
+                    src={item.thumbnail}
+                    alt={item.prompt}
+                    className="w-full h-auto object-contain max-h-[320px] relative z-10"
+                />
+
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-20 cursor-pointer"
+                    onClick={() => setFullScreenItem(item)}>
+                    <div className="flex flex-col items-center gap-2 text-white scale-90 group-hover:scale-100 transition-transform">
+                        <Maximize2 size={32} />
+                        <span className="text-xs font-bold">Ver Tela Cheia</span>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <label className="text-[9px] uppercase tracking-wider text-white/25 font-bold">Prompt</label>
+                <p className="text-xs text-white/80 mt-1 leading-relaxed bg-white/5 rounded-lg p-3">
+                    {item.prompt || '—'}
+                </p>
+            </div>
+
+            <div>
+                <label className="text-[9px] uppercase tracking-wider text-white/25 font-bold">Arquivo Final</label>
+                <p className="text-[10px] text-white/50 mt-1 font-mono truncate select-all cursor-text bg-black/20 p-1.5 rounded border border-white/5">
+                    {item.savedPath?.split(/[/\\]/).pop() || '—'}
+                </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+                <MetaBox label="Aspect Ratio" value={item.aspectRatio} />
+                <MetaBox label="Camiseta" value={item.garmentMode === 'white' ? '⬜ Branca' : item.garmentMode === 'color' ? '🎨 Colorida' : '⬛ Preta'} />
+                <MetaBox label="Tamanho" value={`${item.widthCm} × ${item.heightCm} cm`} />
+                <MetaBox label="Halftone" value={item.halftonePreset} />
+                <MetaBox label="Data" value={new Date(item.timestamp).toLocaleString('pt-BR')} />
+                {item.upscaleFactor !== undefined && (
+                    <MetaBox label="Upscale" value={item.upscaleFactor === 0 ? 'Pulado ⚡' : `${item.upscaleFactor}x`} />
+                )}
+            </div>
+
+            <div className="space-y-2 pt-2">
+                <div className="grid grid-cols-2 gap-2">
+                    {item.savedPath && (
+                        <button
+                            onClick={() => electronBridge.showItemInFolder(item.savedPath!)}
+                            className="py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 text-xs font-medium rounded-xl transition-colors flex items-center justify-center gap-2"
+                        >
+                            <FolderOpen size={14} />
+                            Pasta Final
+                        </button>
+                    )}
+                    {item.masterFilePath && (
+                        <button
+                            onClick={() => electronBridge.showItemInFolder(item.masterFilePath!)}
+                            className="py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 text-xs font-medium rounded-xl transition-colors flex items-center justify-center gap-2"
+                        >
+                            <Folder size={14} />
+                            Pasta Original
+                        </button>
+                    )}
+                </div>
+
+                <OpenHalftoneButton
+                    item={item}
+                    onOpen={onOpenHalftone}
+                />
+
+                {isProMode ? (
+                    <button
+                        onClick={() => setEditingItem(item)}
+                        className="w-full py-2.5 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 text-purple-400 hover:text-purple-300 text-xs font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
+                    >
+                        <Brush size={14} />
+                        Editar Imagem (Inpainting)
+                    </button>
+                ) : (
+                    <button
+                        disabled
+                        title="Recurso exclusivo do Plano PRO"
+                        className="w-full py-2.5 bg-white/5 border border-white/5 text-white/30 text-xs font-bold rounded-xl flex items-center justify-center gap-2 cursor-not-allowed"
+                    >
+                        <Brush size={14} className="opacity-50" />
+                        Editar Imagem (PRO)
+                    </button>
+                )}
+
+                <SendToMontadorButton item={item} />
+
+                <button
+                    onClick={() => handleDelete(item.id)}
+                    className="w-full py-2.5 bg-red-500/5 hover:bg-red-500/15 border border-red-500/10 text-red-400/60 hover:text-red-400 text-xs font-medium rounded-xl transition-colors flex items-center justify-center gap-2"
+                >
+                    <Trash2 size={14} />
+                    Remover
+                </button>
+            </div>
+        </div>
+    ), [handleDelete, isProMode, onOpenHalftone, setFullScreenItem]);
 
     const handleClearAll = useCallback(() => {
         clearGallery();
@@ -159,8 +273,9 @@ export default function GalleryPanel({ isOpen, onClose, onOpenHalftone, onStartI
         const pathsToSend: string[] = [];
         selectedIds.forEach(id => {
             const item = items.find(i => i.id === id);
-            if (item && item.savedPath) {
-                pathsToSend.push(item.savedPath);
+            const path = item?.masterFilePath || item?.savedPath;
+            if (path) {
+                pathsToSend.push(path);
             }
         });
 
@@ -266,9 +381,9 @@ export default function GalleryPanel({ isOpen, onClose, onOpenHalftone, onStartI
                 </div>
 
                 {/* ═══ Content ═══ */}
-                <div className="flex-1 overflow-hidden flex">
+                <div className="flex-1 overflow-hidden flex flex-col md:flex-row relative">
                     {/* Grid */}
-                    <div className="flex-1 overflow-y-auto custom-scrollbar p-5">
+                    <div className="flex-1 overflow-y-auto custom-scrollbar p-5 pb-28 md:pb-5">
                         {filtered.length === 0 ? (
                             <div className="flex flex-col items-center justify-center h-full gap-4 text-center">
                                 <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center">
@@ -360,7 +475,7 @@ export default function GalleryPanel({ isOpen, onClose, onOpenHalftone, onStartI
 
                     {/* ═══ Detail Sidebar ═══ */}
                     <AnimatePresence>
-                        {selectedItem && (
+                        {!!selectedItem && !isMobile && (
                             <motion.div
                                 initial={{ width: 0, opacity: 0 }}
                                 animate={{ width: 360, opacity: 1 }}
@@ -368,116 +483,41 @@ export default function GalleryPanel({ isOpen, onClose, onOpenHalftone, onStartI
                                 transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                                 className="border-l border-white/5 bg-white/[0.02] overflow-hidden flex flex-col"
                             >
-                                <div className="p-4 flex-1 overflow-y-auto custom-scrollbar space-y-4">
-                                    {/* Large preview with Full Screen Trigger */}
-                                    <div className="group relative rounded-xl overflow-hidden border border-white/10 bg-black/40">
-                                        <div className="absolute inset-0 opacity-20 pointer-events-none"
-                                            style={{ backgroundImage: 'radial-gradient(#333 1px, transparent 1px)', backgroundSize: '10px 10px' }}
-                                        />
-                                        <img
-                                            src={selectedItem.thumbnail}
-                                            alt={selectedItem.prompt}
-                                            className="w-full h-auto object-contain max-h-[320px] relative z-10"
-                                        />
+                                <div className="p-4 flex-1 overflow-y-auto custom-scrollbar">
+                                    {detailContent(selectedItem)}
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
 
-                                        {/* Full Screen Overlay Button */}
-                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-20 cursor-pointer"
-                                            onClick={() => setFullScreenItem(selectedItem)}>
-                                            <div className="flex flex-col items-center gap-2 text-white scale-90 group-hover:scale-100 transition-transform">
-                                                <Maximize2 size={32} />
-                                                <span className="text-xs font-bold">Ver Tela Cheia</span>
-                                            </div>
+                    <AnimatePresence>
+                        {!!selectedItem && isMobile && (
+                            <motion.div
+                                initial={{ y: 40, opacity: 0 }}
+                                animate={{ y: 0, opacity: 1 }}
+                                exit={{ y: 40, opacity: 0 }}
+                                transition={{ type: 'spring', stiffness: 280, damping: 28 }}
+                                className="fixed inset-x-0 bottom-0 top-24 z-[55] bg-black/85 backdrop-blur-xl border-t border-white/10 rounded-t-3xl overflow-hidden flex flex-col"
+                            >
+                                <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-8 h-8 rounded-xl bg-white/5 flex items-center justify-center">
+                                            <Grid3x3 size={18} className="text-cyan-400" />
+                                        </div>
+                                        <div>
+                                            <div className="text-sm font-bold text-white">Detalhes</div>
+                                            <div className="text-[10px] text-white/40">{formatTimestamp(selectedItem.timestamp)}</div>
                                         </div>
                                     </div>
-
-                                    {/* Prompt */}
-                                    <div>
-                                        <label className="text-[9px] uppercase tracking-wider text-white/25 font-bold">Prompt</label>
-                                        <p className="text-xs text-white/80 mt-1 leading-relaxed bg-white/5 rounded-lg p-3">
-                                            {selectedItem.prompt || '—'}
-                                        </p>
-                                    </div>
-
-                                    {/* Arquivo */}
-                                    <div>
-                                        <label className="text-[9px] uppercase tracking-wider text-white/25 font-bold">Arquivo Final</label>
-                                        <p className="text-[10px] text-white/50 mt-1 font-mono truncate select-all cursor-text bg-black/20 p-1.5 rounded border border-white/5">
-                                            {selectedItem.savedPath?.split(/[/\\]/).pop() || '—'}
-                                        </p>
-                                    </div>
-
-                                    {/* Metadata grid */}
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <MetaBox label="Aspect Ratio" value={selectedItem.aspectRatio} />
-                                        <MetaBox label="Camiseta" value={selectedItem.garmentMode === 'white' ? '⬜ Branca' : '⬛ Preta'} />
-                                        <MetaBox label="Tamanho" value={`${selectedItem.widthCm} × ${selectedItem.heightCm} cm`} />
-                                        <MetaBox label="Halftone" value={selectedItem.halftonePreset} />
-                                        <MetaBox label="Data" value={new Date(selectedItem.timestamp).toLocaleString('pt-BR')} />
-                                        {selectedItem.upscaleFactor !== undefined && (
-                                            <MetaBox label="Upscale" value={selectedItem.upscaleFactor === 0 ? 'Pulado ⚡' : `${selectedItem.upscaleFactor}x`} />
-                                        )}
-                                    </div>
-
-                                    {/* Actions */}
-                                    <div className="space-y-2 pt-2">
-                                        <div className="grid grid-cols-2 gap-2">
-                                            {selectedItem.savedPath && (
-                                                <button
-                                                    onClick={() => electronBridge.showItemInFolder(selectedItem.savedPath!)}
-                                                    className="py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 text-xs font-medium rounded-xl transition-colors flex items-center justify-center gap-2"
-                                                >
-                                                    <FolderOpen size={14} />
-                                                    Pasta Final
-                                                </button>
-                                            )}
-                                            {selectedItem.masterFilePath && (
-                                                <button
-                                                    onClick={() => electronBridge.showItemInFolder(selectedItem.masterFilePath!)}
-                                                    className="py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 text-xs font-medium rounded-xl transition-colors flex items-center justify-center gap-2"
-                                                >
-                                                    <Folder size={14} />
-                                                    Pasta Original
-                                                </button>
-                                            )}
-                                        </div>
-
-                                        <OpenHalftoneButton
-                                            item={selectedItem}
-                                            onOpen={onOpenHalftone}
-                                        />
-
-                                        {/* Botão de Inpaint: Exclusivo PRO */}
-                                        {isProMode ? (
-                                            <button
-                                                onClick={() => setEditingItem(selectedItem)}
-                                                className="w-full py-2.5 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 text-purple-400 hover:text-purple-300 text-xs font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
-                                            >
-                                                <Brush size={14} />
-                                                Editar Imagem (Inpainting)
-                                            </button>
-                                        ) : (
-                                            <button
-                                                disabled
-                                                title="Recurso exclusivo do Plano PRO"
-                                                className="w-full py-2.5 bg-white/5 border border-white/5 text-white/30 text-xs font-bold rounded-xl flex items-center justify-center gap-2 cursor-not-allowed"
-                                            >
-                                                <Brush size={14} className="opacity-50" />
-                                                Editar Imagem (PRO)
-                                            </button>
-                                        )}
-
-                                        <SendToMontadorButton
-                                            item={selectedItem}
-                                        />
-
-                                        <button
-                                            onClick={() => handleDelete(selectedItem.id)}
-                                            className="w-full py-2.5 bg-red-500/5 hover:bg-red-500/15 border border-red-500/10 text-red-400/60 hover:text-red-400 text-xs font-medium rounded-xl transition-colors flex items-center justify-center gap-2"
-                                        >
-                                            <Trash2 size={14} />
-                                            Remover
-                                        </button>
-                                    </div>
+                                    <button
+                                        onClick={() => setSelectedItem(null)}
+                                        className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/60 hover:text-white transition-colors"
+                                    >
+                                        <X size={18} />
+                                    </button>
+                                </div>
+                                <div className="flex-1 overflow-y-auto custom-scrollbar p-4 pb-28">
+                                    {detailContent(selectedItem)}
                                 </div>
                             </motion.div>
                         )}
@@ -1027,13 +1067,41 @@ function OpenHalftoneButton({ item, onOpen }: { item: GalleryItem, onOpen?: (url
         setError(null);
 
         try {
-            // Prefer master file (clean), fallback to saved path (halftoned)
-            let path = item.masterFilePath || item.savedPath;
+            const isWebUrl = (value: string | null | undefined) => {
+                if (!value) return false;
+                return value.startsWith('http') || value.startsWith('blob:') || value.startsWith('data:');
+            };
+
+            const webSourceUrl =
+                item.masterUrl ||
+                (isWebUrl(item.masterFilePath ?? null) ? (item.masterFilePath as string) : null) ||
+                (isWebUrl(item.savedPath) ? (item.savedPath as string) : null) ||
+                item.thumbnail ||
+                null;
+
+            const localPath = item.masterFilePath || item.savedPath;
             const isMaster = !!item.masterFilePath;
 
-            if (path) {
-                console.log('[Gallery] Loading image from:', path);
-                let result = await electronBridge.readImageFile(path);
+            if (!electronBridge.isElectron) {
+                if (!webSourceUrl) {
+                    setError('Arquivo perdido.');
+                    return;
+                }
+
+                try {
+                    const blob = await fetchWithRetry(webSourceUrl, 2, 350);
+                    const objectUrl = URL.createObjectURL(blob);
+                    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 10 * 60 * 1000);
+                    onOpen(objectUrl, item.garmentMode, item);
+                } catch {
+                    onOpen(webSourceUrl, item.garmentMode, item);
+                }
+                return;
+            }
+
+            if (localPath) {
+                console.log('[Gallery] Loading image from:', localPath);
+                let result = await electronBridge.readImageFile(localPath);
 
                 if (result.success && result.data) {
                     // Check if auto-recovered by Main process
@@ -1050,10 +1118,18 @@ function OpenHalftoneButton({ item, onOpen }: { item: GalleryItem, onOpen?: (url
                     onOpen(result.data, item.garmentMode, item);
                 } else {
                     console.error('[Gallery] Failed to read file:', result.error);
-                    setError(`Original não encontrado.\n(${path})`);
+                    if (webSourceUrl) {
+                        onOpen(webSourceUrl, item.garmentMode, item);
+                        return;
+                    }
+                    setError(`Original não encontrado.\n(${localPath})`);
                 }
             } else {
                 console.warn('[Gallery] No file path available');
+                if (webSourceUrl) {
+                    onOpen(webSourceUrl, item.garmentMode, item);
+                    return;
+                }
                 setError('Arquivo perdido.');
             }
         } catch (e) {
@@ -1096,17 +1172,18 @@ function SendToMontadorButton({ item }: { item: GalleryItem }) {
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
     // Only show if running in Electron and item has a saved file
-    if (!electronBridge.isElectron || !item.savedPath) return null;
+    const pathToSend = item.masterFilePath || item.savedPath;
+    if (!electronBridge.isElectron || !pathToSend) return null;
 
     const handleClick = async () => {
         setStatus('sending');
         setErrorMsg(null);
 
         try {
-            const result = await electronBridge.launchMontador(item.savedPath!);
+            const result = await electronBridge.launchMontador(pathToSend);
 
             if (result.success) {
-                console.log('[Gallery] Imagem enviada ao Montador:', item.savedPath);
+                console.log('[Gallery] Imagem enviada ao Montador:', pathToSend);
                 setStatus('sent');
                 setTimeout(() => setStatus('idle'), 2500);
             } else {

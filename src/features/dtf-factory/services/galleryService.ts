@@ -15,6 +15,7 @@ export interface GalleryItem {
     timestamp: number;
     savedPath: string | null;
     masterFilePath?: string | null; // Caminho da imagem original (sem halftone)
+    masterUrl?: string | null; // URL temporária para uso no browser (web)
     thumbnail: string; // base64 pequeno (~5KB)
     aspectRatio: string;
     garmentMode: 'black' | 'white' | 'color';
