@@ -42,14 +42,14 @@
   background:
     radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.06) 0%, transparent 55%),
     radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.04) 0%, transparent 45%),
-    rgba(20, 20, 25, 0.92);
+    rgba(20, 20, 25, var(--glass-opacity));
 }
 
 .ios-app-bg.app-melhorador {
   background:
     radial-gradient(circle at 25% 30%, rgba(244, 63, 94, 0.18) 0%, transparent 55%),
     radial-gradient(circle at 75% 25%, rgba(14, 165, 233, 0.14) 0%, transparent 60%),
-    linear-gradient(180deg, rgba(0, 0, 0, 0.86), rgba(0, 0, 0, 0.94));
+    linear-gradient(180deg, rgba(0, 0, 0, var(--glass-opacity)), rgba(0, 0, 0, calc(var(--glass-opacity) + 0.08)));
 }
 
 .ios-app-bg.app-dtf-factory {
@@ -65,7 +65,7 @@
     radial-gradient(circle at 50% 110%, rgba(255, 106, 0, 0.22) 0%, transparent 55%),
     radial-gradient(circle at 15% 10%, rgba(255, 106, 0, 0.10) 0%, transparent 45%),
     radial-gradient(circle at 85% 20%, rgba(255, 140, 0, 0.08) 0%, transparent 55%),
-    linear-gradient(180deg, rgba(0, 0, 0, 0.86), rgba(0, 0, 0, 0.94));
+    linear-gradient(180deg, rgba(0, 0, 0, var(--glass-opacity)), rgba(0, 0, 0, calc(var(--glass-opacity) + 0.08)));
 }
 
 /* DTF: Fireflies (vagalumes) */
@@ -210,12 +210,12 @@
 
 /* Montador Fast look: black card + orange glow border */
 .inline-mode.ios-launcher-container.app-montador {
-  background: rgba(0, 0, 0, 0.55) !important;
-  border-color: rgba(255, 106, 0, 0.45) !important;
+  background: rgba(var(--glass-rgb), var(--glass-opacity)) !important;
+  border-color: rgba(255, 106, 0, var(--glass-border-opacity)) !important;
   box-shadow:
-    0 40px 100px rgba(0, 0, 0, 0.65),
-    0 0 0 1px rgba(255, 106, 0, 0.45),
-    0 0 28px rgba(255, 106, 0, 0.35),
+    0 40px 100px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 106, 0, var(--glass-border-opacity)),
+    0 0 28px rgba(255, 106, 0, calc(var(--glass-border-opacity) * 0.5)),
     inset 0 0 0 1.5px rgba(255, 106, 0, 0.14) !important;
 }
 
@@ -428,29 +428,22 @@
   height: 100%;
 }
 
+/* Content Transitions */
+.ios-main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  z-index: 10;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  scroll-behavior: smooth;
+  height: 100%;
+}
+
 .ios-content-wrapper {
-  margin-top: 20px;
-}
-
-/* Grid Wrapping Fixes */
-.ios-app-grid {
-  display: flex !important;
-  flex-wrap: wrap !important;
-  gap: 35px !important;
-  justify-content: flex-start !important; /* Reverted to Left Alignment */
-  padding: 0 !important;
-  margin-top: 30px !important;
-  max-width: 100%;
-}
-
-.ios-widgets-area {
-  display: flex !important;
-  flex-wrap: wrap !important;
-  gap: 24px !important;
-  justify-content: flex-start !important; /* Reverted to Left Alignment */
-  padding: 0 !important;
-  margin-top: 60px !important;
-  width: 100% !important;
+  margin-top: 0;
+  padding-top: 40px;
 }
 
 /* Background Dimmer and Blur when Launcher is open */
@@ -543,8 +536,8 @@
 }
 
 .ios-squircle-logo {
-  width: 44px;
-  height: 44px;
+  width: 60px;
+  height: 60px;
 }
 
 .ios-app-name {
@@ -617,15 +610,105 @@
 }
 .ios-wiggle-animation { animation: ios-wiggle 0.3s ease-in-out infinite; }
 
-@media (max-width: 1024px) {
+/* Mobile Response for iPhones & Small Screens */
+@media (max-width: 768px) {
   .inline-mode.ios-launcher-container {
-    padding-left: 0;
-    padding-top: 60px;
+    left: 12px !important;
+    right: 12px !important;
+    top: 75px !important; /* Below the top bar */
+    bottom: 85px !important; /* Above bottom nav */
+    max-width: calc(100vw - 24px) !important;
+    max-height: calc(100vh - 160px) !important;
+    border-radius: 28px !important;
+  }
+
+  .ios-main-content {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    padding-top: 10px !important;
+  }
+
+  .ios-content-wrapper {
+    padding-left: 20px !important;
+    padding-right: 20px !important;
+    padding-top: 20px !important;
+    padding-bottom: 20px !important;
+  }
+
+  .ios-greeting {
+    font-size: 1.75rem !important; /* Smaller text for mobile */
+    line-height: 1.1 !important;
+  }
+
+  .ios-top-info {
+    margin-bottom: 24px !important;
+  }
+
+  .ios-app-grid {
+    gap: 16px !important;
+    padding: 0 !important;
+    margin-top: 10px !important;
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important; /* 3 apps per row on mobile */
+    justify-items: center !important;
+  }
+
+  .ios-app-container {
+    width: 100% !important;
+    gap: 8px !important;
+  }
+
+  .ios-squircle {
+    width: 82px !important; /* Increased for better visibility on iPhones */
+    height: 82px !important;
+    border-radius: 20px !important;
+  }
+
+  .ios-squircle-logo {
+    width: 48px !important; /* Larger relative size on mobile */
+    height: 48px !important;
+  }
+
+  .ios-app-name {
+    font-size: 0.75rem !important;
+  }
+
+  .ios-badge {
+    font-size: 0.5rem !important;
+    padding: 2px 4px !important;
+    top: -4px !important;
+    right: -4px !important;
+  }
+
+  .ios-widgets-area {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important; /* 2 widgets per row on mobile */
+    padding: 0 !important;
+    margin-top: 24px !important;
+    gap: 12px !important;
+  }
+
+  .ios-widget {
+    padding: 16px !important;
+    border-radius: 20px !important;
+    min-height: 120px !important; /* Lower height for 2-col mobile layout */
+    gap: 10px !important;
+  }
+
+  .ios-widget-title {
+    font-size: 0.55rem !important;
+    letter-spacing: 0.1em !important;
+  }
+
+  .ios-widget-value {
+    font-size: 1.4rem !important; /* Scaled down for 2-col width */
+    letter-spacing: -0.02em !important;
   }
 }
 
 /* Floating Framework Bars Styles */
 .launcher-top-bar {
+  position: fixed !important;
   top: 15px !important;
   left: 20px !important;
   right: 20px !important;
@@ -633,15 +716,18 @@
   height: 60px !important;
   border-radius: 24px !important;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+  z-index: 9992 !important;
 }
 
 .launcher-side-bar {
+  position: fixed !important;
   top: 90px !important; /* Below top bar (15 + 60 + 15 spacing) */
   left: 20px !important;
   bottom: 20px !important;
   width: 72px !important;
   border-radius: 24px !important;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+  z-index: 9992 !important;
 }
 
 .launcher-bar-glass-light,

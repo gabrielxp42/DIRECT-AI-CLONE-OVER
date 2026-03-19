@@ -21,6 +21,10 @@ export interface HalftoneSettings {
     edgeContraction?: number;
     invertInput?: boolean;
     invertOutput?: boolean;
+    removeWhite?: boolean;
+    whiteSensitivity?: number;
+    alphaThreshold?: number;
+    magicPoints?: {x: number, y: number}[];
 }
 
 // Presets de Halftone
@@ -307,6 +311,8 @@ export async function applyHalftoneToBlob(
     }
 
     const src = ctx.getImageData(0, 0, w, h);
+    
+    // Se a configuração tiver um flag para pular halftone, ou se usarmos a função dedicada
     const out = applyColorHalftone(src, settings);
 
     const { canvas: outCanvas, ctx: octx } = createAgnosticCanvas(out.width, out.height);
@@ -333,7 +339,8 @@ export async function applyHalftoneToBlob(
 
 // Algoritmo de halftone pixel-perfect
 function applyColorHalftone(imageData: ImageData, settings: HalftoneSettings): ImageData {
-    const { width, height, data: srcData } = imageData;
+    const { width, height } = imageData;
+    const processSrcData = applyBackgroundRemoval(imageData, settings).data;
     const out = new ImageData(width, height);
     const destData = out.data;
 
@@ -356,71 +363,6 @@ function applyColorHalftone(imageData: ImageData, settings: HalftoneSettings): I
         ? (259 * (contrastVal + 255)) / (255 * (259 - contrastVal))
         : 1;
 
-    const blackThreshold = settings.blackSensitivity !== undefined ? settings.blackSensitivity : 15;
-
-    // --- EDGE EROSION (CONTRACTION) PRE-PROCESSING ---
-    let processSrcData: Uint8ClampedArray = srcData;
-    const erosionAmount = settings.edgeContraction || 0;
-
-    if (erosionAmount > 0) {
-        let currentSrc = new Uint8ClampedArray(srcData);
-        let currentDest = new Uint8ClampedArray(srcData);
-        const alphaThreshold = 50;
-
-        // Helper para verificar se um pixel é considerado "fundo" (transparente ou preto a ser removido)
-        const isBackground = (pixelIdx: number) => {
-            // 1. Transparência Alpha
-            if (currentSrc[pixelIdx + 3] < alphaThreshold) return true;
-
-            // 2. Preto (apenas se removeBlack estiver ativo)
-            // Isso permite que a erosão funcione mesmo em imagens com fundo preto opaco
-            if (settings.removeBlack) {
-                const r = currentSrc[pixelIdx];
-                const g = currentSrc[pixelIdx + 1];
-                const b = currentSrc[pixelIdx + 2];
-                const lum = 0.299 * r + 0.587 * g + 0.114 * b;
-
-                // Se Inversão de Entrada estiver ativa, o "Fundo" a ser removido é o BRANCO (Alta Luminosidade)
-                // O Preto (Baixa Luminosidade) é o CONTEÚDO que será preservado (invertido para branco depois)
-                if (settings.invertInput) {
-                    // Remove Branco: se lum > (255 - threshold)
-                    if (lum > (255 - blackThreshold)) return true;
-                } else {
-                    // Remove Preto (Padrão): se lum < threshold
-                    if (lum < blackThreshold) return true;
-                }
-            }
-            return false;
-        };
-
-        for (let pass = 0; pass < erosionAmount; pass++) {
-            for (let y = 0; y < height; y++) {
-                for (let x = 0; x < width; x++) {
-                    const idx = (y * width + x) * 4;
-
-                    // Se o próprio pixel já é fundo, garante que fica transparente
-                    if (isBackground(idx)) {
-                        currentDest[idx + 3] = 0;
-                        continue;
-                    }
-
-                    let isEdge = false;
-                    // Checa vizinhos
-                    if (y === 0 || isBackground(((y - 1) * width + x) * 4)) isEdge = true;
-                    else if (y === height - 1 || isBackground(((y + 1) * width + x) * 4)) isEdge = true;
-                    else if (x === 0 || isBackground((y * width + (x - 1)) * 4)) isEdge = true;
-                    else if (x === width - 1 || isBackground((y * width + (x + 1)) * 4)) isEdge = true;
-
-                    if (isEdge) {
-                        currentDest[idx + 3] = 0;
-                    }
-                }
-            }
-            currentSrc.set(currentDest);
-        }
-        processSrcData = currentDest;
-    }
-
     const getLuminance = (r: number, g: number, b: number) => 0.299 * r + 0.587 * g + 0.114 * b;
 
     const levelMin = settings.levels ? (settings.levels.min || 0) : 0;
@@ -441,17 +383,17 @@ function applyColorHalftone(imageData: ImageData, settings: HalftoneSettings): I
             let b = processSrcData[idx + 2];
             const a = processSrcData[idx + 3];
 
+            // Se o pixel ficou transparente na remoção de fundo/erosão, pula
+            if (a === 0) {
+                destData[idx + 3] = 0;
+                continue;
+            }
+
             // Inversão real das cores (Negativo) se solicitado
-            // Isso permite converter "Fundo Branco + Texto Preto" em "Fundo Preto + Texto Branco"
             if (settings.invertInput) {
                 r = 255 - r;
                 g = 255 - g;
                 b = 255 - b;
-            }
-
-            if (a === 0) {
-                destData[idx + 3] = 0;
-                continue;
             }
 
             let luminance = getLuminance(r, g, b);
@@ -470,11 +412,6 @@ function applyColorHalftone(imageData: ImageData, settings: HalftoneSettings): I
                 luminance = getLuminance(r, g, b);
             }
 
-            if (settings.removeBlack && luminance < blackThreshold) {
-                destData[idx + 3] = 0;
-                continue;
-            }
-
             if (levelRange !== 255) {
                 luminance = ((luminance - levelMin) / levelRange) * 255;
                 luminance = Math.max(0, Math.min(255, luminance));
@@ -486,79 +423,40 @@ function applyColorHalftone(imageData: ImageData, settings: HalftoneSettings): I
             }
             luminance = Math.max(0, Math.min(255, luminance));
 
-            luminance = Math.max(0, Math.min(255, luminance));
-
             let normX = 0;
             let normY = 0;
             let dist = 0;
             let maxDist = 1.5;
 
             if (shape === 'spiral') {
-                // Modo Espiral Global
-                // Ignora o grid padrão e usa coordenadas polares do centro da imagem
                 const dx = x - width / 2;
                 const dy = y - height / 2;
                 const angle = Math.atan2(dy, dx) + angleRad;
                 const radius = Math.sqrt(dx * dx + dy * dy);
-
-                // Espiral de Arquimedes: r = a + b * theta
-                // Queremos que a "distância" entre braços seja dotSize
-                // Efetivamente, deslocamos o raio baseado no ângulo
                 const spiralRadius = radius - (angle / (2 * Math.PI)) * dotSize;
-
-                // Normalizamos como se fosse uma linha (Line Halftone)
                 const cellPos = ((spiralRadius % dotSize) + dotSize) % dotSize;
                 const normPos = (cellPos / dotSize) * 2 - 1;
-
                 dist = Math.abs(normPos);
-                maxDist = 1.0; // Espiral é baseada em linha
+                maxDist = 1.0;
             } else {
-                // Modo Grid Padrão
                 const rotX = x * cosA - y * sinA;
                 const rotY = x * sinA + y * cosA;
-
                 const cellX = ((rotX % dotSize) + dotSize) % dotSize;
                 const cellY = ((rotY % dotSize) + dotSize) % dotSize;
-
                 normX = (cellX / dotSize) * 2 - 1;
                 normY = (cellY / dotSize) * 2 - 1;
 
                 switch (shape) {
-                    case 'line':
-                        dist = Math.abs(normY);
-                        maxDist = 1.0;
-                        break;
-                    case 'square':
-                        dist = Math.max(Math.abs(normX), Math.abs(normY));
-                        break;
-                    case 'cross_hatch':
-                        // Cruzado (Cross-Hatch) / Jogo da Velha
-                        // União de linhas nos eixos X e Y da célula
-                        // Usa maxDist 1.0 para paridade com o modo 'line' (conforme solicitado pelo usuário)
-                        dist = Math.min(Math.abs(normX), Math.abs(normY));
-                        maxDist = 1.0;
-                        break;
-                    case 'ellipse':
-                        // Simples elipse alongada em X
-                        dist = Math.sqrt((normX * normX) * 0.5 + (normY * normY) * 2);
-                        break;
-                    case 'diamond':
-                        // Losango (Manhattan Distance)
-                        dist = (Math.abs(normX) + Math.abs(normY)) / 1.4;
-                        break;
-                    case 'triangle':
-                        dist = Math.max(Math.abs(normX) * 0.866 + normY * 0.5, -normY);
-                        break;
-                    case 'cross':
-                        dist = Math.pow(Math.abs(normX) * Math.abs(normY), 0.5) * 2;
-                        break;
-                    case 'inv_circle':
-                        dist = 1 - Math.cos(normX * Math.PI / 2) * Math.cos(normY * Math.PI / 2);
-                        break;
+                    case 'line': dist = Math.abs(normY); maxDist = 1.0; break;
+                    case 'square': dist = Math.max(Math.abs(normX), Math.abs(normY)); break;
+                    case 'cross_hatch': dist = Math.min(Math.abs(normX), Math.abs(normY)); maxDist = 1.0; break;
+                    case 'ellipse': dist = Math.sqrt((normX * normX) * 0.5 + (normY * normY) * 2); break;
+                    case 'diamond': dist = (Math.abs(normX) + Math.abs(normY)) / 1.4; break;
+                    case 'triangle': dist = Math.max(Math.abs(normX) * 0.866 + normY * 0.5, -normY); break;
+                    case 'cross': dist = Math.pow(Math.abs(normX) * Math.abs(normY), 0.5) * 2; break;
+                    case 'inv_circle': dist = 1 - Math.cos(normX * Math.PI / 2) * Math.cos(normY * Math.PI / 2); break;
                     case 'circle':
-                    default:
-                        dist = Math.sqrt(normX * normX + normY * normY);
-                        break;
+                    default: dist = Math.sqrt(normX * normX + normY * normY); break;
                 }
             }
 
@@ -599,6 +497,234 @@ function applyColorHalftone(imageData: ImageData, settings: HalftoneSettings): I
 
     return out;
 }
+
+// NOVO: Remoção exclusiva de fundo por erosão (sem halftone)
+export function applyBackgroundRemoval(imageData: ImageData, settings: HalftoneSettings): ImageData {
+    const { width, height, data: srcData } = imageData;
+    const out = new ImageData(width, height);
+    const destData = out.data;
+
+    const blackThreshold = settings.blackSensitivity !== undefined ? settings.blackSensitivity : 15;
+    const erosionAmount = settings.edgeContraction || 0;
+
+    let currentSrc = new Uint8ClampedArray(srcData);
+    let currentDest = new Uint8ClampedArray(srcData);
+    const alphaThreshold = settings.alphaThreshold || 10;
+    const chromaTolerance = settings.whiteSensitivity || 30; // Reutilizando whiteSensitivity como tolerância
+
+    const isBackground = (data: Uint8ClampedArray, pixelIdx: number) => {
+        if (data[pixelIdx + 3] < alphaThreshold) return true;
+
+        if (settings.removeBlack) {
+            const r = data[pixelIdx];
+            const g = data[pixelIdx + 1];
+            const b = data[pixelIdx + 2];
+            const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+
+            if (settings.invertInput) {
+                if (lum > (255 - blackThreshold)) return true;
+            } else {
+                if (lum < blackThreshold) return true;
+            }
+        }
+
+        if (settings.removeWhite) {
+            const r = data[pixelIdx];
+            const g = data[pixelIdx + 1];
+            const b = data[pixelIdx + 2];
+            const whiteThreshold = settings.whiteSensitivity !== undefined ? (255 - settings.whiteSensitivity) : 240;
+            if (r > whiteThreshold && g > whiteThreshold && b > whiteThreshold) return true;
+        }
+
+        return false;
+    };
+
+    // ALGORITMO MAGIC WAND (Flood Fill conectado)
+    // Se magicPoints forem fornecidos, usa apenas eles. Caso contrário, usa Sementes automáticas (bordas)
+    const magicPoints = settings.magicPoints || [
+        { x: 0, y: 0 },
+        { x: width - 1, y: 0 },
+        { x: 0, y: height - 1 },
+        { x: width - 1, y: height - 1 },
+        { x: Math.floor(width / 2), y: 0 },
+        { x: Math.floor(width / 2), y: height - 1 },
+        { x: 0, y: Math.floor(height / 2) },
+        { x: width - 1, y: Math.floor(height / 2) }
+    ];
+
+    const stack: { x: number, y: number, startR: number, startG: number, startB: number }[] = [];
+    const visited = new Uint8Array(width * height);
+
+    // Inicializa Alpha (todo mundo opaco se > threshold)
+    const finalAlpha = new Uint8ClampedArray(width * height);
+    for (let i = 0; i < width * height; i++) {
+        finalAlpha[i] = currentSrc[i * 4 + 3] > alphaThreshold ? 255 : 0;
+    }
+
+    // Adiciona sementes válidas
+    for (const point of magicPoints) {
+        const idx = point.y * width + point.x;
+        // Só começa se o ponto de semente for "fundo" (claro ou escuro dependendo da config),
+        // EXCETO se o usuário passou manualmente os magicPoints (onde o clique é absoluto).
+        const isSeedTarget = (point: { x: number, y: number }) => {
+            if (settings.magicPoints) return true; // Se o usuário clicou, sempre é válido
+
+            const i = (point.y * width + point.x) * 4;
+            if (currentSrc[i + 3] < alphaThreshold) return true;
+            const r = currentSrc[i], g = currentSrc[i + 1], b = currentSrc[i + 2];
+            const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+            if (settings.removeWhite && lum > 200) return true;
+            if (settings.removeBlack && lum < 50) return true;
+            return false;
+        };
+
+        if (isSeedTarget(point)) {
+            stack.push({
+                x: point.x,
+                y: point.y,
+                startR: currentSrc[idx * 4],
+                startG: currentSrc[idx * 4 + 1],
+                startB: currentSrc[idx * 4 + 2]
+            });
+            visited[idx] = 1;
+        }
+    }
+
+    // Flood Fill
+    while (stack.length > 0) {
+        const { x: cx, y: cy, startR, startG, startB } = stack.pop()!;
+        const cIdx = cy * width + cx;
+        finalAlpha[cIdx] = 0; // Remove
+
+        const neighbors = [[cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]];
+        for (const [nx, ny] of neighbors) {
+            if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                const nIdx = ny * width + nx;
+                if (visited[nIdx]) continue;
+
+                if (currentSrc[nIdx * 4 + 3] <= alphaThreshold) {
+                    visited[nIdx] = 1;
+                    stack.push({ x: nx, y: ny, startR, startG, startB });
+                    continue;
+                }
+
+                const nr = currentSrc[nIdx * 4], ng = currentSrc[nIdx * 4 + 1], nb = currentSrc[nIdx * 4 + 2];
+                const dist = Math.sqrt(Math.pow(nr - startR, 2) + Math.pow(ng - startG, 2) + Math.pow(nb - startB, 2));
+
+                if (dist < chromaTolerance) {
+                    visited[nIdx] = 1;
+                    stack.push({ x: nx, y: ny, startR, startG, startB });
+                }
+            }
+        }
+    }
+
+    // Aplica o alpha final
+    for (let i = 0; i < width * height; i++) {
+        currentDest[i * 4 + 3] = finalAlpha[i];
+    }
+    currentSrc.set(currentDest);
+
+    // Aplica Erosão se solicitado
+    if (erosionAmount > 0) {
+        for (let pass = 0; pass < erosionAmount; pass++) {
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const idx = (y * width + x) * 4;
+                    if (currentSrc[idx + 3] === 0) continue;
+
+                    let isEdge = false;
+                    if (y === 0 || currentSrc[((y - 1) * width + x) * 4 + 3] === 0) isEdge = true;
+                    else if (y === height - 1 || currentSrc[((y + 1) * width + x) * 4 + 3] === 0) isEdge = true;
+                    else if (x === 0 || currentSrc[(y * width + (x - 1)) * 4 + 3] === 0) isEdge = true;
+                    else if (x === width - 1 || currentSrc[(y * width + (x + 1)) * 4 + 3] === 0) isEdge = true;
+
+                    if (isEdge) {
+                        currentDest[idx + 3] = 0;
+                    }
+                }
+            }
+            currentSrc.set(currentDest);
+        }
+    }
+
+    // DESPECKLE: Remoção de ruído avançada (Passo 5x5)
+    // Remove "ilhas" de até 4-5 pixels, que é o tamanho das sujeiras vistas no teste real.
+    const tempFinalAlpha = new Uint8ClampedArray(width * height);
+    for (let i = 0; i < width * height; i++) tempFinalAlpha[i] = currentDest[i * 4 + 3];
+
+    for (let y = 2; y < height - 2; y++) {
+        for (let x = 2; x < width - 2; x++) {
+            const idx = y * width + x;
+            if (tempFinalAlpha[idx] === 0) continue;
+
+            let neighbors = 0;
+            // Verifica vizinhança 5x5 (24 pixels ao redor)
+            for (let ny = y - 2; ny <= y + 2; ny++) {
+                for (let nx = x - 2; nx <= x + 2; nx++) {
+                    if (nx === x && ny === y) continue;
+                    if (tempFinalAlpha[ny * width + nx] > 0) neighbors++;
+                }
+            }
+
+            // Um pixel de logo legítimo terá muitos vizinhos. 
+            // Sujeiras isoladas, mesmo que sejam clusters de 2-3 pixels, terão poucos vizinhos num raio de 5x5.
+            if (neighbors < 4) {
+                currentDest[idx * 4 + 3] = 0;
+            }
+        }
+    }
+
+    // GARANTIA: Pixels transparentes devem ter RGB = 0
+    // Isso evita que renderizadores de Canvas (como no Montador) acidentalmente 
+    // mesclem ou mostrem um "fundo branco fantasma" ao ler a imagem via imageData ou blob.
+    for (let i = 0; i < width * height; i++) {
+        const idx = i * 4;
+        if (currentDest[idx + 3] === 0) {
+            currentDest[idx] = 0;
+            currentDest[idx + 1] = 0;
+            currentDest[idx + 2] = 0;
+        }
+    }
+
+    destData.set(currentDest);
+    return out;
+}
+
+// NOVO: Aplicar apenas remoção de fundo (Compatível com Worker)
+export async function applyBackgroundRemovalToBlob(
+    blob: Blob | ImageBitmap,
+    settings: HalftoneSettings
+): Promise<Blob> {
+    let imgBitmap: ImageBitmap = blob instanceof ImageBitmap ? blob : await createImageBitmap(blob);
+    const w = imgBitmap.width;
+    const h = imgBitmap.height;
+
+    const { canvas, ctx } = createAgnosticCanvas(w, h);
+    if (!canvas || !ctx) return new Blob([]);
+    ctx.drawImage(imgBitmap, 0, 0);
+    if (!(blob instanceof ImageBitmap)) imgBitmap.close();
+
+    const src = ctx.getImageData(0, 0, w, h);
+    const out = applyBackgroundRemoval(src, settings);
+
+    const { canvas: outCanvas, ctx: octx } = createAgnosticCanvas(out.width, out.height);
+    if (!outCanvas || !octx) return new Blob([]);
+    octx.putImageData(out, 0, 0);
+
+    let result: Blob | null = null;
+    if (outCanvas.convertToBlob) {
+        result = await (outCanvas as any).convertToBlob({ type: 'image/png' });
+    } else {
+        result = await new Promise<Blob | null>((resolve) =>
+            (outCanvas as HTMLCanvasElement).toBlob(b => resolve(b || null), 'image/png', 1.0)
+        );
+    }
+
+    if (result) return await setPngDpi(result, 300);
+    return blob instanceof Blob ? blob : new Blob([]);
+}
+
 
 // Adicionar DPI ao PNG
 const crcTable: number[] = [];

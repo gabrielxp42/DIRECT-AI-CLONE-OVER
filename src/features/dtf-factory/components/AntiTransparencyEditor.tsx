@@ -18,10 +18,11 @@ interface AntiTransparencyEditorProps {
     imageUrl: string;
     onClose: () => void;
     onSave: (processedBlob: Blob) => void;
+    skipResize?: boolean;
 }
 
-export default function AntiTransparencyEditor({ imageUrl, onClose, onSave }: AntiTransparencyEditorProps) {
-    const [step, setStep] = useState<'setup' | 'editor'>('setup');
+export default function AntiTransparencyEditor({ imageUrl, onClose, onSave, skipResize }: AntiTransparencyEditorProps) {
+    const [step, setStep] = useState<'setup' | 'editor'>(skipResize ? 'editor' : 'setup');
     const [workingImageUrl, setWorkingImageUrl] = useState<string>(imageUrl);
 
     const [originalImage, setOriginalImage] = useState<HTMLImageElement | null>(null);

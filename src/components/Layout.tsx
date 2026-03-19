@@ -123,9 +123,11 @@ const Layout = () => {
   }, []);
 
   const lastToggleRef = React.useRef(0);
+  const lastPathOpenedRef = React.useRef(location.pathname);
+
   const closeLauncher = React.useCallback(() => {
     const now = Date.now();
-    if (now - lastToggleRef.current < 100) return;
+    if (now - lastToggleRef.current < 300) return;
     lastToggleRef.current = now;
     console.log('[Layout] closeLauncher() called');
     setShowLauncher(false);
@@ -170,13 +172,18 @@ const Layout = () => {
 
   const toggleLauncher = React.useCallback(() => {
     const now = Date.now();
-    if (now - lastToggleRef.current < 100) return;
+    if (now - lastToggleRef.current < 300) return;
     lastToggleRef.current = now;
+    
     setShowLauncher(prev => {
-      console.log(`[Layout] toggleLauncher() -> ${!prev}`);
-      return !prev;
+      const next = !prev;
+      console.log(`[Layout] toggleLauncher() -> ${next}`);
+      if (next) {
+        lastPathOpenedRef.current = location.pathname;
+      }
+      return next;
     });
-  }, []);
+  }, [location.pathname]);
 
   // Keyboard Shortcuts (Esc to close)
   React.useEffect(() => {
@@ -189,18 +196,25 @@ const Layout = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [showLauncher, closeLauncher]);
 
-  // Close launcher on navigation
+  // Close launcher on REAL navigation (if path actually changed since opened)
   React.useEffect(() => {
-    if (showLauncher && !isMobile) {
-      console.log(`[Layout] Auto-closing launcher due to navigation -> ${location.pathname}`);
+    if (showLauncher && !isMobile && location.pathname !== lastPathOpenedRef.current) {
+      console.log(`[Layout] Auto-closing launcher due to navigation -> From: ${lastPathOpenedRef.current} To: ${location.pathname}`);
       closeLauncher();
     }
   }, [isMobile, location.pathname, closeLauncher, showLauncher]);
 
-  // Listen for toggle-launcher event from integrated apps
+  // Listen for toggle-launcher event from integrated apps (Montador/DTF)
   React.useEffect(() => {
+    let lastEventTime = 0;
     const handler = (e: any) => {
+      const now = Date.now();
+      if (now - lastEventTime < 300) return; // Guard against multiple events in same frame
+      lastEventTime = now;
+
       const forceState = e.detail?.force;
+      console.log(`[Layout] Received toggle-launcher event. Force: ${forceState || 'none'}`);
+      
       if (forceState === 'close') closeLauncher();
       else if (forceState === 'open') setShowLauncher(true);
       else toggleLauncher();
@@ -247,7 +261,8 @@ const Layout = () => {
 
   
   const isFullScreenApp = ['/dtf-factory', '/montador'].includes(location.pathname);
-  const hideShell = isFullScreenApp && !showLauncher;
+  // Hide base shell if we are in a full-screen app or if the launcher overlay is active
+  const hideShell = isFullScreenApp || showLauncher;
 
   const sidebarWidth = hideShell ? 'w-0 border-0 overflow-hidden opacity-0' : (isExpanded ? 'w-[280px]' : 'w-[64px]');
   const gridTemplate = hideShell ? 'grid-cols-1' : (isExpanded ? 'md:grid-cols-[280px_1fr]' : 'md:grid-cols-[64px_1fr]');
@@ -291,7 +306,7 @@ const Layout = () => {
           {/* Header do Sidebar — Click to toggle launcher */}
           <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-4 overflow-hidden">
             <button
-              onClick={() => setShowLauncher(!showLauncher)}
+              onClick={(e) => { e.stopPropagation(); toggleLauncher(); }}
               className="flex items-center gap-3 font-semibold text-sidebar-foreground hover:opacity-80 transition-all"
             >
               {/* OverPixel mini logo as sidebar trigger */}
@@ -414,7 +429,7 @@ const Layout = () => {
 
           <div className="flex h-14 items-center gap-4 px-4 lg:h-[60px] lg:px-6">
             <button
-              onClick={toggleLauncher}
+              onClick={(e) => { e.stopPropagation(); toggleLauncher(); }}
               className="flex items-center gap-2 font-semibold hover:opacity-80 transition-opacity"
             >
               <svg width="28" height="17" viewBox="0 0 200 120" className="flex-shrink-0">
@@ -457,8 +472,9 @@ const Layout = () => {
         <SubscriptionAlert />
 
         <main className={cn(
-          "flex flex-1 flex-col w-full max-w-[100vw] overflow-x-hidden relative",
-          hideShell ? "p-0 gap-0" : (location.pathname === '/' || location.pathname === '/dashboard') ? "p-0 gap-0" : "gap-3 p-3 sm:gap-4 sm:p-4 lg:gap-6 lg:p-6"
+          "relative flex flex-col flex-1 h-full overflow-hidden transition-all duration-300",
+          !hideShell ? "md:pt-[60px] pt-14" : "pt-4 md:pt-6",
+          (location.pathname === '/' || location.pathname === '/dashboard') ? "p-0 gap-0" : "gap-3 p-3 sm:gap-4 sm:p-4 lg:gap-6 lg:p-6"
         )}>
           {/* Layer 1: Traditional Router Outlet (Standard Pages) */}
           <AnimatePresence mode="wait">
@@ -508,7 +524,7 @@ const Layout = () => {
         {isMobile && location.pathname === '/montador' && (
           <div className="fixed top-0 left-0 right-0 z-[60] h-14 px-4 flex items-center justify-between pointer-events-auto bg-black/55 backdrop-filter backdrop-blur-xl border-b border-orange-500/25 shadow-[0_0_22px_rgba(255,106,0,0.18)]">
             <button
-              onClick={toggleLauncher}
+              onClick={(e) => { e.stopPropagation(); toggleLauncher(); }}
               className="flex items-center gap-2"
               title="Abrir menu de aplicativos"
             >
@@ -523,7 +539,7 @@ const Layout = () => {
             </button>
 
             <button
-              onClick={toggleLauncher}
+              onClick={(e) => { e.stopPropagation(); toggleLauncher(); }}
               className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-orange-500/25 bg-orange-500/10 hover:bg-orange-500/15 transition-colors"
               title="Abrir menu de aplicativos"
             >
@@ -537,7 +553,7 @@ const Layout = () => {
             </button>
           </div>
         )}
-        {location.pathname !== '/settings' && !(isMobile && location.pathname === '/montador') && (
+        {!hideShell && location.pathname !== '/settings' && !(isMobile && location.pathname === '/montador') && (
           <MobileBottomNav
             onOpenCalculator={() => setIsCalculatorOpen(true)}
             onOpenVetorizador={() => setIsVetorizadorOpen(true)}
@@ -545,8 +561,12 @@ const Layout = () => {
         )}
       </div>
 
-      <AILowStockAlert />
-      <AIAssistant />
+      {!hideShell && (
+        <>
+          <AILowStockAlert />
+          <AIAssistant />
+        </>
+      )}
       <CommandMenu />
       <GiftPlanModal />
       <GiftVetorizaModal />
@@ -716,7 +736,13 @@ const Layout = () => {
                     whileTap={{ scale: 0.96 }}
                     title="DTF Factory"
                   >
-                    <img src="/dtf-fabric-logo.png" alt="DTF Factory" className="w-11 h-11 object-contain" />
+                    <img 
+                      src="/dtf-fabric-logo.png" 
+                      alt="DTF Factory" 
+                      className="w-11 h-11 object-contain" 
+                      draggable={false}
+                      onDragStart={(e) => e.preventDefault()}
+                    />
                   </motion.button>
 
                   <motion.button 
@@ -726,7 +752,13 @@ const Layout = () => {
                     whileTap={{ scale: 0.96 }}
                     title="O Montador"
                   >
-                    <img src="/montador/logo-montador-fast.png" alt="O Montador" className="w-11 h-11 object-contain" />
+                    <img 
+                      src="/montador/logo-montador-fast.png" 
+                      alt="O Montador" 
+                      className="w-11 h-11 object-contain" 
+                      draggable={false}
+                      onDragStart={(e) => e.preventDefault()}
+                    />
                   </motion.button>
                 </div>
 

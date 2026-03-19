@@ -35,7 +35,7 @@ export const LauncherSidebar = ({
     <motion.div 
       initial={{ x: -100, opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}
-      className="w-[280px] h-full flex flex-col gap-8 p-8 border-r border-white/5 relative z-20"
+      className="md:w-[280px] w-full h-full flex flex-col gap-6 md:gap-8 p-6 md:p-8 border-r border-white/5 relative z-20"
     >
       {/* Top Header / Close */}
       <div className="flex items-center justify-between mb-2">

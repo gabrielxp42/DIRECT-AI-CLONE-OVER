@@ -18,10 +18,21 @@ import {
     MessageSquare,
     Zap,
     RotateCcw,
-    PenTool
+    CircleDot,
+    ZoomIn,
+    Minus,
+    PenTool,
+    Eraser
 } from 'lucide-react';
+import { applyBackgroundRemovalToBlob } from '@/features/dtf-factory/services/halftoneService';
+import AntiTransparencyEditor from '@/features/dtf-factory/components/AntiTransparencyEditor';
 import { useSession } from '@/contexts/SessionProvider';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { 
+    Dialog, 
+    DialogContent, 
+    DialogTitle, 
+    VisuallyHidden 
+} from '@/components/ui/dialog';
 import { CreditsShopModal } from './CreditsShopModal';
 import { cn } from '@/lib/utils';
 import '@/pages/Vetorizador.css';
@@ -47,6 +58,12 @@ export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({ isOpen, onCl
     const [inlinePrompt, setInlinePrompt] = useState('');
     const [aiCredits, setAiCredits] = useState<number>(0);
     const [isShopOpen, setIsShopOpen] = useState(false); // Existing state for shop visibility
+    const [isMagicWandMode, setIsMagicWandMode] = useState(false);
+    const [zoomLevel, setZoomLevel] = useState(1);
+    const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
+    const [previewBg, setPreviewBg] = useState<'transparent' | 'white' | 'black' | 'gray' | 'checkered'>('transparent');
+    const [imageHistory, setImageHistory] = useState<string[]>([]);
+    const [touchStartDist, setTouchStartDist] = useState<number | null>(null);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -229,35 +246,35 @@ export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({ isOpen, onCl
             label: 'Vetor Clássico',
             icon: <PenTool size={24} />,
             desc: 'Logos limpos, sem fundo, cores chapadas.',
-            prompt: 'recreate as a professional high-fidelity 2D vector logo. RECREATE from scratch with perfect geometric shapes and solid flat colors. TIGHT CROP: ensure logo occupies 95% of the frame. HIGH CONTRAST BACKGROUND.'
+            prompt: 'recreate as a professional high-fidelity 2D vector logo, ensuring clean lines and flat colors. ULTRA HIGH RESOLUTION: output must be sharp and clear even at 400% zoom. RECREATE from scratch with perfect geometric shapes and solid flat colors. TIGHT CROP: ensure logo occupies 95% of the frame.'
         },
         {
             id: 'embroidery',
             label: 'Efeito Bordado',
             icon: <Layers size={24} />,
             desc: 'Patch 3D realista, linhas detalhadas.',
-            prompt: 'HIGH-DETAILED EMBROIDERED PATCH of the logo. Elevated stitching and 3D texture. TIGHT CROP: logo must occupy 90-95% of the frame. HIGH CONTRAST BACKGROUND for visibility. Isolated on PNG background with no surrounding fabric or surface.'
+            prompt: 'HIGH-DETAILED EMBROIDERED PATCH of the logo. ULTRA HIGH RESOLUTION 4K. Elevated stitching and 3D texture. TIGHT CROP: logo must occupy 90-95% of the frame. HIGH CONTRAST BACKGROUND for visibility. Isolated on PNG background with no surrounding fabric or surface.'
         },
         {
             id: 'puff',
             label: 'Puff Print',
             icon: <Type size={24} />,
             desc: 'Relevo 3D estilo estampa puff.',
-            prompt: '3D puff print on fabric, raised ink, tactile texture. TIGHT CROP: occupy 95% of the frame. Isolated, transparent background, strictly no background.'
+            prompt: '3D puff print on fabric, raised ink, tactile texture, ULTRA HIGH RESOLUTION 4K. TIGHT CROP: occupy 95% of the frame. Isolated, transparent background, strictly no background.'
         },
         {
             id: 'neon',
             label: 'Efeito Neon',
             icon: <Zap size={24} />,
             desc: 'Letreiro neon brilhante realista.',
-            prompt: 'glowing neon sign, vibrant colors, cinematic lighting. TIGHT CROP: occupy 95% of the frame. Isolated, transparent background, strictly no background.'
+            prompt: 'glowing neon sign, vibrant colors, cinematic lighting, ULTRA HIGH RESOLUTION 4K. TIGHT CROP: occupy 95% of the frame. Isolated, transparent background, strictly no background.'
         },
         {
             id: 'sticker',
             label: 'Adesivo',
             icon: <ImageIcon size={24} />,
             desc: 'Adesivo de vinil com borda branca.',
-            prompt: 'die-cut vinyl sticker, thick white border, glossy finish. TIGHT CROP: occupy 95% of the frame. Isolated, transparent background outside the sticker.'
+            prompt: 'die-cut vinyl sticker, thick white border, glossy finish, ULTRA HIGH RESOLUTION 4K. TIGHT CROP: occupy 95% of the frame. Isolated, transparent background outside the sticker.'
         },
         {
             id: 'custom',
@@ -345,6 +362,152 @@ export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({ isOpen, onCl
         }
     };
 
+    const pushToHistory = (imageUrl: string | null) => {
+        if (!imageUrl) return;
+        setImageHistory(prev => [...prev.slice(-9), imageUrl]); // Keep last 10 steps
+    };
+
+    const handleTouchStart = (e: React.TouchEvent) => {
+        if (e.touches.length === 2) {
+            const dist = Math.hypot(
+                e.touches[0].pageX - e.touches[1].pageX,
+                e.touches[0].pageY - e.touches[1].pageY
+            );
+            setTouchStartDist(dist);
+        }
+    };
+
+    const handleTouchMove = (e: React.TouchEvent) => {
+        if (e.touches.length === 2 && touchStartDist !== null) {
+            const dist = Math.hypot(
+                e.touches[0].pageX - e.touches[1].pageX,
+                e.touches[0].pageY - e.touches[1].pageY
+            );
+            const delta = dist - touchStartDist;
+            if (Math.abs(delta) > 5) {
+                setZoomLevel(prev => Math.max(1, Math.min(5, prev + (delta > 0 ? 0.1 : -0.1))));
+                setTouchStartDist(dist);
+            }
+        }
+    };
+
+    const handleUndo = () => {
+        if (imageHistory.length === 0) return;
+        const newHistory = [...imageHistory];
+        const lastImage = newHistory.pop();
+        setImageHistory(newHistory);
+        setResultImage(lastImage || null);
+        toast.info('Ação desfeita');
+    };
+
+    const handleRemoveBackground = async () => {
+        const source = resultImage || originalImage;
+        if (!source) return;
+
+        try {
+            setStatus('processing');
+            toast.loading('Removendo fundo...', { id: 'bg-removal' });
+
+            // Convert URL to Blob if necessary
+            let imageBlob: Blob;
+            if (source.startsWith('data:')) {
+                const response = await fetch(source);
+                imageBlob = await response.blob();
+            } else {
+                const response = await fetch(source);
+                imageBlob = await response.blob();
+            }
+
+            const resultBlob = await applyBackgroundRemovalToBlob(imageBlob, {
+                edgeContraction: 1, // Reduzido pois o Magic Wand é mais preciso
+                removeBlack: true,
+                removeWhite: true, 
+                whiteSensitivity: 45, 
+                blackSensitivity: 45,
+                alphaThreshold: 15,
+                brightness: 100,
+                contrast: 100,
+                levels: { min: 0, max: 255 },
+                dotSize: 1
+            });
+
+            const resultUrl = URL.createObjectURL(resultBlob);
+            pushToHistory(resultImage || originalImage);
+            setResultImage(resultUrl);
+            setStatus('done');
+            toast.success('Fundo removido com sucesso!', { id: 'bg-removal' });
+        } catch (error) {
+            console.error('Error removing background:', error);
+            toast.error('Erro ao remover fundo.', { id: 'bg-removal' });
+            setStatus('error');
+        }
+    };
+
+    const handleImageClick = async (e: React.MouseEvent<HTMLImageElement>) => {
+        if (!isMagicWandMode || status === 'processing') return;
+
+        const source = resultImage || originalImage;
+        if (!source) return;
+
+        try {
+            setStatus('processing');
+            toast.loading('Removendo área clicada...', { id: 'bg-magic' });
+
+            const rect = e.currentTarget.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const scaleX = e.currentTarget.naturalWidth / rect.width;
+            const scaleY = e.currentTarget.naturalHeight / rect.height;
+            const imageX = Math.floor(x * scaleX);
+            const imageY = Math.floor(y * scaleY);
+
+            // Fetch current image
+            const response = await fetch(source);
+            const imageBlob = await response.blob();
+
+            const resultBlob = await applyBackgroundRemovalToBlob(imageBlob, {
+                edgeContraction: 0, // Sem erosão pra cliques exatos
+                removeBlack: false, 
+                removeWhite: false, 
+                whiteSensitivity: 50,
+                blackSensitivity: 50,
+                alphaThreshold: 15,
+                magicPoints: [{ x: imageX, y: imageY }],
+                brightness: 100,
+                contrast: 100,
+                levels: { min: 0, max: 255 },
+                dotSize: 1
+            });
+
+            const resultUrl = URL.createObjectURL(resultBlob);
+            pushToHistory(resultImage || originalImage);
+            setResultImage(resultUrl);
+            setStatus('done');
+            toast.success('Área removida com sucesso!', { id: 'bg-magic' });
+        } catch (error) {
+            console.error('Error applying magic wand:', error);
+            toast.error('Erro ao remover área.', { id: 'bg-magic' });
+            setStatus('error');
+        }
+    };
+
+    const handleHalftoneWarning = () => {
+        toast('Efeito Halftone Restrito', {
+            description: 'Este efeito é exclusivo para produção no DTF Factory. Use as ferramentas de lá para aplicar retículas!',
+            action: {
+                label: 'Ir para DTF Factory',
+                onClick: () => {
+                    if (resultImage) {
+                        handleTransferToFactory();
+                    } else {
+                        navigate('/dtf-factory');
+                    }
+                }
+            },
+            duration: 6000
+        });
+    };
+
     const handleInlineSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!inlinePrompt.trim() || status === 'processing') return;
@@ -360,6 +523,9 @@ export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({ isOpen, onCl
         setUserPrompt('');
         setSelectedEffect(null);
         setInlinePrompt('');
+        setZoomLevel(1);
+        setImageHistory([]);
+        setIsMagicWandMode(false);
         if (fileInputRef.current) fileInputRef.current.value = '';
         if (cameraInputRef.current) cameraInputRef.current.value = '';
     };
@@ -427,6 +593,9 @@ export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({ isOpen, onCl
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
             <DialogContent className="w-[95vw] max-w-[1200px] h-[90vh] p-0 overflow-hidden rounded-[2.5rem] border border-white/10 shadow-[0_0_80px_rgba(0,0,0,0.8)] bg-zinc-950/60 backdrop-blur-3xl dialog-content-vec" hideCloseButton>
+                <VisuallyHidden>
+                    <DialogTitle>Vetorizador Premium AI</DialogTitle>
+                </VisuallyHidden>
 
                 <div className="dashboard-mobile-vec h-full w-full overflow-hidden">
                     <div className="dashboard-content-vec h-full">
@@ -507,17 +676,53 @@ export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({ isOpen, onCl
                                 <div className="preview-container-vec overflow-hidden">
                                     <div className="preview-split-left">
                                         <div className="preview-card-vec active">
-                                            <div className="card-header-vec">
-                                                <span className="card-tag-vec">
-                                                    {(status as string) === 'processing' ? 'Processando IA...' : (status as string) === 'done' ? 'Resultado Final' : 'Imagem Original'}
-                                                </span>
-                                                {(status === 'idle' || status === 'done') && (
-                                                    <div className="flex justify-end pr-2">
-                                                        {/* Tag logic stays but button moves */}
-                                                    </div>
-                                                )}
+                                             <div className="card-header-vec flex justify-between items-center px-4">
+                                                <div className="flex items-center gap-3">
+                                                    <span className="card-tag-vec">
+                                                        {(status as string) === 'processing' ? 'Processando IA...' : (status as string) === 'done' ? 'Resultado Final' : 'Imagem Original'}
+                                                    </span>
+                                                </div>
                                             </div>
-                                            <div className="card-image-vec">
+                                            <div 
+                                                className="card-image-vec overflow-auto relative touch-none scrollbar-hide"
+                                                style={{ 
+                                                    backgroundColor: previewBg === 'white' ? '#fff' : previewBg === 'black' ? '#000' : previewBg === 'gray' ? '#888' : 'transparent',
+                                                    backgroundImage: previewBg === 'checkered' ? 'url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAYAAACp8Z5+AAAAAXNSR0IArs4c6QAAACtJREFUGFdjZEACDAwMgAxmMEEGEB8MAAmMAEYGJABmAAmMAEYIIwAQMAAYFBAE6q1f3AAAAABJRU5ErkJggg==") repeat' : 'none'
+                                                }}
+                                                onWheel={(e) => {
+                                                    const container = e.currentTarget;
+                                                    const rect = container.getBoundingClientRect();
+                                                    
+                                                    // Posição do mouse relativa à área VISÍVEL do container
+                                                    const mouseX = e.clientX - rect.left;
+                                                    const mouseY = e.clientY - rect.top;
+                                                    
+                                                    // Posição do ponto na imagem em relação ao topo-esquerdo do CONTEÚDO (scroll)
+                                                    const scrollX = container.scrollLeft;
+                                                    const scrollY = container.scrollTop;
+                                                    
+                                                    const oldZoom = zoomLevel;
+                                                    const delta = -e.deltaY;
+                                                    // Zoom mais suave: 0.1 a 0.2
+                                                    const zoomStep = 0.2;
+                                                    const newZoom = Math.max(1, Math.min(8, oldZoom + (delta > 0 ? zoomStep : -zoomStep)));
+                                                    
+                                                    if (newZoom !== oldZoom) {
+                                                        const ratio = newZoom / oldZoom;
+                                                        setZoomLevel(newZoom);
+                                                        
+                                                        // Calculamos o novo scroll para manter o ponto sob o mouse
+                                                        const targetScrollX = (scrollX + mouseX) * ratio - mouseX;
+                                                        const targetScrollY = (scrollY + mouseY) * ratio - mouseY;
+                                                        
+                                                        requestAnimationFrame(() => {
+                                                            container.scrollLeft = targetScrollX;
+                                                            container.scrollTop = targetScrollY;
+                                                        });
+                                                    }
+                                                }}
+                                                onTouchEnd={() => setTouchStartDist(null)}
+                                            >
                                                 {(status === 'processing' || status === 'uploading') && !resultImage ? (
                                                     <div className="loading-container-vec">
                                                         <Loader2 className="animate-spin text-primary" size={48} />
@@ -528,7 +733,18 @@ export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({ isOpen, onCl
                                                         <img
                                                             src={(resultImage) ? resultImage : (originalImage || '')}
                                                             alt={resultImage ? 'Resultado' : 'Original'}
-                                                            className={status === 'processing' ? 'opacity-50' : ''}
+                                                            className={`${status === 'processing' ? 'opacity-50' : ''} ${isMagicWandMode ? 'cursor-crosshair' : ''} transition-all duration-200`}
+                                                            style={{ 
+                                                                width: `${zoomLevel * 100}%`, 
+                                                                height: `${zoomLevel * 100}%`, 
+                                                                minWidth: '100%',
+                                                                minHeight: '100%',
+                                                                objectFit: 'contain', 
+                                                                maxWidth: 'none', 
+                                                                maxHeight: 'none' 
+                                                            }}
+                                                            onClick={handleImageClick}
+                                                            draggable={false}
                                                         />
                                                         {status === 'processing' && resultImage && (
                                                             <div className="loading-overlay-vec">
@@ -538,11 +754,149 @@ export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({ isOpen, onCl
                                                     </>
                                                 )}
                                             </div>
+
+                                            {/* UI OVERLAYS (EXTERNOS AO SCROLL PARA FICAREM FIXOS SOBRE O PREVIEW) */}
+
+                                            {/* LIQUID GLASS ACTIONS */}
+                                            {(status === 'idle' || status === 'done') && (originalImage || resultImage) && (
+                                                <div className="floating-glass-actions-vec fade-in z-30">
+                                                    <button 
+                                                        className="liquid-glass-btn-vec primary"
+                                                        onClick={handleRemoveBackground}
+                                                        title="Remover Fundo (Auto)"
+                                                    >
+                                                        <div className="liquid-glass-icon-vec">
+                                                            <Eraser size={20} />
+                                                        </div>
+                                                        <span className="liquid-glass-label-vec">Auto Fundo</span>
+                                                    </button>
+
+                                                    <button 
+                                                        className={`liquid-glass-btn-vec primary ${isMagicWandMode ? 'bg-cyan-500/20 border-cyan-500 shadow-[0_0_15px_rgba(34,211,238,0.3)]' : ''}`}
+                                                        onClick={() => {
+                                                            setIsMagicWandMode(!isMagicWandMode);
+                                                            if (!isMagicWandMode) toast.success("Varinha Ativa! Clique nas áreas da imagem para remover o fundo.");
+                                                        }}
+                                                        title="Varinha Mágica (Manual)"
+                                                    >
+                                                        <div className="liquid-glass-icon-vec">
+                                                            <Wand2 size={20} className={isMagicWandMode ? "text-cyan-400" : ""} />
+                                                        </div>
+                                                        <span className="liquid-glass-label-vec">{isMagicWandMode ? 'Sair Varinha' : 'Varinha Mágica'}</span>
+                                                    </button>
+
+                                                    <button 
+                                                        className="liquid-glass-btn-vec"
+                                                        onClick={handleHalftoneWarning}
+                                                        title="Efeito Halftone"
+                                                    >
+                                                        <div className="liquid-glass-icon-vec">
+                                                            <CircleDot size={20} />
+                                                        </div>
+                                                        <span className="liquid-glass-label-vec">Halftone</span>
+                                                    </button>
+                                                </div>
+                                            )}
+
+                                            {/* LIQUID GLASS LEFT ACTIONS (EXPANDABLE BUMP SIDEBAR) */}
+                                            {(status === 'done' || imageHistory.length > 0) && (
+                                                <div 
+                                                    className={cn(
+                                                        "floating-glass-left-vec fade-in z-30",
+                                                        isSidebarExpanded ? "is-expanded" : "is-collapsed"
+                                                    )}
+                                                    onClick={() => !isSidebarExpanded && setIsSidebarExpanded(true)}
+                                                >
+                                                    {imageHistory.length > 0 && (
+                                                        <button 
+                                                            className="liquid-glass-btn-vec border-orange-500/30 text-orange-400"
+                                                            onClick={(e) => { 
+                                                                if (isSidebarExpanded) {
+                                                                    e.stopPropagation(); 
+                                                                    handleUndo(); 
+                                                                } else {
+                                                                    setIsSidebarExpanded(true);
+                                                                }
+                                                            }}
+                                                            title={isSidebarExpanded ? "Desfazer" : "Abrir Ferramentas"}
+                                                        >
+                                                            <div className="liquid-glass-icon-vec">
+                                                                <RotateCcw size={18} />
+                                                            </div>
+                                                            <span className="liquid-glass-label-vec">Desfazer</span>
+                                                        </button>
+                                                    )}
+
+                                                    {status === 'done' && resultImage && (
+                                                        <div className="glass-group-vec mt-2">
+                                                            <button 
+                                                                className={`color-dot-btn ${previewBg === 'white' ? 'active' : ''}`}
+                                                                onClick={(e) => { e.stopPropagation(); setPreviewBg('white'); }}
+                                                                title="Fundo Branco"
+                                                            >
+                                                                <div className="w-full h-full rounded-full bg-white" />
+                                                            </button>
+                                                            <button 
+                                                                className={`color-dot-btn ${previewBg === 'black' ? 'active' : ''}`}
+                                                                onClick={(e) => { e.stopPropagation(); setPreviewBg('black'); }}
+                                                                title="Fundo Preto"
+                                                            >
+                                                                <div className="w-full h-full rounded-full bg-black" />
+                                                            </button>
+                                                            <button 
+                                                                className={`color-dot-btn ${previewBg === 'gray' ? 'active' : ''}`}
+                                                                onClick={(e) => { e.stopPropagation(); setPreviewBg('gray'); }}
+                                                                title="Fundo Cinza"
+                                                            >
+                                                                <div className="w-full h-full rounded-full bg-gray-500" />
+                                                            </button>
+                                                            <button 
+                                                                className={`color-dot-btn checkered ${previewBg === 'checkered' ? 'active' : ''}`}
+                                                                onClick={(e) => { e.stopPropagation(); setPreviewBg('checkered'); }}
+                                                                title="Fundo Xadrez"
+                                                            />
+                                                            <button 
+                                                                 className={`color-dot-btn transparent ${previewBg === 'transparent' ? 'active' : ''}`}
+                                                                 onClick={(e) => { e.stopPropagation(); setPreviewBg('transparent'); }}
+                                                                 title="Reset Fundo"
+                                                             >
+                                                                 <X size={14} />
+                                                             </button>
+                                                        </div>
+                                                    )}
+                                                    
+                                                    {isSidebarExpanded && (
+                                                        <div 
+                                                            className="fixed inset-0 z-[-1]" 
+                                                            onClick={(e) => { e.stopPropagation(); setIsSidebarExpanded(false); }}
+                                                        />
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
 
-                                        {/* LIQUID GLASS RESET BUTTON */}
-                                        {(status === 'idle' || status === 'done') && (
-                                            <div className="mt-4 flex justify-center">
+                                        {/* OPTIMIZED ZOOM & RESET AREA (OUTSIDE CARD) */}
+                                        {(status === 'idle' || status === 'done') && (originalImage || resultImage) && (
+                                            <div className="mt-4 flex flex-col items-center gap-3">
+                                                {/* COMPACT ZOOM (OUTSIDE PREVIEW) */}
+                                                <div className="flex items-center gap-2 bg-white/5 backdrop-blur-xl p-1 rounded-full border border-white/10 shadow-lg px-3">
+                                                    <button 
+                                                        onClick={() => setZoomLevel(z => Math.max(z - 0.5, 1))} 
+                                                        className="p-1.5 hover:bg-white/10 rounded-full text-white/70 hover:text-white transition-all"
+                                                        title="Menos Zoom"
+                                                    >
+                                                        <Minus size={14} />
+                                                    </button>
+                                                    <span className="text-[10px] font-bold text-white/40 uppercase tracking-tighter w-8 text-center">{Math.round(zoomLevel * 100)}%</span>
+                                                    <button 
+                                                        onClick={() => setZoomLevel(z => Math.min(z + 0.5, 8))} 
+                                                        className="p-1.5 hover:bg-white/10 rounded-full text-white/70 hover:text-white transition-all"
+                                                        title="Mais Zoom"
+                                                    >
+                                                        <ZoomIn size={14} />
+                                                    </button>
+                                                </div>
+
                                                 <button
                                                     className="group relative flex items-center justify-center gap-2 py-2.5 px-6 rounded-2xl transition-all duration-300 backdrop-blur-xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 active:scale-95 shadow-2xl overflow-hidden"
                                                     onClick={handleReset}
@@ -555,182 +909,179 @@ export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({ isOpen, onCl
                                         )}
                                     </div>
 
-                                    <div className="preview-split-right">
-                                        <div className="model-selector-vec">
-                                            <button className={`model-btn-vec ${selectedModel === 'standard' ? 'active' : ''}`} onClick={() => setSelectedModel('standard')}>
-                                                <Zap size={16} />
-                                                <span>Standard</span>
-                                                <span className="model-credits-vec">1 crédito</span>
-                                            </button>
-                                            <button className={`model-btn-vec ${selectedModel === 'pro' ? 'active' : ''}`} onClick={() => setSelectedModel('pro')}>
-                                                <Sparkles size={16} />
-                                                <span>Pro HD</span>
-                                                <span className="model-credits-vec">3 créditos</span>
-                                            </button>
-                                        </div>
 
-                                        <div className="preview-actions-vec">
-                                            {resultImage && (
-                                                <div className="inline-agent-chat-vec fade-in">
-                                                    <div className="agent-bubble-vec">
-                                                        <div className="agent-avatar-vec">
-                                                            <Sparkles size={24} />
-                                                        </div>
-                                                        <div className="agent-text-vec">
-                                                            {(status as string) === 'processing' ? (
-                                                                <p className="flex items-center gap-2">
-                                                                    <Loader2 className="animate-spin" size={16} />
-                                                                    <strong>Gabi:</strong> Um momento...
-                                                                </p>
-                                                            ) : (
-                                                                <p><strong>Gabi:</strong> Ficou do seu gosto? Me diga o que mais quer alterar!</p>
-                                                            )}
-                                                        </div>
+
+                                <div className="preview-split-right">
+                                    <div className="model-selector-vec">
+                                        <button className={`model-btn-vec ${selectedModel === 'standard' ? 'active' : ''}`} onClick={() => setSelectedModel('standard')}>
+                                            <Zap size={16} />
+                                            <span>Standard</span>
+                                            <span className="model-credits-vec">1 crédito</span>
+                                        </button>
+                                        <button className={`model-btn-vec ${selectedModel === 'pro' ? 'active' : ''}`} onClick={() => setSelectedModel('pro')}>
+                                            <Sparkles size={16} />
+                                            <span>Pro HD</span>
+                                            <span className="model-credits-vec">3 créditos</span>
+                                        </button>
+                                    </div>
+
+                                    <div className="preview-actions-vec">
+                                        {resultImage && (
+                                            <div className="inline-agent-chat-vec fade-in">
+                                                <div className="agent-bubble-vec">
+                                                    <div className="agent-avatar-vec">
+                                                        <Sparkles size={24} />
                                                     </div>
-
-                                                    <form onSubmit={handleInlineSubmit} className="inline-chat-input-vec">
-                                                        <input
-                                                            type="text"
-                                                            value={inlinePrompt}
-                                                            onChange={(e) => setInlinePrompt(e.target.value)}
-                                                            placeholder="Diga à Gabi o que ajustar..."
-                                                            disabled={(status as string) === 'processing'}
-                                                        />
-                                                        <button type="submit" disabled={!inlinePrompt.trim() || (status as string) === 'processing'}>
-                                                            <Send size={18} />
-                                                        </button>
-                                                    </form>
-
-                                                    <div className="inline-actions-row-vec">
-                                                        <button className="action-btn-vec primary" onClick={handleDownload}>
-                                                            <Download size={20} />
-                                                            Baixar
-                                                        </button>
-                                                        <button className="action-btn-vec ghost" onClick={handleReset}>
-                                                            Reset
-                                                        </button>
-                                                    </div>
-
-                                                    {/* NEW PRODUCTION BRIDGE SECTION */}
-                                                    <div className="production-bridge-vec fade-in mt-6 pt-6 border-t border-white/5">
-                                                        <h4 className="text-[10px] uppercase tracking-[0.2em] text-white/30 font-bold mb-4">Ações de Produção</h4>
-                                                        <div className="flex flex-col gap-3">
-                                                            <button 
-                                                                className="bridge-card-vec factory group"
-                                                                onClick={() => handleTransferToFactory()}
-                                                            >
-                                                                <div className="bridge-card-icon-vec">
-                                                                    <Zap size={20} className="text-cyan-400" />
-                                                                </div>
-                                                                <div className="bridge-card-info-vec">
-                                                                    <span className="bridge-title-vec">Preparar DTF (Halftone)</span>
-                                                                    <span className="bridge-desc-vec">Aplicar retícula e salvar para impressão</span>
-                                                                </div>
-                                                                <Sparkles size={16} className="text-cyan-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                                            </button>
-
-                                                            <button 
-                                                                className="bridge-card-vec montador group"
-                                                                onClick={handleTransferToMontador}
-                                                            >
-                                                                <div className="bridge-card-icon-vec">
-                                                                    <Layers size={20} className="text-orange-400" />
-                                                                </div>
-                                                                <div className="bridge-card-info-vec">
-                                                                    <span className="bridge-title-vec">Adicionar ao Montador</span>
-                                                                    <span className="bridge-desc-vec">Enviar para o seu layout de produção</span>
-                                                                </div>
-                                                                <Sparkles size={16} className="text-orange-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                                            </button>
-                                                        </div>
+                                                    <div className="agent-text-vec">
+                                                        {(status as string) === 'processing' ? (
+                                                            <p className="flex items-center gap-2">
+                                                                <Loader2 className="animate-spin" size={16} />
+                                                                <strong>Gabi:</strong> Um momento...
+                                                            </p>
+                                                        ) : (
+                                                            <p><strong>Gabi:</strong> Ficou do seu gosto? Me diga o que mais quer alterar!</p>
+                                                        )}
                                                     </div>
                                                 </div>
-                                            )}
 
-                                            {(status !== 'processing' && status !== 'uploading') && (
-                                                <div className="effects-selection-area">
-                                                    <h3 className="effects-title">Estilos Rápidos:</h3>
-                                                    <div className="effects-chips-vec">
-                                                        {effectOptions.map((effect) => (
-                                                            <button
-                                                                key={effect.id}
-                                                                className={`effect-chip-vec ${selectedEffect === effect.id ? 'active' : ''} ${effect.id === 'vectorize' ? 'highlighted' : ''}`}
-                                                                onClick={() => setSelectedEffect(effect.id)}
-                                                            >
-                                                                <span className="effect-chip-icon">{effect.icon}</span>
-                                                                <span className="effect-chip-label">{effect.label}</span>
-                                                            </button>
-                                                        ))}
-                                                    </div>
-
-                                                    {selectedEffect === 'custom' && (
-                                                        <div className="observation-field-vec fade-in">
-                                                            <div className="agent-bubble-vec mb-4">
-                                                                <div className="agent-avatar-vec">
-                                                                    <Sparkles size={24} />
-                                                                </div>
-                                                                <div className="agent-text-vec">
-                                                                    <p><strong>Gabi:</strong> O que você deseja criar hoje? Descreva com detalhes e eu usarei minha inteligência para gerar do zero!</p>
-                                                                </div>
-                                                            </div>
-                                                            <div className="custom-prompt-chat-input-wrapper">
-                                                                <textarea
-                                                                    value={userPrompt}
-                                                                    onChange={(e) => setUserPrompt(e.target.value)}
-                                                                    placeholder="Ex: 'Um logotipo minimalista de uma cafeteria com um grão de café estilizado em tons de marrom e dourado'"
-                                                                    rows={3}
-                                                                    className="custom-prompt-textarea"
-                                                                    disabled={(status as string) === 'processing' || (status as string) === 'uploading'}
-                                                                />
-                                                            </div>
-                                                        </div>
-                                                    )}
-
-                                                    <button
-                                                        className={cn(
-                                                            "action-btn-vec primary full mt-4 relative group",
-                                                            !selectedEffect && "opacity-50 cursor-not-allowed"
-                                                        )}
-                                                        onClick={() => {
-                                                            if (!selectedEffect) {
-                                                                toast.error("Por favor, selecione um estilo antes de continuar.");
-                                                                return;
-                                                            }
-                                                            if (selectedEffect === 'custom') {
-                                                                handleProcess(userPrompt || undefined);
-                                                            } else {
-                                                                const effect = effectOptions.find(e => e.id === selectedEffect);
-                                                                handleProcess(effect?.prompt || undefined);
-                                                            }
-                                                        }}
+                                                <form onSubmit={handleInlineSubmit} className="inline-chat-input-vec">
+                                                    <input
+                                                        type="text"
+                                                        value={inlinePrompt}
+                                                        onChange={(e) => setInlinePrompt(e.target.value)}
+                                                        placeholder="Diga à Gabi o que ajustar..."
                                                         disabled={(status as string) === 'processing'}
-                                                    >
-                                                        <Wand2 size={20} />
-                                                        {resultImage ? 'Aplicar Estilo' : 'VETORIZAR AGORA'}
-                                                        {!selectedEffect && (
-                                                            <span className="absolute -top-12 left-1/2 -translate-x-1/2 bg-zinc-900 text-white text-[10px] py-1 px-3 rounded-lg border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                                                                Selecione um estilo acima
-                                                            </span>
-                                                        )}
+                                                    />
+                                                    <button type="submit" disabled={!inlinePrompt.trim() || (status as string) === 'processing'}>
+                                                        <Send size={18} />
+                                                    </button>
+                                                </form>
+
+                                                <div className="inline-actions-row-vec">
+                                                    <button className="action-btn-vec primary" onClick={handleDownload}>
+                                                        <Download size={20} />
+                                                        Baixar
+                                                    </button>
+                                                    <button className="action-btn-vec ghost" onClick={handleReset}>
+                                                        Reset
                                                     </button>
                                                 </div>
-                                            )}
-                                        </div>
+
+                                                <div className="production-bridge-vec fade-in mt-6 pt-6 border-t border-white/5">
+                                                    <h4 className="text-[10px] uppercase tracking-[0.2em] text-white/30 font-bold mb-4">Ações de Produção</h4>
+                                                    <div className="flex flex-col gap-3">
+                                                        <button 
+                                                            className="bridge-card-vec factory group"
+                                                            onClick={() => handleTransferToFactory()}
+                                                        >
+                                                            <div className="bridge-card-icon-vec">
+                                                                <Zap size={20} className="text-cyan-400" />
+                                                            </div>
+                                                            <div className="bridge-card-info-vec">
+                                                                <span className="bridge-title-vec">Preparar DTF (Halftone)</span>
+                                                                <span className="bridge-desc-vec">Aplicar retícula e salvar para impressão</span>
+                                                            </div>
+                                                            <Sparkles size={16} className="text-cyan-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                        </button>
+
+                                                        <button 
+                                                            className="bridge-card-vec montador group"
+                                                            onClick={handleTransferToMontador}
+                                                        >
+                                                            <div className="bridge-card-icon-vec">
+                                                                <Layers size={20} className="text-orange-400" />
+                                                            </div>
+                                                            <div className="bridge-card-info-vec">
+                                                                <span className="bridge-title-vec">Adicionar ao Montador</span>
+                                                                <span className="bridge-desc-vec">Enviar para o seu layout de produção</span>
+                                                            </div>
+                                                            <Sparkles size={16} className="text-orange-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {(status !== 'processing' && status !== 'uploading') && (
+                                            <div className="effects-selection-area">
+                                                <h3 className="effects-title">Estilos Rápidos:</h3>
+                                                <div className="effects-chips-vec">
+                                                    {effectOptions.map((effect) => (
+                                                        <button
+                                                            key={effect.id}
+                                                            className={`effect-chip-vec ${selectedEffect === effect.id ? 'active' : ''} ${effect.id === 'vectorize' ? 'highlighted' : ''}`}
+                                                            onClick={() => setSelectedEffect(effect.id)}
+                                                        >
+                                                            <span className="effect-chip-icon">{effect.icon}</span>
+                                                            <span className="effect-chip-label">{effect.label}</span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+
+                                                {selectedEffect === 'custom' && (
+                                                    <div className="observation-field-vec fade-in">
+                                                        <div className="agent-bubble-vec mb-4">
+                                                            <div className="agent-avatar-vec">
+                                                                <Sparkles size={24} />
+                                                            </div>
+                                                            <div className="agent-text-vec">
+                                                                <p><strong>Gabi:</strong> O que você deseja criar hoje? Descreva com detalhes e eu usarei minha inteligência para gerar do zero!</p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="custom-prompt-chat-input-wrapper">
+                                                            <textarea
+                                                                value={userPrompt}
+                                                                onChange={(e) => setUserPrompt(e.target.value)}
+                                                                placeholder="Ex: 'Um logotipo minimalista...'"
+                                                                rows={3}
+                                                                className="custom-prompt-textarea"
+                                                                disabled={(status as string) === 'processing' || (status as string) === 'uploading'}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                <button
+                                                    className={cn(
+                                                        "action-btn-vec primary full mt-4 relative group",
+                                                        !selectedEffect && "opacity-50 cursor-not-allowed"
+                                                    )}
+                                                    onClick={() => {
+                                                        if (!selectedEffect) {
+                                                            toast.error("Por favor, selecione um estilo antes de continuar.");
+                                                            return;
+                                                        }
+                                                        if (selectedEffect === 'custom') {
+                                                            handleProcess(userPrompt || undefined);
+                                                        } else {
+                                                            const effect = effectOptions.find(e => e.id === selectedEffect);
+                                                            handleProcess(effect?.prompt || undefined);
+                                                        }
+                                                    }}
+                                                    disabled={(status as string) === 'processing'}
+                                                >
+                                                    <Wand2 size={20} />
+                                                    {resultImage ? 'Aplicar Estilo' : 'VETORIZAR AGORA'}
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
-                            )}
-                        </div>
+                            </div>
+                        )}
                     </div>
                 </div>
-            </DialogContent>
+            </div>
+        </DialogContent>
 
-            <CreditsShopModal
-                isOpen={isShopOpen}
-                onClose={() => {
-                    setIsShopOpen(false);
-                    fetchCredits(); // Refresh credits after potentially buying
-                }}
-            />
-        </Dialog>
-    );
+        <CreditsShopModal
+            isOpen={isShopOpen}
+            onClose={() => {
+                setIsShopOpen(false);
+                fetchCredits();
+            }}
+        />
+    </Dialog>
+);
 };
+

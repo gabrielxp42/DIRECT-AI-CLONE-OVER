@@ -121,25 +121,37 @@ interface OverPixelLauncherProps {
 
 // Custom App Logos
 const MontadorIcon = ({ className }: { className?: string }) => (
-  <img src="/montador/logo-montador-fast.png" alt="O Montador" className={cn("w-full h-full object-contain", className)} />
+  <img 
+    src="/montador/logo-montador-fast.png" 
+    alt="O Montador" 
+    className={cn("w-full h-full object-contain p-0.5", className)} 
+    draggable={false}
+    onDragStart={(e) => e.preventDefault()}
+  />
 );
 
 const DTFFactoryLogo = ({ className }: { className?: string }) => (
-  <img src="/dtf-fabric-logo.png" alt="DTF Factory" className={cn("w-full h-full object-contain", className)} />
+  <img 
+    src="/dtf-fabric-logo.png" 
+    alt="DTF Factory" 
+    className={cn("w-full h-full object-contain p-0.5", className)} 
+    draggable={false}
+    onDragStart={(e) => e.preventDefault()}
+  />
 );
 
 const DirectAILogo = ({ className }: { className?: string }) => (
-  <div className={cn("w-14 h-14 flex items-center justify-center", className)}>
-    <svg viewBox="0 0 200 120" className="w-full h-full fill-none stroke-white/90">
-      <circle cx="72" cy="60" r="44" strokeWidth="12" />
-      <circle cx="128" cy="60" r="44" strokeWidth="12" />
+  <div className={cn("w-14 h-14 md:w-16 md:h-16 flex items-center justify-center", className)}>
+    <svg viewBox="0 0 200 120" className="w-[120%] h-[120%] fill-none stroke-white/95">
+      <circle cx="72" cy="60" r="48" strokeWidth="14" />
+      <circle cx="128" cy="60" r="48" strokeWidth="14" />
     </svg>
   </div>
 );
 
 const MelhoradorLogo = ({ className }: { className?: string }) => (
-  <div className={cn("relative flex items-center justify-center w-full h-full", className)} style={{ transform: "scale(1.2)" }}>
-    <Sparkles className="w-full h-full text-rose-200" strokeWidth={1} style={{ filter: "drop-shadow(0 0 10px rgba(251,113,133,0.8))" }} />
+  <div className={cn("relative flex items-center justify-center w-full h-full scale-[1.3]", className)}>
+    <Sparkles className="w-full h-full text-rose-200" strokeWidth={1} style={{ filter: "drop-shadow(0 0 15px rgba(251,113,133,0.9))" }} />
   </div>
 );
 
@@ -310,6 +322,10 @@ const OverPixelLauncher = React.forwardRef<HTMLDivElement, OverPixelLauncherProp
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
         transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+        style={{ 
+          '--glass-opacity': glassOpacity,
+          '--glass-border-opacity': (glassOpacity ?? 0.12) + 0.15 
+        } as React.CSSProperties}
       >
         <div className="ios-bg-mesh" />
         <div className={cn("ios-app-bg", currentAppId)} aria-hidden="true">
@@ -374,15 +390,15 @@ const OverPixelLauncher = React.forwardRef<HTMLDivElement, OverPixelLauncherProp
         </AnimatePresence>
 
         <div className="ios-main-content">
-          <div className="ios-content-wrapper max-w-[1240px] mx-auto w-full flex flex-col px-12 py-12">
+          <div className="ios-content-wrapper max-w-[1240px] mx-auto w-full flex flex-col md:px-12 md:py-12 px-6 py-6 transition-all">
             
-            <div className="ios-top-info flex items-center justify-between mb-12">
-               <div>
-                 <h1 className="ios-greeting text-5xl font-black text-white leading-tight">
+            <div className="ios-top-info flex items-center justify-between mb-8 md:mb-12">
+               <div className="flex-1">
+                 <h1 className="ios-greeting text-3xl md:text-5xl font-black text-white leading-[1.1] md:leading-tight">
                     Boa tarde, {userName}.
                  </h1>
-                 <p className="text-white/40 text-sm font-medium tracking-wide mt-2">
-                    Conectado ao OverPixel Central Control
+                 <p className="text-white/40 text-[10px] md:text-sm font-medium tracking-wide mt-2 uppercase md:normal-case">
+                    Online • OverPixel Central Control
                  </p>
                </div>
 
@@ -390,7 +406,7 @@ const OverPixelLauncher = React.forwardRef<HTMLDivElement, OverPixelLauncherProp
                <motion.button
                   onClick={() => setLocalShowSettings(!localShowSettings)}
                   className={cn(
-                    "p-4 rounded-3xl transition-all border shrink-0",
+                    "p-3 md:p-4 rounded-2xl md:rounded-3xl transition-all border shrink-0",
                     localShowSettings 
                       ? "bg-cyan-500/20 border-cyan-500/40 shadow-[0_0_20px_rgba(6,182,212,0.2)]" 
                       : "bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20"
@@ -400,7 +416,7 @@ const OverPixelLauncher = React.forwardRef<HTMLDivElement, OverPixelLauncherProp
                   title="Ajustes e Personalização"
                >
                   <Settings className={cn(
-                    "w-7 h-7 transition-colors",
+                    "w-5 h-5 md:w-7 md:h-7 transition-colors",
                     localShowSettings ? "text-cyan-400 animate-spin-slow" : "text-white/30"
                   )} />
                </motion.button>

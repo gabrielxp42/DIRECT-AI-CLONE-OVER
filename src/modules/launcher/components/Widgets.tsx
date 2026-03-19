@@ -56,16 +56,16 @@ export const DailySummaryWidget = () => {
         <div className="ios-widget-value leading-none">
           {todayCount}
         </div>
-        <div className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em] mt-2 mb-3">
+        <div className="text-[8px] md:text-[10px] font-black text-white/20 uppercase tracking-[0.1em] md:tracking-[0.2em] mt-1 md:mt-2 mb-2 md:mb-3">
           Pedidos Hoje
         </div>
         {pendingCount > 0 && (
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/15 border border-amber-500/20 text-amber-400 text-[9px] font-black tracking-widest w-fit">
-            <AlertCircle size={10} /> {pendingCount} PENDENTES
+          <div className="flex items-center gap-1.5 px-2 md:px-3 py-1 md:py-1.5 rounded-full bg-amber-500/15 border border-amber-500/20 text-amber-400 text-[8px] md:text-[9px] font-black tracking-widest w-fit">
+            <AlertCircle size={8} className="md:w-2.5 md:h-2.5" /> {pendingCount} PENDENTES
           </div>
         )}
       </div>
-      <div className="w-full h-1 bg-white/5 rounded-full mt-3 overflow-hidden">
+      <div className="w-full h-1 bg-white/5 rounded-full mt-2 md:mt-3 overflow-hidden">
         <motion.div 
           className="h-full bg-emerald-500"
           initial={{ width: 0 }}
@@ -99,15 +99,15 @@ export const GabiAnalyticsWidget = () => {
       </div>
       
       <div className="mt-auto relative z-10">
-        <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm mb-1">
-          <TrendingUp size={16} />
+        <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs md:text-sm mb-1">
+          <TrendingUp size={14} className="md:w-4 md:h-4" />
           <span>+{salesIncrease}</span>
         </div>
-        <h3 className="text-lg font-bold text-white leading-tight">
+        <h3 className="text-sm md:text-lg font-bold text-white leading-tight">
           Vendas subiram {salesIncrease}
-          <span className="block text-white/40 text-xs font-medium mt-1">comparado à última semana</span>
+          <span className="block text-white/40 text-[9px] md:text-xs font-medium mt-0.5 md:mt-1">comparado à última semana</span>
         </h3>
-        <div className="flex items-center gap-2 text-violet-300 font-bold text-xs mt-3 group-hover:gap-3 transition-all">
+        <div className="hidden md:flex items-center gap-2 text-violet-300 font-bold text-xs mt-3 group-hover:gap-3 transition-all">
           Ver relatório completo <ChevronRight size={14} />
         </div>
       </div>
