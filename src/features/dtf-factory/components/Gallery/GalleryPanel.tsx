@@ -273,17 +273,48 @@ export default function GalleryPanel({ isOpen, onClose, onOpenHalftone, onStartI
         const pathsToSend: string[] = [];
         selectedIds.forEach(id => {
             const item = items.find(i => i.id === id);
-            const path = item?.masterFilePath || item?.savedPath;
+            // In Web, prefer treatedUrl (halftone-treated image) over masterUrl (raw)
+            const path = electronBridge.isElectron
+                ? (item?.savedPath || item?.masterFilePath || item?.treatedUrl || item?.masterUrl || item?.thumbnail)
+                : (item?.treatedUrl || item?.masterUrl || item?.thumbnail || item?.savedPath);
             if (path) {
                 pathsToSend.push(path);
             }
         });
 
-        if (pathsToSend.length > 0 && electronBridge.isElectron && electronBridge.launchMontador) {
+        const verifiedPaths: string[] = [];
+        const currentGallery = items; // Capture current items for fallback
+
+        // Validate blobs
+        for (const path of pathsToSend) {
+            if (path.startsWith('blob:')) {
+                try {
+                    const res = await fetch(path);
+                    if (!res.ok) throw new Error();
+                    verifiedPaths.push(path);
+                } catch (err) {
+                    // Find matching item's thumbnail
+                    const item = currentGallery.find(g => g.masterUrl === path);
+                    if (item && item.thumbnail) {
+                        verifiedPaths.push(item.thumbnail);
+                    }
+                }
+            } else {
+                verifiedPaths.push(path);
+            }
+        }
+
+        if (verifiedPaths.length === 0) {
+            setSelectedIds(new Set()); // Clear selection if no valid paths
+            setIsSendingBatch(false);
+            return;
+        }
+
+        if (electronBridge.launchMontador) {
             try {
-                const res = await electronBridge.launchMontador(pathsToSend);
+                const res = await electronBridge.launchMontador(verifiedPaths);
                 if (res.success) {
-                    console.log(`[Gallery] Batch enviado com sucesso (${pathsToSend.length} imagens)`);
+                    console.log(`[Gallery] Batch enviado com sucesso (${verifiedPaths.length} imagens)`);
                     setTimeout(() => {
                         setSelectedIds(new Set());
                         setIsSendingBatch(false);
@@ -1171,19 +1202,40 @@ function SendToMontadorButton({ item }: { item: GalleryItem }) {
     const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-    // Only show if running in Electron and item has a saved file
-    const pathToSend = item.masterFilePath || item.savedPath;
-    if (!electronBridge.isElectron || !pathToSend) return null;
+    // Show if there's a file to send
+    const pathToSend = item.treatedUrl || item.masterFilePath || item.savedPath;
+    if (!pathToSend) return null;
 
     const handleClick = async () => {
         setStatus('sending');
         setErrorMsg(null);
 
         try {
-            const result = await electronBridge.launchMontador(pathToSend);
+            const path = electronBridge.isElectron
+                ? (item.savedPath || item.masterFilePath || item.treatedUrl || item.masterUrl || item.thumbnail)
+                : (item.treatedUrl || item.masterUrl || item.thumbnail || item.savedPath);
+
+            let finalPath = path;
+
+            if (finalPath && finalPath.startsWith('blob:')) {
+                try {
+                    const res = await fetch(finalPath);
+                    if (!res.ok) throw new Error("Blob URL not accessible");
+                } catch (err) {
+                    // Blob expired (common in web fallback after reload). Use thumbnail.
+                    console.warn("Blob URL expired or inaccessible, falling back to thumbnail.");
+                    finalPath = item.thumbnail;
+                }
+            }
+
+            if (!finalPath) {
+                throw new Error("No valid path to send.");
+            }
+
+            const result = await electronBridge.launchMontador(finalPath);
 
             if (result.success) {
-                console.log('[Gallery] Imagem enviada ao Montador:', pathToSend);
+                console.log('[Gallery] Imagem enviada ao Montador:', finalPath);
                 setStatus('sent');
                 setTimeout(() => setStatus('idle'), 2500);
             } else {

@@ -154,7 +154,9 @@ const CanvasPreview = forwardRef<HTMLCanvasElement, CanvasPreviewProps>(({
                 if (!img) {
                     // Fallback load if not in cache
                     img = new Image();
-                    img.crossOrigin = 'anonymous';
+                    if (!(item as any).imageUrl.startsWith('blob:') && !(item as any).imageUrl.startsWith('data:')) {
+                        img.crossOrigin = 'anonymous';
+                    }
                     img.src = (item as any).imageUrl;
                     await new Promise((resolve, reject) => {
                         img!.onload = resolve;
@@ -206,11 +208,13 @@ const CanvasPreview = forwardRef<HTMLCanvasElement, CanvasPreviewProps>(({
         lines.forEach(line => {
             if (!imageCache.current.has(line.imageUrl)) {
                 const img = new Image();
-                img.crossOrigin = 'anonymous'; // Good practice
+                if (!line.imageUrl.startsWith('blob:') && !line.imageUrl.startsWith('data:')) {
+                    img.crossOrigin = 'anonymous'; // Only for external URLs to avoid CORS tainting
+                }
                 img.src = line.imageUrl;
                 img.onload = () => {
                     imageCache.current.set(line.imageUrl, img);
-                    // Force re-render if needed (could add a dummy state update here)
+                    // Force re-render if needed
                 };
             }
         });

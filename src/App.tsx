@@ -128,8 +128,8 @@ const App = () => (
                                 <Admin />
                               </AdminRoute>
                             } />
-                            <Route path="/dtf-factory" element={null} />
-                            <Route path="/montador" element={null} />
+                            <Route path="/dtf-factory" element={<DTFFactory />} />
+                            <Route path="/montador" element={<MontadorPage />} />
                             <Route path="*" element={<NotFound />} />
                           </Route>
                         </Route>

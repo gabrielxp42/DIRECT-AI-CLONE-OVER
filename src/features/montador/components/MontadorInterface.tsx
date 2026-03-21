@@ -202,36 +202,63 @@ export default function MontadorInterface() {
     // --- OVERPIXEL BRIDGE ---
     useEffect(() => {
         const checkBridge = async () => {
-            const savedState = localStorage.getItem('OVERPIXEL_BRIDGE_STATE');
-            if (!savedState) return;
+            // Check window global first (avoids localStorage quota limits for large base64 images)
+            let bridgeData: any = null;
+
+            if ((window as any).__OVERPIXEL_BRIDGE__) {
+                bridgeData = (window as any).__OVERPIXEL_BRIDGE__;
+                delete (window as any).__OVERPIXEL_BRIDGE__;
+                console.log('[Montador] Bridge state from window global');
+            } else {
+                const savedState = localStorage.getItem('OVERPIXEL_BRIDGE_STATE');
+                if (savedState) {
+                    try {
+                        bridgeData = JSON.parse(savedState);
+                        console.log('[Montador] Bridge state from localStorage');
+                    } catch (e) {
+                        console.error('[Montador] Failed to parse localStorage bridge state');
+                    }
+                    localStorage.removeItem('OVERPIXEL_BRIDGE_STATE');
+                }
+            }
+
+            if (!bridgeData) return;
 
             try {
-                const { type, data } = JSON.parse(savedState);
+                const { type, data } = bridgeData;
                 if (type === 'VETORIZA_TO_MONTADOR') {
-                    console.log('[Montador] Received design from Vetoriza AI', data);
+                    console.log('[Montador] Received design(s)', data);
+
+                    const imagePaths: string[] = data.images || (data.image ? [data.image] : []);
                     
-                    // Clear state
-                    localStorage.removeItem('OVERPIXEL_BRIDGE_STATE');
+                    const newLinesPromises = imagePaths.map(async (imagePath) => {
+                        try {
+                            const res = await fetch(imagePath);
+                            const blob = await res.blob();
+                            const filename = imagePath.split(/[/\\]/).pop() || "design.png";
+                            const file = new File([blob], filename, { type: "image/png" });
 
-                    // Helper to convert URL to File
-                    const res = await fetch(data.image);
-                    const blob = await res.blob();
-                    const file = new File([blob], "vetoriza-design.png", { type: "image/png" });
+                            const { dimensions, croppedImageUrl } = await getImageDimensions(file);
+                            
+                            return {
+                                id: Math.random().toString(36).substr(2, 9),
+                                imageUrl: croppedImageUrl,
+                                dimensions: dimensions,
+                                result: { success: true, copies: 1, rotation: 0 } as any,
+                                yOffset: 0,
+                                quantity: 1,
+                                spacingPx: undefined
+                            } as LineConfig;
+                        } catch (err) {
+                            console.error('[Montador] Error processing image:', imagePath, err);
+                            return null;
+                        }
+                    });
 
-                    // Process and add to canvas
-                    const { dimensions, croppedImageUrl } = await getImageDimensions(file);
-                    
-                    const newLine: LineConfig = {
-                        id: Math.random().toString(36).substr(2, 9),
-                        imageUrl: croppedImageUrl,
-                        dimensions: dimensions,
-                        result: { success: true, copies: 1, rotation: 0 } as any,
-                        yOffset: 0,
-                        quantity: 1,
-                        spacingPx: undefined
-                    };
-
-                    setLines(prev => [...prev, newLine]);
+                    const processedLines = (await Promise.all(newLinesPromises)).filter(Boolean) as LineConfig[];
+                    if (processedLines.length > 0) {
+                        setLines(prev => [...prev, ...processedLines]);
+                    }
                 }
             } catch (err) {
                 console.error('[Montador] Bridge error:', err);

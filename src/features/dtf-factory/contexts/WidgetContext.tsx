@@ -22,6 +22,10 @@ export interface WidgetConfig {
         imageUrl?: string;
         savedPath?: string;
     };
+    localResult?: {
+        imageUrl?: string;
+        savedPath?: string;
+    };
 }
 
 
@@ -116,11 +120,12 @@ export function WidgetProvider({ children }: { children: React.ReactNode }) {
         if (isLoaded) {
             // Remove uploadedImages (which contain large Base64 URLs) before saving to local storage
             // to prevent "QuotaExceededError".
-            // Também removemos externalStatus para não salvar imagens finais (API) acidentalmente.
+            // Também removemos externalStatus e localResult para não salvar imagens expiráveis (Blob URLs).
             const widgetsToSave = widgets.map(w => ({ 
                 ...w, 
                 uploadedImages: [],
-                externalStatus: undefined 
+                externalStatus: undefined,
+                localResult: undefined
             }));
             localStorage.setItem('dtf_widgets', JSON.stringify(widgetsToSave));
         }

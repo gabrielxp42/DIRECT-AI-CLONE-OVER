@@ -83,11 +83,14 @@ export default function HalftoneEditorOverlay({ isOpen, imageUrl, garmentMode, i
                         const thumbnail = await createThumbnail(thumbDataUrl);
                         URL.revokeObjectURL(thumbDataUrl);
 
+                        const treatedBlobUrl = URL.createObjectURL(halftoneBlob);
+
                         saveGalleryItem({
                             prompt: item.prompt,
                             timestamp: Date.now(),
                             savedPath: result.path || filename,
                             masterFilePath: item.masterFilePath, // Keep linkage to master!
+                            treatedUrl: treatedBlobUrl, // The treated/halftone image URL for web
                             thumbnail,
                             aspectRatio: item.aspectRatio,
                             garmentMode: garmentMode, // Uses the mode selected in editor
@@ -136,12 +139,15 @@ export default function HalftoneEditorOverlay({ isOpen, imageUrl, garmentMode, i
                         const thumbnail = await createThumbnail(thumbDataUrl);
                         URL.revokeObjectURL(thumbDataUrl);
 
+                        const treatedBlobUrl = URL.createObjectURL(processedBlob);
+
                         saveGalleryItem({
                             prompt: item.prompt,
                             timestamp: Date.now(),
                             savedPath: result.path || filename,
-                            // CRÍTICO: Substitui o masterFilePath pela própria imagem limpa, para edições futuras via Halftone carregarem já a versão sem fundo.
+                            // CRÍTICO: Substitui o masterFilePath pela própria imagem limpa
                             masterFilePath: result.path || filename,
+                            treatedUrl: treatedBlobUrl, // The treated image URL for web
                             thumbnail,
                             aspectRatio: item.aspectRatio,
                             garmentMode: 'color', // Explicitly color

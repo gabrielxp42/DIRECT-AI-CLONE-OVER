@@ -20,18 +20,48 @@ export default function WidgetGrid() {
     } = useWidgets();
     const [showModal, setShowModal] = useState(false);
 
-    const handleBatchSend = () => {
+    const handleBatchSend = async () => {
         const pathsToSend: string[] = [];
         widgets.forEach(w => {
             if (selectedIds.has(w.id)) {
-                const path = w.externalStatus?.savedPath || w.externalStatus?.imageUrl || (w.uploadedImages && w.uploadedImages[0]);
+                // In Web, prefer imageUrl (Base64) because browsers can't fetch C:/ paths. In Electron, prefer savedPath.
+                const path = electronBridge.isElectron 
+                    ? (w.externalStatus?.savedPath || w.localResult?.savedPath || w.externalStatus?.imageUrl || w.localResult?.imageUrl || (w.uploadedImages && w.uploadedImages[0]))
+                    : (w.externalStatus?.imageUrl || w.localResult?.imageUrl || w.externalStatus?.savedPath || w.localResult?.savedPath || (w.uploadedImages && w.uploadedImages[0]));
+                
                 if (path) pathsToSend.push(path);
             }
         });
 
-        if (pathsToSend.length === 0) return;
+        if (pathsToSend.length === 0) {
+            clearSelection();
+            setIsSelectionMode(false);
+            return;
+        }
 
-        electronBridge.launchMontador(pathsToSend);
+        const verifiedPaths: string[] = [];
+        
+        for (const path of pathsToSend) {
+            if (path.startsWith('blob:')) {
+                try {
+                    const res = await fetch(path);
+                    if (!res.ok) throw new Error();
+                    verifiedPaths.push(path);
+                } catch(err) {
+                    console.warn("Expired blob URL ignored in WidgetGrid:", path);
+                }
+            } else {
+                verifiedPaths.push(path);
+            }
+        }
+
+        if (verifiedPaths.length > 0) {
+            electronBridge.launchMontador(verifiedPaths);
+        } else {
+            console.error("Todas as imagens selecionadas expiraram. Gere-as novamente.");
+            // Optional: alert user here
+        }
+        
         clearSelection();
         setIsSelectionMode(false);
     };

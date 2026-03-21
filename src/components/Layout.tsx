@@ -232,6 +232,18 @@ const Layout = () => {
     return () => window.removeEventListener('launcher-theme-changed', handler);
   }, []);
 
+  // Sync external navigation (Web fallback for bridges)
+  React.useEffect(() => {
+    const handler = (e: any) => {
+      if (e.detail) {
+        setShowLauncher(false);
+        navigate(e.detail);
+      }
+    };
+    window.addEventListener('OVERPIXEL_NAVIGATE', handler);
+    return () => window.removeEventListener('OVERPIXEL_NAVIGATE', handler);
+  }, [setShowLauncher, navigate]);
+
   // Ativar sincronização em tempo real (Supabase Realtime)
   useRealtimeSync();
 

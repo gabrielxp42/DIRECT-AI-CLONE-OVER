@@ -367,19 +367,30 @@ const WidgetCard = React.forwardRef<HTMLDivElement, WidgetCardProps>(({ config }
         upscaleFactor: 4 // Assuming default
     } : null;
 
-    // Auto-save to gallery
+    // Auto-save to gallery & Sync Local Result
     useEffect(() => {
         // Verifica se terminou e se TEM imagem gerada (ignora imagens que o usuário fez upload manual)
         // Usa activeState.savedPath como indicador forte de que foi gerado agorinha
         if (activeState.step === 'completed' && activeState.imageUrl && activeState.savedPath && !gallerySavedRef.current) {
             gallerySavedRef.current = true;
+            
+            // Send local result up to context so the Grid can access them for Batch Send
+            // IMPORTANT: Use activeState.imageUrl (the TREATED/halftone image), NOT upscaledImageUrl (raw)
+            updateWidget(config.id, {
+                localResult: {
+                    imageUrl: activeState.imageUrl,
+                    savedPath: activeState.savedPath
+                }
+            });
+
             createThumbnail(activeState.imageUrl).then(thumbnail => {
                 saveGalleryItem({
                     prompt: prompt,
                     timestamp: Date.now(),
                     savedPath: activeState.savedPath || null,
-                    masterFilePath: activeState.savedMasterPath || activeState.savedPath || null,
-                    masterUrl: activeState.upscaledImageUrl || activeState.imageUrl,
+                    masterFilePath: (activeState as any).savedMasterPath || activeState.savedPath || null,
+                    masterUrl: (activeState as any).upscaledImageUrl || activeState.imageUrl,
+                    treatedUrl: activeState.imageUrl, // The FINAL treated (halftone) image URL
                     thumbnail,
                     aspectRatio,
                     garmentMode,
@@ -387,7 +398,7 @@ const WidgetCard = React.forwardRef<HTMLDivElement, WidgetCardProps>(({ config }
                     heightCm,
                     halftonePreset: config.halftonePreset,
                 });
-                console.log('[WidgetCard] ✅ Saved to gallery');
+                console.log('[WidgetCard] ✅ Saved to gallery & Synced Local Result');
             }).catch(err => console.warn('[WidgetCard] Gallery save failed:', err));
         }
         
@@ -395,7 +406,7 @@ const WidgetCard = React.forwardRef<HTMLDivElement, WidgetCardProps>(({ config }
         if (activeState.step === 'idle' || activeState.step === 'analyzing') {
             gallerySavedRef.current = false;
         }
-    }, [activeState.step, activeState.imageUrl, activeState.savedPath, prompt, aspectRatio, garmentMode, widthCm, heightCm, config.halftonePreset]);
+    }, [activeState.step, activeState.imageUrl, activeState.savedPath, prompt, aspectRatio, garmentMode, widthCm, heightCm, config.halftonePreset, config.id, updateWidget]);
 
     // File handlers
     const updateWidgetImages = (newPreviews: string[]) => {

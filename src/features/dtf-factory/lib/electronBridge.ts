@@ -301,7 +301,109 @@ export const electronBridge: ElectronBridge = {
         if (window.electronAPI && (window.electronAPI as any).launchMontador) {
             return (window.electronAPI as any).launchMontador(imagePathOrPaths);
         }
-        return { success: false, error: 'Não disponível na web' };
+        
+        // --- Show loading overlay while converting ---
+        let overlay: HTMLDivElement | null = null;
+        try {
+            overlay = document.createElement('div');
+            overlay.id = 'montador-loading-overlay';
+            overlay.style.cssText = `
+                position:fixed; inset:0; z-index:99999;
+                background:rgba(0,0,0,0.85); backdrop-filter:blur(8px);
+                display:flex; flex-direction:column; align-items:center; justify-content:center;
+                font-family:system-ui,sans-serif; color:white;
+            `;
+            const images = Array.isArray(imagePathOrPaths) ? imagePathOrPaths : [imagePathOrPaths];
+            overlay.innerHTML = `
+                <div style="width:48px;height:48px;border:3px solid rgba(255,255,255,0.15);border-top-color:#f97316;border-radius:50%;animation:spin 0.8s linear infinite"></div>
+                <p style="margin-top:16px;font-size:15px;font-weight:600;color:rgba(255,255,255,0.9)">Preparando imagens para o Montador…</p>
+                <p style="margin-top:4px;font-size:12px;color:rgba(255,255,255,0.45)">Convertendo ${images.length} arquivo${images.length > 1 ? 's' : ''}</p>
+                <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+            `;
+            document.body.appendChild(overlay);
+        } catch (_) { /* overlay is cosmetic, ignore errors */ }
+
+        try {
+            const images = Array.isArray(imagePathOrPaths) ? imagePathOrPaths : [imagePathOrPaths];
+
+            // --- Convert all blob: URLs to data: URLs so they survive navigation ---
+            const persistentImages: string[] = [];
+            for (const img of images) {
+                if (img.startsWith('blob:')) {
+                    try {
+                        const res = await fetch(img);
+                        const blob = await res.blob();
+                        const dataUrl = await new Promise<string>((resolve, reject) => {
+                            const reader = new FileReader();
+                            reader.onloadend = () => resolve(reader.result as string);
+                            reader.onerror = reject;
+                            reader.readAsDataURL(blob);
+                        });
+                        persistentImages.push(dataUrl);
+                        console.log('[launchMontador] Converted blob to data URL, size:', Math.round(dataUrl.length / 1024), 'KB');
+                    } catch (err) {
+                        console.warn('[launchMontador] Failed to convert blob to data URL, skipping:', img, err);
+                    }
+                } else {
+                    // Already a data: URL, http URL, or file path — keep as-is
+                    persistentImages.push(img);
+                }
+            }
+
+            if (persistentImages.length === 0) {
+                if (overlay) {
+                    overlay.innerHTML = `
+                        <div style="background:rgba(220,38,38,0.2);padding:24px;border-radius:12px;border:1px solid rgba(220,38,38,0.5);text-align:center;max-width:400px">
+                            <h3 style="color:#ef4444;margin:0 0 8px 0;font-size:18px">Erro ao preparar imagens</h3>
+                            <p style="color:rgba(255,255,255,0.8);margin:0 0 16px 0;font-size:14px">Nenhuma imagem válida foi processada. Tente novamente.</p>
+                            <button onclick="document.getElementById('montador-loading-overlay').remove()" style="background:#ef4444;color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600">Fechar</button>
+                        </div>
+                    `;
+                }
+                console.error('[launchMontador] No valid images after conversion');
+                return { success: false, error: 'Nenhuma imagem válida para enviar.' };
+            }
+
+            // Use window global instead of localStorage to avoid QuotaExceededError
+            // (base64 images can be 10+ MB, localStorage limit is ~5MB)
+            const bridgePayload = {
+                type: 'VETORIZA_TO_MONTADOR',
+                data: { images: persistentImages }
+            };
+
+            // Store in BOTH places: window global (primary) and localStorage (fallback for smaller payloads)
+            (window as any).__OVERPIXEL_BRIDGE__ = bridgePayload;
+            try {
+                localStorage.setItem('OVERPIXEL_BRIDGE_STATE', JSON.stringify(bridgePayload));
+            } catch (quotaErr) {
+                console.warn('[launchMontador] localStorage quota exceeded, using window global only');
+            }
+
+            console.log('[launchMontador] Bridge payload set, navigating to /montador with', persistentImages.length, 'images');
+            
+            // Navigate via Custom Event so Layout.tsx can use React Router's useNavigate
+            window.dispatchEvent(new CustomEvent('OVERPIXEL_NAVIGATE', { detail: '/montador' }));
+
+            // Remove overlay after a short delay (Montador will take over rendering)
+            // But we keep it longer here to ensure navigation happens if the route change is fast
+            setTimeout(() => { if (overlay && overlay.parentNode) overlay.remove(); }, 2000);
+            
+            return { success: true };
+        } catch (e: any) {
+            console.error('[launchMontador] Error:', e);
+            if (overlay) {
+                overlay.innerHTML = `
+                    <div style="background:rgba(220,38,38,0.2);padding:24px;border-radius:12px;border:1px solid rgba(220,38,38,0.5);text-align:center;max-width:400px">
+                        <h3 style="color:#ef4444;margin:0 0 8px 0;font-size:18px">Erro Crítico</h3>
+                        <p style="color:rgba(255,255,255,0.8);margin:0 0 16px 0;font-size:14px">${e.message || 'Falha ao iniciar na web'}</p>
+                        <button onclick="document.getElementById('montador-loading-overlay').remove()" style="background:#ef4444;color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600">Fechar</button>
+                    </div>
+                `;
+            } else {
+                return { success: false, error: e.message || 'Falha ao iniciar na web' };
+            }
+            return { success: false, error: e.message };
+        }
     },
 
     // === API EXTERNA ===
