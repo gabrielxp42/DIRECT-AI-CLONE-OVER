@@ -12,6 +12,7 @@ interface AntiTransparencySettings {
     erosion: number;
     magicPoints: { x: number, y: number }[];
     alphaThreshold: number;
+    softness: number;
 }
 
 interface AntiTransparencyEditorProps {
@@ -36,7 +37,8 @@ export default function AntiTransparencyEditor({ imageUrl, onClose, onSave, skip
         shadowTolerance: 0,
         erosion: 3, // Changed from 0 to 3
         magicPoints: [],
-        alphaThreshold: 10
+        alphaThreshold: 10,
+        softness: 15
     });
 
     const [isPickingColor, setIsPickingColor] = useState(false);
@@ -160,6 +162,7 @@ export default function AntiTransparencyEditor({ imageUrl, onClose, onSave, skip
         const mode = settingsToUse.mode;
         const chromaTolerance = settingsToUse.chromaTolerance || 50;
         const shadowTolerance = settingsToUse.shadowTolerance || 0;
+        const softness = settingsToUse.softness || 0;
         const rawMagicPoints = settingsToUse.magicPoints || [];
 
         // Escalar pontos mágicos para resolução alvo
@@ -172,7 +175,37 @@ export default function AntiTransparencyEditor({ imageUrl, onClose, onSave, skip
 
         if (mode === 'magicWand' && magicPoints.length > 0) {
             for (let i = 0; i < width * height; i++) {
-                finalAlpha[i] = sourceData[i * 4 + 3] > threshold ? 255 : 0;
+                const idx = i * 4;
+                const r = sourceData[idx];
+                const g = sourceData[idx + 1];
+                const b = sourceData[idx + 2];
+                const a = sourceData[idx + 3];
+
+                if (a <= threshold) {
+                    finalAlpha[i] = 0;
+                    continue;
+                }
+
+                // Se removeBlack estiver ativo (implícito no modo magic wand se clicarmos no preto)
+                // Usamos a lógica de softness se a cor for próxima da cor de fundo (que o user clicou)
+                // Para o Magic Wand, usamos o bgcolor como referência se houver, ou apenas o threshold
+                finalAlpha[i] = a; 
+
+                // Lógica de Softness para o "Fundo" inicial
+                if (softness > 0) {
+                    const bgColor_raw = hexToRgb(settingsToUse.backgroundColor || '#000000');
+                    const dr = r - bgColor_raw.r;
+                    const dg = g - bgColor_raw.g;
+                    const db = b - bgColor_raw.b;
+                    const dist = Math.sqrt(dr * dr + dg * dg + db * db);
+
+                    if (dist < chromaTolerance) {
+                        const ramp = (softness / 100) * 128;
+                        const diff = chromaTolerance - dist;
+                        const softAlpha = Math.max(0, 255 - (diff / ramp) * 255);
+                        finalAlpha[i] = Math.min(a, Math.round(softAlpha));
+                    }
+                }
             }
 
             const stack: { x: number, y: number, startR: number, startG: number, startB: number }[] = [];
@@ -259,7 +292,14 @@ export default function AntiTransparencyEditor({ imageUrl, onClose, onSave, skip
                 }
 
                 if (rgbDistance < effectiveTolerance) {
-                    finalAlpha[i] = 0;
+                    if (softness === 0) {
+                        finalAlpha[i] = 0;
+                    } else {
+                        const ramp = (softness / 100) * 128;
+                        const diff = effectiveTolerance - rgbDistance;
+                        const alpha = Math.max(0, 255 - (diff / ramp) * 255);
+                        finalAlpha[i] = Math.round(alpha);
+                    }
                 } else {
                     finalAlpha[i] = 255;
                 }
@@ -602,6 +642,20 @@ export default function AntiTransparencyEditor({ imageUrl, onClose, onSave, skip
                             onChange={(e) => setSettings(s => ({ ...s, chromaTolerance: parseInt(e.target.value) }))}
                             className="w-full accent-cyan-500 h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer"
                         />
+                    </div>
+
+                    <div className="space-y-3">
+                        <div className="flex justify-between text-xs">
+                            <label>Suavização (Softness)</label>
+                            <span className="text-purple-400">{settings.softness}</span>
+                        </div>
+                        <input
+                            type="range" min="0" max="100"
+                            value={settings.softness}
+                            onChange={(e) => setSettings(s => ({ ...s, softness: parseInt(e.target.value) }))}
+                            className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer accent-purple-500"
+                        />
+                        <p className="text-[10px] text-white/30 italic">Ideal para fumaça, chamas e contornos suaves.</p>
                     </div>
 
                     {settings.mode === 'chromaKey' && (

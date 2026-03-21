@@ -243,9 +243,21 @@ export async function generateWithKieModel(
             }
 
             if (info.state === 'fail') {
-                throw new Error(info.failMsg || 'Falha na geração');
+                const errorMsg = info.failMsg || 'Falha na geração';
+                // Se for um erro de política do Google, não retentar
+                if (errorMsg.includes("prohibited use policy") || errorMsg.includes("image was filtered out")) {
+                    console.error(`🔴 [KIE API] Erro de Política Detectado: ${errorMsg}`);
+                    throw new Error(`O prompt "${prompt}" foi bloqueado pelos filtros de segurança da IA (provavelmente por direitos autorais ou termos restritos). Tente ser menos específico ou usar termos genéricos.`);
+                }
+                throw new Error(errorMsg);
             }
-        } catch (error) {
+        } catch (error: any) {
+            const msg = error.message || String(error);
+            // Se o erro for uma falha definitiva de política de segurança, não retentar
+            if (msg.includes("prohibited use policy") || msg.includes("image was filtered out") || msg.includes("filters of the safety system")) {
+                throw error; // Repassa o erro de política imediatamente para parar o loop
+            }
+
             // Ignorar falhas de rede / HTTP temporárias (como o 502 Bad Gateway)
             console.warn(`[KIE API] Falha na checagem de status da image (Tentativa ${tries + 1}/120). Tentando novamente...`, error);
         }

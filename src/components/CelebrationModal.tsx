@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trophy, Sparkles, Star, Target, TrendingUp, Users, Crown, Medal, X, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -33,7 +34,7 @@ export const CelebrationModal = ({ isOpen, onClose, milestone }: CelebrationModa
         sales: 'Performance Comercial'
     };
 
-    return (
+    const modalContent = (
         <AnimatePresence>
             {isOpen && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -196,4 +197,6 @@ export const CelebrationModal = ({ isOpen, onClose, milestone }: CelebrationModa
             )}
         </AnimatePresence>
     );
+
+    return createPortal(modalContent, document.body);
 };

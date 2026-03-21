@@ -1100,8 +1100,16 @@
     transform: translateX(-50%);
     display: flex;
     gap: 1rem;
-    z-index: 50;
+    z-index: 99;
     pointer-events: auto;
+}
+
+@media (max-width: 1024px) {
+    .floating-glass-actions-vec {
+        bottom: 1rem;
+        z-index: 100;
+        transform: translateX(-50%) scale(0.9);
+    }
 }
 
 :root {

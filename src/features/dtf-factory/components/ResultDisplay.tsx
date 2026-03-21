@@ -1,7 +1,8 @@
 
 
 import { motion } from 'framer-motion';
-import { FolderOpen, RefreshCw, Sparkles, Sliders } from 'lucide-react';
+import { FolderOpen, RefreshCw, Sparkles, Sliders, LayoutGrid } from 'lucide-react';
+import { electronBridge } from '@dtf/lib/electronBridge';
 
 interface ResultDisplayProps {
     imageUrl: string;
@@ -89,6 +90,17 @@ export default function ResultDisplay({
                                     <Sliders size={14} />
                                 </motion.button>
                             )}
+                            {imageUrl && (
+                                <motion.button
+                                    whileHover={{ scale: 1.1 }}
+                                    whileTap={{ scale: 0.9 }}
+                                    onClick={() => electronBridge.launchMontador([imageUrl])}
+                                    title="Enviar para Montador"
+                                    className="p-2 bg-black/80 backdrop-blur-md border border-orange-500/50 text-orange-400 hover:bg-orange-500 hover:text-black shadow-[0_0_15px_rgba(245,158,11,0.3)] transition-colors"
+                                >
+                                    <LayoutGrid size={14} />
+                                </motion.button>
+                            )}
                         </div>
 
                         {/* Botão Central Gigante de Remover Fundo */}
@@ -120,10 +132,20 @@ export default function ResultDisplay({
                         whileHover={{ scale: 1.02, boxShadow: '0 0 20px rgba(0, 243, 255, 0.4)' }}
                         whileTap={{ scale: 0.98 }}
                         onClick={onNewGeneration}
-                        className="flex-1 max-w-[160px] flex items-center justify-center gap-2 py-2.5 bg-cyan-950 border border-cyan-500/50 text-cyan-400 text-[10px] font-bold uppercase tracking-widest hover:bg-cyan-900 transition-all"
+                        className="flex-1 max-w-[160px] flex items-center justify-center gap-2 py-2.5 bg-cyan-950 border border-cyan-500/50 text-cyan-400 text-[10px] font-bold uppercase tracking-widest hover:bg-cyan-900 transition-all font-mono"
                     >
                         <RefreshCw className="w-3.5 h-3.5" />
                         <span>NOVO</span>
+                    </motion.button>
+
+                    <motion.button
+                        whileHover={{ scale: 1.05, boxShadow: '0 0 25px rgba(245, 158, 11, 0.4)' }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => electronBridge.launchMontador([imageUrl])}
+                        className="flex-[1.5] max-w-[200px] flex items-center justify-center gap-2 py-3 bg-gradient-to-br from-orange-400 to-amber-600 text-black text-[11px] font-black uppercase tracking-widest hover:brightness-110 transition-all shadow-[0_0_20px_rgba(245,158,11,0.2)]"
+                    >
+                        <LayoutGrid className="w-4 h-4" />
+                        <span>MONTADOR</span>
                     </motion.button>
 
                     <motion.button

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Gift, Sparkles, ChevronRight, X, Palette, Brush, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -36,7 +37,7 @@ export const GiftUnlockModal = ({ isOpen, onClose, userName }: GiftUnlockModalPr
         }, 1500);
     };
 
-    return (
+    const modalContent = (
         <AnimatePresence>
             {(isOpen && isAllowed(MODAL_ID)) && (
                 <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
@@ -150,4 +151,6 @@ export const GiftUnlockModal = ({ isOpen, onClose, userName }: GiftUnlockModalPr
             )}
         </AnimatePresence>
     );
+
+    return createPortal(modalContent, document.body);
 };

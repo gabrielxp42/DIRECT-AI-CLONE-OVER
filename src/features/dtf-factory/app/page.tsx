@@ -1029,7 +1029,7 @@ export default function HomePage() {
       {/* Main Content */}
       {isProMode ? (
         /* ══════════ MODO PRO: Multi-Widget Grid ══════════ */
-        <main className="flex-1 flex flex-col h-screen pt-0 overflow-hidden md:pb-0 pb-20">
+        <main className="flex-1 flex flex-col h-screen pt-[112px] overflow-hidden md:pb-0 pb-20">
           <WidgetGrid />
         </main>
       ) : (

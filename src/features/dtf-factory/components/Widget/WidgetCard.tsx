@@ -1,10 +1,9 @@
-
-
 import React, { useState, useRef, useCallback, useEffect, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Send, X, ImageIcon, Loader2, Check, Sparkles, Bug,
-    RefreshCw, Lock, Settings2, Trash2, Grid3x3, Ruler, Copy, ChevronDown
+    RefreshCw, Lock, Settings2, Trash2, Grid3x3, LayoutGrid, Ruler, Copy, ChevronDown,
+    Square, CheckSquare
 } from 'lucide-react';
 import { useDtfPipeline, PipelineStep } from '@dtf/hooks/useDtfPipeline';
 import { electronBridge } from '@dtf/lib/electronBridge';
@@ -58,7 +57,17 @@ interface WidgetCardProps {
 }
 
 const WidgetCard = React.forwardRef<HTMLDivElement, WidgetCardProps>(({ config }, ref) => {
-    const { updateWidget, removeWidget, duplicateWidget, globalGenerationTimestamp, setWidgetGenerating } = useWidgets();
+    const { 
+        updateWidget, 
+        removeWidget, 
+        duplicateWidget, 
+        globalGenerationTimestamp, 
+        setWidgetGenerating,
+        selectedIds,
+        isSelectionMode,
+        toggleWidgetSelection 
+    } = useWidgets();
+    const isSelected = selectedIds.has(config.id);
     const { tokenBalance, session, refreshBalance, updateBalanceOptimistically } = useLauncherAuth();
     const { styles } = usePromptStyles();
 
@@ -575,17 +584,59 @@ const WidgetCard = React.forwardRef<HTMLDivElement, WidgetCardProps>(({ config }
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.9 }}
                 transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-                className={`relative rounded-2xl border overflow-hidden backdrop-blur-2xl shadow-2xl flex flex-col ${cardStep === 'processing'
-                    ? 'border-cyan-500/30 bg-black/90 shadow-cyan-500/5'
-                    : cardStep === 'completed'
-                        ? 'border-green-500/20 bg-black/80'
-                        : cardStep === 'error'
-                            ? 'border-red-500/20 bg-black/80'
-                            : 'border-white/10 bg-black/80'
-                    }`}
+                className={`relative rounded-2xl border overflow-hidden backdrop-blur-2xl flex flex-col transition-all duration-300 ${
+                    isSelected 
+                        ? 'border-orange-500 ring-4 ring-orange-500/20 z-10 scale-[1.02] shadow-[0_0_40px_rgba(249,115,22,0.4)]' 
+                        : isSelectionMode
+                            ? 'border-white/20 bg-black/40 scale-[0.98] grayscale-[0.3]'
+                            : cardStep === 'processing'
+                                ? 'border-cyan-500/30 bg-black/90 shadow-cyan-500/5'
+                                : cardStep === 'completed'
+                                    ? 'border-green-500/20 bg-black/80 shadow-2xl'
+                                    : cardStep === 'error'
+                                        ? 'border-red-500/20 bg-black/80'
+                                        : 'border-white/10 bg-black/80'
+                } ${isSelectionMode ? 'cursor-pointer hover:border-orange-500/50' : ''}`}
                 tabIndex={0}
                 onPaste={handlePaste}
+                onClick={() => isSelectionMode && toggleWidgetSelection(config.id)}
             >
+                {/* ═══ SELECTION OVERLAY ═══ */}
+                <AnimatePresence>
+                    {isSelectionMode && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="absolute inset-0 z-[50] pointer-events-none"
+                        >
+                            {/* Indicador de Seleção Superior Esquerdo */}
+                            <div className="absolute top-4 left-4 z-[51]">
+                                {isSelected ? (
+                                    <motion.div
+                                        initial={{ scale: 0, rotate: -45 }}
+                                        animate={{ scale: 1, rotate: 0 }}
+                                        className="w-8 h-8 rounded-full bg-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.6)] flex items-center justify-center text-black"
+                                    >
+                                        <Check size={20} strokeWidth={4} />
+                                    </motion.div>
+                                ) : (
+                                    <div className="w-8 h-8 rounded-full border-2 border-white/30 bg-black/20 backdrop-blur-md" />
+                                )}
+                            </div>
+
+                            {/* Tint Overlay when NOT selected in selection mode */}
+                            {!isSelected && (
+                                <div className="absolute inset-0 bg-black/40" />
+                            )}
+                            
+                            {/* Glow for selected state */}
+                            {isSelected && (
+                                <div className="absolute inset-0 border-[4px] border-orange-500/20 pointer-events-none" />
+                            )}
+                        </motion.div>
+                    )}
+                </AnimatePresence>
 
                 {/* ═══ TOP BAR ═══ */}
                 <div className="px-4 py-3 border-b border-white/5 bg-white/[0.03]">
@@ -762,7 +813,7 @@ const WidgetCard = React.forwardRef<HTMLDivElement, WidgetCardProps>(({ config }
                                     </div>
                                     {garmentMode === 'color' && (
                                         <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 backdrop-blur-sm z-30">
-                                            <button onClick={() => setIsEditorOpen(true)} className="px-6 py-3 bg-purple-600/90 hover:bg-purple-500 text-white font-bold rounded-xl shadow-[0_0_20px_rgba(168,85,247,0.5)] border border-purple-400 hover:scale-105 transition-all flex items-center justify-center gap-2">
+                                            <button onClick={() => setIsEditorOpen(true)} className="px-6 py-3 bg-cyan-600/90 hover:bg-cyan-500 text-white font-bold rounded-xl shadow-[0_0_20px_rgba(6,182,212,0.5)] border border-cyan-400 hover:scale-105 transition-all flex items-center justify-center gap-2">
                                                 <Sparkles size={18} />
                                                 CONTINUAR
                                             </button>
@@ -771,6 +822,13 @@ const WidgetCard = React.forwardRef<HTMLDivElement, WidgetCardProps>(({ config }
                                 </div>
                                 <div className="flex gap-2">
                                     <button onClick={() => electronBridge.openFolder()} className="w-full py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 text-xs font-medium rounded-xl transition-colors flex items-center justify-center">Abrir Pasta</button>
+                                    <button
+                                        onClick={() => activeState.imageUrl && electronBridge.launchMontador([activeState.imageUrl])}
+                                        className="w-full py-2.5 bg-gradient-to-br from-orange-400 to-amber-600 text-black text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-[0_10px_20px_rgba(245,158,11,0.2)] hover:scale-105 active:scale-[0.98] flex items-center justify-center gap-1.5"
+                                    >
+                                        <LayoutGrid size={14} />
+                                        Montador
+                                    </button>
                                 </div>
                                 <button onClick={handleRetry} className="w-full py-2.5 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/20 text-cyan-400 text-xs font-bold rounded-xl transition-colors flex items-center justify-center gap-1.5"><RefreshCw size={14} />Nova Geração</button>
                             </motion.div>

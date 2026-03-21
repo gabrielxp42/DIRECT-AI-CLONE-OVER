@@ -37,6 +37,12 @@ interface WidgetContextType {
     globalGenerationTimestamp: number;
     setWidgetGenerating: (id: string, isGenerating: boolean) => void;
     isAnyGenerating: boolean;
+    // Selection for batch actions
+    selectedIds: Set<string>;
+    isSelectionMode: boolean;
+    setIsSelectionMode: (val: boolean) => void;
+    toggleWidgetSelection: (id: string) => void;
+    clearSelection: () => void;
     // API Desktop Only - Mocked for Web
     apiProcessingWidgetId: string | null;
     setApiProcessingWidgetId: (id: string | null) => void;
@@ -53,6 +59,11 @@ const WidgetContext = createContext<WidgetContextType>({
     globalGenerationTimestamp: 0,
     setWidgetGenerating: () => { },
     isAnyGenerating: false,
+    selectedIds: new Set(),
+    isSelectionMode: false,
+    setIsSelectionMode: () => { },
+    toggleWidgetSelection: () => { },
+    clearSelection: () => { },
     apiProcessingWidgetId: null,
     setApiProcessingWidgetId: () => { },
 });
@@ -69,6 +80,10 @@ export function WidgetProvider({ children }: { children: React.ReactNode }) {
     const [generatingWidgets, setGeneratingWidgets] = useState<Set<string>>(new Set());
     const [isLoaded, setIsLoaded] = useState(false); // RESTAURADO
     
+    // Selection state
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [isSelectionMode, setIsSelectionMode] = useState(false);
+
     // Estado para controle de qual widget está sendo processado pela API externa (Context Mode)
     // No Web, isso não é usado, mas mantemos o estado para compatibilidade de tipos
     const [apiProcessingWidgetId, setApiProcessingWidgetId] = useState<string | null>(null);
@@ -137,15 +152,41 @@ export function WidgetProvider({ children }: { children: React.ReactNode }) {
             next.delete(id);
             return next;
         });
+        // Also remove from selection
+        setSelectedIds(prev => {
+            if (!prev.has(id)) return prev;
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+        });
     }, []);
 
     const clearAllWidgets = useCallback(() => {
         setWidgets([]);
         setGeneratingWidgets(new Set());
+        setSelectedIds(new Set());
+        setIsSelectionMode(false);
     }, []);
 
     const updateWidget = useCallback((id: string, updates: Partial<WidgetConfig>) => {
         setWidgets(prev => prev.map(w => w.id === id ? { ...w, ...updates } : w));
+    }, []);
+
+    const toggleWidgetSelection = useCallback((id: string) => {
+        setSelectedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) {
+                next.delete(id);
+            } else {
+                next.add(id);
+            }
+            return next;
+        });
+    }, []);
+
+    const clearSelection = useCallback(() => {
+        setSelectedIds(new Set());
+        setIsSelectionMode(false);
     }, []);
 
     const duplicateWidget = useCallback((originalId: string) => {
@@ -196,6 +237,11 @@ export function WidgetProvider({ children }: { children: React.ReactNode }) {
             globalGenerationTimestamp,
             setWidgetGenerating,
             isAnyGenerating: generatingWidgets.size > 0,
+            selectedIds,
+            isSelectionMode,
+            setIsSelectionMode,
+            toggleWidgetSelection,
+            clearSelection,
             apiProcessingWidgetId,
             setApiProcessingWidgetId
         }}>

@@ -25,6 +25,7 @@ export interface HalftoneSettings {
     whiteSensitivity?: number;
     alphaThreshold?: number;
     magicPoints?: {x: number, y: number}[];
+    softness?: number; // 0-100: How smooth the edge removal is
 }
 
 // Presets de Halftone
@@ -34,7 +35,7 @@ export const HALFTONE_PRESETS: Record<string, { name: string; settings: Halftone
         name: 'Remover Preto (Simples)',
         settings: {
             brightness: 100, contrast: 100, levels: { min: 3, max: 5 },
-            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 24,
+            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 35, softness: 15,
             dotMode: 'dynamic', dotMinPercent: 10, dotMaxPercent: 100, dotInvert: true,
             edgeContraction: 2, invertInput: false, invertOutput: false, shape: 'circle'
         }
@@ -45,7 +46,7 @@ export const HALFTONE_PRESETS: Record<string, { name: string; settings: Halftone
         name: 'Retícula - Fraco (Preto)',
         settings: {
             brightness: 100, contrast: 100, levels: { min: 3, max: 230 },
-            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 24,
+            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 35, softness: 15,
             dotMode: 'dynamic', dotMinPercent: 10, dotMaxPercent: 100, dotInvert: true,
             edgeContraction: 2, invertInput: false, invertOutput: false, shape: 'circle'
         }
@@ -54,7 +55,7 @@ export const HALFTONE_PRESETS: Record<string, { name: string; settings: Halftone
         name: 'Retícula - Fraco (Branco)',
         settings: {
             brightness: 100, contrast: 100, levels: { min: 3, max: 230 },
-            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 24,
+            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 35, softness: 15,
             dotMode: 'dynamic', dotMinPercent: 10, dotMaxPercent: 100, dotInvert: true,
             edgeContraction: 2, invertInput: true, invertOutput: true, shape: 'circle'
         }
@@ -63,7 +64,7 @@ export const HALFTONE_PRESETS: Record<string, { name: string; settings: Halftone
         name: 'Retícula - Médio (Preto)',
         settings: {
             brightness: 100, contrast: 13, levels: { min: 3, max: 255 },
-            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 24,
+            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 35, softness: 15,
             dotMode: 'dynamic', dotMinPercent: 10, dotMaxPercent: 100, dotInvert: true,
             edgeContraction: 2, invertInput: false, invertOutput: false, shape: 'circle'
         }
@@ -72,7 +73,7 @@ export const HALFTONE_PRESETS: Record<string, { name: string; settings: Halftone
         name: 'Retícula - Médio (Branco)',
         settings: {
             brightness: 100, contrast: 13, levels: { min: 3, max: 255 },
-            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 24,
+            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 35, softness: 15,
             dotMode: 'dynamic', dotMinPercent: 10, dotMaxPercent: 100, dotInvert: true,
             edgeContraction: 2, invertInput: true, invertOutput: true, shape: 'circle'
         }
@@ -81,7 +82,7 @@ export const HALFTONE_PRESETS: Record<string, { name: string; settings: Halftone
         name: 'Retícula - Forte (Preto)',
         settings: {
             brightness: 28, contrast: -14, levels: { min: 3, max: 255 },
-            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 24,
+            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 35, softness: 15,
             dotMode: 'dynamic', dotMinPercent: 10, dotMaxPercent: 100, dotInvert: true,
             edgeContraction: 2, invertInput: false, invertOutput: false, shape: 'circle'
         }
@@ -90,7 +91,7 @@ export const HALFTONE_PRESETS: Record<string, { name: string; settings: Halftone
         name: 'Retícula - Forte (Branco)',
         settings: {
             brightness: 28, contrast: -14, levels: { min: 3, max: 255 },
-            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 24,
+            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 35, softness: 15,
             dotMode: 'dynamic', dotMinPercent: 10, dotMaxPercent: 100, dotInvert: true,
             edgeContraction: 2, invertInput: true, invertOutput: true, shape: 'circle'
         }
@@ -101,7 +102,7 @@ export const HALFTONE_PRESETS: Record<string, { name: string; settings: Halftone
         name: 'Hachura - Fraco (Preto)',
         settings: {
             brightness: 100, contrast: 100, levels: { min: 3, max: 230 },
-            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 24,
+            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 35, softness: 15,
             dotMode: 'dynamic', dotMinPercent: 10, dotMaxPercent: 100, dotInvert: true,
             edgeContraction: 2, invertInput: false, invertOutput: false, shape: 'line'
         }
@@ -110,7 +111,7 @@ export const HALFTONE_PRESETS: Record<string, { name: string; settings: Halftone
         name: 'Hachura - Fraco (Branco)',
         settings: {
             brightness: 100, contrast: 100, levels: { min: 3, max: 230 },
-            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 24,
+            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 35, softness: 15,
             dotMode: 'dynamic', dotMinPercent: 10, dotMaxPercent: 100, dotInvert: true,
             edgeContraction: 2, invertInput: true, invertOutput: true, shape: 'line'
         }
@@ -119,7 +120,7 @@ export const HALFTONE_PRESETS: Record<string, { name: string; settings: Halftone
         name: 'Hachura - Médio (Preto)',
         settings: {
             brightness: 100, contrast: 13, levels: { min: 3, max: 255 },
-            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 24,
+            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 35, softness: 15,
             dotMode: 'dynamic', dotMinPercent: 10, dotMaxPercent: 100, dotInvert: true,
             edgeContraction: 2, invertInput: false, invertOutput: false, shape: 'line'
         }
@@ -128,7 +129,7 @@ export const HALFTONE_PRESETS: Record<string, { name: string; settings: Halftone
         name: 'Hachura - Médio (Branco)',
         settings: {
             brightness: 100, contrast: 13, levels: { min: 3, max: 255 },
-            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 24,
+            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 35, softness: 15,
             dotMode: 'dynamic', dotMinPercent: 10, dotMaxPercent: 100, dotInvert: true,
             edgeContraction: 2, invertInput: true, invertOutput: true, shape: 'line'
         }
@@ -137,7 +138,7 @@ export const HALFTONE_PRESETS: Record<string, { name: string; settings: Halftone
         name: 'Hachura - Forte (Preto)',
         settings: {
             brightness: 28, contrast: -14, levels: { min: 3, max: 255 },
-            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 24,
+            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 35, softness: 15,
             dotMode: 'dynamic', dotMinPercent: 10, dotMaxPercent: 100, dotInvert: true,
             edgeContraction: 2, invertInput: false, invertOutput: false, shape: 'line'
         }
@@ -146,7 +147,7 @@ export const HALFTONE_PRESETS: Record<string, { name: string; settings: Halftone
         name: 'Hachura - Forte (Branco)',
         settings: {
             brightness: 28, contrast: -14, levels: { min: 3, max: 255 },
-            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 24,
+            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 35, softness: 15,
             dotMode: 'dynamic', dotMinPercent: 10, dotMaxPercent: 100, dotInvert: true,
             edgeContraction: 2, invertInput: true, invertOutput: true, shape: 'line'
         }
@@ -157,7 +158,7 @@ export const HALFTONE_PRESETS: Record<string, { name: string; settings: Halftone
         name: 'Quadrado - Fraco (Preto)',
         settings: {
             brightness: 100, contrast: 100, levels: { min: 3, max: 230 },
-            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 24,
+            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 35, softness: 15,
             dotMode: 'dynamic', dotMinPercent: 10, dotMaxPercent: 100, dotInvert: true,
             edgeContraction: 2, invertInput: false, invertOutput: false, shape: 'square'
         }
@@ -166,7 +167,7 @@ export const HALFTONE_PRESETS: Record<string, { name: string; settings: Halftone
         name: 'Quadrado - Fraco (Branco)',
         settings: {
             brightness: 100, contrast: 100, levels: { min: 3, max: 230 },
-            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 24,
+            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 35, softness: 15,
             dotMode: 'dynamic', dotMinPercent: 10, dotMaxPercent: 100, dotInvert: true,
             edgeContraction: 2, invertInput: true, invertOutput: true, shape: 'square'
         }
@@ -175,7 +176,7 @@ export const HALFTONE_PRESETS: Record<string, { name: string; settings: Halftone
         name: 'Quadrado - Médio (Preto)',
         settings: {
             brightness: 100, contrast: 13, levels: { min: 3, max: 255 },
-            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 24,
+            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 35, softness: 15,
             dotMode: 'dynamic', dotMinPercent: 10, dotMaxPercent: 100, dotInvert: true,
             edgeContraction: 2, invertInput: false, invertOutput: false, shape: 'square'
         }
@@ -184,7 +185,7 @@ export const HALFTONE_PRESETS: Record<string, { name: string; settings: Halftone
         name: 'Quadrado - Médio (Branco)',
         settings: {
             brightness: 100, contrast: 13, levels: { min: 3, max: 255 },
-            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 24,
+            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 35, softness: 15,
             dotMode: 'dynamic', dotMinPercent: 10, dotMaxPercent: 100, dotInvert: true,
             edgeContraction: 2, invertInput: true, invertOutput: true, shape: 'square'
         }
@@ -193,7 +194,7 @@ export const HALFTONE_PRESETS: Record<string, { name: string; settings: Halftone
         name: 'Quadrado - Forte (Preto)',
         settings: {
             brightness: 28, contrast: -14, levels: { min: 3, max: 255 },
-            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 24,
+            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 35, softness: 15,
             dotMode: 'dynamic', dotMinPercent: 10, dotMaxPercent: 100, dotInvert: true,
             edgeContraction: 2, invertInput: false, invertOutput: false, shape: 'square'
         }
@@ -202,7 +203,7 @@ export const HALFTONE_PRESETS: Record<string, { name: string; settings: Halftone
         name: 'Quadrado - Forte (Branco)',
         settings: {
             brightness: 28, contrast: -14, levels: { min: 3, max: 255 },
-            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 24,
+            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 35, softness: 15,
             dotMode: 'dynamic', dotMinPercent: 10, dotMaxPercent: 100, dotInvert: true,
             edgeContraction: 2, invertInput: true, invertOutput: true, shape: 'square'
         }
@@ -213,7 +214,7 @@ export const HALFTONE_PRESETS: Record<string, { name: string; settings: Halftone
         name: 'Espiral - Fraco (Preto)',
         settings: {
             brightness: 100, contrast: 100, levels: { min: 3, max: 230 },
-            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 24,
+            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 35, softness: 15,
             dotMode: 'dynamic', dotMinPercent: 10, dotMaxPercent: 100, dotInvert: true,
             edgeContraction: 2, invertInput: false, invertOutput: false, shape: 'spiral'
         }
@@ -222,7 +223,7 @@ export const HALFTONE_PRESETS: Record<string, { name: string; settings: Halftone
         name: 'Espiral - Fraco (Branco)',
         settings: {
             brightness: 100, contrast: 100, levels: { min: 3, max: 230 },
-            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 24,
+            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 35, softness: 15,
             dotMode: 'dynamic', dotMinPercent: 10, dotMaxPercent: 100, dotInvert: true,
             edgeContraction: 2, invertInput: true, invertOutput: true, shape: 'spiral'
         }
@@ -231,7 +232,7 @@ export const HALFTONE_PRESETS: Record<string, { name: string; settings: Halftone
         name: 'Espiral - Médio (Preto)',
         settings: {
             brightness: 100, contrast: 13, levels: { min: 3, max: 255 },
-            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 24,
+            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 35, softness: 15,
             dotMode: 'dynamic', dotMinPercent: 10, dotMaxPercent: 100, dotInvert: true,
             edgeContraction: 2, invertInput: false, invertOutput: false, shape: 'spiral'
         }
@@ -240,7 +241,7 @@ export const HALFTONE_PRESETS: Record<string, { name: string; settings: Halftone
         name: 'Espiral - Médio (Branco)',
         settings: {
             brightness: 100, contrast: 13, levels: { min: 3, max: 255 },
-            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 24,
+            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 35, softness: 15,
             dotMode: 'dynamic', dotMinPercent: 10, dotMaxPercent: 100, dotInvert: true,
             edgeContraction: 2, invertInput: true, invertOutput: true, shape: 'spiral'
         }
@@ -249,7 +250,7 @@ export const HALFTONE_PRESETS: Record<string, { name: string; settings: Halftone
         name: 'Espiral - Forte (Preto)',
         settings: {
             brightness: 28, contrast: -14, levels: { min: 3, max: 255 },
-            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 24,
+            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 35, softness: 15,
             dotMode: 'dynamic', dotMinPercent: 10, dotMaxPercent: 100, dotInvert: true,
             edgeContraction: 2, invertInput: false, invertOutput: false, shape: 'spiral'
         }
@@ -258,7 +259,7 @@ export const HALFTONE_PRESETS: Record<string, { name: string; settings: Halftone
         name: 'Espiral - Forte (Branco)',
         settings: {
             brightness: 28, contrast: -14, levels: { min: 3, max: 255 },
-            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 24,
+            dotSize: 18, angle: 45, removeBlack: true, blackSensitivity: 35, softness: 15,
             dotMode: 'dynamic', dotMinPercent: 10, dotMaxPercent: 100, dotInvert: true,
             edgeContraction: 2, invertInput: true, invertOutput: true, shape: 'spiral'
         }
@@ -512,8 +513,12 @@ export function applyBackgroundRemoval(imageData: ImageData, settings: HalftoneS
     const alphaThreshold = settings.alphaThreshold || 10;
     const chromaTolerance = settings.whiteSensitivity || 30; // Reutilizando whiteSensitivity como tolerância
 
-    const isBackground = (data: Uint8ClampedArray, pixelIdx: number) => {
-        if (data[pixelIdx + 3] < alphaThreshold) return true;
+    const isBackground = (data: Uint8ClampedArray, pixelIdx: number): { isBg: boolean, alpha: number } => {
+        const a = data[pixelIdx + 3];
+        if (a < alphaThreshold) return { isBg: true, alpha: 0 };
+
+        const softness = settings.softness || 0;
+        const ramp = softness > 0 ? (softness / 100) * 128 : 1; // Distância de "feathering"
 
         if (settings.removeBlack) {
             const r = data[pixelIdx];
@@ -522,9 +527,20 @@ export function applyBackgroundRemoval(imageData: ImageData, settings: HalftoneS
             const lum = 0.299 * r + 0.587 * g + 0.114 * b;
 
             if (settings.invertInput) {
-                if (lum > (255 - blackThreshold)) return true;
+                const targetLum = 255 - blackThreshold;
+                if (lum > targetLum) {
+                    if (softness === 0) return { isBg: true, alpha: 0 };
+                    const diff = lum - targetLum;
+                    const alpha = Math.max(0, 255 - (diff / ramp) * 255);
+                    return { isBg: alpha < 255, alpha: Math.round(alpha) };
+                }
             } else {
-                if (lum < blackThreshold) return true;
+                if (lum < blackThreshold) {
+                    if (softness === 0) return { isBg: true, alpha: 0 };
+                    const diff = blackThreshold - lum;
+                    const alpha = Math.max(0, 255 - (diff / ramp) * 255);
+                    return { isBg: alpha < 255, alpha: Math.round(alpha) };
+                }
             }
         }
 
@@ -533,10 +549,16 @@ export function applyBackgroundRemoval(imageData: ImageData, settings: HalftoneS
             const g = data[pixelIdx + 1];
             const b = data[pixelIdx + 2];
             const whiteThreshold = settings.whiteSensitivity !== undefined ? (255 - settings.whiteSensitivity) : 240;
-            if (r > whiteThreshold && g > whiteThreshold && b > whiteThreshold) return true;
+            if (r > whiteThreshold && g > whiteThreshold && b > whiteThreshold) {
+                if (softness === 0) return { isBg: true, alpha: 0 };
+                const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+                const diff = lum - whiteThreshold;
+                const alpha = Math.max(0, 255 - (diff / ramp) * 255);
+                return { isBg: alpha < 255, alpha: Math.round(alpha) };
+            }
         }
 
-        return false;
+        return { isBg: false, alpha: 255 };
     };
 
     // ALGORITMO MAGIC WAND (Flood Fill conectado)
@@ -552,33 +574,21 @@ export function applyBackgroundRemoval(imageData: ImageData, settings: HalftoneS
         { x: width - 1, y: Math.floor(height / 2) }
     ];
 
+    // 1. GLOBAL PASS (Remoção baseada em luma/cor em toda a imagem)
+    const finalAlpha = new Uint8ClampedArray(width * height);
+    for (let i = 0; i < width * height; i++) {
+        const res = isBackground(currentSrc, i * 4);
+        finalAlpha[i] = res.alpha;
+    }
+
+    // 2. MAGIC WAND (Remoção conectada a partir de sementes)
     const stack: { x: number, y: number, startR: number, startG: number, startB: number }[] = [];
     const visited = new Uint8Array(width * height);
 
-    // Inicializa Alpha (todo mundo opaco se > threshold)
-    const finalAlpha = new Uint8ClampedArray(width * height);
-    for (let i = 0; i < width * height; i++) {
-        finalAlpha[i] = currentSrc[i * 4 + 3] > alphaThreshold ? 255 : 0;
-    }
-
-    // Adiciona sementes válidas
     for (const point of magicPoints) {
         const idx = point.y * width + point.x;
-        // Só começa se o ponto de semente for "fundo" (claro ou escuro dependendo da config),
-        // EXCETO se o usuário passou manualmente os magicPoints (onde o clique é absoluto).
-        const isSeedTarget = (point: { x: number, y: number }) => {
-            if (settings.magicPoints) return true; // Se o usuário clicou, sempre é válido
-
-            const i = (point.y * width + point.x) * 4;
-            if (currentSrc[i + 3] < alphaThreshold) return true;
-            const r = currentSrc[i], g = currentSrc[i + 1], b = currentSrc[i + 2];
-            const lum = 0.299 * r + 0.587 * g + 0.114 * b;
-            if (settings.removeWhite && lum > 200) return true;
-            if (settings.removeBlack && lum < 50) return true;
-            return false;
-        };
-
-        if (isSeedTarget(point)) {
+        // Se a semente for considerada fundo no Global Pass, ela é uma boa semente
+        if (finalAlpha[idx] < 255 || settings.magicPoints) {
             stack.push({
                 x: point.x,
                 y: point.y,
@@ -613,6 +623,7 @@ export function applyBackgroundRemoval(imageData: ImageData, settings: HalftoneS
 
                 if (dist < chromaTolerance) {
                     visited[nIdx] = 1;
+                    finalAlpha[nIdx] = 0; // Remove pixel conectado
                     stack.push({ x: nx, y: ny, startR, startG, startB });
                 }
             }

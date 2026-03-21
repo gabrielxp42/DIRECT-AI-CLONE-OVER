@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Truck, X, ArrowRight, Zap, Target, ShoppingBag, ChevronRight, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -34,7 +35,7 @@ export const ShippingFeatureModal = ({ isOpen, onClose }: ShippingFeatureModalPr
         }
     };
 
-    return (
+    const modalContent = (
         <AnimatePresence>
             {(isOpen && isAllowed(MODAL_ID)) && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -165,4 +166,6 @@ export const ShippingFeatureModal = ({ isOpen, onClose }: ShippingFeatureModalPr
             )}
         </AnimatePresence>
     );
+
+    return createPortal(modalContent, document.body);
 };
