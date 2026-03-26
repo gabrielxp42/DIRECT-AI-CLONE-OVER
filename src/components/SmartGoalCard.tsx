@@ -157,9 +157,9 @@ export const SmartGoalCard = ({ stats }: { stats: any }) => {
                 const updatedTours = Array.from(new Set([...currentTours, ...milestoneToPersist]));
 
                 await supabase
-                    .from('profiles')
+                    .from('profiles_v2')
                     .update({ completed_tours: updatedTours })
-                    .eq('id', profile.id);
+                    .eq('uid', profile.uid);
             } catch (err) {
                 console.error('[SmartGoalCard] Erro ao persistir conquista:', err);
             }
@@ -301,8 +301,8 @@ export const SmartGoalCard = ({ stats }: { stats: any }) => {
                     <Target className="w-24 h-24 text-zinc-900 dark:text-white" />
                 </div>
 
-                <div className="p-4 md:p-5 flex flex-col justify-between gap-5 relative">
-                    <div className="flex flex-col gap-4 flex-1">
+                <div className="p-4 md:p-5 flex flex-col justify-between gap-5 relative overflow-hidden">
+                    <div className="flex flex-col gap-4 flex-1 min-w-0">
                         <div className="flex items-start gap-4">
                             <div className={cn(
                                 "p-3 rounded-xl border shadow-inner flex-shrink-0",
@@ -313,13 +313,13 @@ export const SmartGoalCard = ({ stats }: { stats: any }) => {
                                 {isCompleted ? <Trophy className="w-6 h-6 animate-bounce" /> : <activeGoal.icon className="w-6 h-6" />}
                             </div>
 
-                            <div className="space-y-1">
-                                <div className="flex items-center gap-2">
-                                    <h3 className="text-base md:text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tight flex items-center gap-2">
+                            <div className="space-y-1 min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <h3 className="text-base md:text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tight flex items-center gap-2 truncate">
                                         {isCompleted ? "Meta Conquistada!" : activeGoal.title}
-                                        {isCompleted && <Sparkles className="w-4 h-4 text-primary fill-primary" />}
+                                        {isCompleted && <Sparkles className="w-4 h-4 text-primary fill-primary flex-shrink-0" />}
                                     </h3>
-                                    <div className="bg-primary/10 border border-primary/20 text-primary px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider flex items-center gap-1">
+                                    <div className="bg-primary/10 border border-primary/20 text-primary px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider flex items-center gap-1 flex-shrink-0 whitespace-nowrap">
                                         <Star className="w-3 h-3 fill-primary" /> Meta Mensal
                                     </div>
                                     <button
@@ -343,7 +343,7 @@ export const SmartGoalCard = ({ stats }: { stats: any }) => {
                                         </button>
                                     )}
                                 </div>
-                                <div className="text-xs md:text-sm text-zinc-600 dark:text-zinc-400 font-medium max-w-md leading-relaxed">
+                                <div className="text-xs md:text-sm text-zinc-600 dark:text-zinc-400 font-medium leading-relaxed break-words">
                                     {isCompleted
                                         ? "Parabéns! Você destruiu essa meta. A IA está calculando o próximo nível..."
                                         : activeGoal.description}
@@ -355,16 +355,16 @@ export const SmartGoalCard = ({ stats }: { stats: any }) => {
                         {!isCompleted && (
                             <div className="mt-4 relative group rounded-xl p-[1px] bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] shadow-lg shadow-purple-500/10 animate-in slide-in-from-right-full fade-in duration-500 ease-out">
                                 <div className="absolute inset-0 bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] opacity-20 blur-md rounded-xl" />
-                                <div className="relative bg-slate-950/90 backdrop-blur-xl rounded-[10px] p-3 flex gap-3 items-start">
-                                    <div className="h-8 w-8 rounded-full bg-gradient-to-br from-[#FF6B6B] to-[#ffd93d] flex items-center justify-center shrink-0 shadow-lg shadow-orange-500/20">
-                                        <Bot className="h-4 w-4 text-white" />
+                                <div className="relative bg-slate-950/90 backdrop-blur-xl rounded-[10px] p-2 md:p-3 flex gap-2 md:gap-3 items-start">
+                                    <div className="h-6 w-6 md:h-8 md:w-8 rounded-full bg-gradient-to-br from-[#FF6B6B] to-[#ffd93d] flex items-center justify-center shrink-0 shadow-lg shadow-orange-500/20">
+                                        <Bot className="h-3 w-3 md:h-4 md:w-4 text-white" />
                                     </div>
-                                    <div className="space-y-0.5">
-                                        <div className="text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent flex items-center gap-1">
+                                    <div className="space-y-0.5 min-w-0 flex-1">
+                                        <div className="text-[9px] md:text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent flex flex-wrap items-center gap-1">
                                             Resumo da Gabi
-                                            <span className="bg-white/10 px-1 py-0.5 rounded text-[7px] text-white/50 tracking-normal">AI PARTNER</span>
+                                            <span className="bg-white/10 px-1 py-0.5 rounded text-[7px] text-white/50 tracking-normal whitespace-nowrap">AI PARTNER</span>
                                         </div>
-                                        <p className="text-[11px] text-slate-300 leading-relaxed font-medium">
+                                        <p className="text-[10px] md:text-[11px] text-slate-300 leading-relaxed font-medium break-words">
                                             {(activeGoal.type === 'sales' && activeGoal.current > 100000 && (stats?.lifetimeOrders || 0) < 10)
                                                 ? <span className="text-primary font-black">⚠️ ALERTA: Detectei faturamento de outros usuários aqui. Use o botão 'Reset Metas' acima para limpar meu cache e ver apenas sua realidade!</span>
                                                 : activeGoal.aiInsight?.split(/(\d+[%]?|R\$ [\d,.]+)/g).map((part, i) =>

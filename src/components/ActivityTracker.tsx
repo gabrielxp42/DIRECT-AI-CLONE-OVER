@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { useSession } from '@/contexts/SessionProvider';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/integrations/supabase/client';
 import { useLocation } from 'react-router-dom';
+import { getValidToken } from '@/utils/tokenGuard';
 
 export function ActivityTracker() {
     const { profile, session } = useSession();
@@ -41,14 +42,27 @@ export function ActivityTracker() {
             lastPathRef.current = location.pathname;
 
             try {
-                await supabase.from('system_logs').insert({
-                    level: 'info',
-                    category: 'page_view',
-                    message: `O cliente acessou a página: ${location.pathname}`,
-                    details: { path: location.pathname, timestamp: new Date().toISOString() },
-                    user_id: profile?.id,
-                    resolved: true // auto resolve info logs
+                const token = await getValidToken();
+                if (!token) return;
+                const url = `${SUPABASE_URL}/rest/v1/system_logs?apikey=${SUPABASE_ANON_KEY}`;
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                        'Prefer': 'return=minimal'
+                    },
+                    body: JSON.stringify([{
+                        level: 'info',
+                        category: 'page_view',
+                        message: `O cliente acessou a página: ${location.pathname}`,
+                        user_id: profile?.id,
+                        resolved: true
+                    }])
                 });
+                if (!res.ok) {
+                    console.warn('Failed to log page view (REST):', res.status, await res.text());
+                }
             } catch (err) {
                 console.error('Failed to log page view:', err);
             }

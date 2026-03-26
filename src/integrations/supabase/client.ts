@@ -19,6 +19,21 @@ const createMockClient = (): SupabaseClient => {
   } as unknown as SupabaseClient;
 };
 
+// Silenciar logs de leitura/escrita do storage (podem poluir o console)
+const STORAGE_DEBUG = (() => {
+  try {
+    return sessionStorage.getItem('supabase-storage-debug') === 'true';
+  } catch {
+    return false;
+  }
+})();
+const logStorage = (...args: any[]) => {
+  if (STORAGE_DEBUG) {
+    // eslint-disable-next-line no-console
+    console.log(...args);
+  }
+};
+
 let client: SupabaseClient;
 
 try {
@@ -43,16 +58,12 @@ try {
             if (useSessionStorage === 'true') {
               const value = sessionStorage.getItem(key);
               // Log apenas para chaves importantes de auth
-              if (key.includes('auth-token') || key.includes('supabase.auth')) {
-                console.log(`🔑 [Supabase Storage] Reading ${key} from sessionStorage:`, value ? 'Found' : 'Not found');
-              }
+              if (key.includes('auth-token') || key.includes('supabase.auth')) logStorage(`🔑 [Supabase Storage] Reading ${key} from sessionStorage:`, value ? 'Found' : 'Not found');
               return value;
             }
             const value = localStorage.getItem(key);
             // Log apenas para chaves importantes de auth
-            if (key.includes('auth-token') || key.includes('supabase.auth')) {
-              console.log(`🔑 [Supabase Storage] Reading ${key} from localStorage:`, value ? 'Found' : 'Not found');
-            }
+            if (key.includes('auth-token') || key.includes('supabase.auth')) logStorage(`🔑 [Supabase Storage] Reading ${key} from localStorage:`, value ? 'Found' : 'Not found');
             return value;
           } catch (e) {
             console.error('❌ [Supabase Storage] Error reading from storage:', e);
@@ -65,15 +76,11 @@ try {
             if (useSessionStorage === 'true') {
               sessionStorage.setItem(key, value);
               // Log apenas para chaves importantes de auth
-              if (key.includes('auth-token') || key.includes('supabase.auth')) {
-                console.log(`💾 [Supabase Storage] Saved ${key} to sessionStorage`);
-              }
+              if (key.includes('auth-token') || key.includes('supabase.auth')) logStorage(`💾 [Supabase Storage] Saved ${key} to sessionStorage`);
             } else {
               localStorage.setItem(key, value);
               // Log apenas para chaves importantes de auth
-              if (key.includes('auth-token') || key.includes('supabase.auth')) {
-                console.log(`💾 [Supabase Storage] Saved ${key} to localStorage`);
-              }
+              if (key.includes('auth-token') || key.includes('supabase.auth')) logStorage(`💾 [Supabase Storage] Saved ${key} to localStorage`);
             }
           } catch (e) {
             console.error('❌ [Supabase Storage] Error writing to storage:', e);
@@ -84,9 +91,7 @@ try {
             localStorage.removeItem(key);
             sessionStorage.removeItem(key);
             // Log apenas para chaves importantes de auth
-            if (key.includes('auth-token') || key.includes('supabase.auth')) {
-              console.log(`🗑️ [Supabase Storage] Removed ${key} from both storages`);
-            }
+            if (key.includes('auth-token') || key.includes('supabase.auth')) logStorage(`🗑️ [Supabase Storage] Removed ${key} from both storages`);
           } catch (e) {
             console.error('❌ [Supabase Storage] Error removing from storage:', e);
           }
@@ -111,11 +116,13 @@ export const supabase = client;
 
 // Log de debug detalhado com parte da chave (seguro em dev)
 if (typeof window !== 'undefined') {
-  console.log('[Supabase Client] Initialized:', {
-    hasClient: !!client,
-    hasFromMethod: typeof client?.from === 'function',
-    url: SUPABASE_URL,
-    keyStart: SUPABASE_ANON_KEY ? SUPABASE_ANON_KEY.substring(0, 10) + '...' : 'MISSING',
-    isDev: import.meta.env.DEV
-  });
+  if (STORAGE_DEBUG) {
+    console.log('[Supabase Client] Initialized:', {
+      hasClient: !!client,
+      hasFromMethod: typeof client?.from === 'function',
+      url: SUPABASE_URL,
+      keyStart: SUPABASE_ANON_KEY ? SUPABASE_ANON_KEY.substring(0, 10) + '...' : 'MISSING',
+      isDev: (import.meta as any)?.env?.DEV
+    });
+  }
 }

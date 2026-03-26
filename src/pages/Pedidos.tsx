@@ -179,7 +179,8 @@ const PedidosPage: React.FC = () => {
     filterStatus,
     filterDateRange,
     filterClientId,
-    searchTerm // PASSANDO O TERMO DE BUSCA PARA O BACKEND
+    searchTerm, // PASSANDO O TERMO DE BUSCA PARA O BACKEND
+    'dtf'       // Origem = DTF
   );
 
   // Garantir que os hooks só executem se o token estiver disponível
@@ -1121,8 +1122,17 @@ const PedidosPage: React.FC = () => {
   const totalPedidos = paginatedData?.totalCount || 0;
   const totalPages = Math.ceil(totalPedidos / itemsPerPage);
 
-  // Não precisamos mais de useMemo para filtrar, pois o backend já filtrou.
-  const filteredPedidos = pedidosDaPagina;
+  // Filtro adicional por categoria de página: DTF vs Loja
+  const isDTFPage = location.pathname.includes('/pedidos-dtf');
+  const isLojaPage = location.pathname.includes('/pedidos-loja');
+  const filteredPedidos = useMemo(() => {
+    if (!isDTFPage && !isLojaPage) return pedidosDaPagina;
+    return pedidosDaPagina.filter(p => {
+      const items = (p.pedido_items || []);
+      const hasDTF = items.some(i => (i.tipo || '').toLowerCase() === 'dtf');
+      return isDTFPage ? hasDTF : !hasDTF;
+    });
+  }, [pedidosDaPagina, isDTFPage, isLojaPage]);
 
   const isGlobalLoading = isLoadingPaginated || isLoadingClientes || isLoadingProdutos;
 
@@ -1232,7 +1242,7 @@ const PedidosPage: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           className="mb-8"
         >
-          <div className="relative overflow-hidden rounded-[1.5rem] border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-all p-4 md:p-6 backdrop-blur-sm">
+          <div className="relative overflow-hidden rounded-[1.5rem] border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-all p-4 md:p-6 backdrop-blur-sm" style={{ boxShadow: '0 0 20px var(--primary-custom), inset 0 0 10px var(--primary-custom)', borderColor: 'var(--primary-custom)' }}>
             <div className="absolute top-2 right-2">
               <Button
                 variant="ghost"
@@ -1300,12 +1310,13 @@ const PedidosPage: React.FC = () => {
           placeholder="Buscar por cliente, produto, ID..."
           value={rawSearchTerm}
           onChange={(e) => setRawSearchTerm(e.target.value)}
-          className="md:col-span-2 lg:col-span-2"
+          className="md:col-span-2 lg:col-span-2 rgb-border"
+          style={{ borderColor: 'var(--primary-custom)', boxShadow: '0 0 10px var(--primary-custom), inset 0 0 5px var(--primary-custom)' }}
         />
 
         {/* Filtro de Status - REATIVADO */}
         <Select value={filterStatus} onValueChange={setFilterStatus}>
-          <SelectTrigger className="w-full">
+          <SelectTrigger className="w-full rgb-border" style={{ borderColor: 'var(--primary-custom)', boxShadow: '0 0 10px var(--primary-custom), inset 0 0 5px var(--primary-custom)' }}>
             <SelectValue placeholder="Filtrar por status" />
           </SelectTrigger>
           <SelectContent>
@@ -1327,9 +1338,10 @@ const PedidosPage: React.FC = () => {
             <Button
               variant={"outline"}
               className={cn(
-                "w-full justify-start text-left font-normal",
+                "w-full justify-start text-left font-normal rgb-border",
                 !filterDateRange?.from && "text-muted-foreground"
               )}
+              style={{ borderColor: 'var(--primary-custom)', boxShadow: '0 0 10px var(--primary-custom), inset 0 0 5px var(--primary-custom)' }}
             >
               <CalendarIcon className="mr-2 h-4 w-4" />
               {filterDateRange?.from ? (
@@ -1384,7 +1396,8 @@ const PedidosPage: React.FC = () => {
             {isTourOpen && filteredPedidos.length === 0 && (
               <Card
                 id="first-order-card"
-                className="opacity-90 border-dashed border-primary/50 relative overflow-hidden"
+                className="opacity-90 border-dashed border-primary/50 relative overflow-hidden rgb-border"
+                style={{ borderColor: 'var(--primary-custom)', boxShadow: '0 0 10px var(--primary-custom), inset 0 0 5px var(--primary-custom)' }}
               >
                 <div className="absolute top-0 right-0 bg-primary text-primary-foreground text-[10px] font-bold px-2 py-0.5 rounded-bl-lg z-10">
                   EXEMPLO
@@ -1430,7 +1443,8 @@ const PedidosPage: React.FC = () => {
               <Card
                 key={pedido.id}
                 id={`order-card-${pedido.id}`}
-                className="touch-manipulation cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-[1.02] hover:border-primary/50 group"
+                className="touch-manipulation cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-[1.02] hover:border-primary/50 group rgb-border"
+                style={{ borderColor: 'var(--primary-custom)', boxShadow: '0 0 10px var(--primary-custom), inset 0 0 5px var(--primary-custom)' }}
                 onClick={() => handleViewPedido(pedido.id)}
               >
                 <CardHeader className="pb-3">

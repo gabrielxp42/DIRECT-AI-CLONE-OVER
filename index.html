@@ -43,34 +43,39 @@
 
   <!-- Anti-Clone Scripts (Bloqueio Básico de Inspeção) -->
   <script>
-    // Bloquear Botão Direito (Menu de Contexto) de forma inteligente
-    document.addEventListener('contextmenu', event => {
-      // Liberar seletivamente para áreas que possuem menu próprio (ex: Kanban)
-      const target = event.target;
-      if (target && target.closest && target.closest('[data-context-menu="true"]')) {
-        return;
-      }
-      event.preventDefault();
-    });
+    // Permitir DevTools em localhost
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      console.log('[Dev] Inspeção habilitada em localhost');
+    } else {
+      // Bloquear Botão Direito (Menu de Contexto) de forma inteligente
+      document.addEventListener('contextmenu', event => {
+        // Liberar seletivamente para áreas que possuem menu próprio (ex: Kanban)
+        const target = event.target;
+        if (target && target.closest && target.closest('[data-context-menu="true"]')) {
+          return;
+        }
+        event.preventDefault();
+      });
 
-    // Dificultar Atalhos de DevTools
-    document.onkeydown = function (e) {
-      if (e.keyCode == 123) { // F12
-        return false;
-      }
-      if (e.ctrlKey && e.shiftKey && e.keyCode == 'I'.charCodeAt(0)) { // Ctrl+Shift+I
-        return false;
-      }
-      if (e.ctrlKey && e.shiftKey && e.keyCode == 'C'.charCodeAt(0)) { // Ctrl+Shift+C
-        return false;
-      }
-      if (e.ctrlKey && e.shiftKey && e.keyCode == 'J'.charCodeAt(0)) { // Ctrl+Shift+J
-        return false;
-      }
-      if (e.ctrlKey && e.keyCode == 'U'.charCodeAt(0)) { // Ctrl+U (View Source)
-        return false;
-      }
-    };
+      // Dificultar Atalhos de DevTools
+      document.onkeydown = function (e) {
+        if (e.keyCode == 123) { // F12
+          return false;
+        }
+        if (e.ctrlKey && e.shiftKey && e.keyCode == 'I'.charCodeAt(0)) { // Ctrl+Shift+I
+          return false;
+        }
+        if (e.ctrlKey && e.shiftKey && e.keyCode == 'C'.charCodeAt(0)) { // Ctrl+Shift+C
+          return false;
+        }
+        if (e.ctrlKey && e.shiftKey && e.keyCode == 'J'.charCodeAt(0)) { // Ctrl+Shift+J
+          return false;
+        }
+        if (e.ctrlKey && e.keyCode == 'U'.charCodeAt(0)) { // Ctrl+U (View Source)
+          return false;
+        }
+      };
+    }
   </script>
 
   <!-- Suprimir erros de extensões do Chrome (AdBlock, etc) -->

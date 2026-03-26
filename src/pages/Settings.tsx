@@ -127,6 +127,10 @@ const MagicMessageRotator = () => {
                 setIsLoadingMagic(false);
             }
         }
+        // Persist color in localStorage for immediate effect on reload
+        if (field === 'company_primary_color') {
+            localStorage.setItem('cached_primary_color', value);
+        }
     };
 
     return (
@@ -282,6 +286,9 @@ export default function Settings() {
             root.style.setProperty('--primary', hsl);
             root.style.setProperty('--primary-foreground', foregroundHsl);
             root.style.setProperty('--primary-custom', value);
+            
+            // Persist color in localStorage for immediate effect on reload
+            localStorage.setItem('cached_primary_color', value);
         }
     };
 
@@ -618,6 +625,34 @@ export default function Settings() {
                         </CardHeader>
                         <CardContent className="pt-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="dtf_roll_width" className="text-xs uppercase tracking-wider text-muted-foreground">Largura da Bobina DTF (cm)</Label>
+                                    <Input
+                                        id="dtf_roll_width"
+                                        type="number"
+                                        step="0.1"
+                                        value={formData.dtf_roll_width || companyProfile?.dtf_roll_width || 58.0}
+                                        onChange={(e) => handleInputChange('dtf_roll_width', parseFloat(e.target.value))}
+                                        placeholder="Ex: 58.0"
+                                        className="h-11 md:h-10"
+                                    />
+                                    <p className="text-[10px] text-muted-foreground italic">
+                                        Largura útil usada para cálculos na calculadora de DTF. Padrão: 58cm.
+                                    </p>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="origin_zip_code" className="text-xs uppercase tracking-wider text-muted-foreground">CEP de Origem</Label>
+                                    <Input
+                                        id="origin_zip_code"
+                                        value={formData.origin_zip_code || companyProfile?.origin_zip_code || ''}
+                                        onChange={(e) => handleInputChange('origin_zip_code', e.target.value)}
+                                        placeholder="Ex: 01001-000"
+                                        className="h-11 md:h-10"
+                                    />
+                                    <p className="text-[10px] text-muted-foreground italic">
+                                        CEP de onde os produtos são enviados. Usado para cálculo de frete.
+                                    </p>
+                                </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="company_name" className="text-xs uppercase tracking-wider text-muted-foreground">Nome da Empresa *</Label>
                                     <Input

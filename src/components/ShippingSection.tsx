@@ -227,7 +227,17 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
                 }
 
                 if (cliente.endereco) {
-                    // Tenta quebrar o endereço se possível
+                    setManualDestAddress(cliente.endereco);
+                }
+                
+                if (cliente.numero) setManualDestNumber(cliente.numero);
+                if (cliente.complemento) setManualDestComplement(cliente.complemento);
+                if (cliente.bairro) setManualDestDistrict(cliente.bairro);
+                if (cliente.cidade) setManualDestCity(cliente.cidade);
+                if (cliente.estado) setManualDestState(cliente.estado);
+                
+                // Fallback: se não tiver as colunas novas, tenta quebrar o endereço antigo
+                if (cliente.endereco && !cliente.numero && !cliente.estado) {
                     const parts = cliente.endereco.split(',');
                     if (parts.length > 0) setManualDestAddress(parts[0].trim());
 
@@ -597,13 +607,18 @@ export const ShippingSection: React.FC<ShippingSectionProps> = ({
             // PERSISTÊNCIA: Se o CEP ou Endereço do cliente mudou/foi preenchido agora, salva no registro dele
             if (clientId) {
                 const currentCEP = (manualCEP || "").replace(/\D/g, '');
-                if (currentCEP && (selectedClient?.cep !== currentCEP || selectedClient?.endereco !== manualDestAddress)) {
+                if (currentCEP) {
                     console.log("[ShippingSection] Atualizando dados de envio do cliente...");
                     await supabase
                         .from('clientes')
                         .update({
                             cep: currentCEP,
-                            endereco: `${manualDestAddress}${manualDestNumber ? `, ${manualDestNumber}` : ''}${manualDestDistrict ? ` - ${manualDestDistrict}` : ''}`
+                            endereco: manualDestAddress,
+                            numero: manualDestNumber,
+                            complemento: manualDestComplement,
+                            bairro: manualDestDistrict,
+                            cidade: manualDestCity,
+                            estado: manualDestState
                         })
                         .eq('id', clientId);
                 }

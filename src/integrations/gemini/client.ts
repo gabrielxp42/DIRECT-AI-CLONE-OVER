@@ -9,9 +9,9 @@ export const getGeminiApiKey = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       const { data, error } = await supabase
-        .from('profiles')
+        .from('profiles_v2')
         .select('gemini_api_key')
-        .eq('id', user.id)
+        .eq('uid', user.id)
         .single();
 
       if (!error && data?.gemini_api_key) {

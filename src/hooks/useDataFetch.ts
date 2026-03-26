@@ -101,7 +101,9 @@ const fetchPedidos = async (
   filterClientId: string | null,
   searchTerm: string,
   organizationId: string | null,
-  accessToken?: string
+  accessToken?: string,
+  origem?: 'loja' | 'dtf',
+  grupoId?: string | null
 ): Promise<PaginatedPedidosResult> => {
   const start = (page - 1) * limit;
   const trimmedSearchTerm = searchTerm.trim();
@@ -135,6 +137,14 @@ const fetchPedidos = async (
     const d = new Date(filterDateRange.to);
     d.setHours(23, 59, 59, 999);
     query = query.lte('created_at', d.toISOString());
+  }
+
+  // 4.5 Apply Origem & Grupo Filters
+  if (origem) {
+    query = query.eq('origem', origem);
+  }
+  if (grupoId !== undefined && grupoId !== null) {
+    query = query.eq('grupo_id', grupoId);
   }
 
   // 5. Apply Search (Smart Search)
@@ -191,24 +201,26 @@ export const usePaginatedPedidos = (
   filterStatus: string,
   filterDateRange: { from?: Date; to?: Date },
   filterClientId: string | null,
-  searchTerm: string
+  searchTerm: string,
+  origem?: 'loja' | 'dtf',
+  grupoId?: string | null
 ) => {
   const { supabase, session, organizationId, isLoading: sessionLoading } = useSession();
   const userId = session?.user.id;
   const accessToken = session?.access_token;
 
   return useQuery<PaginatedPedidosResult>({
-    queryKey: ["pedidos", userId, page, limit, filterStatus, filterDateRange, filterClientId, searchTerm, organizationId],
+    queryKey: ["pedidos", userId, page, limit, filterStatus, filterDateRange, filterClientId, searchTerm, organizationId, origem, grupoId],
     queryFn: async () => {
       if (!userId) throw new Error("Invalid session");
-      return await fetchPedidos(supabase, userId, page, limit, filterStatus, filterDateRange, filterClientId, searchTerm, organizationId, accessToken);
+      return await fetchPedidos(supabase, userId, page, limit, filterStatus, filterDateRange, filterClientId, searchTerm, organizationId, accessToken, origem, grupoId);
     },
     enabled: !sessionLoading && !!userId && !!supabase,
     staleTime: 1000 * 60 * 1, // 1 minute (orders update frequently)
   });
 };
 
-export const usePedidos = () => {
+export const usePedidos = (origem?: 'loja' | 'dtf', grupoId?: string | null) => {
   const { supabase, session, organizationId, isLoading: sessionLoading } = useSession();
   const userId = session?.user.id;
 
@@ -222,6 +234,9 @@ export const usePedidos = () => {
     } else {
       query = query.eq('user_id', userId);
     }
+    
+    if (origem) query = query.eq('origem', origem);
+    if (grupoId !== undefined && grupoId !== null) query = query.eq('grupo_id', grupoId);
 
     const { data, error } = await query.order('order_number', { ascending: false });
 
@@ -235,7 +250,7 @@ export const usePedidos = () => {
   };
 
   return useQuery<Pedido[]>({
-    queryKey: ["all-pedidos-unpaginated", organizationId || userId],
+    queryKey: ["all-pedidos-unpaginated", organizationId || userId, origem, grupoId],
     queryFn: () => fetchAllPedidos(userId!),
     enabled: !sessionLoading && !!userId && !!supabase,
     staleTime: 1000 * 60 * 5, // 5 minutes
@@ -713,5 +728,27 @@ export const useSaveTransportadora = () => {
       return data;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["transportadoras"] }),
+  });
+};
+
+export const useLojaGrupos = () => {
+  const { supabase, session, organizationId, isLoading: sessionLoading } = useSession();
+  const accessToken = session?.access_token;
+  const userId = session?.user?.id;
+  const isEnabled = !sessionLoading && !!accessToken && !!userId;
+
+  return useQuery<any[]>({
+    queryKey: ["loja_grupos", organizationId],
+    queryFn: async () => {
+      let query = supabase.from("loja_grupos").select("*").order("created_at", { ascending: true });
+      if (organizationId) {
+        query = query.eq("organization_id", organizationId);
+      }
+      const { data, error } = await query;
+      if (error) throw error;
+      return data;
+    },
+    enabled: isEnabled,
+    staleTime: 1000 * 60 * 5,
   });
 };

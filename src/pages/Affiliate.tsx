@@ -162,12 +162,12 @@ export default function AffiliatePortal() {
         setIsSavingPix(true);
         try {
             const { error } = await supabase
-                .from('profiles')
+                .from('profiles_v2')
                 .update({
                     affiliate_pix_key: pixKey,
                     affiliate_pix_key_type: pixType
                 })
-                .eq('id', profile?.id);
+                .eq('uid', profile?.uid);
 
             if (error) throw error;
             toast.success("Dados de pagamento salvos!");

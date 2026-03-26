@@ -138,11 +138,11 @@ export const AIMessagesWidget: React.FC = () => {
                         animate={{ opacity: 1, x: 0, scale: 1 }}
                         exit={{ opacity: 0, height: 0, scale: 0.9 }}
                         transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                        className="relative mb-2"
+                        className="relative mb-2 w-full overflow-hidden"
                     >
-                        <Card className={`p-4 border-l-4 pr-8 relative ${getStyles(item.type)} transition-shadow hover:shadow-md`}>
-                            <div className="flex flex-col gap-3">
-                                <p className="text-sm select-none" dangerouslySetInnerHTML={{
+                        <Card className={`p-3 md:p-4 border-l-4 pr-8 relative ${getStyles(item.type)} transition-shadow hover:shadow-md w-full`}>
+                            <div className="flex flex-col gap-2 md:gap-3 w-full min-w-0">
+                                <p className="text-xs md:text-sm select-none break-words whitespace-pre-wrap leading-relaxed" dangerouslySetInnerHTML={{
                                     __html: item.text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
                                 }} />
 
@@ -151,7 +151,7 @@ export const AIMessagesWidget: React.FC = () => {
                                         <Button
                                             size="sm"
                                             variant="outline"
-                                            className="h-8 text-xs gap-2 bg-background/50 hover:bg-background border-zinc-200 dark:border-zinc-800"
+                                            className="h-8 text-[10px] md:text-xs gap-1.5 md:gap-2 bg-background/50 hover:bg-background border-zinc-200 dark:border-zinc-800 flex-1 sm:flex-none justify-center"
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 if (item.action?.type === 'whatsapp') {
@@ -161,15 +161,15 @@ export const AIMessagesWidget: React.FC = () => {
                                                 }
                                             }}
                                         >
-                                            {item.action.type === 'whatsapp' && <MessageCircle className="h-3.5 w-3.5 text-green-500" />}
-                                            {item.action.label}
-                                            <ExternalLink className="h-3 w-3 opacity-50" />
+                                            {item.action.type === 'whatsapp' && <MessageCircle className="h-3 md:h-3.5 w-3 md:w-3.5 text-green-500 shrink-0" />}
+                                            <span className="truncate">{item.action.label}</span>
+                                            <ExternalLink className="h-2.5 md:h-3 w-2.5 md:w-3 opacity-50 shrink-0" />
                                         </Button>
                                     )}
 
                                     {item.aiAction && (
                                         isPlusMode ? (
-                                            <div className="relative group rounded-lg p-[1px] bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] shadow-sm hover:shadow-md transition-all cursor-pointer"
+                                            <div className="relative group rounded-lg p-[1px] bg-gradient-to-br from-[#FF6B6B] via-[#ffd93d] to-[#6c5ce7] shadow-sm hover:shadow-md transition-all cursor-pointer flex-1 sm:flex-none"
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     if (item.action?.type === 'action') {
@@ -183,16 +183,16 @@ export const AIMessagesWidget: React.FC = () => {
                                                 <Button
                                                     size="sm"
                                                     variant="ghost"
-                                                    className="relative h-8 text-xs gap-2 bg-slate-950/90 text-white hover:bg-slate-900 border-0 hover:text-white w-full pointer-events-none"
+                                                    className="relative h-8 text-[9px] md:text-xs gap-1.5 md:gap-2 bg-slate-950/90 text-white hover:bg-slate-900 border-0 hover:text-white w-full pointer-events-none px-2 whitespace-nowrap overflow-hidden"
                                                 >
-                                                    <Sparkles className="h-3.5 w-3.5 text-[#ffd93d]" />
-                                                    {item.action?.actionType === 'offer' ? "DEIXAR A GABI OFERECER O DESCONTO ⚡" : "DEIXAR A GABI COBRAR 👊🏽"}
+                                                    <Sparkles className="h-3 md:h-3.5 w-3 md:w-3.5 text-[#ffd93d] shrink-0" />
+                                                    <span className="truncate">{item.action?.actionType === 'offer' ? "DEIXAR A GABI OFERECER ⚡" : "DEIXAR A GABI COBRAR 👊🏽"}</span>
                                                 </Button>
                                             </div>
                                         ) : (
                                             <Button
                                                 size="sm"
-                                                className="h-8 text-xs gap-2 bg-[#25D366] hover:bg-[#20BA5C] text-white border-0 shadow-sm"
+                                                className="h-8 text-[10px] md:text-xs gap-1.5 md:gap-2 bg-[#25D366] hover:bg-[#20BA5C] text-white border-0 shadow-sm flex-1 sm:flex-none justify-center"
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     if (item.action?.url) {
@@ -200,9 +200,9 @@ export const AIMessagesWidget: React.FC = () => {
                                                     }
                                                 }}
                                             >
-                                                <MessageCircle className="h-3.5 w-3.5" />
-                                                {item.action?.actionType === 'offer' ? "Enviar Oferta" : "Enviar Cobrança"}
-                                                <ExternalLink className="h-3 w-3 opacity-70" />
+                                                <MessageCircle className="h-3 md:h-3.5 w-3 md:w-3.5 shrink-0" />
+                                                <span className="truncate">{item.action?.actionType === 'offer' ? "Enviar Oferta" : "Enviar Cobrança"}</span>
+                                                <ExternalLink className="h-2.5 md:h-3 w-2.5 md:w-3 opacity-70 shrink-0" />
                                             </Button>
                                         )
                                     )}
@@ -211,11 +211,11 @@ export const AIMessagesWidget: React.FC = () => {
 
                             <motion.button
                                 onClick={handleDismissClick}
-                                className="absolute top-2 right-2 p-1 rounded-full hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+                                className="absolute top-1 md:top-2 right-1 md:right-2 p-1.5 md:p-1 rounded-full hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
                                 whileHover={{ scale: 1.1 }}
                                 whileTap={{ scale: 0.9 }}
                             >
-                                <X className="h-4 w-4 text-muted-foreground" />
+                                <X className="h-3.5 md:h-4 w-3.5 md:w-4 text-muted-foreground" />
                             </motion.button>
                         </Card>
                     </motion.div>

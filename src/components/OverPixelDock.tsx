@@ -4,6 +4,7 @@ import { Layers, Home, LayoutGrid, Wand2 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { GabiAvatar } from './GabiAvatar';
 import { useToast } from '@/hooks/use-toast';
+import { useIsMobile } from '@/hooks/use-mobile';
 import './OverPixelDock.css';
 
 /* Mini OverPixel logo SVG for the trigger button */
@@ -59,6 +60,8 @@ const APPS: AppDef[] = [
 ];
 
 export const OverPixelDock: React.FC = () => {
+  const isMobile = useIsMobile();
+
   const [isOpen, setIsOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -108,6 +111,8 @@ export const OverPixelDock: React.FC = () => {
 
   // Determine which app is currently active
   const isGabiActive = location.pathname !== '/' && location.pathname !== '/landing-page';
+
+  if (!isMobile) return null;
 
   return (
     <>

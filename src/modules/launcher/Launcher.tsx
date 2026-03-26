@@ -250,13 +250,27 @@ const OverPixelLauncher = React.forwardRef<HTMLDivElement, OverPixelLauncherProp
 
     const handleAppClickInternal = (appId: string, route: string | null) => {
       console.log(`[Launcher] App clicked: ${appId} -> Route: ${route || 'none'}`);
+      // Fechar o launcher imediatamente ao clicar, antes de navegar
+      if (onClose) onClose();
+      // Forçar fechamento via evento global (fallback robusto)
+      try {
+        window.dispatchEvent(new CustomEvent('toggle-launcher', { detail: { force: 'close' } }));
+      } catch {}
       if (onAppClick) {
-        onAppClick(appId, route || undefined); 
-        return; 
+        onAppClick(appId, route || undefined);
+        return;
       }
       if (route) {
-        navigate(route); 
-        if (onClose) onClose(); 
+        navigate(route);
+        // Fail-safe: reforçar fechamento após a navegação inicial
+        setTimeout(() => {
+          try {
+            window.dispatchEvent(new CustomEvent('toggle-launcher', { detail: { force: 'close' } }));
+          } catch {}
+          if (onClose) onClose();
+          const el = document.querySelector('.ios-launcher-container') as HTMLElement | null;
+          if (el) el.style.display = 'none';
+        }, 120);
       }
     };
 

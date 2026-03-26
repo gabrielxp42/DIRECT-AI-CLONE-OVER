@@ -7,7 +7,8 @@ export const DynamicThemeProvider = ({ children }: { children: React.ReactNode }
 
     useEffect(() => {
         const cachedColor = typeof localStorage !== 'undefined' ? localStorage.getItem('cached_primary_color') : null;
-        const primaryColor = companyProfile?.company_primary_color || cachedColor || '#FFF200';
+        // User's custom selected color in localStorage overrides the company default
+        const primaryColor = cachedColor || companyProfile?.company_primary_color || '#FFF200';
 
         // Update the --primary variable in the :root
         const root = document.documentElement;

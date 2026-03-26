@@ -114,7 +114,7 @@ const VisualMessage = React.memo(({ text }: { text: string }) => {
                         <Badge
                             key={i}
                             variant="secondary"
-                            className="mx-0.5 h-6 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800/50 px-2 rounded-full font-bold select-none inline-flex items-center gap-1 align-baseline translate-y-[1px]"
+                            className="mx-0.5 h-6 bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-400 border-cyan-200 dark:border-cyan-800/50 px-2 rounded-full font-bold select-none inline-flex items-center gap-1 align-baseline translate-y-[1px]"
                         >
                             {React.createElement(cfg.icon, { className: "h-3 w-3" })}
                             {cfg.label}
@@ -131,7 +131,7 @@ VisualMessage.displayName = "VisualMessage";
 // ============ EXTERNAL COMPONENT: Template Editor ============
 const TemplateEditor = React.memo(({
     status, label, icon: Icon, description, variables,
-    templateValue, onTemplateChange, onInsertVariable, onAIGenerate, generatingAI
+    templateValue, onTemplateChange, onInsertVariable, onAIGenerate, generatingAI, bossConfigName, onBossNameChange
 }: {
     status: string,
     label: string,
@@ -142,7 +142,9 @@ const TemplateEditor = React.memo(({
     onTemplateChange: (value: string) => void,
     onInsertVariable: (variable: string) => void,
     onAIGenerate: (status: string, prompt: string) => Promise<boolean>,
-    generatingAI: boolean
+    generatingAI: boolean,
+    bossConfigName?: string,
+    onBossNameChange?: (name: string) => void
 }) => {
     // Render visual pills
     const visualParts = useMemo(() => {
@@ -156,7 +158,7 @@ const TemplateEditor = React.memo(({
                 return (
                     <span
                         key={i}
-                        className="inline-flex items-center gap-1 bg-amber-400 text-amber-950 px-2 py-0.5 rounded-md font-black text-[10px] uppercase shadow-sm border border-amber-500 mx-0.5 select-none align-baseline transform translate-y-[-1px]"
+                        className="inline-flex items-center gap-1 bg-cyan-400 text-cyan-950 px-2 py-0.5 rounded-md font-black text-[10px] uppercase shadow-sm border border-cyan-500 mx-0.5 select-none align-baseline transform translate-y-[-1px]"
                     >
                         {cfg.label}
                     </span>
@@ -361,8 +363,26 @@ const TemplateEditor = React.memo(({
                             <div className="flex-1">
                                 <div className="text-xs font-bold text-white">Assistente Virtual Gabi</div>
                                 <div className="text-[10px] text-white/70">Online agora</div>
-                            </div>
-                        </div>
+                                    </div>
+
+                                    <div className="space-y-6">
+                                        <div className="space-y-2">
+                                            <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Como a Gabi deve te chamar?</Label>
+                                            <div className="relative">
+                                                <User className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                                <Input
+                                                    placeholder="Ex: Chefe, Patrão, Marcos..."
+                                                    className="pl-11 h-14 rounded-2xl border-2"
+                                                    value={bossConfigName || ''}
+                                                    onChange={e => onBossNameChange?.(e.target.value)}
+                                                />
+                                            </div>
+                                            <p className="text-[11px] text-muted-foreground ml-1">
+                                                Padrão: Chefe. Assim que ela vai se referir a você nas mensagens.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
 
                         {/* Chat area */}
                         <div className="mt-12 space-y-4 overflow-y-auto h-full pt-4 pb-12 scrollbar-none">
@@ -416,7 +436,8 @@ const GabiSettings = () => {
     const [bossConfig, setBossConfig] = useState({
         group_id: "",
         enabled: true,
-        alert_types: ['payment', 'inactivity', 'error'] as string[]
+        alert_types: ['payment', 'inactivity', 'error'] as string[],
+        gabi_boss_name: "Chefe"
     });
 
     // Default template for Order Summary if none exists
@@ -438,6 +459,33 @@ Tel: {{telefone}}
 STATUS: {{status}}
 
 *** AGRADECEMOS A PREFERÊNCIA ***`;
+    const DEFAULT_PAID_TEMPLATE = `✅ *Pagamento Confirmado!*
+Olá {{cliente}}, recebemos o pagamento do seu pedido #{{order_number}}.
+
+*Resumo:*
+{{itens}}
+
+Total: *{{total}}*
+Qualquer dúvida, estamos à disposição.
+⏱️ Horário: {{horario_empresa}}`;
+    const DEFAULT_PICKUP_TEMPLATE = `📦 *Pronto para Retirada!*
+Olá {{cliente}}, seu pedido #{{order_number}} está pronto.
+
+*Itens:*
+{{itens}}
+
+📍 Endereço: {{endereco_empresa}}
+⏱️ Horário: {{horario_empresa}}
+Apresente o número do pedido ao retirar.`;
+    const DEFAULT_SHIPPED_TEMPLATE = `🚚 *Pedido Enviado!*
+Olá {{cliente}}, seu pedido #{{order_number}} foi enviado.
+
+*Itens:*
+{{itens}}
+
+Total: *{{total}}*
+🔎 Rastreio: {{tracking_code}}
+Qualquer atualização avisamos por aqui.`;
 
     useEffect(() => {
         if (profile) {
@@ -445,6 +493,15 @@ STATUS: {{status}}
             // Ensure order_summary has a default if missing
             if (!currentTemplates["order_summary"]) {
                 currentTemplates["order_summary"] = DEFAULT_SUMMARY_TEMPLATE;
+            }
+            if (!currentTemplates["pago"]) {
+                currentTemplates["pago"] = DEFAULT_PAID_TEMPLATE;
+            }
+            if (!currentTemplates["aguardando retirada"]) {
+                currentTemplates["aguardando retirada"] = DEFAULT_PICKUP_TEMPLATE;
+            }
+            if (!currentTemplates["enviado"]) {
+                currentTemplates["enviado"] = DEFAULT_SHIPPED_TEMPLATE;
             }
             setTemplates(currentTemplates);
 
@@ -458,7 +515,8 @@ STATUS: {{status}}
             setBossConfig({
                 group_id: profile.whatsapp_boss_group_id || "",
                 enabled: profile.whatsapp_boss_notifications_enabled ?? true,
-                alert_types: profile.whatsapp_boss_alert_types || ['payment', 'inactivity', 'error']
+                alert_types: profile.whatsapp_boss_alert_types || ['payment', 'inactivity', 'error'],
+                gabi_boss_name: profile.gabi_boss_name || "Chefe"
             });
         }
     }, [profile]);
@@ -468,7 +526,7 @@ STATUS: {{status}}
         setLoading(true);
         try {
             const { error } = await supabase
-                .from("profiles")
+                .from("profiles_v2")
                 .update({
                     gabi_templates: templates,
                     company_business_hours: companyParams.business_hours,
@@ -477,7 +535,8 @@ STATUS: {{status}}
                     company_address_city: companyParams.address_city,
                     whatsapp_boss_group_id: bossConfig.group_id,
                     whatsapp_boss_notifications_enabled: bossConfig.enabled,
-                    whatsapp_boss_alert_types: bossConfig.alert_types
+                    whatsapp_boss_alert_types: bossConfig.alert_types,
+                    gabi_boss_name: bossConfig.gabi_boss_name
                 })
                 .eq("id", session.user.id);
 
@@ -705,6 +764,8 @@ STATUS: {{status}}
                                 onInsertVariable={(v) => insertVariable("pago", v)}
                                 onAIGenerate={handleGenerateAI}
                                 generatingAI={generatingAI["pago"] || false}
+                                bossConfigName={bossConfig.gabi_boss_name}
+                                onBossNameChange={(name) => setBossConfig(p => ({ ...p, gabi_boss_name: name }))}
                             />
                         </TabsContent>
 
@@ -720,6 +781,8 @@ STATUS: {{status}}
                                 onInsertVariable={(v) => insertVariable("aguardando retirada", v)}
                                 onAIGenerate={handleGenerateAI}
                                 generatingAI={generatingAI["aguardando retirada"] || false}
+                                bossConfigName={bossConfig.gabi_boss_name}
+                                onBossNameChange={(name) => setBossConfig(p => ({ ...p, gabi_boss_name: name }))}
                             />
                         </TabsContent>
 
@@ -735,6 +798,8 @@ STATUS: {{status}}
                                 onInsertVariable={(v) => insertVariable("enviado", v)}
                                 onAIGenerate={handleGenerateAI}
                                 generatingAI={generatingAI["enviado"] || false}
+                                bossConfigName={bossConfig.gabi_boss_name}
+                                onBossNameChange={(name) => setBossConfig(p => ({ ...p, gabi_boss_name: name }))}
                             />
                         </TabsContent>
 
@@ -750,6 +815,8 @@ STATUS: {{status}}
                                 onInsertVariable={(v) => insertVariable("order_summary", v)}
                                 onAIGenerate={handleGenerateAI}
                                 generatingAI={generatingAI["order_summary"] || false}
+                                bossConfigName={bossConfig.gabi_boss_name}
+                                onBossNameChange={(name) => setBossConfig(p => ({ ...p, gabi_boss_name: name }))}
                             />
                         </TabsContent>
 
@@ -790,6 +857,22 @@ STATUS: {{status}}
                                             </div>
                                             <p className="text-[10px] text-muted-foreground ml-2 italic">
                                                 Dica: O ID de grupo no WhatsApp costuma ser bem longo e terminar em @g.us. Você pode encontrá-lo nos logs da Evolution API ou me perguntar!
+                                            </p>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Como a Gabi deve te chamar?</Label>
+                                            <div className="relative">
+                                                <User className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                                <Input
+                                                    placeholder="Ex: Chefe, Patrão, Marcos..."
+                                                    className="pl-11 h-14 rounded-2xl border-2"
+                                                    value={bossConfig.gabi_boss_name || ''}
+                                                    onChange={e => setBossConfig(p => ({ ...p, gabi_boss_name: e.target.value }))}
+                                                />
+                                            </div>
+                                            <p className="text-[11px] text-muted-foreground ml-1">
+                                                Padrão: Chefe. Assim que ela vai se referir a você nas mensagens.
                                             </p>
                                         </div>
 

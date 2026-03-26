@@ -46,7 +46,8 @@ export const ProfileSelector: React.FC = () => {
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [editPin, setEditPin] = useState('');
-  const [editRole, setEditRole] = useState<UserRole>('atendente');
+  const [editRole, setEditRole] = useState<UserRole | 'personalizado'>('atendente');
+  const [customRoleName, setCustomRoleName] = useState('');
 
   // Permissions Management
   const [showPermissionsModal, setShowPermissionsModal] = useState(false);
@@ -74,7 +75,10 @@ export const ProfileSelector: React.FC = () => {
 
   useEffect(() => {
     const fetchSubProfiles = async () => {
-      if (!profile) return;
+      if (!profile) {
+        setLoading(false);
+        return;
+      }
       
       const { data, error } = await supabase
         .from('sub_profiles')
@@ -176,14 +180,21 @@ export const ProfileSelector: React.FC = () => {
       toast.error('O nome é obrigatório');
       return;
     }
+    if (editRole === 'personalizado' && !customRoleName.trim()) {
+      toast.error('O nome do cargo personalizado é obrigatório');
+      return;
+    }
+
+    const finalRoleDb: UserRole = editRole === 'personalizado' ? 'atendente' : editRole;
+    const finalName = editRole === 'personalizado' && customRoleName.trim() ? `${editName} • ${customRoleName.trim()}` : editName;
 
     try {
       const { data, error } = await supabase
         .from('sub_profiles')
         .insert({
           parent_profile_id: profile.uid,
-          name: editName,
-          role: editRole,
+          name: finalName,
+          role: finalRoleDb,
           whatsapp_number: editPhone,
           pin: editPin || null,
           is_active: true
@@ -197,8 +208,9 @@ export const ProfileSelector: React.FC = () => {
       setSubProfiles(prev => [...prev, data as SubProfile]);
       setShowCreateModal(false);
       resetForm();
-    } catch (error) {
-      toast.error('Erro ao criar perfil');
+    } catch (error: any) {
+      console.error('Erro ao criar perfil:', error);
+      toast.error(error?.message || 'Erro ao criar perfil');
     }
   };
 
@@ -207,6 +219,7 @@ export const ProfileSelector: React.FC = () => {
     setEditPhone('');
     setEditPin('');
     setEditRole('atendente');
+    setCustomRoleName('');
     setEditingSub(null);
   };
 
@@ -339,14 +352,14 @@ export const ProfileSelector: React.FC = () => {
 
   useEffect(() => {
     // Bloquear scroll do body quando o seletor está ativo
-    if (!loading && profile?.is_multi_profile_enabled && !activeSubProfile) {
+    if (!loading && !activeSubProfile) {
       document.body.style.overflow = 'hidden';
     }
     
     return () => {
       document.body.style.overflow = 'unset';
     };
-  }, [loading, profile?.is_multi_profile_enabled, activeSubProfile]);
+  }, [loading, activeSubProfile]);
 
   if (loading) {
     return (
@@ -362,7 +375,7 @@ export const ProfileSelector: React.FC = () => {
     );
   }
 
-  if (!profile?.is_multi_profile_enabled || activeSubProfile) {
+  if (activeSubProfile) {
     return null;
   }
 
@@ -396,7 +409,7 @@ export const ProfileSelector: React.FC = () => {
               <h1 className="text-5xl md:text-7xl font-black text-white tracking-tighter uppercase italic leading-[0.9]">
                 {isManagedMode ? 'Gerenciar' : 'Quem está usando o'} <br />
                 <span className="text-primary drop-shadow-[0_0_20px_rgba(255,165,0,0.3)]">
-                  {isManagedMode ? 'Perfis' : 'Direct AI?'}
+                  {isManagedMode ? 'Perfis' : 'Overpixel ?'}
                 </span>
               </h1>
               <p className="text-zinc-500 font-semibold tracking-wide uppercase text-xs">
@@ -458,16 +471,22 @@ export const ProfileSelector: React.FC = () => {
                         </div>
                       )}
                       
-                      <div className="absolute bottom-4 left-0 right-0 flex justify-center opacity-0 group-hover:opacity-100 transition-all translate-y-2 group-hover:translate-y-0 duration-300 pointer-events-none">
-                        <span className="text-[9px] font-black uppercase text-white tracking-[0.2em] bg-black/40 backdrop-blur-md px-3 py-1 rounded-full border border-white/10">
-                          {sub.role}
-                        </span>
+                      <div className="absolute bottom-4 left-0 right-0 flex justify-center opacity-100 transition-all duration-300 pointer-events-none">
+                        {(() => {
+                          const customLabel = sub.name.includes('•') ? sub.name.split('•').pop()?.trim() : null;
+                          const displayRole = customLabel || sub.role;
+                          return (
+                            <span className="text-[9px] font-black uppercase text-white tracking-[0.2em] bg-black/40 backdrop-blur-md px-3 py-1 rounded-full border border-white/10">
+                              {displayRole}
+                            </span>
+                          );
+                        })()}
                       </div>
                     </div>
                     
                     <div className="space-y-2 text-center">
                       <span className="block text-2xl font-black text-zinc-400 group-hover:text-white transition-all duration-300">
-                        {sub.name}
+                        {sub.name.includes('•') ? sub.name.split('•')[0].trim() : sub.name}
                       </span>
                     </div>
                   </motion.button>
@@ -660,15 +679,34 @@ export const ProfileSelector: React.FC = () => {
                   <div className="space-y-6">
                     <div className="space-y-2">
                       <label className="text-[10px] uppercase tracking-widest font-black text-zinc-500 ml-4">Nome Social</label>
-                      <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Ex: Gabriel" className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white font-bold outline-none" />
+                      <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Insira seu nome" className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white font-bold outline-none" />
                     </div>
                     <div className="space-y-2">
                       <label className="text-[10px] uppercase tracking-widest font-black text-zinc-500 ml-4">Cargo</label>
                       <div className="grid grid-cols-2 gap-2">
-                        {['chefe', 'designer', 'operador', 'atendente'].map((r) => (
-                          <button key={r} onClick={() => setEditRole(r as UserRole)} className={cn("p-2 rounded-xl border text-[10px] uppercase font-bold", editRole === r ? "bg-primary text-black border-primary" : "bg-white/5 text-zinc-500 border-white/10")}>{r}</button>
+                        {['chefe', 'designer', 'operador', 'atendente', 'personalizado'].map((r) => (
+                          <button key={r} onClick={() => setEditRole(r as UserRole | 'personalizado')} className={cn("p-2 rounded-xl border text-[10px] uppercase font-bold", editRole === r ? "bg-primary text-black border-primary" : "bg-white/5 text-zinc-500 border-white/10")}>{r}</button>
                         ))}
                       </div>
+                      <AnimatePresence>
+                        {editRole === 'personalizado' && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="pt-2 overflow-hidden"
+                          >
+                            <input 
+                              type="text" 
+                              value={customRoleName} 
+                              onChange={(e) => setCustomRoleName(e.target.value)} 
+                              placeholder="Digite o nome do cargo..." 
+                              className="w-full bg-white/5 border border-primary/30 rounded-2xl p-4 text-white font-bold outline-none focus:border-primary transition-colors" 
+                              autoFocus 
+                            />
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
                   </div>
                   <div className="flex gap-4 pt-4">

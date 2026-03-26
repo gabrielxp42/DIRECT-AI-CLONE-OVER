@@ -110,6 +110,14 @@ const formSchema = z.object({
   desconto_valor: z.coerce.number().min(0).optional(),
   desconto_percentual: z.coerce.number().min(0).max(100).optional(),
   shipping_cep: z.string().optional().nullable(),
+  shipping_address: z.string().optional().nullable(),
+  shipping_number: z.string().optional().nullable(),
+  shipping_complement: z.string().optional().nullable(),
+  shipping_neighborhood: z.string().optional().nullable(),
+  shipping_city: z.string().optional().nullable(),
+  shipping_state: z.string().optional().nullable(),
+  shipping_name: z.string().optional().nullable(),
+  shipping_cpf: z.string().optional().nullable(),
   shipping_details: z.any().optional().nullable(),
   created_at: z.date({
     required_error: "A data do pedido é obrigatória.",
@@ -177,6 +185,15 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
       tracking_code: "",
       desconto_valor: 0,
       desconto_percentual: 0,
+      shipping_cep: "",
+      shipping_address: "",
+      shipping_number: "",
+      shipping_complement: "",
+      shipping_neighborhood: "",
+      shipping_city: "",
+      shipping_state: "",
+      shipping_name: "",
+      shipping_cpf: "",
       created_at: new Date(),
       items: [],
       servicos: [],
@@ -252,6 +269,43 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
     }
   }, [isTourOpen, itemFields, currentStep]);
 
+  useEffect(() => {
+    if (selectedCliente && !isEditing) {
+      form.setValue('shipping_cep', selectedCliente.cep || "");
+      form.setValue('shipping_address', selectedCliente.endereco || "");
+      form.setValue('shipping_number', selectedCliente.numero || "");
+      form.setValue('shipping_complement', selectedCliente.complemento || "");
+      form.setValue('shipping_neighborhood', selectedCliente.bairro || "");
+      form.setValue('shipping_city', selectedCliente.cidade || "");
+      form.setValue('shipping_state', selectedCliente.estado || "");
+      form.setValue('shipping_name', selectedCliente.nome || "");
+      form.setValue('shipping_cpf', selectedCliente.cpf || "");
+    }
+  }, [selectedCliente, isEditing, form]);
+
+  const watchedShippingCep = form.watch('shipping_cep');
+  const lastViaCEPLookup = useRef("");
+
+  useEffect(() => {
+    if (!watchedShippingCep) return;
+    const cleanCEP = watchedShippingCep.replace(/\D/g, '');
+    if (cleanCEP.length === 8 && lastViaCEPLookup.current !== cleanCEP) {
+      lastViaCEPLookup.current = cleanCEP;
+      fetch(`https://viacep.com.br/ws/${cleanCEP}/json/`)
+        .then(res => res.json())
+        .then(data => {
+          if (!data.erro) {
+            form.setValue('shipping_address', data.logradouro || "");
+            form.setValue('shipping_neighborhood', data.bairro || "");
+            form.setValue('shipping_city', data.localidade || "");
+            form.setValue('shipping_state', data.uf || "");
+            if (data.complemento) form.setValue('shipping_complement', data.complemento);
+          }
+        })
+        .catch(err => console.error("Erro ViaCEP:", err));
+    }
+  }, [watchedShippingCep, form]);
+
   // Efeito para filtrar clientes
   useEffect(() => {
     if (clienteSearch.trim() === '') {
@@ -300,6 +354,15 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
           tracking_code: initialData.tracking_code || "",
           desconto_valor: Number(initialData.desconto_valor) || 0,
           desconto_percentual: Number(initialData.desconto_percentual) || 0,
+          shipping_cep: initialData.shipping_cep || initialData.shipping_details?.cep || "",
+          shipping_address: initialData.shipping_details?.address || "",
+          shipping_number: initialData.shipping_details?.number || "",
+          shipping_complement: initialData.shipping_details?.complement || "",
+          shipping_neighborhood: initialData.shipping_details?.neighborhood || "",
+          shipping_city: initialData.shipping_details?.city || "",
+          shipping_state: initialData.shipping_details?.state || "",
+          shipping_name: initialData.shipping_details?.name || "",
+          shipping_cpf: initialData.shipping_details?.cpf || "",
           created_at: new Date(initialData.created_at),
           items: itemsData,
           servicos: servicosData,
@@ -376,6 +439,15 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
             tracking_code: "",
             desconto_valor: 0,
             desconto_percentual: 0,
+            shipping_cep: "",
+            shipping_address: "",
+            shipping_number: "",
+            shipping_complement: "",
+            shipping_neighborhood: "",
+            shipping_city: "",
+            shipping_state: "",
+            shipping_name: "",
+            shipping_cpf: "",
             created_at: new Date(),
             items: [],
             servicos: [],
@@ -466,8 +538,17 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
       valor_frete: data.tipo_entrega === 'frete' ? data.valor_frete : 0,
       transportadora: data.tipo_entrega === 'frete' ? data.transportadora : null,
       tracking_code: data.tipo_entrega === 'frete' ? data.tracking_code : null,
-      shipping_cep: data.shipping_cep || null,
-      shipping_details: data.shipping_details || null,
+      shipping_cep: data.tipo_entrega === 'frete' ? (data.shipping_cep || null) : null,
+      shipping_details: data.tipo_entrega === 'frete' ? {
+        address: data.shipping_address,
+        number: data.shipping_number,
+        complement: data.shipping_complement,
+        neighborhood: data.shipping_neighborhood,
+        city: data.shipping_city,
+        state: data.shipping_state,
+        name: data.shipping_name,
+        cpf: data.shipping_cpf
+      } : null,
       created_at: data.created_at.toISOString(),
       items: items.map((item, index) => {
         return {
@@ -2053,26 +2134,138 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                       />
                     </div>
 
-                    <FormField
-                      control={form.control}
-                      name="tracking_code"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-orange-700 dark:text-orange-400 font-semibold mb-1 flex items-center gap-2">
-                            Código de Rastreio
-                          </FormLabel>
-                          <FormControl>
-                            <Input
-                              {...field}
-                              value={field.value || ""}
-                              placeholder="Ex: BR123456789BR"
-                              className="h-9 border-orange-200 focus-visible:ring-orange-400 bg-background"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                    <div className="space-y-4 pt-4 border-t border-orange-200 dark:border-orange-800/50">
+                      <h4 className="text-sm font-bold text-orange-800 dark:text-orange-300">Dados de Envio (Para gerar etiqueta depois)</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <FormField
+                          control={form.control}
+                          name="shipping_cep"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-xs">CEP</FormLabel>
+                              <FormControl>
+                                <Input {...field} value={field.value || ""} placeholder="Ex: 00000-000" className="h-9 text-sm bg-background" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="shipping_cpf"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-xs">CPF / CNPJ</FormLabel>
+                              <FormControl>
+                                <Input {...field} value={field.value || ""} placeholder="Ex: 000.000.000-00" className="h-9 text-sm bg-background" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                      
+                      <FormField
+                        control={form.control}
+                        name="shipping_name"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs">Nome do Destinatário</FormLabel>
+                            <FormControl>
+                              <Input {...field} value={field.value || ""} placeholder="Ex: João da Silva" className="h-9 text-sm bg-background" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <FormField
+                          control={form.control}
+                          name="shipping_address"
+                          render={({ field }) => (
+                            <FormItem className="md:col-span-2">
+                              <FormLabel className="text-xs">Endereço</FormLabel>
+                              <FormControl>
+                                <Input {...field} value={field.value || ""} placeholder="Ex: Rua das Flores" className="h-9 text-sm bg-background" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="shipping_number"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-xs">Número</FormLabel>
+                              <FormControl>
+                                <Input {...field} value={field.value || ""} placeholder="Ex: 123" className="h-9 text-sm bg-background" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <FormField
+                          control={form.control}
+                          name="shipping_complement"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-xs">Complemento</FormLabel>
+                              <FormControl>
+                                <Input {...field} value={field.value || ""} placeholder="Ex: Apto 42" className="h-9 text-sm bg-background" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="shipping_neighborhood"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-xs">Bairro</FormLabel>
+                              <FormControl>
+                                <Input {...field} value={field.value || ""} placeholder="Ex: Centro" className="h-9 text-sm bg-background" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <FormField
+                          control={form.control}
+                          name="shipping_city"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-xs">Cidade</FormLabel>
+                              <FormControl>
+                                <Input {...field} value={field.value || ""} placeholder="Ex: São Paulo" className="h-9 text-sm bg-background" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="shipping_state"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-xs">Estado (UF)</FormLabel>
+                              <FormControl>
+                                <Input {...field} value={field.value || ""} placeholder="Ex: SP" maxLength={2} className="h-9 text-sm bg-background uppercase" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>

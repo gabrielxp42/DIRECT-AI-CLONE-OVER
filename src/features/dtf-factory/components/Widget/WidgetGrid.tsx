@@ -174,34 +174,6 @@ export default function WidgetGrid() {
                 </div>
             )}
 
-            {/* ═══ FLOATING ACTION BUTTON (FAB) ═══ */}
-            <AnimatePresence>
-                {widgets.length > 0 && !isSelectionMode && (
-                    <motion.button
-                        initial={{ scale: 0, opacity: 0, y: 20 }}
-                        animate={{ scale: 1, opacity: 1, y: 0 }}
-                        exit={{ scale: 0, opacity: 0, y: 20 }}
-                        whileHover={{ scale: 1.05, y: -5 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => setIsSelectionMode(true)}
-                        className="fixed bottom-10 right-10 z-[100] group"
-                    >
-                        <div className="relative h-20 w-20 flex items-center justify-center">
-                            {/* Glow Effect */}
-                            <div className="absolute inset-0 bg-orange-500/40 blur-2xl rounded-full animate-pulse group-hover:bg-orange-400/60" />
-                            
-                            {/* Liquid Glass Body */}
-                            <div className="absolute inset-0 bg-gradient-to-br from-orange-400 to-amber-600 rounded-[24px] border border-white/30 backdrop-blur-xl shadow-[0_20px_40px_rgba(245,158,11,0.4)] flex flex-col items-center justify-center overflow-hidden">
-                                {/* Shine */}
-                                <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/20 to-transparent pointer-events-none" />
-                                
-                                <LayoutGrid size={28} className="text-black mb-1 group-hover:rotate-12 transition-transform duration-300" />
-                                <span className="text-[10px] font-black text-black px-2 text-center leading-none uppercase">Montar</span>
-                            </div>
-                        </div>
-                    </motion.button>
-                )}
-            </AnimatePresence>
 
             {/* ═══ BULK ACTIONS BAR ═══ */}
             <AnimatePresence>

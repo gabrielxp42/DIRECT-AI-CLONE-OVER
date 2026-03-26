@@ -1751,27 +1751,7 @@ export default function Admin() {
                                                                 .or(`id.eq.${actualId}${actualUid ? `,uid.eq.${actualUid}` : ''}`);
 
                                                             if (v2Error || v2Count === 0) {
-                                                                console.warn("Falha ao atualizar profiles_v2, tentando profiles (legacy)...");
-                                                                
-                                                                // Fallback 2: Tabela profiles (Legacy) usando EMAIL se possível para evitar confusão de IDs
-                                                                const { data: profileLegacy } = await supabase
-                                                                    .from('profiles')
-                                                                    .select('id, ai_credits' as any)
-                                                                    .or(`id.eq.${actualUid}${targetEmail ? `,email.eq.${targetEmail}` : ''}`)
-                                                                    .maybeSingle();
-                                                                
-                                                                const legacyId = (profileLegacy as any)?.id || actualUid;
-                                                                const currentLegacyCredits = (profileLegacy as any)?.ai_credits || 0;
-
-                                                                const { error: legacyError } = await supabase
-                                                                    .from('profiles')
-                                                                    .update({
-                                                                        ai_credits: currentLegacyCredits + 150,
-                                                                        ...({ is_vetoriza_ai_gifted: true, is_vetoriza_ai_gifted_viewed: false } as any)
-                                                                    } as any)
-                                                                    .eq('id', legacyId);
-                                                                
-                                                                if (legacyError) throw new Error("Falha total na atualização em ambas tabelas: " + legacyError.message);
+                                                                throw new Error("Falha ao atualizar perfil: " + (v2Error?.message || "nenhum registro encontrado"));
                                                             }
                                                         } else {
                                                             // Se a RPC funcionou, apenas garantimos que os campos de visualização de presente estão certos

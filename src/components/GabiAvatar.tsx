@@ -12,7 +12,7 @@ interface GabiAvatarProps {
 
 // Color palette per mood
 const MOOD_COLORS: Record<GabiMood, { primary: string; glow: string }> = {
-  idle:      { primary: '#d946ef', glow: '#d946ef' },   // Fuchsia/Pink — matches reference
+  idle:      { primary: 'var(--primary-custom)', glow: 'var(--primary-custom)' },   // Dynamic theme color
   thinking:  { primary: '#06b6d4', glow: '#22d3ee' },   // Cyan
   happy:     { primary: '#22c55e', glow: '#4ade80' },   // Green
   error:     { primary: '#ef4444', glow: '#f87171' },   // Red
