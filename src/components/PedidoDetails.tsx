@@ -53,8 +53,10 @@ import {
   ScrollText,
   CheckCircle,
   Bike,
-  Truck
+  Truck,
+  Palette
 } from 'lucide-react';
+
 import { cn } from '@/lib/utils';
 import { useTiposProducao, deductInsumosFromPedido, restoreInsumosFromPedido, isInventoryConsumingStatus } from '@/hooks/useDataFetch';
 import { showError, showSuccess } from '@/utils/toast';
@@ -82,6 +84,8 @@ import { WhatsAppActionDialog } from './WhatsAppActionDialog';
 import { useIsPlusMode } from '@/hooks/useIsPlusMode';
 import { useBackgroundTasks } from '@/hooks/useBackgroundTasks';
 import { toast } from "sonner";
+import { OrderArtActionModal } from './OrderArtActionModal';
+
 
 interface PedidoDetailsProps {
   isOpen: boolean;
@@ -116,6 +120,10 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
   const { companyProfile } = useCompanyProfile();
   const plusModeInfo = useIsPlusMode();
   const { addTask, updateTask, updateStep } = useBackgroundTasks();
+  const [isOrderArtModalOpen, setIsOrderArtModalOpen] = useState(false);
+  const [selectedItemForArt, setSelectedItemForArt] = useState<string | undefined>(undefined);
+
+
 
   const [whatsAppDialog, setWhatsAppDialog] = useState<{
     open: boolean;
@@ -592,8 +600,17 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
                     <ScrollText className="h-4 w-4 mr-2" />
                     Imprimir Cupom (80mm)
                   </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    onClick={() => setIsOrderArtModalOpen(true)}
+                    className="text-primary font-bold bg-primary/5 hover:bg-primary/10"
+                  >
+                    <Palette className="h-4 w-4 mr-2" />
+                    Montar arte para imprimir
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+
               {statusHistory.length > 0 && (
                 <Button
                   variant="outline"
@@ -731,7 +748,26 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
                           <TableCell className="text-right">
                             {formatCurrency(item.quantidade * item.preco_unitario)}
                           </TableCell>
+                          <TableCell className="text-center overflow-visible">
+                            <motion.button
+                              whileHover={{ width: "auto", paddingRight: "12px" }}
+                              initial={{ width: 32 }}
+                              className="h-8 w-8 bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 rounded-lg flex items-center gap-2 overflow-hidden transition-colors group justify-center hover:justify-start px-2"
+                              title="Montar arte para este item"
+                              onClick={() => {
+                                setSelectedItemForArt(item.id);
+                                setIsOrderArtModalOpen(true);
+                              }}
+                            >
+                              <Palette className="h-4 w-4 shrink-0" />
+                              <span className="text-[10px] font-black uppercase tracking-tighter whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
+                                Montar arte / arquivo
+                              </span>
+                            </motion.button>
+                          </TableCell>
+
                         </TableRow>
+
                       ))}
                     </TableBody>
                   </Table>
@@ -1012,6 +1048,18 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
           errorMessage={whatsAppDialog.error}
         />
       )}
-    </Dialog >
+
+      {pedido && (
+        <OrderArtActionModal
+          isOpen={isOrderArtModalOpen}
+          initialItemId={selectedItemForArt}
+          onClose={() => {
+            setIsOrderArtModalOpen(false);
+            setSelectedItemForArt(undefined);
+          }}
+          pedido={pedido}
+        />
+      )}
+    </Dialog>
   );
-};
+};

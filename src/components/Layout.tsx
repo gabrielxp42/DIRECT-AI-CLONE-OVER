@@ -599,7 +599,7 @@ const Layout = () => {
         <ProfileSelector />
       )}
 
-      {!isOpen && !isMobile && (
+      {!isOpen && !isMobile && !isFullScreenApp && (
         <button
           className="fixed bottom-4 right-4 h-16 w-16 rounded-full shadow-[0_0_30px_rgba(255,165,0,0.4)] z-50 transition-all duration-300 hover:scale-110 active:scale-95 flex items-center justify-center overflow-hidden group"
           onClick={openAIAssistant}

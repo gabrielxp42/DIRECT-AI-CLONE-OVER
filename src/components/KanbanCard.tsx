@@ -19,7 +19,9 @@ interface KanbanCardProps {
     onPrintThermal: () => void;
     onWhatsApp: () => void;
     onChat?: () => void;
+    onOrderArt?: () => void;
     unreadCount?: number;
+
 }
 
 const InnerCardContent = memo(function InnerCardContent({ pedido, isDragging, timeAgo, unreadCount, onChat }: { pedido: Pedido, isDragging: boolean, timeAgo: string, unreadCount?: number, onChat?: () => void }) {
@@ -130,8 +132,10 @@ export const KanbanCard = memo(function KanbanCard({
     onPrintThermal,
     onWhatsApp,
     onChat,
+    onOrderArt,
     unreadCount
 }: KanbanCardProps) {
+
     const timeAgo = useMemo(() => {
         try {
             return formatDistanceToNow(new Date(pedido.created_at), { addSuffix: true, locale: ptBR });
@@ -166,7 +170,9 @@ export const KanbanCard = memo(function KanbanCard({
                         onPrintThermal={onPrintThermal}
                         onWhatsApp={onWhatsApp}
                         onChat={onChat}
+                        onOrderArt={onOrderArt || (() => {})}
                     >
+
                         {/* Wrapper to ensure right-click event is captured and doesn't bubble to the anti-scraper block */}
                         <div 
                             onContextMenu={(e) => e.stopPropagation()} 

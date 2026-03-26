@@ -1,14 +1,50 @@
 'use client';
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
+
 import Sidebar from './sidebar/Sidebar';
 import CanvasPreview from './CanvasPreview';
 import { LineConfig } from '@/features/montador/lib/types';
 import { getImageDimensions } from '@/features/montador/lib/packingEngine';
 import { motion, AnimatePresence } from 'framer-motion';
+import { supabase } from '@/integrations/supabase/client';
+import { Package } from 'lucide-react';
+
 
 export default function MontadorInterface() {
+    const location = useLocation();
+    const queryParams = new URLSearchParams(location.search);
+    const orderNumber = queryParams.get('orderNumber');
+    const itemId = queryParams.get('itemId');
+
+    const [itemName, setItemName] = useState<string | null>(null);
+
+    // Buscar nome do item se houver itemId
+    useEffect(() => {
+        if (itemId) {
+            const fetchItemName = async () => {
+                try {
+                    const { data, error } = await supabase
+                        .from('pedido_items')
+                        .select('produto_nome')
+                        .eq('id', itemId)
+                        .single();
+                    
+                    if (data && !error) {
+                        setItemName(data.produto_nome);
+                    }
+                } catch (err) {
+                    console.error('Erro ao buscar nome do item:', err);
+                }
+            };
+            fetchItemName();
+        }
+    }, [itemId]);
+
+
     // --- State ---
+
     const [lines, setLines] = useState<LineConfig[]>([]);
     const [canvasWidthCm, setCanvasWidthCm] = useState(57); // Default width
     const [spacingPx, setSpacingPx] = useState(10); // Global horizontal spacing
@@ -259,13 +295,20 @@ export default function MontadorInterface() {
                     if (processedLines.length > 0) {
                         setLines(prev => [...prev, ...processedLines]);
                     }
+
+                    // --- Signal completion to the bridge loading overlay ---
+                    window.dispatchEvent(new CustomEvent('OVERPIXEL_MONTADOR_READY'));
+                } else {
+                    // Always signal ready even if not our type, to prevent hanging overlays
+                    window.dispatchEvent(new CustomEvent('OVERPIXEL_MONTADOR_READY'));
                 }
             } catch (err) {
                 console.error('[Montador] Bridge error:', err);
+                window.dispatchEvent(new CustomEvent('OVERPIXEL_MONTADOR_READY'));
             }
         };
 
-        const timer = setTimeout(checkBridge, 1000);
+        const timer = setTimeout(checkBridge, 200);
         return () => clearTimeout(timer);
     }, []);
 
@@ -345,7 +388,11 @@ export default function MontadorInterface() {
                                 isFreeMode={isFreeMode}
                                 setIsFreeMode={setIsFreeMode}
                                 onUpdateLineQuantity={handleUpdateLineQuantity}
+                                orderNumber={orderNumber}
+                                itemName={itemName}
                             />
+
+
                         </div>
                     </div>
                 </div>
@@ -380,7 +427,11 @@ export default function MontadorInterface() {
                     isFreeMode={isFreeMode}
                     setIsFreeMode={setIsFreeMode}
                     onUpdateLineQuantity={handleUpdateLineQuantity}
+                    orderNumber={orderNumber}
+                    itemName={itemName}
                 />
+
+
             </div>
 
             {/* Main Content Area */}

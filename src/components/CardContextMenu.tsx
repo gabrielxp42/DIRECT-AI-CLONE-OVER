@@ -23,8 +23,10 @@ import {
   User,
   Package,
   ScrollText,
-  Send
+  Send,
+  Palette
 } from "lucide-react";
+
 import { ProductionStatus } from "@/types/pedido";
 
 import { cn } from "@/lib/utils";
@@ -38,8 +40,10 @@ interface CardContextMenuProps {
   onWhatsApp: () => void;
   onChat?: () => void;
   onArchive: () => void;
+  onOrderArt: () => void;
   currentStatus: ProductionStatus;
 }
+
 
 const COLUMNS: { id: ProductionStatus; title: string; icon: any }[] = [
   { id: 'design', title: 'Design', icon: Eye },
@@ -58,8 +62,12 @@ export const CardContextMenu: React.FC<CardContextMenuProps> = ({
   onWhatsApp,
   onChat,
   onArchive,
+  onOrderArt,
   currentStatus
 }) => {
+
+
+
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
@@ -75,6 +83,13 @@ export const CardContextMenu: React.FC<CardContextMenuProps> = ({
           <span>Ver Detalhes</span>
           <ContextMenuShortcut>⌘V</ContextMenuShortcut>
         </ContextMenuItem>
+        
+        <ContextMenuItem onClick={onOrderArt} className="gap-2 text-primary focus:text-primary focus:bg-primary/10 transition-colors">
+          <Palette className="h-4 w-4" />
+          <span>Montar Arte para Imprimir</span>
+          <ContextMenuShortcut>⌘A</ContextMenuShortcut>
+        </ContextMenuItem>
+
 
         <ContextMenuSeparator className="bg-white/10" />
 

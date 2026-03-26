@@ -39,28 +39,8 @@ export default function WidgetGrid() {
             return;
         }
 
-        const verifiedPaths: string[] = [];
-        
-        for (const path of pathsToSend) {
-            if (path.startsWith('blob:')) {
-                try {
-                    const res = await fetch(path);
-                    if (!res.ok) throw new Error();
-                    verifiedPaths.push(path);
-                } catch(err) {
-                    console.warn("Expired blob URL ignored in WidgetGrid:", path);
-                }
-            } else {
-                verifiedPaths.push(path);
-            }
-        }
-
-        if (verifiedPaths.length > 0) {
-            electronBridge.launchMontador(verifiedPaths);
-        } else {
-            console.error("Todas as imagens selecionadas expiraram. Gere-as novamente.");
-            // Optional: alert user here
-        }
+        // Bridge now handles verification, parallel processing and loading UI
+        electronBridge.launchMontador(pathsToSend);
         
         clearSelection();
         setIsSelectionMode(false);

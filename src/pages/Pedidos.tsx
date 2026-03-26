@@ -69,6 +69,10 @@ import { WhatsAppActionDialog } from '@/components/WhatsAppActionDialog';
 import { ShippingModal } from '@/components/ShippingModal';
 import { toast } from "sonner";
 import { useBackgroundTasks } from '@/hooks/useBackgroundTasks';
+import { OrderArtActionModal } from '@/components/OrderArtActionModal';
+import { CardContextMenu } from '@/components/CardContextMenu';
+
+
 
 const ITEMS_PER_PAGE_OPTIONS = [10, 20, 50, 100];
 
@@ -98,6 +102,11 @@ const PedidosPage: React.FC = () => {
   const { canWriteData } = useSubscription();
   const { canSendDirectly: isPlusMode } = useIsPlusMode();
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [orderArtModal, setOrderArtModal] = useState<{ open: boolean; pedido: Pedido | null }>({
+    open: false,
+    pedido: null
+  });
+
   const [loading, setLoading] = useState(false);
 
   const copyToClipboard = (text: string) => {
@@ -1427,12 +1436,24 @@ const PedidosPage: React.FC = () => {
               </Card>
             )}
             {filteredPedidos.map((pedido, index) => (
-              <Card
+              <CardContextMenu
                 key={pedido.id}
-                id={`order-card-${pedido.id}`}
-                className="touch-manipulation cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-[1.02] hover:border-primary/50 group"
-                onClick={() => handleViewPedido(pedido.id)}
+                currentStatus={pedido.production_status || 'design'}
+                onViewDetails={() => handleViewPedido(pedido.id)}
+                onMoveTo={(status) => updateStatusMutation.mutate({ id: pedido.id, newStatus: status, statusAnterior: pedido.status })}
+                onPrintA4={() => handlePrintPDF(pedido)}
+                onPrintThermal={() => printThermalReceipt(pedido)}
+                onWhatsApp={() => handleShareWhatsApp(pedido)}
+                onOrderArt={() => setOrderArtModal({ open: true, pedido })}
+                onArchive={() => {/* implement archive if needed */}}
               >
+                <Card
+                  id={`order-card-${pedido.id}`}
+                  className="touch-manipulation cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-[1.02] hover:border-primary/50 group"
+                  onClick={() => handleViewPedido(pedido.id)}
+                  onContextMenu={(e) => e.stopPropagation()}
+                >
+
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between w-full gap-2">
                     <div className="flex-1 min-w-0">
@@ -1667,6 +1688,8 @@ const PedidosPage: React.FC = () => {
                       )
                     )}
 
+
+
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button
@@ -1683,6 +1706,8 @@ const PedidosPage: React.FC = () => {
                       </TooltipTrigger>
                       <TooltipContent>Baixar PDF</TooltipContent>
                     </Tooltip>
+
+
 
                     <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>
@@ -1789,10 +1814,15 @@ const PedidosPage: React.FC = () => {
                           <DropdownMenuLabel className="text-xs uppercase font-bold text-muted-foreground tracking-wider mb-1">
                             Ações
                           </DropdownMenuLabel>
-                          <DropdownMenuItem onClick={() => handleViewPedido(pedido.id)} className="cursor-pointer gap-2">
+                           <DropdownMenuItem onClick={() => handleViewPedido(pedido.id)} className="cursor-pointer gap-2">
                             <Eye className="h-4 w-4 text-blue-500" />
                             <span>Ver Detalhes</span>
                           </DropdownMenuItem>
+                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setOrderArtModal({ open: true, pedido }); }} className="cursor-pointer gap-2">
+                            <Palette className="h-4 w-4 text-primary" />
+                            <span>Montar Arte para Imprimir</span>
+                          </DropdownMenuItem>
+
                           <DropdownMenuItem onClick={() => setShippingModal({ open: true, pedido })} className="cursor-pointer gap-2">
                             <Truck className="h-4 w-4 text-primary" />
                             <span>Cotar Frete (Logística)</span>
@@ -1836,6 +1866,8 @@ const PedidosPage: React.FC = () => {
                   </div>
                 </CardContent>
                 </Card>
+              </CardContextMenu>
+
               ))}
           </div>
 
@@ -1990,8 +2022,15 @@ const PedidosPage: React.FC = () => {
           shipping_cep={shippingModal.pedido.shipping_cep}
         />
       )}
+      {orderArtModal.pedido && (
+        <OrderArtActionModal
+          isOpen={orderArtModal.open}
+          onClose={() => setOrderArtModal({ open: false, pedido: null })}
+          pedido={orderArtModal.pedido}
+        />
+      )}
     </div>
   );
 };
 
-export default PedidosPage;
+export default PedidosPage;

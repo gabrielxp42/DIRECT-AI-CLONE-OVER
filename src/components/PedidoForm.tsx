@@ -4,7 +4,11 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useFieldArray } from "react-hook-form";
 import { Button } from "@/components/ui/button";
+import { motion } from "framer-motion";
+import { OrderArtActionModal } from "./OrderArtActionModal";
+
 import {
+
   Dialog,
   DialogContent,
   DialogHeader,
@@ -165,6 +169,9 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
   const [transportadoraOpen, setTransportadoraOpen] = useState(false);
   const [transportadoraSearch, setTransportadoraSearch] = useState('');
   const [isFreightModalOpen, setIsFreightModalOpen] = useState(false);
+  const [isOrderArtModalOpen, setIsOrderArtModalOpen] = useState(false);
+  const [selectedItemForArt, setSelectedItemForArt] = useState<string | undefined>(undefined);
+
 
   const form = useForm<PedidoFormValues>({
     resolver: zodResolver(formSchema),
@@ -1264,6 +1271,29 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                         </div>
 
                                         <div className="flex items-center gap-1">
+                                          <motion.button
+                                            whileHover={{ width: "auto", paddingRight: "10px" }}
+                                            initial={{ width: 32 }}
+                                            className="h-8 w-8 bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 rounded-lg flex items-center gap-2 overflow-hidden transition-colors group justify-center hover:justify-start px-2"
+                                            title="Montar arte para este item"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              hapticTap();
+                                              const realItemId = initialData?.pedido_items?.[index]?.id;
+                                              if (realItemId) {
+                                                setSelectedItemForArt(realItemId);
+                                                setIsOrderArtModalOpen(true);
+                                              } else {
+                                                toast.info("Salve o pedido primeiro para habilitar a criação de arte para este item.");
+                                              }
+                                            }}
+                                          >
+                                            <Palette className="h-4 w-4 shrink-0" />
+                                            <span className="text-[10px] font-black uppercase tracking-tighter whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
+                                              Montar arte / arquivo
+                                            </span>
+                                          </motion.button>
+
                                           {/* Botão Duplicar */}
                                           <Button
                                             type="button"
@@ -1278,7 +1308,6 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                           >
                                             <Copy className="h-4 w-4" />
                                           </Button>
-                                          {/* Botão Remover */}
 
                                           {/* Botão Remover */}
                                           <Button

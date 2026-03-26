@@ -89,4 +89,7 @@ export interface SidebarProps {
     isFreeMode: boolean;
     setIsFreeMode: (val: boolean) => void;
     onUpdateLineQuantity: (id: string, quantity: number) => void;
+    orderNumber?: string | null;
+    itemName?: string | null;
 }
+

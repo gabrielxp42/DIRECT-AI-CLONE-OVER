@@ -1,11 +1,16 @@
 
 
 import React, { useState, useRef, useCallback, useEffect, Suspense } from 'react';
+import { useLocation } from 'react-router-dom';
+
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, X, ArrowLeft, Check, Loader2, Settings2, Sparkles, ImageIcon, Bug, Lock, Minus, Coins, RefreshCw, Image as GalleryIcon, Crown, MessageSquare } from 'lucide-react';
+import { Send, X, ArrowLeft, Check, Loader2, Settings2, Sparkles, ImageIcon, Bug, Lock, Minus, Coins, RefreshCw, Image as GalleryIcon, Crown, MessageSquare, Package } from 'lucide-react';
+
 
 import { useDtfPipeline, PipelineStep } from '@dtf/hooks/useDtfPipeline';
 import { electronBridge } from '@dtf/lib/electronBridge';
+import { supabase } from '@dtf/lib/supabase';
+
 import SettingsPanel, { usePromptStyles } from '@dtf/components/SettingsPanel';
 import ProcessingAnimation from '@dtf/components/ProcessingAnimation';
 import ResultDisplay from '@dtf/components/ResultDisplay';
@@ -59,7 +64,39 @@ const DPI = 300;
 const CM_TO_PX = DPI / 2.54;
 
 export default function HomePage() {
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const orderId = queryParams.get('orderId');
+  const orderNumber = queryParams.get('orderNumber');
+  const itemId = queryParams.get('itemId');
+
+  const [itemName, setItemName] = useState<string | null>(null);
+
+  // Buscar nome do item se houver itemId
+  useEffect(() => {
+    if (itemId) {
+      const fetchItemName = async () => {
+        try {
+          const { data, error } = await supabase
+            .from('pedido_items')
+            .select('produto_nome')
+            .eq('id', itemId)
+            .single();
+          
+          if (data && !error) {
+            setItemName(data.produto_nome);
+          }
+        } catch (err) {
+          console.error('Erro ao buscar nome do item:', err);
+        }
+      };
+      fetchItemName();
+    }
+  }, [itemId]);
+
+
   // Estado do widget
+
   const [widgetStep, setWidgetStep] = useState<WidgetStep>('input');
   const [showGallery, setShowGallery] = useState(false);
   const [halftoneEditorState, setHalftoneEditorState] = useState<{ isOpen: boolean; imageUrl: string; garmentMode: 'black' | 'white' | 'color'; item?: GalleryItem | null }>({ isOpen: false, imageUrl: '', garmentMode: 'black', item: null });
@@ -1030,8 +1067,18 @@ export default function HomePage() {
       {isProMode ? (
         /* ══════════ MODO PRO: Multi-Widget Grid ══════════ */
         <main className="flex-1 flex flex-col h-screen pt-[112px] overflow-hidden md:pb-0 pb-20">
+          {orderNumber && (
+            <div className="fixed top-[64px] left-1/2 -translate-x-1/2 z-[60] flex items-center gap-3 px-4 py-2 rounded-xl border border-primary/20 bg-zinc-900/90 backdrop-blur-xl shadow-2xl">
+               <Package className="h-4 w-4 text-primary" />
+               <span className="text-[10px] font-black text-white uppercase italic tracking-tighter">
+                 {itemName ? `${itemName} (Pedido #${orderNumber})` : `Arquivos vinculados ao Pedido #${orderNumber}`}
+               </span>
+            </div>
+          )}
+
           <WidgetGrid />
         </main>
+
       ) : (
         /* ══════════ MODO FREE: Single Widget ══════════ */
         <main className="flex-1 flex flex-col items-center justify-center p-0">
@@ -1067,8 +1114,17 @@ export default function HomePage() {
             >
               <div className="flex items-center gap-2">
                 <img src="/dtf-fabric-logo.png" alt="DTF Factory" className="w-6 h-6 rounded-lg object-contain" />
-                <span className="text-sm font-bold text-white/80">Gerador DTF</span>
+                <div className="flex flex-col">
+                  <span className="text-sm font-bold text-white/80">Gerador DTF</span>
+                  {orderNumber && (
+                    <span className="text-[10px] font-black text-primary animate-pulse uppercase tracking-tighter">
+                      {itemName ? `${itemName} (#${orderNumber})` : `Pedido #${orderNumber}`}
+                    </span>
+                  )}
+
+                </div>
               </div>
+
               <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as any}>
 
                 {/* Token Display + Badge PRO inline */}

@@ -672,9 +672,13 @@ export default function Sidebar({
     totalHeightCm,
     isFreeMode,
     setIsFreeMode,
-    onUpdateLineQuantity
+    onUpdateLineQuantity,
+    orderNumber,
+    itemName
 }: SidebarProps) {
+
     const [showSettings, setShowSettings] = useState(false);
+
 
     return (
         <aside className="mr-sidebar" style={{ border: `2px solid ${themeColor}`, boxShadow: `0 0 30px ${themeColor}40`, borderRadius: '20px' }}>
@@ -695,9 +699,21 @@ export default function Sidebar({
                         <div className="mr-logo-container cursor-pointer hover:opacity-80 transition-opacity" onClick={() => window.dispatchEvent(new CustomEvent('toggle-launcher'))}>
                             <div className="mr-logo-row">
                                 <img src="/montador/logo-montador-fast.png" alt="Logo" className="mr-logo-icon" style={{ width: '42px', height: '42px', marginRight: '10px' }} />
-                                <h1 className="mr-logo-text">MONTADOR RÁPIDO</h1>
+                                <div className="flex flex-col">
+                                    <h1 className="mr-logo-text">MONTADOR RÁPIDO</h1>
+                                    {orderNumber && (
+                                        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-500 animate-pulse w-fit">
+                                            <div className="w-1 h-1 rounded-full bg-orange-500" />
+                                            <span className="text-[9px] font-black uppercase tracking-tighter">
+                                                {itemName ? `${itemName} (#${orderNumber})` : `Pedido #${orderNumber}`}
+                                            </span>
+                                        </div>
+                                    )}
+
+                                </div>
                             </div>
                             <span className="mr-subtitle">DTF Factory • Pro Edition</span>
+
                         </div>
 
                         <div className="flex items-center gap-3">
