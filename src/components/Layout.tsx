@@ -198,11 +198,11 @@ const Layout = () => {
 
   // Close launcher on REAL navigation (if path actually changed since opened)
   React.useEffect(() => {
-    if (showLauncher && !isMobile && location.pathname !== lastPathOpenedRef.current) {
+    if (showLauncher && location.pathname !== lastPathOpenedRef.current) {
       console.log(`[Layout] Auto-closing launcher due to navigation -> From: ${lastPathOpenedRef.current} To: ${location.pathname}`);
       closeLauncher();
     }
-  }, [isMobile, location.pathname, closeLauncher, showLauncher]);
+  }, [location.pathname, closeLauncher, showLauncher]);
 
   // Listen for toggle-launcher event from integrated apps (Montador/DTF)
   React.useEffect(() => {
@@ -828,6 +828,7 @@ const Layout = () => {
                       const nextApp = mobileLauncherApps[mod(nextIndex, mobileLauncherApps.length)];
                       if (nextApp.route) {
                         navigate(nextApp.route);
+                        closeLauncher();
                       } else {
                         toast({
                           title: "Em breve",

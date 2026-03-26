@@ -218,8 +218,8 @@ const Vetorizador: React.FC = () => {
     return (
         <div className="dashboard-mobile-vec">
             <div className="dashboard-content-vec">
-                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileInput} style={{ display: 'none' }} />
-                <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleFileInput} style={{ display: 'none' }} />
+                <input id="vetoriza-file-input" ref={fileInputRef} type="file" accept="image/*" onChange={handleFileInput} style={{ position: 'absolute', width: 0, height: 0, opacity: 0, overflow: 'hidden', pointerEvents: 'none' }} />
+                <input id="vetoriza-camera-input" ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleFileInput} style={{ position: 'absolute', width: 0, height: 0, opacity: 0, overflow: 'hidden', pointerEvents: 'none' }} />
 
                 <div className="header-vec">
                     <div className="logo-container-vec">
@@ -233,24 +233,24 @@ const Vetorizador: React.FC = () => {
 
                 <div className="main-grid-vec">
                     {status === 'idle' && !originalImage ? (
-                        <div className={`upload-zone-vec ${dragActive ? 'active' : ''}`} onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop} onClick={() => fileInputRef.current?.click()}>
+                        <label htmlFor="vetoriza-file-input" className={`upload-zone-vec ${dragActive ? 'active' : ''}`} onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop}>
                             <div className="upload-content-vec">
                                 <div className="upload-icon-wrapper-vec"><ImagePlus size={32} /></div>
                                 <h2 className="upload-title-vec">Transforme sua Imagem Agora</h2>
                                 <p className="upload-subtitle-vec">Arraste seu arquivo ou escolha uma opção abaixo:</p>
                                 <div className="upload-options-vec">
-                                    <button className="action-btn-vec ghost flex-1 min-w-[120px]" onClick={(e) => { e.stopPropagation(); cameraInputRef.current?.click(); }}>
+                                    <label htmlFor="vetoriza-camera-input" className="action-btn-vec ghost flex-1 min-w-[120px]" onClick={(e) => e.stopPropagation()}>
                                         <Camera size={20} className="text-primary" />
                                         <span>Tirar Foto</span>
-                                    </button>
-                                    <button className="action-btn-vec ghost flex-1 min-w-[120px]" onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}>
+                                    </label>
+                                    <label htmlFor="vetoriza-file-input" className="action-btn-vec ghost flex-1 min-w-[120px]" onClick={(e) => e.stopPropagation()}>
                                         <ImageIcon size={20} className="text-primary" />
                                         <span>Galeria</span>
-                                    </button>
+                                    </label>
                                 </div>
                                 <p className="mt-4 text-[10px] uppercase tracking-widest text-white/20 font-bold">JPG, PNG ou WEBP • Máx 10MB</p>
                             </div>
-                        </div>
+                        </label>
                     ) : (
                         <div className="preview-container-vec">
                             <div className="preview-split-left">
