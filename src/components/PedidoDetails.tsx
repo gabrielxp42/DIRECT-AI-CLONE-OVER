@@ -53,7 +53,9 @@ import {
   ScrollText,
   CheckCircle,
   Bike,
-  Truck
+  Truck,
+  Download,
+  DownloadCloud
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTiposProducao, deductInsumosFromPedido, restoreInsumosFromPedido, isInventoryConsumingStatus } from '@/hooks/useDataFetch';
@@ -564,6 +566,30 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
+              {/* Botão de Baixar Todos os Arquivos */}
+              {pedido?.pedido_items?.some(item => (item as any).wasabi_url) && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200 font-semibold"
+                  onClick={() => {
+                    const itemsWithUrl = pedido.pedido_items?.filter(item => (item as any).wasabi_url) || [];
+                    if (itemsWithUrl.length === 1) {
+                      window.open((itemsWithUrl[0] as any).wasabi_url, '_blank');
+                    } else if (itemsWithUrl.length > 1) {
+                      // Se houver múltiplos, abre cada um em uma aba (o ideal seria um zip no backend, mas isso resolve por hora)
+                      itemsWithUrl.forEach(item => {
+                        window.open((item as any).wasabi_url, '_blank');
+                      });
+                      showSuccess(`${itemsWithUrl.length} arquivos abertos para download!`);
+                    }
+                  }}
+                >
+                  <DownloadCloud className="h-4 w-4 mr-2" />
+                  Baixar Arquivos
+                </Button>
+              )}
+
               <Button variant="outline" size="sm" onClick={handleDownloadPDF}>
                 <FileText className="h-4 w-4 mr-2" />
                 Baixar PDF
@@ -707,7 +733,40 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
                           </TableCell>
                           <TableCell>
                             <div>
-                              <div className="font-medium">{item.produto_nome || getProdutoNome(item.produto_id)}</div>
+                              <div className="font-medium flex items-center gap-2">
+                                {item.produto_nome || getProdutoNome(item.produto_id)}
+                                {/* Se for um arquivo de impressão upado (tem originalName no JSON do produto_nome ou identificador), poderia ter botão de download, 
+                                    mas por segurança verificamos se o produto_nome contem extensões típicas ou se tem campo wasabi_path */}
+                                {((item as any).wasabi_url || 
+                                  item.produto_nome?.toLowerCase().endsWith('.tif') || 
+                                  item.produto_nome?.toLowerCase().endsWith('.tiff') || 
+                                  item.produto_nome?.toLowerCase().endsWith('.pdf') || 
+                                  item.produto_nome?.toLowerCase().endsWith('.png') || 
+                                  item.produto_nome?.toLowerCase().endsWith('.jpg')) && (
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    className={cn("h-6 w-6 rounded-full transition-colors", 
+                                      (item as any).wasabi_url 
+                                        ? "bg-primary/10 hover:bg-primary/20 text-primary" 
+                                        : "bg-zinc-800/50 hover:bg-zinc-800 text-muted-foreground"
+                                    )}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      // Se tivermos a URL salva diretamente (novo formato)
+                                      if ((item as any).wasabi_url) {
+                                        window.open((item as any).wasabi_url, '_blank');
+                                      } else {
+                                        // Fallback se não tiver URL salva (tentar alertar o usuário)
+                                        showError("URL de download não encontrada para este arquivo. Isso ocorre porque o arquivo foi upado antes da integração com o Wasabi.");
+                                      }
+                                    }}
+                                    title={(item as any).wasabi_url ? "Baixar Arquivo (Wasabi)" : "Arquivo Antigo (Sem Download)"}
+                                  >
+                                    <Download className="h-3 w-3" />
+                                  </Button>
+                                )}
+                              </div>
                               {item.observacao && (
                                 <div className="text-sm text-muted-foreground italic">
                                   Obs: {item.observacao}

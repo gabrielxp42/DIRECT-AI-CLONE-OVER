@@ -831,7 +831,7 @@ const Layout = () => {
             </button>
           </div>
         )}
-        {!hideShell && location.pathname !== '/settings' && !(isMobile && location.pathname === '/montador') && (
+        {!hideShell && !(isMobile && location.pathname === '/montador') && (
           <MobileBottomNav
             onOpenCalculator={() => setIsCalculatorOpen(true)}
             onOpenVetorizador={() => setIsVetorizadorOpen(true)}

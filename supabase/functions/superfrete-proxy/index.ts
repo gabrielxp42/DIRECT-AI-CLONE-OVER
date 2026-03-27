@@ -5,6 +5,7 @@ const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
     'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PUT, DELETE',
+    'Access-Control-Max-Age': '86400',
 };
 
 const BASE_URL_PROD = "https://api.superfrete.com";
@@ -56,9 +57,9 @@ Deno.serve(async (req: Request) => {
 
         // 2. Get User Token and Wallet from Profile
         const { data: profile, error: profileError } = await supabase
-            .from('profiles')
-            .select('superfrete_token, superfrete_sandbox_token, email, wallet_balance')
-            .eq('id', user.id)
+            .from('profiles_v2')
+            .select('superfrete_token, email, wallet_balance')
+            .eq('uid', user.id)
             .single();
 
         if (profileError || !profile) {
@@ -66,7 +67,7 @@ Deno.serve(async (req: Request) => {
             throw new Error("User profile not found");
         }
 
-        let token = isSandbox ? profile.superfrete_sandbox_token : profile.superfrete_token;
+        let token = profile.superfrete_token;
         let isMasterAccount = false;
 
         if (!token) {
@@ -75,11 +76,11 @@ Deno.serve(async (req: Request) => {
 
             if (!token) {
                 console.warn("[SuperFrete Proxy] No token provided by user and no MASTER_TOKEN found in env.");
-                return new Response(JSON.stringify({
+                return respond({
                     error: true,
                     message: "Logística indisponível. Token não configurado no servidor.",
                     needs_config: true
-                }), { status: 200, headers: corsHeaders });
+                });
             }
         }
 

@@ -5,6 +5,7 @@ const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
     'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PUT, DELETE',
+    'Access-Control-Max-Age': '86400',
 };
 
 const BASE_URL = "https://api.frenet.com.br";
@@ -48,10 +49,11 @@ Deno.serve(async (req: Request) => {
         }
 
         // 2. Get User Token and Profile Details
+        // We use profiles_v2 view to ensure we get all the fields correctly
         const { data: profile, error: profileError } = await supabase
-            .from('profiles')
-            .select('frenet_token, frenet_partner_token, email, wallet_balance, frenet_balance')
-            .eq('id', user.id)
+            .from('profiles_v2')
+            .select('frenet_token, email, wallet_balance, frenet_balance')
+            .eq('uid', user.id)
             .single();
 
         if (profileError || !profile) {
@@ -81,10 +83,6 @@ Deno.serve(async (req: Request) => {
             'Accept': 'application/json',
             'User-Agent': userAgent
         };
-
-        if (profile.frenet_partner_token) {
-            commonHeaders['x-partner-token'] = profile.frenet_partner_token;
-        }
 
         switch (action) {
             case 'calculate': {

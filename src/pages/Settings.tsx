@@ -397,7 +397,7 @@ export default function Settings() {
 
     return (
         <div className="min-h-screen bg-background pb-24 md:pb-8 overflow-x-hidden">
-            <div className="container max-w-4xl py-6 md:py-8 px-4 md:px-6 space-y-6 md:space-y-8">
+            <div className="container max-w-4xl py-6 md:py-8 px-4 md:px-6 space-y-6 md:space-y-8 pb-32">
                 {/* Header */}
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="flex items-center gap-4">
@@ -1086,7 +1086,7 @@ export default function Settings() {
                 />
 
                 {/* Premium Sticky Bottom Bar (Mobile) */}
-                <div className="md:hidden fixed bottom-0 left-0 right-0 p-4 bg-background/80 backdrop-blur-xl border-t border-border/50 z-50">
+                <div className="md:hidden fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] left-0 right-0 p-4 bg-background/80 backdrop-blur-xl border-t border-border/50 z-30">
                     <Button
                         onClick={handleSave}
                         disabled={!hasChanges || isUpdating}
