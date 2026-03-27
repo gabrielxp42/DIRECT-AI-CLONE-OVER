@@ -32,7 +32,7 @@ export function AdminGeminiConfig() {
             const { data, error } = await supabase
                 .from('profiles_v2')
                 .select('gemini_api_key, gemini_training_model, gemini_response_model, ai_auto_reply_enabled, kieai_api_key')
-                .eq('uid', user.id)
+                .eq('id', user.id)
                 .single();
 
             if (error) throw error;
@@ -63,7 +63,7 @@ export function AdminGeminiConfig() {
             const { error } = await supabase
                 .from('profiles_v2')
                 .update(config)
-                .eq('uid', user.id);
+                .eq('id', user.id);
 
             if (error) throw error;
 
