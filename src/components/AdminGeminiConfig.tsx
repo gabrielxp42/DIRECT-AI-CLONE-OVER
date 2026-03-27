@@ -61,9 +61,9 @@ export function AdminGeminiConfig() {
             if (!user) return;
 
             const { error } = await supabase
-                .from('profiles_v2')
+                .from('users')
                 .update(config)
-                .eq('id', user.id);
+                .eq('uid', user.id);
 
             if (error) throw error;
 

@@ -491,9 +491,9 @@ export default function Admin() {
             }
 
             const { error } = await supabase
-                .from('profiles_v2')
+                .from('users')
                 .update(finalForm)
-                .eq('id', selectedUser.id);
+                .eq('uid', selectedUser.id);
 
             if (error) throw error;
             toast.success('Usuário atualizado!');
