@@ -84,6 +84,8 @@ import { WhatsAppActionDialog } from './WhatsAppActionDialog';
 import { useIsPlusMode } from '@/hooks/useIsPlusMode';
 import { useBackgroundTasks } from '@/hooks/useBackgroundTasks';
 import { toast } from "sonner";
+import { getPresignedUrl } from '@/integrations/wasabi/upload';
+import { WASABI_BUCKET_NAME } from '@/integrations/wasabi/client';
 
 interface PedidoDetailsProps {
   isOpen: boolean;
@@ -567,22 +569,31 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
             </div>
             <div className="flex flex-wrap gap-2">
               {/* Botão de Baixar Todos os Arquivos */}
-              {pedido?.pedido_items?.some(item => (item as any).wasabi_url) && (
+              {pedido?.pedido_items?.some(item => (item as any).wasabi_url || (item as any).observacao?.includes('URL:')) && (
                 <Button 
                   variant="outline" 
                   size="sm" 
                   className="bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200 font-semibold"
-                  onClick={() => {
-                    const itemsWithUrl = pedido.pedido_items?.filter(item => (item as any).wasabi_url) || [];
-                    if (itemsWithUrl.length === 1) {
-                      window.open((itemsWithUrl[0] as any).wasabi_url, '_blank');
-                    } else if (itemsWithUrl.length > 1) {
-                      // Se houver múltiplos, abre cada um em uma aba (o ideal seria um zip no backend, mas isso resolve por hora)
-                      itemsWithUrl.forEach(item => {
-                        window.open((item as any).wasabi_url, '_blank');
-                      });
-                      showSuccess(`${itemsWithUrl.length} arquivos abertos para download!`);
+                  onClick={async () => {
+                    const itemsWithLink = (pedido.pedido_items || []).filter((item: any) => item.wasabi_url || (item.observacao && /URL:\s*https?:\/\//i.test(item.observacao)));
+                    const urls: string[] = [];
+                    for (const it of itemsWithLink) {
+                      const direct = it.wasabi_url as string | undefined;
+                      const obsUrl = (it.observacao?.match(/URL:\s*(https?:\/\/\S+)/i)?.[1]) as string | undefined;
+                      const anyUrl = direct || obsUrl;
+                      if (!anyUrl) continue;
+                      try {
+                        const u = new URL(anyUrl);
+                        const parts = u.pathname.split('/').filter(Boolean);
+                        const key = parts.slice(1).join('/'); // remove bucket
+                        const presigned = await getPresignedUrl(key, 60 * 60);
+                        urls.push(presigned);
+                      } catch {
+                        urls.push(anyUrl);
+                      }
                     }
+                    urls.forEach(u => window.open(u, '_blank'));
+                    if (urls.length > 1) showSuccess(`${urls.length} arquivos abertos para download!`);
                   }}
                 >
                   <DownloadCloud className="h-4 w-4 mr-2" />
@@ -751,17 +762,29 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
                                         ? "bg-primary/10 hover:bg-primary/20 text-primary" 
                                         : "bg-zinc-800/50 hover:bg-zinc-800 text-muted-foreground"
                                     )}
-                                    onClick={(e) => {
+                                    onClick={async (e) => {
                                       e.stopPropagation();
-                                      // Se tivermos a URL salva diretamente (novo formato)
-                                      if ((item as any).wasabi_url) {
-                                        window.open((item as any).wasabi_url, '_blank');
-                                      } else {
-                                        // Fallback se não tiver URL salva (tentar alertar o usuário)
-                                        showError("URL de download não encontrada para este arquivo. Isso ocorre porque o arquivo foi upado antes da integração com o Wasabi.");
+                                      const direct = (item as any).wasabi_url as string | undefined;
+                                      const obs = (item as any).observacao as string | undefined;
+                                      const anyUrl = direct || (obs ? (obs.match(/URL:\s*(https?:\/\/\S+)/i)?.[1] || undefined) : undefined);
+                                      if (!anyUrl) {
+                                        showError("URL de download não encontrada para este arquivo.");
+                                        return;
+                                      }
+                                      try {
+                                        const u = new URL(anyUrl);
+                                        // path-style: /bucket/key -> extraímos a key após o nome do bucket
+                                        // ex: /overpixelchat/print-files/abc.tif
+                                        const parts = u.pathname.split('/').filter(Boolean);
+                                        const bucketInUrl = parts[0];
+                                        const key = parts.slice(1).join('/');
+                                        const presigned = await getPresignedUrl(key, 60 * 60);
+                                        window.open(presigned, '_blank');
+                                      } catch (e) {
+                                        window.open(anyUrl, '_blank');
                                       }
                                     }}
-                                    title={(item as any).wasabi_url ? "Baixar Arquivo (Wasabi)" : "Arquivo Antigo (Sem Download)"}
+                                    title={(item as any).wasabi_url ? "Baixar Arquivo (Wasabi)" : "Baixar Arquivo"}
                                   >
                                     <Download className="h-3 w-3" />
                                   </Button>

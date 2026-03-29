@@ -97,54 +97,7 @@ export default function WidgetGrid() {
             ) : (
                 /* ═══ GRID VIEW ═══ */
                 <div className="flex-1 flex flex-col min-h-0">
-                    {/* Toolbar */}
-                    <div className="px-6 py-4 border-b border-white/5 bg-[#0a0a0a]/50 backdrop-blur-xl flex items-center justify-between shrink-0 z-20">
-                        <div className="flex items-center gap-2">
-                            <div className="p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
-                                <LayoutGrid className="text-cyan-400" size={18} />
-                            </div>
-                            <div>
-                                <h2 className="text-sm font-bold text-white/90 uppercase tracking-tight">Suas Estampas</h2>
-                                <p className="text-[10px] text-white/30 font-mono tracking-widest">{widgets.length} ATIVOS</p>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                            <button
-                                onClick={clearAllWidgets}
-                                className="px-3 py-2 rounded-xl text-white/30 hover:text-red-400 hover:bg-red-500/10 transition-all text-xs font-bold flex items-center gap-1.5 border border-transparent hover:border-red-500/20"
-                            >
-                                <Trash2 size={14} />
-                                <span className="hidden sm:inline">Limpar</span>
-                            </button>
-                            
-                            <button
-                                onClick={triggerAllGenerations}
-                                disabled={isAnyGenerating}
-                                className={`
-                                    px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-lg
-                                    ${isAnyGenerating
-                                        ? 'bg-white/5 text-white/20 cursor-not-allowed border border-white/5'
-                                        : 'bg-white/10 hover:bg-white/20 text-white border border-white/10 shadow-white/5'
-                                    }
-                                `}
-                            >
-                                {isAnyGenerating ? (
-                                    <>
-                                        <Loader2 size={14} className="animate-spin text-cyan-400" />
-                                        <span>Gerando...</span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <Sparkles size={14} className="text-cyan-400" />
-                                        <span>Gerar Todos</span>
-                                    </>
-                                )}
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Scrollable Grid */}
+                    {/* Scrollable Grid - sem toolbar para maximizar espaço */}
                     <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 auto-rows-min pb-40">
                             <AnimatePresence mode="popLayout">

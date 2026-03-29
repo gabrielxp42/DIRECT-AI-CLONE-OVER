@@ -379,9 +379,11 @@ export const electronBridge: ElectronBridge = {
                 console.warn('[launchMontador] localStorage quota exceeded, using window global only');
             }
 
-            console.log('[launchMontador] Bridge payload set, navigating to /montador with', persistentImages.length, 'images');
+            console.log('[launchMontador] Bridge payload set with', persistentImages.length, 'images');
             
-            // Navigate via Custom Event so Layout.tsx can use React Router's useNavigate
+            // Disparar evento de append (se Montador já estiver aberto, ele apenas adiciona)
+            window.dispatchEvent(new CustomEvent('OVERPIXEL_MONTADOR_APPEND', { detail: { images: persistentImages } }));
+            // Também navegar (primeiro uso) – se já estiver na rota, o listener de append cuidará
             window.dispatchEvent(new CustomEvent('OVERPIXEL_NAVIGATE', { detail: '/montador' }));
 
             // Remove overlay after a short delay (Montador will take over rendering)

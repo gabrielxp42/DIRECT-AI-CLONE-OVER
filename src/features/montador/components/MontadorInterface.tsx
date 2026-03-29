@@ -269,6 +269,46 @@ export default function MontadorInterface() {
         return () => clearTimeout(timer);
     }, []);
 
+    useEffect(() => {
+        const handler = async (ev: any) => {
+            try {
+                const imgs: string[] = ev?.detail?.images || [];
+                if (!imgs || imgs.length === 0) return;
+                const newLinesPromises = imgs.map(async (imagePath) => {
+                    try {
+                        const res = await fetch(imagePath);
+                        let blob = await res.blob();
+                        const { ensureOpaquePixels } = await import('../../dtf-factory/utils/imageUtils');
+                        blob = await ensureOpaquePixels(blob);
+                        const filename = imagePath.split(/[/\\]/).pop() || "design.png";
+                        const file = new File([blob], filename, { type: blob.type || "image/png" });
+                        const { dimensions, croppedImageUrl } = await getImageDimensions(file);
+                        return {
+                            id: Math.random().toString(36).substr(2, 9),
+                            imageUrl: croppedImageUrl,
+                            dimensions,
+                            result: { success: true, copies: 1, rotation: 0 } as any,
+                            yOffset: 0,
+                            quantity: 1,
+                            spacingPx: undefined
+                        } as LineConfig;
+                    } catch (err) {
+                        console.error('[Montador] Error processing appended image:', imagePath, err);
+                        return null;
+                    }
+                });
+                const processedLines = (await Promise.all(newLinesPromises)).filter(Boolean) as LineConfig[];
+                if (processedLines.length > 0) {
+                    setLines(prev => [...prev, ...processedLines]);
+                }
+            } catch (e) {
+                console.error('[Montador] Append handler error:', e);
+            }
+        };
+        window.addEventListener('OVERPIXEL_MONTADOR_APPEND' as any, handler);
+        return () => window.removeEventListener('OVERPIXEL_MONTADOR_APPEND' as any, handler);
+    }, []);
+
     return (
         <div className="flex flex-col md:flex-row h-full flex-1 w-full bg-[#050505] text-white overflow-hidden font-sans selection:bg-orange-500/30">
             

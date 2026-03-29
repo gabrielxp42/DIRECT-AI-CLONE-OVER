@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Image as ImageIcon, Trash2, X, Search, FolderOpen,
-    Clock, Sparkles, Grid3x3, ChevronDown, ExternalLink, Loader2, Maximize2, Folder, Minus, Move, ZoomIn, ZoomOut, RotateCcw, Moon, Grid, Sun, Sliders, Save, Check, Palette, Layers, CheckSquare, Square, Brush
+    Clock, Sparkles, Grid3x3, ChevronDown, ExternalLink, Loader2, Maximize2, Folder, Minus, Move, ZoomIn, ZoomOut, RotateCcw, Moon, Grid, Sun, Sliders, Save, Check, Palette, Layers, CheckSquare, Square, Brush, DownloadCloud
 } from 'lucide-react';
 import {
     GalleryItem, getGalleryItems, removeGalleryItem, updateGalleryItem,
@@ -13,6 +13,8 @@ import {
 import { electronBridge } from '@dtf/lib/electronBridge';
 import { fetchWithRetry } from '../../lib/imageUtils';
 import InpaintingEditor from '@dtf/components/InpaintingEditor';
+import { getPresignedUrl, uploadFileToWasabi } from '@/integrations/wasabi/upload';
+import { ensureOpaquePixels, dataUrlToBlob } from '../../utils/imageUtils';
 
 interface GalleryPanelProps {
     isOpen: boolean;
@@ -64,6 +66,39 @@ export default function GalleryPanel({ isOpen, onClose, onOpenHalftone, onStartI
         }
     }, [isOpen, refreshTrigger, localRefreshTrigger]); // Add local refresh trigger dependency
 
+    // Background fix for antigos itens sem treatedWasabiKey (normalizar alpha e subir para Wasabi)
+    useEffect(() => {
+        const runFix = async () => {
+            const fixable = items.filter(it => !(it as any).treatedWasabiKey && (it.treatedUrl || it.savedPath || it.thumbnail));
+            for (const it of fixable) {
+                try {
+                    let blob: Blob | null = null;
+                    if (electronBridge.isElectron && it.savedPath) {
+                        const read = await electronBridge.readImageFile(it.savedPath);
+                        if (read.success && read.data) blob = dataUrlToBlob(read.data);
+                    }
+                    if (!blob && it.treatedUrl) {
+                        const r = await fetch(it.treatedUrl);
+                        blob = await r.blob();
+                    }
+                    if (!blob && it.thumbnail) {
+                        const r = await fetch(it.thumbnail);
+                        blob = await r.blob();
+                    }
+                    if (!blob) continue;
+                    const opaque = await ensureOpaquePixels(blob);
+                    const file = new File([opaque], `final-${Date.now()}.png`, { type: 'image/png' });
+                    const { path } = await uploadFileToWasabi(file, 'dtf-treated');
+                    updateGalleryItem(it.id, { treatedWasabiKey: path });
+                    setItems(prev => prev.map(p => p.id === it.id ? ({ ...p, treatedWasabiKey: path } as any) : p));
+                } catch (e) {
+                    console.warn('[Gallery] Fix treatedWasabiKey failed for', it.id, e);
+                }
+            }
+        };
+        if (isOpen && items.length > 0) runFix();
+    }, [isOpen, items]);
+
     // Handle Escape Key
     useEffect(() => {
         if (!isOpen) return;
@@ -103,18 +138,36 @@ export default function GalleryPanel({ isOpen, onClose, onOpenHalftone, onStartI
 
             const loadHighRes = async () => {
                 try {
-                    // Prefer savedPath (Final Art) for preview
-                    const path = fullScreenItem.savedPath || fullScreenItem.masterFilePath;
-                    if (path) {
-                        const res = await electronBridge.readImageFile(path);
-                        if (res.success && res.data) {
-                            setHighResImage(res.data);
-                        } else {
-                            setHighResImage(fullScreenItem.thumbnail); // Fallback to thumbnail
+                    if (electronBridge.isElectron) {
+                        const path = fullScreenItem.savedPath || fullScreenItem.masterFilePath;
+                        if (path) {
+                            const res = await electronBridge.readImageFile(path);
+                            if (res.success && res.data) {
+                                setHighResImage(res.data);
+                                return;
+                            }
                         }
-                    } else {
-                        setHighResImage(fullScreenItem.thumbnail);
                     }
+                    const treatedKey = (fullScreenItem as any).treatedWasabiKey as string | undefined;
+                    if (treatedKey) {
+                        const url = await getPresignedUrl(treatedKey, 60 * 60);
+                        setHighResImage(url);
+                        return;
+                    }
+                    if (fullScreenItem.treatedUrl) {
+                        setHighResImage(fullScreenItem.treatedUrl);
+                        return;
+                    }
+                    if (fullScreenItem.masterWasabiKey) {
+                        const url = await getPresignedUrl(fullScreenItem.masterWasabiKey, 60 * 60);
+                        setHighResImage(url);
+                        return;
+                    }
+                    if (fullScreenItem.masterUrl) {
+                        setHighResImage(fullScreenItem.masterUrl);
+                        return;
+                    }
+                    setHighResImage(fullScreenItem.thumbnail);
                 } catch (e) {
                     console.error("Failed to load high res image", e);
                     setHighResImage(fullScreenItem.thumbnail);
@@ -154,6 +207,22 @@ export default function GalleryPanel({ isOpen, onClose, onOpenHalftone, onStartI
                     alt={item.prompt}
                     className="w-full h-auto object-contain max-h-[320px] relative z-10"
                 />
+                <div className="absolute top-2 left-2 z-20">
+                    {(
+                        (typeof item.treatedWasabiKey === 'string' && item.treatedWasabiKey.startsWith('dtf-treated/')) ||
+                        (typeof item.masterWasabiKey === 'string' && item.masterWasabiKey.startsWith('dtf-masters/'))
+                    ) ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold bg-emerald-600/20 text-emerald-300 border border-emerald-500/30">
+                            <DownloadCloud className="h-3 w-3" />
+                            Na Nuvem
+                        </span>
+                    ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold bg-zinc-600/20 text-zinc-300 border border-zinc-500/30">
+                            <Folder className="h-3 w-3" />
+                            Local
+                        </span>
+                    )}
+                </div>
 
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-20 cursor-pointer"
                     onClick={() => setFullScreenItem(item)}>
@@ -174,7 +243,13 @@ export default function GalleryPanel({ isOpen, onClose, onOpenHalftone, onStartI
             <div>
                 <label className="text-[9px] uppercase tracking-wider text-white/25 font-bold">Arquivo Final</label>
                 <p className="text-[10px] text-white/50 mt-1 font-mono truncate select-all cursor-text bg-black/20 p-1.5 rounded border border-white/5">
-                    {item.savedPath?.split(/[/\\]/).pop() || '—'}
+                    {(() => {
+                        const localName = item.savedPath?.split(/[/\\]/).pop();
+                        const cloudName =
+                            (item.treatedWasabiKey?.split('/').pop()) ||
+                            (item.masterWasabiKey?.split('/').pop());
+                        return localName || cloudName || '—';
+                    })()}
                 </p>
             </div>
 
@@ -187,29 +262,72 @@ export default function GalleryPanel({ isOpen, onClose, onOpenHalftone, onStartI
                 {item.upscaleFactor !== undefined && (
                     <MetaBox label="Upscale" value={item.upscaleFactor === 0 ? 'Pulado ⚡' : `${item.upscaleFactor}x`} />
                 )}
+                <MetaBox
+                    label="Storage"
+                    value={
+                        ((typeof item.treatedWasabiKey === 'string' && item.treatedWasabiKey.startsWith('dtf-treated/')) ||
+                         (typeof item.masterWasabiKey === 'string' && item.masterWasabiKey.startsWith('dtf-masters/')))
+                        ? 'Na Nuvem' : 'Local'
+                    }
+                />
+            </div>
+
+            <div className="space-y-3">
+                <label className="text-[9px] uppercase tracking-wider text-white/40 font-bold">Download</label>
+                <div className="grid grid-cols-2 gap-2">
+                    <button
+                        onClick={async () => {
+                            try {
+                                if (item.masterWasabiKey) {
+                                    const url = await getPresignedUrl(item.masterWasabiKey, 60 * 60);
+                                    window.open(url, '_blank');
+                                    return;
+                                }
+                                if (item.masterUrl) {
+                                    window.open(item.masterUrl, '_blank');
+                                    return;
+                                }
+                                if (electronBridge.isElectron && item.masterFilePath) {
+                                    const res = await electronBridge.readImageFile(item.masterFilePath);
+                                    if (res.success && res.data) window.open(res.data, '_blank');
+                                }
+                            } catch (e) {
+                                console.error(e);
+                            }
+                        }}
+                        className="py-2.5 bg-white/10 hover:bg-white/20 border border-white/10 text-white text-xs font-bold rounded-xl transition-colors"
+                    >
+                        Baixar Master
+                    </button>
+                    <button
+                        onClick={async () => {
+                            try {
+                                const treatedKey = (item as any).treatedWasabiKey as string | undefined;
+                                if (treatedKey) {
+                                    const url = await getPresignedUrl(treatedKey, 60 * 60);
+                                    window.open(url, '_blank');
+                                    return;
+                                }
+                                if (item.treatedUrl) {
+                                    window.open(item.treatedUrl, '_blank');
+                                    return;
+                                }
+                                if (item.thumbnail) {
+                                    window.open(item.thumbnail, '_blank');
+                                }
+                            } catch (e) {
+                                console.error(e);
+                            }
+                        }}
+                        className="py-2.5 bg-white/10 hover:bg-white/20 border border-white/10 text-white text-xs font-bold rounded-xl transition-colors"
+                    >
+                        Baixar Final
+                    </button>
+                </div>
             </div>
 
             <div className="space-y-2 pt-2">
-                <div className="grid grid-cols-2 gap-2">
-                    {item.savedPath && (
-                        <button
-                            onClick={() => electronBridge.showItemInFolder(item.savedPath!)}
-                            className="py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 text-xs font-medium rounded-xl transition-colors flex items-center justify-center gap-2"
-                        >
-                            <FolderOpen size={14} />
-                            Pasta Final
-                        </button>
-                    )}
-                    {item.masterFilePath && (
-                        <button
-                            onClick={() => electronBridge.showItemInFolder(item.masterFilePath!)}
-                            className="py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 text-xs font-medium rounded-xl transition-colors flex items-center justify-center gap-2"
-                        >
-                            <Folder size={14} />
-                            Pasta Original
-                        </button>
-                    )}
-                </div>
+                {/* Botões de pasta removidos na web; download acima cobre uso cross-device */}
 
                 <OpenHalftoneButton
                     item={item}
@@ -804,25 +922,47 @@ function FullScreenImageViewer({ item, imageSrc, onClose, onSaveSuccess }: { ite
     const handleSave = async () => {
         setIsSaving(true);
         try {
-            // Load original image
-            const img = new Image();
-            img.crossOrigin = "anonymous";
-            img.src = imageSrc;
-            await new Promise((resolve, reject) => {
-                img.onload = resolve;
-                img.onerror = reject;
-            });
+            // Prefer blob real da arte para evitar CORS e preview
+            let srcBlob: Blob | null = null;
+            try {
+                if (electronBridge.isElectron && item?.savedPath) {
+                    const read = await electronBridge.readImageFile(item.savedPath);
+                    if (read.success && read.data) {
+                        const { dataURItoBlob } = await import('../../lib/imageUtils');
+                        srcBlob = await dataURItoBlob(read.data);
+                    }
+                }
+                if (!srcBlob && (item as any)?.treatedWasabiKey) {
+                    const { getPresignedUrl } = await import('@/integrations/wasabi/upload');
+                    const url = await getPresignedUrl((item as any).treatedWasabiKey, 60 * 60);
+                    const r = await fetch(url, { cache: 'no-store', mode: 'cors', credentials: 'omit' });
+                    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                    srcBlob = await r.blob();
+                }
+                if (!srcBlob) {
+                    const r = await fetch(imageSrc, { cache: 'no-store', mode: 'cors', credentials: 'omit' });
+                    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                    srcBlob = await r.blob();
+                }
+            } catch (e) {
+                console.warn('Fallback to image element due to blob fetch error', e);
+            }
+
+            if (!srcBlob) {
+                throw new Error('CORS/BlobUnavailable');
+            }
+            const bitmap = await createImageBitmap(srcBlob);
 
             // Draw to offscreen canvas
             const canvas = document.createElement('canvas');
-            canvas.width = img.width;
-            canvas.height = img.height;
+            canvas.width = bitmap.width;
+            canvas.height = bitmap.height;
             const ctx = canvas.getContext('2d');
             if (!ctx) throw new Error("Could not get context");
 
             // Apply filter context
             ctx.filter = filterStyle;
-            ctx.drawImage(img, 0, 0);
+            ctx.drawImage(bitmap, 0, 0);
 
             // Convert back to blob
             const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png', 1.0));
@@ -832,14 +972,28 @@ function FullScreenImageViewer({ item, imageSrc, onClose, onSaveSuccess }: { ite
             const { setPngDpi } = await import('@dtf/services/halftoneService');
             const finalBlob = await setPngDpi(blob, 300);
 
-            // Save via electron
-            const buffer = await finalBlob.arrayBuffer();
             const filename = `dtf-filter-${Date.now()}.png`;
+            const fileForUpload = new File([finalBlob], filename, { type: 'image/png' });
 
-            const result = await electronBridge.saveImage(buffer, filename);
+            let treatedPath: string | undefined;
+            try {
+                const { uploadFileToWasabi } = await import('@/integrations/wasabi/upload');
+                const up = await uploadFileToWasabi(fileForUpload, 'dtf-treated');
+                treatedPath = up.path;
+            } catch (e) {
+                console.warn('Upload Wasabi falhou, mantendo apenas local:', e);
+            }
 
-            if (result.success) {
-                // Update gallery item
+            let localSavePath: string | undefined;
+            if (electronBridge.isElectron) {
+                const buffer = await finalBlob.arrayBuffer();
+                const result = await electronBridge.saveImage(buffer, filename);
+                if (result.success) {
+                    localSavePath = result.path || filename;
+                }
+            }
+
+            {
                 const { saveGalleryItem, createThumbnail } = await import('@dtf/services/galleryService');
                 const thumbDataUrl = URL.createObjectURL(finalBlob);
                 const thumbnail = await createThumbnail(thumbDataUrl);
@@ -848,8 +1002,9 @@ function FullScreenImageViewer({ item, imageSrc, onClose, onSaveSuccess }: { ite
                 const newItemBase = {
                     prompt: item.prompt + ' (Filtros)',
                     timestamp: Date.now(),
-                    savedPath: result.path || filename,
+                    savedPath: localSavePath,
                     masterFilePath: item.masterFilePath,
+                    treatedWasabiKey: treatedPath,
                     thumbnail,
                     aspectRatio: item.aspectRatio,
                     garmentMode: item.garmentMode,
@@ -865,7 +1020,7 @@ function FullScreenImageViewer({ item, imageSrc, onClose, onSaveSuccess }: { ite
                 setTimeout(() => {
                     setSaveSuccess(false);
                     if (onSaveSuccess) onSaveSuccess(savedItem);
-                }, 1000); // Dá um segundo para ver o feedback 'Salvo!' antes de fechar
+                }, 1000);
             }
         } catch (error) {
             console.error("Filter Save Error:", error);

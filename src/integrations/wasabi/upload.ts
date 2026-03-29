@@ -7,6 +7,7 @@ import { wasabiClient, WASABI_BUCKET_NAME } from './client';
 export type WasabiFolder = 
   | 'print-files' // Arquivos de impressão (Direct / Pedidos com arquivos)
   | 'dtf-masters' // Imagens geradas originais (Galeria do usuário no DTF Factory)
+  | 'dtf-treated' // Imagens finais tratadas/filtradas (Galeria do usuário)
   | 'assets';     // Arquivos permanentes gerais
 
 export const uploadFileToWasabi = async (
@@ -65,11 +66,12 @@ export const uploadFileToWasabi = async (
 /**
  * Gera uma URL assinada temporária para visualizar/baixar um arquivo privado
  */
-export const getPresignedUrl = async (key: string, expiresIn: number = 3600): Promise<string> => {
+export const getPresignedUrl = async (key: string, expiresIn: number = 3600, filename?: string): Promise<string> => {
   try {
     const command = new GetObjectCommand({
       Bucket: WASABI_BUCKET_NAME,
       Key: key,
+      ResponseContentDisposition: filename ? `inline; filename="${filename}"` : 'inline'
     });
     const url = await getSignedUrl(wasabiClient, command, { expiresIn });
     return url;

@@ -305,8 +305,9 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
           produto_nome: file.name,
           quantidade: Number(ml),
           preco_unitario: selectedCliente?.valor_metro || 0,
-          observacao: `Arquivo: ${file.originalName} | Dimensões: ${file.widthCm}x${file.heightCm}cm | Cópias: ${file.copies}`,
-          tipo: 'dtf', // Default or derive from something?
+          observacao: `Arquivo: ${file.originalName} | Dimensões: ${file.widthCm}x${file.heightCm}cm | Cópias: ${file.copies}${file.wasabiUrl ? ` | URL: ${file.wasabiUrl}` : ''}`,
+          tipo: 'dtf',
+          wasabi_url: file.wasabiUrl || undefined,
         };
       });
       form.setValue('items', newItems, { shouldValidate: true });
@@ -581,17 +582,19 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
       } : null,
       created_at: data.created_at.toISOString(),
       items: items.map((item, index) => {
-        return {
-          // GARANTIA: Se produto_id for string vazia ou undefined, envia null
+        const payload: any = {
           produto_id: (item.produto_id && item.produto_id.trim() !== "") ? item.produto_id : null,
           produto_nome: item.produto_nome,
           quantidade: Number(item.quantidade),
           preco_unitario: Number(item.preco_unitario),
           observacao: item.observacao || '',
-          tipo: item.tipo, // Campo auxiliar não salvo no banco, mas útil para debug/cache
-          ordem: index, // Garantir a ordem correta
-          wasabi_url: item.wasabi_url || null, // Garante que a URL do wasabi seja enviada se existir
+          tipo: item.tipo,
+          ordem: index,
         };
+        if (item.wasabi_url) {
+          payload.wasabi_url = item.wasabi_url;
+        }
+        return payload;
       }),
       servicos: servicos.map(servico => ({
         nome: servico.nome, // Garantir que o nome está presente
@@ -2158,6 +2161,10 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                         toast.error('Faça o upload de pelo menos um arquivo.');
                         return;
                       }
+                      if (orderMode === 'files' && uploadedFiles.some(f => f.isUploading)) {
+                        toast.error('Aguarde terminar o upload dos arquivos antes de continuar.');
+                        return;
+                      }
                       setWizardStep(2);
                     }}
                     className="font-bold uppercase tracking-wide gap-2 w-full md:w-auto"
@@ -2534,7 +2541,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                     <Button
                       id="btn-save-pedido"
                       type="submit"
-                      disabled={isSubmitting}
+                      disabled={isSubmitting || (orderMode === 'files' && uploadedFiles?.some(f => f.isUploading))}
                       className="w-full sm:w-auto transition-all duration-300 hover:scale-[1.02] h-9 sm:h-10 text-sm"
                     >
                       {isSubmitting && <Loader2 className="mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" />}

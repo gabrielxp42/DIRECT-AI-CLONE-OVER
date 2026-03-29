@@ -16,7 +16,9 @@ export interface GalleryItem {
     savedPath: string | null;
     masterFilePath?: string | null; // Caminho da imagem original (sem halftone)
     masterUrl?: string | null; // URL temporária para uso no browser (web) — imagem ORIGINAL (sem halftone)
+    masterWasabiKey?: string | null; // Chave no Wasabi (dtf-masters/...), para gerar presigned quando necessário
     treatedUrl?: string | null; // URL temporária da imagem FINAL (com halftone/tratamento) para web
+    treatedWasabiKey?: string | null; // Chave da versão final tratada no Wasabi (dtf-treated/...)
     thumbnail: string; // base64 pequeno (~5KB)
     aspectRatio: string;
     garmentMode: 'black' | 'white' | 'color';

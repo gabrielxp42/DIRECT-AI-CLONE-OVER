@@ -15,7 +15,9 @@ import { usePromptStyles } from '@dtf/components/SettingsPanel';
 import PromptIdeas from '@dtf/components/PromptIdeas';
 import PromptHistory from '@dtf/components/PromptHistory';
 import { HalftoneSettings, HALFTONE_PRESETS } from '@dtf/services/halftoneService';
-import { saveGalleryItem, createThumbnail } from '@dtf/services/galleryService';
+import { saveGalleryItem, createThumbnail, updateGalleryItem } from '@dtf/services/galleryService';
+import { uploadFileToWasabi } from '@/integrations/wasabi/upload';
+import { ensureOpaquePixels, dataUrlToBlob } from '../../utils/imageUtils';
 import { dataURItoBlob } from '@dtf/lib/imageUtils';
 import ProcessingAnimation from '../ProcessingAnimation';
 import InsufficientTokensModal from '../InsufficientTokensModal';
@@ -383,8 +385,8 @@ const WidgetCard = React.forwardRef<HTMLDivElement, WidgetCardProps>(({ config }
                 }
             });
 
-            createThumbnail(activeState.imageUrl).then(thumbnail => {
-                saveGalleryItem({
+            createThumbnail(activeState.imageUrl).then(async (thumbnail) => {
+                const saved = saveGalleryItem({
                     prompt: prompt,
                     timestamp: Date.now(),
                     savedPath: activeState.savedPath || null,
@@ -398,6 +400,42 @@ const WidgetCard = React.forwardRef<HTMLDivElement, WidgetCardProps>(({ config }
                     heightCm,
                     halftonePreset: config.halftonePreset,
                 });
+                try {
+                    const masterUrl = ((activeState as any).upscaledImageUrl || activeState.imageUrl) as string;
+                    const resp = await fetch(masterUrl);
+                    const blob = await resp.blob();
+                    const fileName = `master-${Date.now()}.png`;
+                    const file = new File([blob], fileName, { type: blob.type || 'image/png' });
+                    const { path } = await uploadFileToWasabi(file, 'dtf-masters');
+                    updateGalleryItem(saved.id, { masterWasabiKey: path });
+                    console.log('[WidgetCard] ✅ Master enviado ao Wasabi:', path);
+                    
+                    let blobFinal: Blob | null = null;
+                    // Preferir arquivo final real (desktop). Caso contrário, usar treatedUrl; senão, preview imageUrl.
+                    if (electronBridge.isElectron && (activeState as any).savedPath) {
+                        const read = await electronBridge.readImageFile((activeState as any).savedPath);
+                        if (read.success && read.data) {
+                            blobFinal = dataUrlToBlob(read.data);
+                        }
+                    }
+                    if (!blobFinal && (activeState as any).treatedUrl) {
+                        const resp = await fetch((activeState as any).treatedUrl as string);
+                        blobFinal = await resp.blob();
+                    }
+                    if (!blobFinal) {
+                        const resp = await fetch(activeState.imageUrl as string);
+                        blobFinal = await resp.blob();
+                    }
+                    // Garantir pontos sólidos (sem semi-transparência) em qualquer origem
+                    blobFinal = await ensureOpaquePixels(blobFinal);
+                    const fileNameFinal = `final-${Date.now()}.png`;
+                    const fileFinal = new File([blobFinal], fileNameFinal, { type: blobFinal.type || 'image/png' });
+                    const { path: treatedPath } = await uploadFileToWasabi(fileFinal, 'dtf-treated');
+                    updateGalleryItem(saved.id, { treatedWasabiKey: treatedPath });
+                    console.log('[WidgetCard] ✅ Final (halftone) enviado ao Wasabi:', treatedPath);
+                } catch (err) {
+                    console.warn('[WidgetCard] Wasabi upload falhou, mantendo apenas local:', err);
+                }
                 console.log('[WidgetCard] ✅ Saved to gallery & Synced Local Result');
             }).catch(err => console.warn('[WidgetCard] Gallery save failed:', err));
         }
@@ -832,9 +870,21 @@ const WidgetCard = React.forwardRef<HTMLDivElement, WidgetCardProps>(({ config }
                                     )}
                                 </div>
                                 <div className="flex gap-2">
-                                    <button onClick={() => electronBridge.openFolder()} className="w-full py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 text-xs font-medium rounded-xl transition-colors flex items-center justify-center">Abrir Pasta</button>
                                     <button
-                                        onClick={() => activeState.imageUrl && electronBridge.launchMontador([activeState.imageUrl])}
+                                        onClick={() => {
+                                            try {
+                                                window.dispatchEvent(new CustomEvent('OVERPIXEL_OPEN_GALLERY', { detail: {} }));
+                                            } catch (e) {}
+                                        }}
+                                        className="w-full py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 text-xs font-medium rounded-xl transition-colors flex items-center justify-center"
+                                    >
+                                        Ver na Galeria
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            const best = (activeState as any).treatedUrl || activeState.imageUrl;
+                                            if (best) electronBridge.launchMontador([best]);
+                                        }}
                                         className="w-full py-2.5 bg-gradient-to-br from-orange-400 to-amber-600 text-black text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-[0_10px_20px_rgba(245,158,11,0.2)] hover:scale-105 active:scale-[0.98] flex items-center justify-center gap-1.5"
                                     >
                                         <LayoutGrid size={14} />

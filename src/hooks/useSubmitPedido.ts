@@ -66,17 +66,25 @@ export const useSubmitPedido = (editingPedido: Pedido | null, onSuccessCallback?
           const deleteItemsUrl = `${SUPABASE_URL}/rest/v1/pedido_items?pedido_id=eq.${pedidoId}`;
           await fetch(deleteItemsUrl, { method: 'DELETE', headers });
 
-          const itemsToInsert = items.map((item: any) => ({ ...item, pedido_id: pedidoId }));
-          const insertItemsUrl = `${SUPABASE_URL}/rest/v1/pedido_items`;
-          const itemsResponse = await fetch(insertItemsUrl, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(itemsToInsert)
-          });
-
-          if (!itemsResponse.ok) {
-            const errorText = await itemsResponse.text();
-            throw new Error(`Erro ao inserir novos itens: ${itemsResponse.statusText}`);
+          const tryInsert = async (payload: any[]) => {
+            const url = `${SUPABASE_URL}/rest/v1/pedido_items`;
+            const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(payload) });
+            if (!res.ok) {
+              const t = await res.text();
+              throw new Error(t || 'insert error');
+            }
+          };
+          const withWasabi = items.map((item: any) => ({
+            ...item,
+            quantidade: Number(item?.quantidade ?? 0),
+            preco_unitario: Number(item?.preco_unitario ?? 0),
+            pedido_id: pedidoId,
+          }));
+          try {
+            await tryInsert(withWasabi);
+          } catch (e: any) {
+            const withoutWasabi = withWasabi.map(({ wasabi_url, ...rest }: any) => rest);
+            await tryInsert(withoutWasabi);
           }
 
           if (isNowConsuming && editingPedido) {
@@ -157,16 +165,25 @@ export const useSubmitPedido = (editingPedido: Pedido | null, onSuccessCallback?
         const newPedido = Array.isArray(newPedidoArray) ? newPedidoArray[0] : newPedidoArray;
 
         if (items && items.length > 0) {
-          const itemsToInsert = items.map((item: any) => ({ ...item, pedido_id: newPedido.id }));
-          const insertItemsUrl = `${SUPABASE_URL}/rest/v1/pedido_items`;
-          const itemsResponse = await fetch(insertItemsUrl, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(itemsToInsert)
-          });
-          if (!itemsResponse.ok) {
-            const errorText = await itemsResponse.text();
-            throw new Error(`Erro ao inserir itens: ${itemsResponse.status} ${itemsResponse.statusText}.`);
+          const tryInsert = async (payload: any[]) => {
+            const url = `${SUPABASE_URL}/rest/v1/pedido_items`;
+            const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(payload) });
+            if (!res.ok) {
+              const t = await res.text();
+              throw new Error(t || 'insert error');
+            }
+          };
+          const withWasabi = items.map((item: any) => ({
+            ...item,
+            quantidade: Number(item?.quantidade ?? 0),
+            preco_unitario: Number(item?.preco_unitario ?? 0),
+            pedido_id: newPedido.id,
+          }));
+          try {
+            await tryInsert(withWasabi);
+          } catch (e: any) {
+            const withoutWasabi = withWasabi.map(({ wasabi_url, ...rest }: any) => rest);
+            await tryInsert(withoutWasabi);
           }
         }
 
