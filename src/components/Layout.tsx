@@ -37,8 +37,9 @@ import { AIFirstOnboarding } from '@/components/AIFirstOnboarding';
 // Lazy Load Persistent Apps for Instance Memory
 const DTFFactory = React.lazy(() => import('../pages/DTFFactory'));
 const MontadorPage = React.lazy(() => import('../pages/Montador'));
+const MelhoradorPage = React.lazy(() => import('../pages/Melhorador'));
 
-const PERSISTENT_APP_ROUTES = ['/dtf-factory', '/montador'];
+const PERSISTENT_APP_ROUTES = ['/dtf-factory', '/montador', '/melhorador'];
 
 const staticNavItems = [
   { href: '/clientes', icon: Users, label: 'Clientes', permission: 'view_clientes' },
@@ -48,7 +49,7 @@ const staticNavItems = [
 ];
 
 const Layout = () => {
-  const { profile, activeSubProfile } = useSession();
+  const { profile, activeSubProfile, switchSubProfile } = useSession();
   const { isOpen, open: openAIAssistant } = useAIAssistant();
   const isMobile = useIsMobile();
   const location = useLocation();
@@ -134,7 +135,7 @@ const Layout = () => {
     { id: 'direct-ai', theme: 'gabi' as const, iconType: 'svg' as const, route: '/dashboard' },
     { id: 'dtf-factory', theme: 'dtf-factory' as const, iconType: 'img' as const, iconSrc: '/dtf-fabric-logo.png', route: '/dtf-factory' },
     { id: 'montador', theme: 'montador' as const, iconType: 'img' as const, iconSrc: '/montador/logo-montador-fast.png', route: '/montador' },
-    { id: 'melhorador', theme: 'melhorador' as const, iconType: 'img' as const, iconSrc: encodeURI('/logo melhorador cloud.png'), route: null },
+    { id: 'melhorador', theme: 'melhorador' as const, iconType: 'img' as const, iconSrc: encodeURI('/logo melhorador cloud.png'), route: '/melhorador' },
   ]), []);
 
   const mod = React.useCallback((value: number, base: number) => ((value % base) + base) % base, []);
@@ -161,6 +162,7 @@ const Layout = () => {
     const toIndex = (path: string) => {
       if (path.includes('/dtf-factory')) return 1;
       if (path.includes('/montador')) return 2;
+      if (path.includes('/melhorador')) return 3;
       return 0;
     };
     setMobileLauncherIndex(toIndex(location.pathname));
@@ -201,18 +203,39 @@ const Layout = () => {
   }, [location.pathname, closeLauncher, showLauncher]);
 
   React.useEffect(() => {
-    const el = document.querySelector('.ios-launcher-container') as HTMLElement | null;
-    if (el) {
-      if (showLauncher) {
-        el.style.pointerEvents = 'auto';
-        el.style.opacity = '';
-      } else {
-        el.style.pointerEvents = 'none';
-        el.style.opacity = '0';
+    // Apenas forçar estilos no container do menu (overlay), não no app principal
+    const elements = document.querySelectorAll('.ios-launcher-container');
+    elements.forEach((el) => {
+      const htmlEl = el as HTMLElement;
+      // Se não for o overlay do menu, não mexa no display!
+      if (!htmlEl.classList.contains('mobile-overlay') && htmlEl.parentElement?.id !== 'root' && !htmlEl.closest('.z-\\[9995\\]')) {
+         return; 
       }
-    }
-  }, [showLauncher]);
 
+      if (location.pathname === '/') {
+        htmlEl.style.pointerEvents = 'auto';
+        htmlEl.style.opacity = '1';
+        htmlEl.style.display = 'flex'; // Reset manual display none from Launcher.tsx fail-safe
+      } else {
+        if (showLauncher) {
+          htmlEl.style.pointerEvents = 'auto';
+          htmlEl.style.opacity = '1';
+          htmlEl.style.display = 'flex';
+        } else {
+          htmlEl.style.pointerEvents = 'none';
+          htmlEl.style.opacity = '0';
+        }
+      }
+    });
+  }, [showLauncher, location.pathname]);
+
+  React.useEffect(() => {
+    const handler = () => {
+      try { switchSubProfile(null); } catch {}
+    };
+    window.addEventListener('OPEN_PROFILE_SELECTOR', handler);
+    return () => window.removeEventListener('OPEN_PROFILE_SELECTOR', handler);
+  }, [switchSubProfile]);
   
 
   // Listen for toggle-launcher event from integrated apps (Montador/DTF)
@@ -307,7 +330,7 @@ const Layout = () => {
 
 
   
-  const isFullScreenApp = ['/dtf-factory', '/montador'].includes(location.pathname);
+  const isFullScreenApp = ['/', '/dtf-factory', '/montador', '/melhorador'].includes(location.pathname);
   // Hide base shell if we are in a full-screen app or if the launcher overlay is active
   const hideShell = isFullScreenApp || showLauncher;
 
@@ -354,7 +377,17 @@ const Layout = () => {
           {/* Header do Sidebar — Click to toggle launcher */}
           <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-4 overflow-hidden">
             <button
-              onClick={(e) => { e.stopPropagation(); toggleLauncher(); }}
+              onClick={(e) => { 
+                e.preventDefault();
+                e.stopPropagation(); 
+                if (window.innerWidth >= 768) {
+                  // Ensure launcher is closed before navigating
+                  setShowLauncher(false);
+                  navigate('/');
+                } else {
+                  toggleLauncher(); 
+                }
+              }}
               className="flex items-center gap-3 font-semibold text-sidebar-foreground hover:opacity-80 transition-all"
             >
               {/* OverPixel mini logo as sidebar trigger */}
@@ -716,7 +749,16 @@ const Layout = () => {
 
           <div className="flex h-14 items-center gap-4 px-4 lg:h-[60px] lg:px-6">
             <button
-              onClick={(e) => { e.stopPropagation(); toggleLauncher(); }}
+              onClick={(e) => { 
+                e.preventDefault();
+                e.stopPropagation(); 
+                if (window.innerWidth >= 768) {
+                  setShowLauncher(false);
+                  navigate('/');
+                } else {
+                  toggleLauncher(); 
+                }
+              }}
               className="flex items-center gap-2 font-semibold hover:opacity-80 transition-opacity"
             >
               <svg width="28" height="17" viewBox="0 0 200 120" className="flex-shrink-0" style={{ filter: 'drop-shadow(0 0 5px var(--primary-custom))' }}>
@@ -755,24 +797,12 @@ const Layout = () => {
           (location.pathname === '/' || location.pathname === '/dashboard' || isFullScreenApp) ? "p-0 gap-0" : "gap-3 p-3 sm:gap-4 sm:p-4 lg:gap-6 lg:p-6"
         )}>
           {/* Layer 1: Traditional Router Outlet (Standard Pages) */}
-          <AnimatePresence mode="wait">
-              {!PERSISTENT_APP_ROUTES.includes(location.pathname) && (
-                <motion.div
-                  key={location.pathname}
-                  initial={{ opacity: 0, scale: 0.96, y: 10 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 1.04, y: -10 }}
-                  transition={{ 
-                    duration: 0.6, 
-                    ease: [0.16, 1, 0.3, 1],
-                    opacity: { duration: 0.4 }
-                  }}
-                  className="flex flex-col flex-1 w-full h-full"
-                >
-                  <Outlet />
-                </motion.div>
-              )}
-          </AnimatePresence>
+          {/* Removemos o AnimatePresence aqui pq a página do Launcher '/' é montada/desmontada frequentemente e a animação do Framer Motion falhava ao remontar, causando tela preta permanente */}
+          {!PERSISTENT_APP_ROUTES.includes(location.pathname) && (
+            <div className="flex flex-col flex-1 w-full h-full animate-in fade-in zoom-in-95 duration-500">
+              <Outlet />
+            </div>
+          )}
 
           {/* Layer 2: Persistent App Instance (DTF Factory) */}
           {visitedPersistentApps.has('/dtf-factory') && (
@@ -795,6 +825,18 @@ const Layout = () => {
             )}>
               <React.Suspense fallback={null}>
                 <MontadorPage />
+              </React.Suspense>
+            </div>
+          )}
+
+          {/* Layer 4: Persistent App Instance (Melhorador) */}
+          {visitedPersistentApps.has('/melhorador') && (
+            <div className={cn(
+              "flex-col flex-1 w-full h-full",
+              location.pathname !== '/melhorador' && "hidden pointer-events-none invisible h-0 overflow-hidden"
+            )}>
+              <React.Suspense fallback={null}>
+                <MelhoradorPage />
               </React.Suspense>
             </div>
           )}
@@ -1048,7 +1090,7 @@ const Layout = () => {
             {isMobile && (
               <motion.div
                 className={cn(
-                  "fixed left-0 right-0 bottom-0 z-[9993] h-24 px-6 launcher-bottom-bar pointer-events-auto flex items-center justify-center",
+                  "fixed left-0 right-0 bottom-0 z-[9993] h-24 px-6 launcher-bottom-bar pointer-events-auto flex items-center justify-center gap-4",
                   launcherTheme === 'light' ? 'launcher-bar-glass-light' : 'launcher-bar-glass-dark'
                 )}
                 initial={{ y: 96, opacity: 0 }}
@@ -1056,6 +1098,17 @@ const Layout = () => {
                 exit={{ y: 96, opacity: 0 }}
                 transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1], delay: 0.05 }}
               >
+                <button
+                  onClick={() => {
+                    closeLauncher();
+                    navigate('/');
+                  }}
+                  className="w-14 h-14 flex-shrink-0 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 border border-white/10 shadow-lg active:scale-95 transition-all text-white"
+                  title="Home"
+                >
+                  <Home className="w-6 h-6" />
+                </button>
+                <div className="w-[1px] h-10 bg-white/10 flex-shrink-0" />
                 <motion.div
                   className="flex items-center justify-center gap-6 select-none touch-pan-y"
                   drag="x"

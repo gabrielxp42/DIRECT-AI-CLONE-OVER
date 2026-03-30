@@ -99,10 +99,25 @@ const Index = () => {
       </div>
 
       <header className="relative z-10 flex justify-between items-center mb-6 md:mb-10 pt-4 px-2 md:px-0">
-        <div>
-          <h1 className="text-3xl md:text-5xl font-black dashboard-title-gradient italic uppercase tracking-tighter">
-            Dashboard
-          </h1>
+        <div className="flex flex-col gap-2">
+          <div 
+            className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity w-fit"
+            onClick={() => {
+              if (window.innerWidth >= 768) {
+                window.dispatchEvent(new CustomEvent('OVERPIXEL_NAVIGATE', { detail: '/' }));
+              } else {
+                window.dispatchEvent(new CustomEvent('toggle-launcher'));
+              }
+            }}
+          >
+            <div className="flex items-center gap-1.5">
+              <svg width="24" height="16" viewBox="0 0 200 120" className="flex-shrink-0" style={{ filter: 'drop-shadow(0 0 5px var(--primary-custom))' }}>
+                <circle cx="50" cy="60" r="34" fill="none" stroke="var(--primary-custom)" strokeWidth="12" />
+                <circle cx="150" cy="60" r="34" fill="none" stroke="var(--primary-custom)" strokeWidth="12" />
+              </svg>
+              <h1 className="text-sm font-bold tracking-[0.2em] text-white/90">OVERPIXEL</h1>
+            </div>
+          </div>
           <p className="text-[10px] md:text-xs font-bold text-muted-foreground tracking-widest uppercase mt-1 md:mt-2 opacity-50">Direct AI Ecosystem</p>
         </div>
         <div className="hidden md:flex gap-3">

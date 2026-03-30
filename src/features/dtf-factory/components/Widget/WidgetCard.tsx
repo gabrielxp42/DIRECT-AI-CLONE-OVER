@@ -385,6 +385,25 @@ const WidgetCard = React.forwardRef<HTMLDivElement, WidgetCardProps>(({ config }
                 }
             });
 
+            // Disparar notificação global de sucesso (usando import dinâmico para garantir que roda de qualquer lugar)
+            import('sonner').then(({ toast }) => {
+                toast.success('Geração DTF Concluída!', {
+                    description: 'A sua arte finalizou e foi salva na galeria.',
+                    action: {
+                        label: 'Ver Imagem',
+                        onClick: () => {
+                            if (window.innerWidth >= 768) {
+                                window.dispatchEvent(new CustomEvent('OVERPIXEL_NAVIGATE', { detail: '/dtf-factory' }));
+                            } else {
+                                window.dispatchEvent(new CustomEvent('toggle-launcher'));
+                            }
+                        }
+                    },
+                    duration: 8000,
+                    id: `dtf-success-${config.id}`
+                });
+            });
+
             createThumbnail(activeState.imageUrl).then(async (thumbnail) => {
                 const saved = saveGalleryItem({
                     prompt: prompt,
@@ -437,7 +456,24 @@ const WidgetCard = React.forwardRef<HTMLDivElement, WidgetCardProps>(({ config }
                     console.warn('[WidgetCard] Wasabi upload falhou, mantendo apenas local:', err);
                 }
                 console.log('[WidgetCard] ✅ Saved to gallery & Synced Local Result');
-            }).catch(err => console.warn('[WidgetCard] Gallery save failed:', err));
+            }).catch(async (err) => {
+                console.warn('[WidgetCard] Gallery save thumbnail failed (fallback to empty):', err);
+                // Fallback: save anyway without thumbnail!
+                saveGalleryItem({
+                    prompt: prompt,
+                    timestamp: Date.now(),
+                    savedPath: activeState.savedPath || null,
+                    masterFilePath: (activeState as any).savedMasterPath || activeState.savedPath || null,
+                    masterUrl: (activeState as any).upscaledImageUrl || activeState.imageUrl,
+                    treatedUrl: activeState.imageUrl,
+                    thumbnail: '', // Empty thumbnail
+                    aspectRatio,
+                    garmentMode,
+                    widthCm,
+                    heightCm,
+                    halftonePreset: config.halftonePreset,
+                });
+            });
         }
         
         // Reset do ref apenas quando o processo REALMENTE reinicia ou volta pro começo

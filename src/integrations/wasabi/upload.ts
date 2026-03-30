@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Upload } from '@aws-sdk/lib-storage';
 import { wasabiClient, WASABI_BUCKET_NAME } from './client';
@@ -77,6 +77,19 @@ export const getPresignedUrl = async (key: string, expiresIn: number = 3600, fil
     return url;
   } catch (error) {
     console.error('Erro ao gerar URL assinada do Wasabi:', error);
+    throw error;
+  }
+};
+
+export const deleteFileFromWasabi = async (key: string): Promise<void> => {
+  try {
+    const command = new DeleteObjectCommand({
+      Bucket: WASABI_BUCKET_NAME,
+      Key: key,
+    });
+    await wasabiClient.send(command);
+  } catch (error) {
+    console.error('Erro ao excluir arquivo do Wasabi:', error);
     throw error;
   }
 };

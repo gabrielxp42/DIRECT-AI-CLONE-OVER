@@ -846,7 +846,16 @@ export default function HomePage() {
       {/* Header - Apenas modo Pro (Desktop) */}
       {isProMode && (
         <header className="fixed top-0 left-0 right-0 z-50 px-6 py-4 flex items-center justify-between bg-black/20 backdrop-blur-xl border-b border-white/5" style={{ paddingTop: '40px' }}>
-          <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => window.dispatchEvent(new CustomEvent('toggle-launcher'))}>
+          <div 
+            className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity" 
+            onClick={() => {
+              if (window.innerWidth >= 768) {
+                window.dispatchEvent(new CustomEvent('OVERPIXEL_NAVIGATE', { detail: '/' }));
+              } else {
+                window.dispatchEvent(new CustomEvent('toggle-launcher'));
+              }
+            }}
+          >
             <img src="/dtf-fabric-logo.png" alt="DTF Factory" className="w-10 h-10 rounded-xl object-contain" />
             <div>
               <h1 className="text-xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">

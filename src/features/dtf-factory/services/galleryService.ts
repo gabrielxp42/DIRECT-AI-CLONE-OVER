@@ -42,8 +42,8 @@ function generateId(): string {
 export async function createThumbnail(imageUrl: string): Promise<string> {
     return new Promise((resolve, reject) => {
         const img = new Image();
-        // Blob URLs não precisam de CORS — só setar para URLs externas
-        if (!imageUrl.startsWith('blob:') && !imageUrl.startsWith('data:')) {
+        // Blob URLs e File URLs não precisam de CORS — só setar para URLs externas HTTP/HTTPS
+        if (!imageUrl.startsWith('blob:') && !imageUrl.startsWith('data:') && !imageUrl.startsWith('file:')) {
             img.crossOrigin = 'anonymous';
         }
 

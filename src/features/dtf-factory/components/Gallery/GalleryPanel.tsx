@@ -66,38 +66,7 @@ export default function GalleryPanel({ isOpen, onClose, onOpenHalftone, onStartI
         }
     }, [isOpen, refreshTrigger, localRefreshTrigger]); // Add local refresh trigger dependency
 
-    // Background fix for antigos itens sem treatedWasabiKey (normalizar alpha e subir para Wasabi)
-    useEffect(() => {
-        const runFix = async () => {
-            const fixable = items.filter(it => !(it as any).treatedWasabiKey && (it.treatedUrl || it.savedPath || it.thumbnail));
-            for (const it of fixable) {
-                try {
-                    let blob: Blob | null = null;
-                    if (electronBridge.isElectron && it.savedPath) {
-                        const read = await electronBridge.readImageFile(it.savedPath);
-                        if (read.success && read.data) blob = dataUrlToBlob(read.data);
-                    }
-                    if (!blob && it.treatedUrl) {
-                        const r = await fetch(it.treatedUrl);
-                        blob = await r.blob();
-                    }
-                    if (!blob && it.thumbnail) {
-                        const r = await fetch(it.thumbnail);
-                        blob = await r.blob();
-                    }
-                    if (!blob) continue;
-                    const opaque = await ensureOpaquePixels(blob);
-                    const file = new File([opaque], `final-${Date.now()}.png`, { type: 'image/png' });
-                    const { path } = await uploadFileToWasabi(file, 'dtf-treated');
-                    updateGalleryItem(it.id, { treatedWasabiKey: path });
-                    setItems(prev => prev.map(p => p.id === it.id ? ({ ...p, treatedWasabiKey: path } as any) : p));
-                } catch (e) {
-                    console.warn('[Gallery] Fix treatedWasabiKey failed for', it.id, e);
-                }
-            }
-        };
-        if (isOpen && items.length > 0) runFix();
-    }, [isOpen, items]);
+    
 
     // Handle Escape Key
     useEffect(() => {
@@ -190,11 +159,46 @@ export default function GalleryPanel({ isOpen, onClose, onOpenHalftone, onStartI
         );
     }, [items, search]);
 
+    const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean, item: GalleryItem | null, willDeleteFinal: boolean, willDeleteMaster: boolean }>({ open: false, item: null, willDeleteFinal: false, willDeleteMaster: false });
+
     const handleDelete = useCallback((id: string) => {
-        removeGalleryItem(id);
-        setItems(prev => prev.filter(i => i.id !== id));
-        if (selectedItem?.id === id) setSelectedItem(null);
-    }, [removeGalleryItem, selectedItem]);
+        const item = items.find(i => i.id === id);
+        if (!item) return;
+        const sameMasterItems = items.filter(i => i.id !== item.id && (
+            (i.masterWasabiKey && item.masterWasabiKey && i.masterWasabiKey === item.masterWasabiKey) ||
+            (i.masterFilePath && item.masterFilePath && i.masterFilePath === item.masterFilePath)
+        ));
+        const remainingFinalsForMaster = sameMasterItems.filter(i => !!i.treatedWasabiKey).length;
+        const willDeleteFinal = !!item.treatedWasabiKey;
+        const willDeleteMaster = willDeleteFinal && remainingFinalsForMaster === 0 && !!item.masterWasabiKey && item.masterWasabiKey.startsWith('dtf-masters/');
+        setDeleteConfirm({ open: true, item, willDeleteFinal, willDeleteMaster });
+    }, [items]);
+
+    const performDelete = useCallback(async () => {
+        const item = deleteConfirm.item;
+        if (!item) { setDeleteConfirm({ open: false, item: null, willDeleteFinal: false, willDeleteMaster: false }); return; }
+
+        if (item.treatedWasabiKey && item.treatedWasabiKey.startsWith('dtf-treated/')) {
+            const { deleteFileFromWasabi } = await import('@/integrations/wasabi/upload');
+            await deleteFileFromWasabi(item.treatedWasabiKey);
+        }
+
+        removeGalleryItem(item.id);
+        const remainingItems = items.filter(i => i.id !== item.id);
+        setItems(remainingItems);
+        if (selectedItem?.id === item.id) setSelectedItem(null);
+
+        const remainingFinalsForMaster = remainingItems.filter(i => (
+            (i.masterWasabiKey && item.masterWasabiKey && i.masterWasabiKey === item.masterWasabiKey) ||
+            (i.masterFilePath && item.masterFilePath && i.masterFilePath === item.masterFilePath)
+        )).filter(i => !!i.treatedWasabiKey).length;
+
+        if (remainingFinalsForMaster === 0 && item.masterWasabiKey && item.masterWasabiKey.startsWith('dtf-masters/')) {
+            const { deleteFileFromWasabi } = await import('@/integrations/wasabi/upload');
+            await deleteFileFromWasabi(item.masterWasabiKey);
+        }
+        setDeleteConfirm({ open: false, item: null, willDeleteFinal: false, willDeleteMaster: false });
+    }, [deleteConfirm, items, selectedItem]);
 
     const detailContent = useCallback((item: GalleryItem) => (
         <div className="space-y-4">
@@ -388,37 +392,30 @@ export default function GalleryPanel({ isOpen, onClose, onOpenHalftone, onStartI
         if (selectedIds.size === 0) return;
         setIsSendingBatch(true);
 
-        const pathsToSend: string[] = [];
-        selectedIds.forEach(id => {
-            const item = items.find(i => i.id === id);
-            // In Web, prefer treatedUrl (halftone-treated image) over masterUrl (raw)
-            const path = electronBridge.isElectron
-                ? (item?.savedPath || item?.masterFilePath || item?.treatedUrl || item?.masterUrl || item?.thumbnail)
-                : (item?.treatedUrl || item?.masterUrl || item?.thumbnail || item?.savedPath);
-            if (path) {
-                pathsToSend.push(path);
-            }
-        });
-
         const verifiedPaths: string[] = [];
-        const currentGallery = items; // Capture current items for fallback
-
-        // Validate blobs
-        for (const path of pathsToSend) {
-            if (path.startsWith('blob:')) {
-                try {
-                    const res = await fetch(path);
-                    if (!res.ok) throw new Error();
-                    verifiedPaths.push(path);
-                } catch (err) {
-                    // Find matching item's thumbnail
-                    const item = currentGallery.find(g => g.masterUrl === path);
-                    if (item && item.thumbnail) {
-                        verifiedPaths.push(item.thumbnail);
-                    }
-                }
+        for (const id of selectedIds) {
+            const item = items.find(i => i.id === id);
+            if (!item) continue;
+            if (electronBridge.isElectron) {
+                const p = item.savedPath || item.masterFilePath || item.treatedUrl || item.masterUrl || item.thumbnail;
+                if (p) verifiedPaths.push(p);
             } else {
-                verifiedPaths.push(path);
+                try {
+                    if (item.treatedWasabiKey) {
+                        const url = await getPresignedUrl(item.treatedWasabiKey, 60 * 60);
+                        verifiedPaths.push(url);
+                        continue;
+                    }
+                    if (item.masterWasabiKey) {
+                        const url = await getPresignedUrl(item.masterWasabiKey, 60 * 60);
+                        verifiedPaths.push(url);
+                        continue;
+                    }
+                } catch (e) {
+                    // Continua tentando outras fontes abaixo
+                }
+                const p = item.treatedUrl || item.masterUrl || item.thumbnail;
+                if (p) verifiedPaths.push(p);
             }
         }
 
@@ -428,7 +425,7 @@ export default function GalleryPanel({ isOpen, onClose, onOpenHalftone, onStartI
             return;
         }
 
-        if (electronBridge.launchMontador) {
+        if (electronBridge.launchMontador && electronBridge.isElectron) {
             try {
                 const res = await electronBridge.launchMontador(verifiedPaths);
                 if (res.success) {
@@ -446,7 +443,37 @@ export default function GalleryPanel({ isOpen, onClose, onOpenHalftone, onStartI
                 setIsSendingBatch(false);
             }
         } else {
-            setIsSendingBatch(false);
+            const isOnMontador = typeof window !== 'undefined' && window.location.pathname.includes('/montador');
+            try {
+                (window as any).__OVERPIXEL_BRIDGE__ = {
+                    type: 'VETORIZA_TO_MONTADOR',
+                    data: { images: verifiedPaths }
+                };
+            } catch {}
+            try {
+                localStorage.setItem('OVERPIXEL_BRIDGE_STATE', JSON.stringify({
+                    type: 'VETORIZA_TO_MONTADOR',
+                    data: { images: verifiedPaths }
+                }));
+            } catch {}
+            if (isOnMontador) {
+                try {
+                    window.dispatchEvent(new CustomEvent('OVERPIXEL_MONTADOR_APPEND' as any, { detail: { images: verifiedPaths } }));
+                } catch {}
+            } else {
+                try {
+                    window.dispatchEvent(new CustomEvent('OVERPIXEL_NAVIGATE', { detail: '/montador' }));
+                } catch {}
+                window.setTimeout(() => {
+                    try {
+                        window.dispatchEvent(new CustomEvent('OVERPIXEL_MONTADOR_APPEND' as any, { detail: { images: verifiedPaths } }));
+                    } catch {}
+                }, 800);
+            }
+            setTimeout(() => {
+                setSelectedIds(new Set());
+                setIsSendingBatch(false);
+            }, 300);
         }
     };
 
@@ -804,6 +831,58 @@ export default function GalleryPanel({ isOpen, onClose, onOpenHalftone, onStartI
                         </motion.div>
                     )}
                 </AnimatePresence>
+
+                <AnimatePresence>
+                    {deleteConfirm.open && deleteConfirm.item && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 backdrop-blur-sm"
+                            onClick={() => setDeleteConfirm({ open: false, item: null, willDeleteFinal: false, willDeleteMaster: false })}
+                        >
+                            <motion.div
+                                initial={{ scale: 0.95, y: 10 }}
+                                animate={{ scale: 1, y: 0 }}
+                                exit={{ scale: 0.95 }}
+                                onClick={(e) => e.stopPropagation()}
+                                className="bg-gray-900 border border-white/10 rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center border border-red-500/20">
+                                        <Trash2 size={18} className="text-red-500" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-sm font-bold text-white">Excluir da Galeria</h3>
+                                        <p className="text-[11px] text-white/40">Confirme para prosseguir.</p>
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <p className="text-xs text-white/70">
+                                        {deleteConfirm.willDeleteMaster
+                                            ? 'Você está prestes a excluir o último Final. Isso também excluirá o Master vinculado. Esta ação é permanente e não poderá ser desfeita.'
+                                            : 'Isso removerá o Final deste item e o registro da galeria. O Master permanecerá porque ainda existem outros finais vinculados.'}
+                                    </p>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => setDeleteConfirm({ open: false, item: null, willDeleteFinal: false, willDeleteMaster: false })}
+                                        className="flex-1 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 text-white/60 text-xs rounded-xl"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        onClick={performDelete}
+                                        className="flex-1 py-2.5 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-xl"
+                                    >
+                                        Excluir
+                                    </button>
+                                </div>
+                            </motion.div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+                
 
                 {/* ═══ Inpainting Editor Modal ═══ */}
                 <AnimatePresence>
