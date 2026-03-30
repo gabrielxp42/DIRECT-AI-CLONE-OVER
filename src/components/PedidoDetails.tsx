@@ -54,9 +54,11 @@ import {
   CheckCircle,
   Bike,
   Truck,
-  Palette
+  Palette,
+  Download,
+  DownloadCloud
 } from 'lucide-react';
-
+import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useTiposProducao, deductInsumosFromPedido, restoreInsumosFromPedido, isInventoryConsumingStatus } from '@/hooks/useDataFetch';
 import { showError, showSuccess } from '@/utils/toast';
@@ -85,6 +87,8 @@ import { useIsPlusMode } from '@/hooks/useIsPlusMode';
 import { useBackgroundTasks } from '@/hooks/useBackgroundTasks';
 import { toast } from "sonner";
 import { OrderArtActionModal } from './OrderArtActionModal';
+import { getPresignedUrl } from '@/integrations/wasabi/upload';
+import { WASABI_BUCKET_NAME } from '@/integrations/wasabi/client';
 
 
 interface PedidoDetailsProps {
@@ -572,6 +576,39 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
+              {/* Botão de Baixar Todos os Arquivos (Wasabi Integration) */}
+              {pedido?.pedido_items?.some(item => (item as any).wasabi_url || (item as any).observacao?.includes('URL:')) && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200 font-semibold"
+                  onClick={async () => {
+                    const itemsWithLink = (pedido.pedido_items || []).filter((item: any) => item.wasabi_url || (item.observacao && /URL:\s*https?:\/\//i.test(item.observacao)));
+                    const urls: string[] = [];
+                    for (const it of itemsWithLink) {
+                      const direct = it.wasabi_url as string | undefined;
+                      const obsUrl = (it.observacao?.match(/URL:\s*(https?:\/\/\S+)/i)?.[1]) as string | undefined;
+                      const anyUrl = direct || obsUrl;
+                      if (!anyUrl) continue;
+                      try {
+                        const u = new URL(anyUrl);
+                        const parts = u.pathname.split('/').filter(Boolean);
+                        const key = parts.slice(1).join('/'); 
+                        const presigned = await getPresignedUrl(key, 60 * 60);
+                        urls.push(presigned);
+                      } catch {
+                        urls.push(anyUrl);
+                      }
+                    }
+                    urls.forEach(u => window.open(u, '_blank'));
+                    if (urls.length > 1) showSuccess(`${urls.length} arquivos abertos para download!`);
+                  }}
+                >
+                  <DownloadCloud className="h-4 w-4 mr-2" />
+                  Baixar Arquivos
+                </Button>
+              )}
+
               <Button variant="outline" size="sm" onClick={handleDownloadPDF}>
                 <FileText className="h-4 w-4 mr-2" />
                 Baixar PDF
@@ -687,6 +724,7 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
                         <TableHead className="text-right min-w-[80px]">Quantidade</TableHead>
                         <TableHead className="text-right min-w-[100px]">Preço Unitário</TableHead>
                         <TableHead className="text-right min-w-[100px]">Total</TableHead>
+                        <TableHead className="w-[40px]"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -724,7 +762,45 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
                           </TableCell>
                           <TableCell>
                             <div>
-                              <div className="font-medium">{item.produto_nome || getProdutoNome(item.produto_id)}</div>
+                              <div className="font-medium flex items-center gap-2">
+                                {item.produto_nome || getProdutoNome(item.produto_id)}
+                                {((item as any).wasabi_url || 
+                                  item.produto_nome?.toLowerCase().endsWith('.tif') || 
+                                  item.produto_nome?.toLowerCase().endsWith('.tiff') || 
+                                  item.produto_nome?.toLowerCase().endsWith('.pdf') || 
+                                  item.produto_nome?.toLowerCase().endsWith('.png') || 
+                                  item.produto_nome?.toLowerCase().endsWith('.jpg')) && (
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    className={cn("h-6 w-6 rounded-full transition-colors", 
+                                      (item as any).wasabi_url 
+                                        ? "bg-primary/10 hover:bg-primary/20 text-primary" 
+                                        : "bg-zinc-800/50 hover:bg-zinc-800 text-muted-foreground"
+                                    )}
+                                    onClick={async (e) => {
+                                      e.stopPropagation();
+                                      const direct = (item as any).wasabi_url as string | undefined;
+                                      const anyUrl = direct || (item.observacao ? (item.observacao.match(/URL:\s*(https?:\/\/\S+)/i)?.[1] || undefined) : undefined);
+                                      if (!anyUrl) {
+                                        showError("URL de download não encontrada.");
+                                        return;
+                                      }
+                                      try {
+                                        const u = new URL(anyUrl);
+                                        const parts = u.pathname.split('/').filter(Boolean);
+                                        const key = parts.slice(1).join('/');
+                                        const presigned = await getPresignedUrl(key, 60 * 60);
+                                        window.open(presigned, '_blank');
+                                      } catch (e) {
+                                        window.open(anyUrl, '_blank');
+                                      }
+                                    }}
+                                  >
+                                    <Download className="h-3 w-3" />
+                                  </Button>
+                                )}
+                              </div>
                               {item.observacao && (
                                 <div className="text-sm text-muted-foreground italic">
                                   Obs: {item.observacao}
@@ -733,7 +809,7 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
                             </div>
                           </TableCell>
                           <TableCell className="text-right">
-                            {item.quantidade}
+                            {item.quantity || item.quantidade}
                             <span className="text-[10px] text-muted-foreground ml-1">
                               {(() => {
                                 const tipoStr = (item.tipo || 'dtf').toLowerCase();
@@ -743,10 +819,10 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
                             </span>
                           </TableCell>
                           <TableCell className="text-right">
-                            {formatCurrency(item.preco_unitario)}
+                            {formatCurrency(item.price || item.preco_unitario)}
                           </TableCell>
                           <TableCell className="text-right">
-                            {formatCurrency(item.quantidade * item.preco_unitario)}
+                            {formatCurrency((item.quantity || item.quantidade) * (item.price || item.preco_unitario))}
                           </TableCell>
                           <TableCell className="text-center overflow-visible">
                             <motion.button
@@ -765,9 +841,7 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
                               </span>
                             </motion.button>
                           </TableCell>
-
                         </TableRow>
-
                       ))}
                     </TableBody>
                   </Table>
@@ -1062,4 +1136,4 @@ export const PedidoDetails: React.FC<PedidoDetailsProps> = ({
       )}
     </Dialog>
   );
-};
+};

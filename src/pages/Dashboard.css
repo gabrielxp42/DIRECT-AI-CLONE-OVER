@@ -3,16 +3,11 @@
   position: relative;
   min-height: 100vh;
   padding-bottom: 100px;
-  overflow: hidden;
+  overflow-x: hidden;
 }
 
 .dashboard-bg-blobs {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  filter: blur(100px);
-  opacity: 0.15;
-  pointer-events: none;
+  display: none !important; /* Esconder em ambos os temas */
 }
 
 .dashboard-blob {
@@ -50,11 +45,14 @@
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 24px;
   transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+  border-color: var(--primary-custom) !important;
+  box-shadow: 0 0 6px var(--primary-custom), inset 0 0 3px var(--primary-custom) !important;
 }
 
 .dark .dashboard-glass-card {
   background: rgba(15, 23, 42, 0.3);
-  border-color: rgba(255, 255, 255, 0.05);
+  border-color: var(--primary-custom) !important;
+  box-shadow: 0 0 6px var(--primary-custom), inset 0 0 3px var(--primary-custom) !important;
 }
 
 .dashboard-glass-card:hover {
@@ -65,10 +63,16 @@
 }
 
 .dashboard-title-gradient {
-  background: linear-gradient(135deg, #fff 0%, rgba(255,255,255,0.5) 100%);
+  background: linear-gradient(135deg, #0f172a 0%, rgba(15, 23, 42, 0.6) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
+}
+
+.dark .dashboard-title-gradient {
+  background: linear-gradient(135deg, #fff 0%, rgba(255,255,255,0.5) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
 }
 
 .stat-icon-container {

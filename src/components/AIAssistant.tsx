@@ -27,7 +27,7 @@ import { useBackgroundTasks } from '@/hooks/useBackgroundTasks';
 import { GabiAvatar, type GabiMood } from './GabiAvatar';
 
 export const AIAssistant = () => {
-  const { isOpen, close: closeAssistant } = useAIAssistant();
+  const { isOpen, close: closeAssistant, open: openAssistant } = useAIAssistant();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -49,6 +49,21 @@ export const AIAssistant = () => {
   const queryClient = useQueryClient();
   const { addTask, updateTask } = useBackgroundTasks();
   const { data: companyProfile } = useCompanyProfile();
+
+  useEffect(() => {
+    // Listen for custom event to pre-fill input and open Gabi
+    const handleGabiAsk = (e: CustomEvent) => {
+      openAssistant();
+      if (e.detail) {
+        setInput(e.detail);
+        // Opcional: já enviar a mensagem automaticamente (descomente abaixo se quiser)
+        // handleSendMessage(e.detail);
+      }
+    };
+
+    window.addEventListener('gabi:ask', handleGabiAsk as EventListener);
+    return () => window.removeEventListener('gabi:ask', handleGabiAsk as EventListener);
+  }, [openAssistant]);
 
   // Derive Gabi's mood from current state
   const currentMood: GabiMood = useMemo(() => {
@@ -938,26 +953,40 @@ export const AIAssistant = () => {
 
                 {!isLive && (
                   <CardFooter className="p-4 pt-2 border-t bg-muted/10 backdrop-blur-40">
-                    <div className="flex items-center gap-2 w-full">
-                      <Input
+                    <div className="flex items-end gap-2 w-full">
+                      <textarea
                         placeholder="Digite sua pergunta..."
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
-                        onKeyPress={(e) => {
-                          if (e.key === 'Enter' && !isLoading) {
-                            handleSendMessage(input);
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            if (!isLoading && input.trim()) {
+                              handleSendMessage(input);
+                            }
                           }
                         }}
                         disabled={isLoading}
-                        className="flex-1"
+                        rows={1}
+                        className="flex-1 min-h-[40px] max-h-[120px] bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 rounded-xl resize-none overflow-y-auto"
+                        style={{ height: input ? 'auto' : '40px' }}
+                        ref={(el) => {
+                          if (el) {
+                            el.style.height = '40px';
+                            const scrollHeight = el.scrollHeight;
+                            el.style.height = Math.min(scrollHeight, 120) + 'px';
+                          }
+                        }}
                       />
-                      {input.trim() === '' ? (
-                        <AudioRecorder onAudioRecorded={handleAudioRecorded} disabled={isLoading} />
-                      ) : (
-                        <Button onClick={() => handleSendMessage(input)} disabled={isLoading || input.trim() === ''} size="icon" className="h-10 w-10 rounded-full">
-                          <Send className="h-4 w-4" />
-                        </Button>
-                      )}
+                      <div className="mb-0">
+                        {input.trim() === '' ? (
+                          <AudioRecorder onAudioRecorded={handleAudioRecorded} disabled={isLoading} />
+                        ) : (
+                          <Button onClick={() => handleSendMessage(input)} disabled={isLoading || input.trim() === ''} size="icon" className="h-10 w-10 rounded-full shrink-0">
+                            <Send className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   </CardFooter>
                 )}

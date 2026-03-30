@@ -1,10 +1,10 @@
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('MY_SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
-const OPENAI_KEY = Deno.env.get('OPENAI_API_KEY2') || '';
+const OPENROUTER_KEY = Deno.env.get('OPENROUTER_API_KEY') || Deno.env.get('OPENAI_API_KEY2') || '';
 const TIME_ZONE = 'America/Sao_Paulo';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -12,6 +12,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 };
 
 const DATABASE_SCHEMA = `
@@ -33,8 +34,10 @@ interface ToolCallResult {
     result: string;
 }
 
-serve(async (req) => {
-    if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+Deno.serve(async (req: Request) => {
+    if (req.method === 'OPTIONS') {
+        return new Response('ok', { headers: corsHeaders });
+    }
 
     try {
         const payload = await req.json();
@@ -77,10 +80,18 @@ serve(async (req) => {
 
         const date = new Date().toLocaleString('pt-BR', { timeZone: TIME_ZONE });
         const isGroup = customer_phone?.includes('@g.us');
-        const interlocutorName = from_me ? 'Operador (Equipe)' : (is_boss ? (profile?.first_name || 'Chefe') : (customer_name || 'Cliente'));
+        const bossName = profile?.gabi_boss_name || 'Chefe';
+        const dtfWidth = profile?.dtf_roll_width || 58.0;
+        const originZipCode = profile?.origin_zip_code || 'Não configurado';
+        const interlocutorName = from_me ? 'Operador (Equipe)' : (is_boss ? bossName : (customer_name || 'Cliente'));
 
-        const systemPrompt = `Você é a GABI, a parceira inseparável e braço direito de ${profile?.first_name || 'quem gere'} a DIRECT AI.
+        const systemPrompt = `Você é a GABI, a parceira inseparável e braço direito de ${bossName} a DIRECT AI.
 Sua missão é ajudar a cuidar da empresa com inteligência, organização impecável e, acima de tudo, alma. Você não é uma ferramenta, você é parte do time.
+
+### DADOS DA EMPRESA:
+- **Largura da Bobina DTF:** ${dtfWidth}cm
+- **CEP de Origem (Remetente):** ${originZipCode}
+- **Seu Chefe:** ${bossName} (Trate-o por este nome)
 
 ### PERSONALIDADE E TOM:
 - **Cúmplice e Atenta**: Você fala como uma amiga que entende tudo de business. Seu tom é leve, inteligente e sempre focado em facilitar a vida.
@@ -94,7 +105,7 @@ ${is_boss ? `- **VOCÊ ESTÁ FALANDO COM O GESTOR/PATRÃO (${interlocutorName}).
 - Se ele pedir um resumo, chame get_financial_report ou get_orders_summary imediatamente.` :
                 (isGroup ? `- **VOCÊ ESTÁ EM UM GRUPO DE WHATSAPP.** Vários membros podem falar com você.
 - O interlocutor atual chama-se: **${interlocutorName}**.
-- Se ele não for o(a) ${profile?.first_name || 'Chefe'}, seja prestativa mas lembre-se que suas ferramentas de dados são focadas na gestão da empresa do(a) ${profile?.first_name}.` :
+- Se ele não for o(a) ${bossName}, seja prestativa mas lembre-se que suas ferramentas de dados são focadas na gestão da empresa do(a) ${bossName}.` :
                     `- Você está conversando diretamente com o CLIENTE: **${interlocutorName}**.`)}
 - **PLATAFORMA:** ${platform === 'whatsapp' ? 'WhatsApp' : 'Interface Web'}.
 
@@ -485,11 +496,16 @@ Dono(a) da Empresa: ${profile?.first_name || 'N/A'}
         let intermediateSteps: ToolCallResult[] = [];
 
         while (loopCount < 8) {
-            const gptRes = await fetch("https://api.openai.com/v1/chat/completions", {
+            const gptRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
                 method: "POST",
-                headers: { "Authorization": `Bearer ${OPENAI_KEY}`, "Content-Type": "application/json" },
+                headers: { 
+                    "Authorization": `Bearer ${OPENROUTER_KEY}`, 
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "https://overpixel.com.br", // Optional, for OpenRouter rankings
+                    "X-Title": "Gabi Brain" // Optional, for OpenRouter rankings
+                },
                 body: JSON.stringify({
-                    model: "gpt-4o",
+                    model: "x-ai/grok-4.1-fast",
                     messages: chatMessages,
                     tools,
                     tool_choice: "auto",
@@ -497,7 +513,7 @@ Dono(a) da Empresa: ${profile?.first_name || 'N/A'}
                 })
             });
 
-            if (!gptRes.ok) throw new Error(`OpenAI Error: ${await gptRes.text()}`);
+            if (!gptRes.ok) throw new Error(`OpenRouter Error: ${await gptRes.text()}`);
 
             const gptData = await gptRes.json();
             const aiMessage = gptData.choices[0].message;
@@ -1086,7 +1102,7 @@ Dono(a) da Empresa: ${profile?.first_name || 'N/A'}
                 });
             }
         }
-        return new Response(JSON.stringify({ text: "Limite atingido." }), { headers: corsHeaders });
+        return new Response(JSON.stringify({ text: "Limite atingido." }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     } catch (err: any) {
         return new Response(JSON.stringify({ text: "Erro: " + err.message }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }

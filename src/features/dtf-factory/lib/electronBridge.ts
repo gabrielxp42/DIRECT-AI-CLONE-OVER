@@ -413,9 +413,14 @@ export const electronBridge: ElectronBridge = {
             if (itemId) params.set('itemId', itemId);
             
             const targetUrl = params.toString() ? `${baseUrl}?${params.toString()}` : baseUrl;
+
+            console.log('[launchMontador] Bridge payload set with', validImages.length, 'images');
+            
+            // Disparar evento de append (se Montador já estiver aberto, ele apenas adiciona)
+            window.dispatchEvent(new CustomEvent('OVERPIXEL_MONTADOR_APPEND', { detail: { images: validImages } }));
+            
+            // Também navegar (primeiro uso) – se já estiver na rota, o listener de append cuidará
             window.dispatchEvent(new CustomEvent('OVERPIXEL_NAVIGATE', { detail: targetUrl }));
-
-
 
             // --- Synchronized Handoff ---
             // Instead of a fixed timeout, we wait for the Montador to signal it's ready
@@ -446,6 +451,7 @@ export const electronBridge: ElectronBridge = {
                     }
                 }, 8000); // 8 seconds is plenty for even heavy images
             });
+
 
         } catch (e: any) {
             console.error('[launchMontador] Error:', e);

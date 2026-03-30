@@ -696,7 +696,16 @@ export default function Sidebar({
                 <div className="mr-header">
                     <div className="mr-header-content">
                         {/* Logo */}
-                        <div className="mr-logo-container cursor-pointer hover:opacity-80 transition-opacity" onClick={() => window.dispatchEvent(new CustomEvent('toggle-launcher'))}>
+                        <div 
+                            className="mr-logo-container cursor-pointer hover:opacity-80 transition-opacity" 
+                            onClick={() => {
+                                if (window.innerWidth >= 768) {
+                                    window.dispatchEvent(new CustomEvent('OVERPIXEL_NAVIGATE', { detail: '/' }));
+                                } else {
+                                    window.dispatchEvent(new CustomEvent('toggle-launcher'));
+                                }
+                            }}
+                        >
                             <div className="mr-logo-row">
                                 <img src="/montador/logo-montador-fast.png" alt="Logo" className="mr-logo-icon" style={{ width: '42px', height: '42px', marginRight: '10px' }} />
                                 <div className="flex flex-col">

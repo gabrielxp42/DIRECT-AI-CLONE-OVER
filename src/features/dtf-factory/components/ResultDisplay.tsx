@@ -141,7 +141,9 @@ export default function ResultDisplay({
                     <motion.button
                         whileHover={{ scale: 1.05, boxShadow: '0 0 25px rgba(245, 158, 11, 0.4)' }}
                         whileTap={{ scale: 0.95 }}
-                        onClick={() => electronBridge.launchMontador([imageUrl])}
+                        onClick={() => {
+                            electronBridge.launchMontador([imageUrl]);
+                        }}
                         className="flex-[1.5] max-w-[200px] flex items-center justify-center gap-2 py-3 bg-gradient-to-br from-orange-400 to-amber-600 text-black text-[11px] font-black uppercase tracking-widest hover:brightness-110 transition-all shadow-[0_0_20px_rgba(245,158,11,0.2)]"
                     >
                         <LayoutGrid className="w-4 h-4" />
@@ -151,11 +153,15 @@ export default function ResultDisplay({
                     <motion.button
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
-                        onClick={onOpenFolder}
+                        onClick={() => {
+                            try {
+                                window.dispatchEvent(new CustomEvent('OVERPIXEL_OPEN_GALLERY', { detail: { imageUrl } }));
+                            } catch (e) {}
+                        }}
                         className="flex-1 max-w-[160px] flex items-center justify-center gap-2 py-2.5 bg-black border border-white/10 text-white/60 text-[10px] font-bold uppercase tracking-widest hover:border-white/30 hover:text-white transition-all font-mono"
                     >
                         <FolderOpen className="w-3.5 h-3.5" />
-                        <span>PASTA</span>
+                        <span>VER NA GALERIA</span>
                     </motion.button>
                 </motion.div>
 

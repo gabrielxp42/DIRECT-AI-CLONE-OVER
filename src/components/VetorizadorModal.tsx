@@ -87,12 +87,13 @@ export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({
 
     const { data, error } = await supabase
       .from("profiles_v2")
-      .select("ai_credits")
+      .select("ai_credits, token_balance")
       .eq("uid", user.id)
       .single();
 
     if (!error && data) {
-      setAiCredits(data.ai_credits || 0);
+      // Use token_balance as primary, fallback to ai_credits for backward compatibility
+      setAiCredits(data.token_balance ?? data.ai_credits ?? 0);
     }
   };
 

@@ -53,7 +53,7 @@ export const FreightQuoteModal = ({ open, onOpenChange, onSelectQuote, defaultCE
             return;
         }
 
-        const originCEP = companyProfile?.company_address_zip?.replace(/\D/g, '') || "04571010";
+        const originCEP = (companyProfile?.origin_zip_code || companyProfile?.company_address_zip || "04571010").replace(/\D/g, '');
         const destinationCEP = destCEP.replace(/\D/g, '');
 
         // Determina quais provedores chamar
@@ -157,7 +157,10 @@ export const FreightQuoteModal = ({ open, onOpenChange, onSelectQuote, defaultCE
                             name: q.name,
                             price: q.price,
                             delivery_time: q.delivery_time,
-                            provider: 'superfrete'
+                            provider: 'superfrete',
+                            carrier_logo: q.name.toLowerCase().includes('correios') || q.name.toLowerCase().includes('pac') || q.name.toLowerCase().includes('sedex')
+                                ? 'https://logodownload.org/wp-content/uploads/2014/05/correios-logo-1.png'
+                                : undefined
                         }));
                     } else if (data.data && Array.isArray(data.data)) {
                         normalized = data.data.map((q: any) => ({
@@ -165,7 +168,10 @@ export const FreightQuoteModal = ({ open, onOpenChange, onSelectQuote, defaultCE
                             name: q.name,
                             price: q.price,
                             delivery_time: q.delivery_time,
-                            provider: 'superfrete'
+                            provider: 'superfrete',
+                            carrier_logo: q.name.toLowerCase().includes('correios') || q.name.toLowerCase().includes('pac') || q.name.toLowerCase().includes('sedex')
+                                ? 'https://logodownload.org/wp-content/uploads/2014/05/correios-logo-1.png'
+                                : undefined
                         }));
                     }
 
@@ -264,6 +270,16 @@ export const FreightQuoteModal = ({ open, onOpenChange, onSelectQuote, defaultCE
                             >
                                 <div className="text-left">
                                     <div className="flex items-center gap-2 mb-1">
+                                        {quote.carrier_logo && (
+                                            <div className="h-6 w-6 mr-1 flex items-center justify-center">
+                                                <img
+                                                    src={quote.carrier_logo}
+                                                    alt=""
+                                                    className="h-full w-full object-contain"
+                                                    onError={(e) => (e.currentTarget.style.display = 'none')}
+                                                />
+                                            </div>
+                                        )}
                                         <p className="text-sm font-black text-white uppercase italic leading-none group-hover:text-primary transition-colors">{quote.name}</p>
                                         <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase ${quote.provider === 'frenet' ? 'bg-blue-500/20 text-blue-400' : 'bg-orange-500/20 text-orange-400'}`}>
                                             {quote.provider}

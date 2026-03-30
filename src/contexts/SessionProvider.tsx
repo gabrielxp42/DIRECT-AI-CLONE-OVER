@@ -63,6 +63,7 @@ type Profile = {
   is_vetoriza_ai_gifted?: boolean;
   is_vetoriza_ai_gifted_viewed?: boolean;
   ai_credits?: number;
+  token_balance?: number;
 };
 
 export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, Record<string, boolean>> = {
@@ -149,10 +150,9 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
   const fetchProfileData = async (userId: string, token: string) => {
     try {
       // Usar fetch direto como no restante do projeto para máxima estabilidade
-      const url = `${SUPABASE_URL}/rest/v1/profiles_v2?uid=eq.${userId}&select=*`;
+      const url = `${SUPABASE_URL}/rest/v1/profiles_v2?uid=eq.${userId}&select=*&apikey=${SUPABASE_ANON_KEY}`;
       const response = await fetch(url, {
         headers: {
-          'apikey': SUPABASE_ANON_KEY,
           'Authorization': `Bearer ${token}`,
         }
       });
@@ -166,7 +166,9 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
       }
 
       const data = await response.json();
-      return (data && data.length > 0) ? (data[0] as Profile) : null;
+      let profileData = (data && data.length > 0) ? (data[0] as Profile) : null;
+      
+      return profileData;
     } catch (error: any) {
       if (error.name === 'AbortError') {
         console.warn('[SessionProvider] Profile fetch aborted (safe to ignore)');
@@ -347,14 +349,14 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
   const switchSubProfile = (subProfile: SubProfile | null) => {
     setActiveSubProfile(subProfile);
     if (subProfile) {
-      localStorage.setItem('direct_ai_active_sub_profile', JSON.stringify(subProfile));
+      sessionStorage.setItem('direct_ai_active_sub_profile', JSON.stringify(subProfile));
     } else {
-      localStorage.removeItem('direct_ai_active_sub_profile');
+      sessionStorage.removeItem('direct_ai_active_sub_profile');
     }
   };
 
   useEffect(() => {
-    const saved = localStorage.getItem('direct_ai_active_sub_profile');
+    const saved = sessionStorage.getItem('direct_ai_active_sub_profile');
     if (saved) {
       try {
         setActiveSubProfile(JSON.parse(saved));
@@ -368,11 +370,10 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
     // 1. Se não houver perfil carregado ainda, negamos por segurança (exceto se estiver carregando)
     if (!profile) return false;
 
-    // 2. Se for o chefe (perfil principal ou sub-perfil chefe), ou se multi-perfil estiver desativado, acesso total
-    if (!profile.is_multi_profile_enabled || activeSubProfile?.role === 'chefe') return true;
+    // 2. Se for o chefe (perfil principal ou sub-perfil chefe), acesso total
+    if (activeSubProfile?.role === 'chefe') return true;
 
-    // 3. Se multi-perfil está ativo mas nenhum sub-perfil foi selecionado, só deixamos ver o Dashboard/Início
-    // por segurança, forçando a seleção de perfil que acontece no Layout/ProfileSelector
+    // 3. Nenhum sub-perfil selecionado -> forçar restrição para exibir o ProfileSelector
     if (!activeSubProfile) return permission === 'view_dashboard';
     
     // 4. Verificar permissões personalizadas do banco

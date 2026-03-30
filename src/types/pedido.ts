@@ -10,6 +10,9 @@ export interface PedidoItem {
   preco_unitario: number;
   observacao?: string;
   tipo?: 'dtf' | 'vinil';
+  anotado?: boolean;
+  imagem_principal_url?: string | null;
+  imagem_secundaria_url?: string | null;
   produtos?: Produto;
   ordem?: number;
 }
@@ -49,6 +52,7 @@ export interface Pedido {
   total_metros_dtf: number;
   total_metros_vinil: number;
   status: PedidoStatus; // Tipos de status atualizados
+  loja_status?: string | null;
   observacoes: string | null;
   tipo_entrega?: 'frete' | 'retirada';
   valor_frete?: number;
@@ -59,6 +63,8 @@ export interface Pedido {
   shipping_cep?: string | null;
   shipping_details?: any | null;
   production_status: ProductionStatus;
+  origem?: 'dtf' | 'loja';
+  grupo_id?: string | null;
   created_at: string;
   pago_at: string | null;
   order_number: number;
@@ -97,6 +103,8 @@ export interface NewPedido {
   status: PedidoStatus; // Status de pagamento/geral
   pago_at?: string | null;
   observacoes?: string;
+  origem?: 'dtf' | 'loja';
+  grupo_id?: string | null;
   tipo_entrega?: 'frete' | 'retirada';
   valor_frete?: number;
   transportadora?: string | null;

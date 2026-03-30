@@ -127,6 +127,10 @@ const MagicMessageRotator = () => {
                 setIsLoadingMagic(false);
             }
         }
+        // Persist color in localStorage for immediate effect on reload
+        if (field === 'company_primary_color') {
+            localStorage.setItem('cached_primary_color', value);
+        }
     };
 
     return (
@@ -282,6 +286,9 @@ export default function Settings() {
             root.style.setProperty('--primary', hsl);
             root.style.setProperty('--primary-foreground', foregroundHsl);
             root.style.setProperty('--primary-custom', value);
+            
+            // Persist color in localStorage for immediate effect on reload
+            localStorage.setItem('cached_primary_color', value);
         }
     };
 
@@ -390,7 +397,7 @@ export default function Settings() {
 
     return (
         <div className="min-h-screen bg-background pb-24 md:pb-8 overflow-x-hidden">
-            <div className="container max-w-4xl py-6 md:py-8 px-4 md:px-6 space-y-6 md:space-y-8">
+            <div className="container max-w-4xl py-6 md:py-8 px-4 md:px-6 space-y-6 md:space-y-8 pb-32">
                 {/* Header */}
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="flex items-center gap-4">
@@ -618,6 +625,34 @@ export default function Settings() {
                         </CardHeader>
                         <CardContent className="pt-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="dtf_roll_width" className="text-xs uppercase tracking-wider text-muted-foreground">Largura da Bobina DTF (cm)</Label>
+                                    <Input
+                                        id="dtf_roll_width"
+                                        type="number"
+                                        step="0.1"
+                                        value={formData.dtf_roll_width || companyProfile?.dtf_roll_width || 58.0}
+                                        onChange={(e) => handleInputChange('dtf_roll_width', parseFloat(e.target.value))}
+                                        placeholder="Ex: 58.0"
+                                        className="h-11 md:h-10"
+                                    />
+                                    <p className="text-[10px] text-muted-foreground italic">
+                                        Largura útil usada para cálculos na calculadora de DTF. Padrão: 58cm.
+                                    </p>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="origin_zip_code" className="text-xs uppercase tracking-wider text-muted-foreground">CEP de Origem</Label>
+                                    <Input
+                                        id="origin_zip_code"
+                                        value={formData.origin_zip_code || companyProfile?.origin_zip_code || ''}
+                                        onChange={(e) => handleInputChange('origin_zip_code', e.target.value)}
+                                        placeholder="Ex: 01001-000"
+                                        className="h-11 md:h-10"
+                                    />
+                                    <p className="text-[10px] text-muted-foreground italic">
+                                        CEP de onde os produtos são enviados. Usado para cálculo de frete.
+                                    </p>
+                                </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="company_name" className="text-xs uppercase tracking-wider text-muted-foreground">Nome da Empresa *</Label>
                                     <Input
@@ -1051,7 +1086,7 @@ export default function Settings() {
                 />
 
                 {/* Premium Sticky Bottom Bar (Mobile) */}
-                <div className="md:hidden fixed bottom-0 left-0 right-0 p-4 bg-background/80 backdrop-blur-xl border-t border-border/50 z-50">
+                <div className="md:hidden fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] left-0 right-0 p-4 bg-background/80 backdrop-blur-xl border-t border-border/50 z-30">
                     <Button
                         onClick={handleSave}
                         disabled={!hasChanges || isUpdating}

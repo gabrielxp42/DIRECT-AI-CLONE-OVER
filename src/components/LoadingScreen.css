@@ -551,25 +551,25 @@
 /* Light theme glow - mais intenso para contrastar */
 :root:not(.dark) .loading-screen__glow--primary,
 .light .loading-screen__glow--primary {
-    background: radial-gradient(circle, rgba(250, 204, 21, 0.5) 0%, transparent 70%);
+    background: radial-gradient(circle, rgba(0, 240, 255, 0.5) 0%, transparent 70%);
 }
 
 :root:not(.dark) .loading-screen__glow--secondary,
 .light .loading-screen__glow--secondary {
-    background: radial-gradient(circle, rgba(251, 191, 36, 0.35) 0%, transparent 70%);
+    background: radial-gradient(circle, rgba(0, 229, 255, 0.35) 0%, transparent 70%);
 }
 
 /* Light theme logo - sombra mais forte */
 :root:not(.dark) .loading-screen__logo,
 .light .loading-screen__logo {
-    filter: drop-shadow(0 0 25px rgba(250, 204, 21, 0.8)) drop-shadow(0 0 50px rgba(250, 204, 21, 0.4)) drop-shadow(0 2px 8px rgba(0, 0, 0, 0.1));
+    filter: drop-shadow(0 0 25px rgba(0, 240, 255, 0.8)) drop-shadow(0 0 50px rgba(0, 240, 255, 0.4)) drop-shadow(0 2px 8px rgba(0, 0, 0, 0.1));
 }
 
 /* Light theme title - texto escuro com sombra amarela */
 :root:not(.dark) .loading-screen__title,
 .light .loading-screen__title {
     color: #0f172a;
-    text-shadow: 0 0 30px rgba(250, 204, 21, 0.5),
+    text-shadow: 0 0 30px rgba(0, 240, 255, 0.5),
         0 2px 4px rgba(0, 0, 0, 0.1);
 }
 

@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, ShoppingCart, Users, BarChart3, Package, MessageSquare, Layers, Sparkles, Image as ImageIcon, Bot, Truck, Grid2x2, X, LayoutGrid, CloudCog, Wand2, Settings } from 'lucide-react';
+import { Home, ShoppingCart, Users, BarChart3, Package, MessageSquare, Layers, Sparkles, Image as ImageIcon, Bot, Truck, Grid2x2, X, LayoutGrid, CloudCog, Wand2, Settings, ChevronRight, Palette, AlertCircle, RefreshCw } from 'lucide-react';
 import { AnimatePresence, animate, motion, useDragControls, useMotionValue } from 'framer-motion';
 import { AIAssistant } from './AIAssistant';
 import { ThemeToggle } from './ThemeToggle';
@@ -33,27 +33,23 @@ import { ActivityTracker } from './ActivityTracker';
 import { ProfileSelector } from './ProfileSelector';
 import { useSession } from '@/contexts/SessionProvider';
 import OverPixelLauncher from '@/modules/launcher/Launcher';
-
+import { AIFirstOnboarding } from '@/components/AIFirstOnboarding';
 // Lazy Load Persistent Apps for Instance Memory
 const DTFFactory = React.lazy(() => import('../pages/DTFFactory'));
 const MontadorPage = React.lazy(() => import('../pages/Montador'));
+const MelhoradorPage = React.lazy(() => import('../pages/Melhorador'));
 
-const PERSISTENT_APP_ROUTES = ['/dtf-factory', '/montador'];
+const PERSISTENT_APP_ROUTES = ['/dtf-factory', '/montador', '/melhorador'];
 
 const staticNavItems = [
-  { href: '/dashboard', icon: Home, label: 'Dashboard', permission: 'view_dashboard' },
-  { href: '/pedidos', icon: ShoppingCart, label: 'Pedidos', permission: 'view_pedidos' },
   { href: '/clientes', icon: Users, label: 'Clientes', permission: 'view_clientes' },
-  { href: '/produtos', icon: Package, label: 'Produtos', permission: 'view_produtos' },
-  { href: '/insumos', icon: Layers, label: 'Insumos', permission: 'view_insumos' },
   { href: '/reports', icon: BarChart3, label: 'Relatórios', permission: 'view_reports' },
-  { href: '/logistica', icon: Truck, label: 'Logística', permission: 'view_logistica' },
+  { href: '/settings', icon: Settings, label: 'Configurações', permission: 'manage_settings' },
   { href: '/gabi', icon: Bot, label: 'Gabi', permission: 'view_gabi' },
-  { href: '/vetorizar', icon: ImageIcon, label: 'Vetorizar', permission: 'view_vetorizar' },
 ];
 
 const Layout = () => {
-  const { profile, activeSubProfile } = useSession();
+  const { profile, activeSubProfile, switchSubProfile } = useSession();
   const { isOpen, open: openAIAssistant } = useAIAssistant();
   const isMobile = useIsMobile();
   const location = useLocation();
@@ -65,6 +61,10 @@ const Layout = () => {
   const [showLauncher, setShowLauncher] = React.useState(false);
   const [showLauncherSettings, setShowLauncherSettings] = React.useState(false);
   const [mobileLauncherIndex, setMobileLauncherIndex] = React.useState(0);
+  const [expandDTF, setExpandDTF] = React.useState(false);
+  const [expandLOJA, setExpandLOJA] = React.useState(false);
+  const [expandFERR, setExpandFERR] = React.useState(false);
+
   const mobileCarouselX = useMotionValue(0);
   const mobileCarouselDragControls = useDragControls();
   const isMobileCarouselDraggingRef = React.useRef(false);
@@ -126,9 +126,6 @@ const Layout = () => {
   const lastPathOpenedRef = React.useRef(location.pathname);
 
   const closeLauncher = React.useCallback(() => {
-    const now = Date.now();
-    if (now - lastToggleRef.current < 300) return;
-    lastToggleRef.current = now;
     console.log('[Layout] closeLauncher() called');
     setShowLauncher(false);
     setShowLauncherSettings(false);
@@ -138,7 +135,7 @@ const Layout = () => {
     { id: 'direct-ai', theme: 'gabi' as const, iconType: 'svg' as const, route: '/dashboard' },
     { id: 'dtf-factory', theme: 'dtf-factory' as const, iconType: 'img' as const, iconSrc: '/dtf-fabric-logo.png', route: '/dtf-factory' },
     { id: 'montador', theme: 'montador' as const, iconType: 'img' as const, iconSrc: '/montador/logo-montador-fast.png', route: '/montador' },
-    { id: 'melhorador', theme: 'melhorador' as const, iconType: 'img' as const, iconSrc: encodeURI('/logo melhorador cloud.png'), route: null },
+    { id: 'melhorador', theme: 'melhorador' as const, iconType: 'img' as const, iconSrc: encodeURI('/logo melhorador cloud.png'), route: '/melhorador' },
   ]), []);
 
   const mod = React.useCallback((value: number, base: number) => ((value % base) + base) % base, []);
@@ -165,6 +162,7 @@ const Layout = () => {
     const toIndex = (path: string) => {
       if (path.includes('/dtf-factory')) return 1;
       if (path.includes('/montador')) return 2;
+      if (path.includes('/melhorador')) return 3;
       return 0;
     };
     setMobileLauncherIndex(toIndex(location.pathname));
@@ -196,13 +194,48 @@ const Layout = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [showLauncher, closeLauncher]);
 
-  // Close launcher on REAL navigation (if path actually changed since opened)
+  // Close launcher only when the path changed from when it was opened
   React.useEffect(() => {
     if (showLauncher && location.pathname !== lastPathOpenedRef.current) {
       console.log(`[Layout] Auto-closing launcher due to navigation -> From: ${lastPathOpenedRef.current} To: ${location.pathname}`);
       closeLauncher();
     }
   }, [location.pathname, closeLauncher, showLauncher]);
+  React.useEffect(() => {
+    // Apenas forçar estilos no container do menu (overlay), não no app principal
+    const elements = document.querySelectorAll('.ios-launcher-container');
+    elements.forEach((el) => {
+      const htmlEl = el as HTMLElement;
+      // Se não for o overlay do menu, não mexa no display!
+      if (!htmlEl.classList.contains('mobile-overlay') && htmlEl.parentElement?.id !== 'root' && !htmlEl.closest('.z-\\[9995\\]')) {
+         return; 
+      }
+
+      if (location.pathname === '/') {
+        htmlEl.style.pointerEvents = 'auto';
+        htmlEl.style.opacity = '1';
+        htmlEl.style.display = 'flex'; // Reset manual display none from Launcher.tsx fail-safe
+      } else {
+        if (showLauncher) {
+          htmlEl.style.pointerEvents = 'auto';
+          htmlEl.style.opacity = '1';
+          htmlEl.style.display = 'flex';
+        } else {
+          htmlEl.style.pointerEvents = 'none';
+          htmlEl.style.opacity = '0';
+        }
+      }
+    });
+  }, [showLauncher, location.pathname]);
+
+  React.useEffect(() => {
+    const handler = () => {
+      try { switchSubProfile(null); } catch {}
+    };
+    window.addEventListener('OPEN_PROFILE_SELECTOR', handler);
+    return () => window.removeEventListener('OPEN_PROFILE_SELECTOR', handler);
+  }, [switchSubProfile]);
+
 
   // Listen for toggle-launcher event from integrated apps (Montador/DTF)
   React.useEffect(() => {
@@ -216,7 +249,10 @@ const Layout = () => {
       console.log(`[Layout] Received toggle-launcher event. Force: ${forceState || 'none'}`);
       
       if (forceState === 'close') closeLauncher();
-      else if (forceState === 'open') setShowLauncher(true);
+      else if (forceState === 'open') {
+        lastPathOpenedRef.current = location.pathname;
+        setShowLauncher(true);
+      }
       else toggleLauncher();
     };
     window.addEventListener('toggle-launcher', handler);
@@ -253,7 +289,6 @@ const Layout = () => {
 
   const navItems = React.useMemo(() => {
     const items = staticNavItems.filter(item => hasPermission(item.permission));
-    
     if (profile?.is_affiliate) {
       items.push({ href: '/affiliate', icon: TrendingUp, label: 'Afiliados', permission: 'view_dashboard' });
     }
@@ -266,13 +301,35 @@ const Layout = () => {
 
   // Estado para controlar a expansão do menu lateral
   const [isExpanded, setIsExpanded] = React.useState(false);
+  React.useEffect(() => {
+    if (!isExpanded) {
+      setExpandDTF(false);
+      setExpandLOJA(false);
+      setExpandFERR(false);
+    }
+  }, [isExpanded]);
 
   // Desativa o zoom para todas as páginas dentro do Layout por padrão
   useViewportZoom(false);
 
+  // Estado visual: ícone com círculo amarelo ativo por grupo
+  const isDTFGroupActive =
+    location.pathname.startsWith('/pedidos-dtf') ||
+    location.pathname === '/insumos' ||
+    location.pathname === '/vetorizar';
+  const isLojaGroupActive =
+    location.pathname.startsWith('/pedidos-loja') ||
+    location.pathname.startsWith('/produtos');
+  const isFerrGroupActive =
+    location.pathname.startsWith('/clientes') ||
+    location.pathname.startsWith('/reports') ||
+    location.pathname.startsWith('/gabi');
+  const circleClass = (active: boolean) =>
+    cn("inline-flex items-center justify-center w-9 h-9 rounded-full", active ? "bg-[var(--primary-custom)] text-black shadow-[0_0_10px_rgba(var(--primary),0.5)]" : "");
+
 
   
-  const isFullScreenApp = ['/dtf-factory', '/montador'].includes(location.pathname);
+  const isFullScreenApp = ['/', '/dtf-factory', '/montador', '/melhorador'].includes(location.pathname);
   // Hide base shell if we are in a full-screen app or if the launcher overlay is active
   const hideShell = isFullScreenApp || showLauncher;
 
@@ -307,10 +364,11 @@ const Layout = () => {
       {/* Sidebar - Desktop (Primeira Coluna do Grid) */}
       <div
         className={cn(
-          "border-r bg-sidebar transition-all duration-300 ease-in-out flex-col h-full shadow-lg hover:shadow-xl",
+          "border-r bg-sidebar transition-all duration-300 ease-in-out flex-col h-full md:sticky md:top-0 md:h-screen",
           hideShell ? "hidden" : "hidden md:flex",
           sidebarWidth
         )}
+        style={{ borderColor: 'var(--primary-custom)', boxShadow: '0 0 15px var(--primary-custom)' }}
         onMouseEnter={() => setIsExpanded(true)}
         onMouseLeave={() => setIsExpanded(false)}
       >
@@ -318,80 +376,329 @@ const Layout = () => {
           {/* Header do Sidebar — Click to toggle launcher */}
           <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-4 overflow-hidden">
             <button
-              onClick={(e) => { e.stopPropagation(); toggleLauncher(); }}
+              onClick={(e) => { 
+                e.preventDefault();
+                e.stopPropagation(); 
+                if (window.innerWidth >= 768) {
+                  // Ensure launcher is closed before navigating
+                  setShowLauncher(false);
+                  navigate('/');
+                } else {
+                  toggleLauncher(); 
+                }
+              }}
               className="flex items-center gap-3 font-semibold text-sidebar-foreground hover:opacity-80 transition-all"
             >
               {/* OverPixel mini logo as sidebar trigger */}
-              <svg width="32" height="20" viewBox="0 0 200 120" className="flex-shrink-0">
-                <circle cx="72" cy="60" r="34" fill="none" stroke="#67e8f9" strokeWidth="8" opacity={showLauncher ? 1 : 0.6} />
-                <circle cx="128" cy="60" r="34" fill="none" stroke="#67e8f9" strokeWidth="8" opacity={showLauncher ? 1 : 0.6} />
+              <svg width="32" height="20" viewBox="0 0 200 120" className="flex-shrink-0" style={{ filter: 'drop-shadow(0 0 5px var(--primary-custom))' }}>
+                <circle cx="50" cy="60" r="34" fill="none" stroke="var(--primary-custom)" strokeWidth="8" opacity={showLauncher ? 1 : 0.8} />
+                <circle cx="150" cy="60" r="34" fill="none" stroke="var(--primary-custom)" strokeWidth="8" opacity={showLauncher ? 1 : 0.8} />
               </svg>
               <span className={cn(
                 "text-lg font-bold whitespace-nowrap transition-opacity duration-200",
                 isExpanded ? "opacity-100" : "opacity-0"
               )}>
-                {companyProfile?.company_name || 'DIRECT AI'}
+                {companyProfile?.company_name || 'OVERPIXEL'}
               </span>
             </button>
           </div>
 
           {/* Navegação e Ferramentas */}
-          <div className="flex-1 overflow-y-auto p-2 lg:p-3">
-            <nav className="grid items-start gap-1 text-sm font-medium">
-              {navItems.map((item) => {
-                const isActive = location.pathname === item.href;
-                const isInsumos = item.href === '/insumos';
-
-                return (
-                  <Link
-                    key={item.href}
-                    to={item.href}
-                    onClick={(e) => {
-                      if (item.href === '/vetorizar' && !(profile as any)?.is_vetoriza_ai_gifted) {
-                        e.preventDefault();
-                      }
-                    }}
-                    className={cn(
-                      "flex items-center gap-4 rounded-lg px-3 py-2 transition-all duration-300 ease-in-out relative group",
-                      isActive
-                        ? "bg-primary text-primary-foreground shadow-md hover:bg-primary/90"
-                        : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:scale-[1.02]",
-                      item.href === '/vetorizar' && !(profile as any)?.is_vetoriza_ai_gifted && "opacity-50 grayscale-[0.5] cursor-not-allowed"
-                    )}
-                  >
-                    <div className="relative">
-                      <item.icon className="h-5 w-5 flex-shrink-0" />
-                      {isInsumos && hasLowStock && (
-                        <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 border border-white dark:border-slate-900"></span>
-                        </span>
-                      )}
-                    </div>
-
-                    <span className={cn(
-                      "whitespace-nowrap transition-opacity duration-300 delay-100 flex items-center gap-2",
-                      isExpanded ? "opacity-100" : "opacity-0"
-                    )}>
-                      {item.label}
-                      {item.href === '/vetorizar' && isExpanded && !(profile as any)?.is_vetoriza_ai_gifted && (
-                        <span className="text-[7px] bg-primary/20 text-primary-foreground px-1 rounded font-bold">BREVE</span>
-                      )}
-                      {isInsumos && hasLowStock && isExpanded && (
-                        <span className="ml-auto flex h-2 w-2 rounded-full bg-red-500 animate-pulse" />
-                      )}
+          <div className={cn("h-full overflow-hidden flex flex-col", isExpanded ? "p-2 lg:p-3" : "p-0")}>
+            <div className="flex-1 flex items-center justify-center">
+              <nav className="w-full">
+                <div className={cn(
+                  "text-sm font-medium w-full grid",
+                  isExpanded ? "items-start gap-3" : "place-items-center gap-6"
+                )}>
+              {/* Dashboard */}
+              <Link
+                to="/dashboard"
+                className={cn(
+                  "flex items-center gap-4 rounded-lg py-2 transition-all duration-300 ease-in-out relative group",
+                  isExpanded ? "px-3" : "px-0 justify-center",
+                  location.pathname === '/dashboard'
+                    ? "bg-primary text-black hover:bg-primary/90"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:scale-[1.02]"
+                )}
+                style={location.pathname === '/dashboard' ? { boxShadow: '0 0 10px rgba(var(--primary), 0.3)' } : {}}
+              >
+                <span className={circleClass(location.pathname.startsWith('/dashboard'))}>
+                  <Home className="h-5 w-5 flex-shrink-0" />
+                </span>
+                {isExpanded && (
+                  <span className="whitespace-nowrap transition-opacity duration-300 delay-100">
+                    Dashboard
+                  </span>
+                )}
+              </Link>
+              {/* Grupo DTF */}
+                <div className={cn(isExpanded ? "px-2" : "px-0")}>
+                <button
+                  onClick={() => setExpandDTF(v => !v)}
+                  className={cn(
+                    "w-full flex items-center rounded-lg py-2 text-sidebar-foreground hover:bg-sidebar-accent transition-all",
+                    isExpanded ? "px-3 justify-between" : "px-0 justify-center"
+                  )}
+                >
+                  <div className={cn("flex items-center", isExpanded ? "gap-3" : "gap-0")}>
+                    <span className={circleClass(isDTFGroupActive)}>
+                      <Layers className="h-5 w-5 flex-shrink-0" />
                     </span>
-                  </Link>
-                );
-              })}
-            </nav>
+                    {isExpanded && (
+                      <span className="text-[10px] uppercase tracking-widest font-black">DTF</span>
+                    )}
+                  </div>
+                  {isExpanded && (
+                    <ChevronRight className={cn("h-4 w-4 transition-transform", expandDTF ? "rotate-90" : "rotate-0")} />
+                  )}
+                </button>
+                {isExpanded && expandDTF && (
+                  <div className="grid gap-1">
+                    <Link
+                      to="/pedidos-dtf"
+                      className={cn(
+                        "flex items-center gap-4 rounded-lg px-3 py-2 transition-all duration-300 ease-in-out relative group",
+                        location.pathname === '/pedidos-dtf'
+                          ? "bg-primary text-black hover:bg-primary/90"
+                          : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:scale-[1.02]"
+                      )}
+                      style={location.pathname === '/pedidos-dtf' ? { boxShadow: '0 0 10px rgba(var(--primary), 0.3)' } : {}}
+                    >
+                      <ShoppingCart className="h-5 w-5 flex-shrink-0" />
+                      <span className={cn("whitespace-nowrap transition-opacity duration-300 delay-100", isExpanded ? "opacity-100" : "opacity-0")}>Pedidos DTF</span>
+                    </Link>
+                    <Link
+                      to="/insumos"
+                      className={cn(
+                        "flex items-center gap-4 rounded-lg px-3 py-2 transition-all duration-300 ease-in-out relative group",
+                        location.pathname === '/insumos'
+                          ? "bg-primary text-black hover:bg-primary/90"
+                          : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:scale-[1.02]"
+                      )}
+                      style={location.pathname === '/insumos' ? { boxShadow: '0 0 10px rgba(var(--primary), 0.3)' } : {}}
+                    >
+                      <Layers className="h-5 w-5 flex-shrink-0" />
+                      <span className={cn("whitespace-nowrap transition-opacity duration-300 delay-100 flex items-center gap-2", isExpanded ? "opacity-100" : "opacity-0")}>
+                        Insumos
+                        {hasLowStock && <span className="ml-auto flex h-2 w-2 rounded-full bg-red-500 animate-pulse" />}
+                      </span>
+                    </Link>
+                    <button
+                      onClick={() => setIsCalculatorOpen(true)}
+                      className="flex items-center gap-4 rounded-lg px-3 py-2 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-all duration-300 ease-in-out relative group"
+                    >
+                      <Wand2 className="h-5 w-5 flex-shrink-0" />
+                      <span className={cn("whitespace-nowrap transition-opacity duration-300 delay-100", isExpanded ? "opacity-100" : "opacity-0")}>Calculadora DTF</span>
+                    </button>
+                    <Link
+                      to="/vetorizar"
+                      onClick={(e) => {
+                        if (!(profile as any)?.is_vetoriza_ai_gifted) e.preventDefault();
+                      }}
+                      className={cn(
+                        "flex items-center gap-4 rounded-lg px-3 py-2 transition-all duration-300 ease-in-out relative group",
+                        location.pathname === '/vetorizar'
+                          ? "bg-primary text-black hover:bg-primary/90"
+                          : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:scale-[1.02]",
+                        !(profile as any)?.is_vetoriza_ai_gifted && "opacity-50 grayscale-[0.5] cursor-not-allowed"
+                      )}
+                      style={location.pathname === '/vetorizar' ? { boxShadow: '0 0 10px rgba(var(--primary), 0.3)' } : {}}
+                    >
+                      <ImageIcon className="h-5 w-5 flex-shrink-0" />
+                      <span className={cn("whitespace-nowrap transition-opacity duration-300 delay-100", isExpanded ? "opacity-100" : "opacity-0")}>
+                        Vetoriza AI
+                      </span>
+                    </Link>
+                  </div>
+                )}
+              </div>
 
-            {/* Seção de Ferramentas Dinâmica - Desktop */}
-            <SidebarShortcuts
-              isExpanded={isExpanded}
-              onOpenCalculator={() => setIsCalculatorOpen(true)}
-              onOpenVetorizador={() => setIsVetorizadorOpen(true)}
-            />
+              {/* Grupo Loja */}
+                <div className={cn(isExpanded ? "px-2" : "px-0")}>
+                <button
+                  onClick={() => setExpandLOJA(v => !v)}
+                  className={cn(
+                    "w-full flex items-center rounded-lg py-2 text-sidebar-foreground hover:bg-sidebar-accent transition-all",
+                    isExpanded ? "px-3 justify-between" : "px-0 justify-center"
+                  )}
+                >
+                  <div className={cn("flex items-center", isExpanded ? "gap-3" : "gap-0")}>
+                    <span className={circleClass(isLojaGroupActive)}>
+                      <ShoppingCart className="h-5 w-5 flex-shrink-0" />
+                    </span>
+                    {isExpanded && (
+                      <span className="text-[10px] uppercase tracking-widest font-black">Loja</span>
+                    )}
+                  </div>
+                  {isExpanded && (
+                    <ChevronRight className={cn("h-4 w-4 transition-transform", expandLOJA ? "rotate-90" : "rotate-0")} />
+                  )}
+                </button>
+                {isExpanded && expandLOJA && (
+                  <div className="grid gap-1">
+                    <Link
+                      to="/pedidos-loja"
+                      className={cn(
+                        "flex items-center gap-4 rounded-lg px-3 py-2 transition-all duration-300 ease-in-out relative group",
+                        location.pathname === '/pedidos-loja'
+                          ? "bg-primary text-primary-foreground shadow-md hover:bg-primary/90"
+                          : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:scale-[1.02]"
+                      )}
+                    >
+                      <ShoppingCart className="h-5 w-5 flex-shrink-0" />
+                      <span className={cn("whitespace-nowrap transition-opacity duration-300 delay-100", isExpanded ? "opacity-100" : "opacity-0")}>Pedidos</span>
+                    </Link>
+                    <Link
+                      to="/clientes"
+                      className={cn(
+                        "flex items-center gap-4 rounded-lg px-3 py-2 transition-all duration-300 ease-in-out relative group",
+                        location.pathname === '/clientes' && expandLOJA
+                          ? "bg-primary text-primary-foreground shadow-md hover:bg-primary/90"
+                          : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:scale-[1.02]"
+                      )}
+                    >
+                      <Users className="h-5 w-5 flex-shrink-0" />
+                      <span className={cn("whitespace-nowrap transition-opacity duration-300 delay-100", isExpanded ? "opacity-100" : "opacity-0")}>Clientes</span>
+                    </Link>
+                    <Link
+                      to="/produtos"
+                      className={cn(
+                        "flex items-center gap-4 rounded-lg px-3 py-2 transition-all duration-300 ease-in-out relative group",
+                        location.pathname === '/produtos'
+                          ? "bg-primary text-primary-foreground shadow-md hover:bg-primary/90"
+                          : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:scale-[1.02]"
+                      )}
+                    >
+                      <Package className="h-5 w-5 flex-shrink-0" />
+                      <span className={cn("whitespace-nowrap transition-opacity duration-300 delay-100", isExpanded ? "opacity-100" : "opacity-0")}>Estoque</span>
+                    </Link>
+                    <Link
+                      to="/erros-defeitos"
+                      className={cn(
+                        "flex items-center gap-4 rounded-lg px-3 py-2 transition-all duration-300 ease-in-out relative group",
+                        location.pathname === '/erros-defeitos'
+                          ? "bg-primary text-primary-foreground shadow-md hover:bg-primary/90"
+                          : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:scale-[1.02]"
+                      )}
+                    >
+                      <AlertCircle className="h-5 w-5 flex-shrink-0" />
+                      <span className={cn("whitespace-nowrap transition-opacity duration-300 delay-100", isExpanded ? "opacity-100" : "opacity-0")}>Erros e Defeitos</span>
+                    </Link>
+                    <Link
+                      to="/trocas-devolucoes"
+                      className={cn(
+                        "flex items-center gap-4 rounded-lg px-3 py-2 transition-all duration-300 ease-in-out relative group",
+                        location.pathname === '/trocas-devolucoes'
+                          ? "bg-primary text-primary-foreground shadow-md hover:bg-primary/90"
+                          : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:scale-[1.02]"
+                      )}
+                    >
+                      <RefreshCw className="h-5 w-5 flex-shrink-0" />
+                      <span className={cn("whitespace-nowrap transition-opacity duration-300 delay-100", isExpanded ? "opacity-100" : "opacity-0")}>Trocas e Devoluções</span>
+                    </Link>
+                  </div>
+                )}
+              </div>
+
+              {/* Itens gerais */}
+                <div className={cn(isExpanded ? "px-2" : "px-0")}>
+                <button
+                  onClick={() => setExpandFERR(v => !v)}
+                  className={cn(
+                    "w-full flex items-center rounded-lg py-2 text-sidebar-foreground hover:bg-sidebar-accent transition-all",
+                    isExpanded ? "px-3 justify-between" : "px-0 justify-center"
+                  )}
+                >
+                  <div className={cn("flex items-center", isExpanded ? "gap-3" : "gap-0")}>
+                    <span className={circleClass(isFerrGroupActive)}>
+                      <Settings className="h-5 w-5 flex-shrink-0" />
+                    </span>
+                    {isExpanded && (
+                      <span className="text-[10px] uppercase tracking-widest font-black">Ferramentas</span>
+                    )}
+                  </div>
+                  {isExpanded && (
+                    <ChevronRight className={cn("h-4 w-4 transition-transform", expandFERR ? "rotate-90" : "rotate-0")} />
+                  )}
+                </button>
+                {isExpanded && expandFERR && (
+                  <div className="grid gap-1">
+                    {navItems.map((item) => {
+                      const isActive = location.pathname === item.href;
+                      return (
+                        <Link
+                          key={item.href}
+                          to={item.href}
+                          className={cn(
+                            "flex items-center gap-4 rounded-lg px-3 py-2 transition-all duration-300 ease-in-out relative group",
+                            isActive
+                              ? "bg-primary text-black hover:bg-primary/90"
+                              : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:scale-[1.02]"
+                          )}
+                          style={isActive ? { boxShadow: '0 0 10px rgba(var(--primary), 0.3)' } : {}}
+                        >
+                          <item.icon className="h-5 w-5 flex-shrink-0" />
+                          <span className={cn("whitespace-nowrap transition-opacity duration-300 delay-100", isExpanded ? "opacity-100" : "opacity-0")}>
+                            {item.label}
+                          </span>
+                        </Link>
+                      );
+                    })}
+
+                    {/* Color Toggle Settings for Neon */}
+                    <button
+                      onClick={() => {
+                        const root = document.documentElement;
+                        const currentCustom = getComputedStyle(root).getPropertyValue('--primary-custom').trim();
+                        const isRgbMode = root.classList.contains('rgb-mode');
+                        
+                        // Cycle through: Cyan -> Violet -> Orange -> Emerald -> Rose -> RGB Mode -> Cyan
+                        let newColor = '#00E5FF'; // default Cyan
+                        let newHSL = '186 100% 50%';
+                        
+                        if (isRgbMode) {
+                          root.classList.remove('rgb-mode');
+                          newColor = '#00E5FF';
+                          newHSL = '186 100% 50%';
+                        } else if (currentCustom === '#00E5FF') {
+                          newColor = '#8B5CF6'; // Violet
+                          newHSL = '262 83% 58%';
+                        } else if (currentCustom === '#8B5CF6') {
+                          newColor = '#F97316'; // Orange
+                          newHSL = '24 95% 53%';
+                        } else if (currentCustom === '#F97316') {
+                          newColor = '#10B981'; // Emerald
+                          newHSL = '160 84% 39%';
+                        } else if (currentCustom === '#10B981') {
+                          newColor = '#E11D48'; // Rose
+                          newHSL = '343 81% 50%';
+                        } else if (currentCustom === '#E11D48') {
+                          // Activate RGB Mode
+                          root.classList.add('rgb-mode');
+                          newColor = '#00E5FF'; // Base color for RGB shift
+                          newHSL = '186 100% 50%';
+                        }
+
+                        root.style.setProperty('--primary-custom', newColor);
+                        root.style.setProperty('--primary', newHSL);
+                        localStorage.setItem('cached_primary_color', newColor);
+                      }}
+                      className={cn(
+                        "flex items-center gap-4 rounded-lg px-3 py-2 transition-all duration-300 ease-in-out relative group text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:scale-[1.02]"
+                      )}
+                    >
+                      <Palette className="h-5 w-5 flex-shrink-0" />
+                      <span className={cn("whitespace-nowrap transition-opacity duration-300 delay-100", isExpanded ? "opacity-100" : "opacity-0")}>
+                        Cor do Neon
+                      </span>
+                    </button>
+                  </div>
+                )}
+                </div>
+                </div>
+              </nav>
+            </div>
           </div>
 
           {/* App Switcher — Back to OverPixel */}
@@ -435,18 +742,27 @@ const Layout = () => {
         <header className={cn(
           "fixed top-0 left-0 right-0 z-40 w-full border-b bg-background/80 backdrop-blur-md transition-all duration-300",
           hideShell && "translate-y-[-100%] opacity-0 pointer-events-none"
-        )}>
+        )} style={{ borderColor: 'var(--primary-custom)', boxShadow: '0 0 15px var(--primary-custom)' }}>
           {/* Safe Area Spacer for iOS/Mobile */}
           <div className="h-safe-top pt-safe" />
 
           <div className="flex h-14 items-center gap-4 px-4 lg:h-[60px] lg:px-6">
             <button
-              onClick={(e) => { e.stopPropagation(); toggleLauncher(); }}
+              onClick={(e) => { 
+                e.preventDefault();
+                e.stopPropagation(); 
+                if (window.innerWidth >= 768) {
+                  setShowLauncher(false);
+                  navigate('/');
+                } else {
+                  toggleLauncher(); 
+                }
+              }}
               className="flex items-center gap-2 font-semibold hover:opacity-80 transition-opacity"
             >
-              <svg width="28" height="17" viewBox="0 0 200 120" className="flex-shrink-0">
-                <circle cx="72" cy="60" r="34" fill="none" stroke="#67e8f9" strokeWidth="9" opacity={0.8} />
-                <circle cx="128" cy="60" r="34" fill="none" stroke="#67e8f9" strokeWidth="9" opacity={0.8} />
+              <svg width="28" height="17" viewBox="0 0 200 120" className="flex-shrink-0" style={{ filter: 'drop-shadow(0 0 5px var(--primary-custom))' }}>
+                <circle cx="50" cy="60" r="34" fill="none" stroke="var(--primary-custom)" strokeWidth="9" opacity={0.8} />
+                <circle cx="150" cy="60" r="34" fill="none" stroke="var(--primary-custom)" strokeWidth="9" opacity={0.8} />
               </svg>
               <span className="tracking-tighter font-black italic">
                 {companyProfile?.company_name || 'DIRECT AI'}
@@ -457,16 +773,6 @@ const Layout = () => {
             <div className="w-full flex-1" />
 
             <div className="flex items-center gap-2">
-              <Link
-                to="/"
-                className="p-2 rounded-lg hover:bg-cyan-500/10 transition-colors group"
-                title="Trocar de aplicativo"
-              >
-                <svg width="18" height="11" viewBox="0 0 200 120" className="text-muted-foreground group-hover:text-cyan-400 transition-colors">
-                  <circle cx="72" cy="60" r="34" fill="none" stroke="currentColor" strokeWidth="9" />
-                  <circle cx="128" cy="60" r="34" fill="none" stroke="currentColor" strokeWidth="9" />
-                </svg>
-              </Link>
               <ThemeToggle />
               <UserNav />
             </div>
@@ -482,31 +788,20 @@ const Layout = () => {
         )}
 
         <SubscriptionAlert />
+        <AIFirstOnboarding />
 
         <main className={cn(
-          "relative flex flex-col flex-1 h-full overflow-hidden transition-all duration-300",
-          !hideShell ? "md:pt-[60px] pt-14" : "pt-4 md:pt-6",
-          (location.pathname === '/' || location.pathname === '/dashboard') ? "p-0 gap-0" : "gap-3 p-3 sm:gap-4 sm:p-4 lg:gap-6 lg:p-6"
+          "relative flex flex-col flex-1 h-full overflow-x-hidden overflow-y-auto transition-all duration-300",
+          !hideShell ? "md:pt-[60px] pt-14" : "pt-0",
+          (location.pathname === '/' || location.pathname === '/dashboard' || isFullScreenApp) ? "p-0 gap-0" : "gap-3 p-3 sm:gap-4 sm:p-4 lg:gap-6 lg:p-6"
         )}>
           {/* Layer 1: Traditional Router Outlet (Standard Pages) */}
-          <AnimatePresence mode="wait">
-              {!PERSISTENT_APP_ROUTES.includes(location.pathname) && (
-                <motion.div
-                  key={location.pathname}
-                  initial={{ opacity: 0, scale: 0.96, y: 10 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 1.04, y: -10 }}
-                  transition={{ 
-                    duration: 0.6, 
-                    ease: [0.16, 1, 0.3, 1],
-                    opacity: { duration: 0.4 }
-                  }}
-                  className="flex flex-col flex-1 w-full h-full"
-                >
-                  <Outlet />
-                </motion.div>
-              )}
-          </AnimatePresence>
+          {/* Removemos o AnimatePresence aqui pq a página do Launcher '/' é montada/desmontada frequentemente e a animação do Framer Motion falhava ao remontar, causando tela preta permanente */}
+          {!PERSISTENT_APP_ROUTES.includes(location.pathname) && (
+            <div className="flex flex-col flex-1 w-full h-full animate-in fade-in zoom-in-95 duration-500">
+              <Outlet />
+            </div>
+          )}
 
           {/* Layer 2: Persistent App Instance (DTF Factory) */}
           {visitedPersistentApps.has('/dtf-factory') && (
@@ -529,6 +824,18 @@ const Layout = () => {
             )}>
               <React.Suspense fallback={null}>
                 <MontadorPage />
+              </React.Suspense>
+            </div>
+          )}
+
+          {/* Layer 4: Persistent App Instance (Melhorador) */}
+          {visitedPersistentApps.has('/melhorador') && (
+            <div className={cn(
+              "flex-col flex-1 w-full h-full",
+              location.pathname !== '/melhorador' && "hidden pointer-events-none invisible h-0 overflow-hidden"
+            )}>
+              <React.Suspense fallback={null}>
+                <MelhoradorPage />
               </React.Suspense>
             </div>
           )}
@@ -565,7 +872,7 @@ const Layout = () => {
             </button>
           </div>
         )}
-        {!hideShell && location.pathname !== '/settings' && !(isMobile && location.pathname === '/montador') && (
+        {!hideShell && !(isMobile && location.pathname === '/montador') && (
           <MobileBottomNav
             onOpenCalculator={() => setIsCalculatorOpen(true)}
             onOpenVetorizador={() => setIsVetorizadorOpen(true)}
@@ -584,7 +891,7 @@ const Layout = () => {
       <GiftVetorizaModal />
       <DTFCalculatorModal
         isOpen={isCalculatorOpen}
-        onClose={() => setIsCalculatorOpen(false)}
+              onClose={() => setIsCalculatorOpen(false)}
       />
       <VetorizadorModal
         isOpen={isVetorizadorOpen}
@@ -595,7 +902,8 @@ const Layout = () => {
       <ActivityTracker />
       
       {/* Sistema de Perfis Estilo Netflix */}
-      {profile?.is_multi_profile_enabled && !activeSubProfile && (
+      {/* Se não houver subperfil ativo, mostramos o seletor */}
+      {!activeSubProfile && (
         <ProfileSelector />
       )}
 
@@ -657,8 +965,8 @@ const Layout = () => {
               {/* Left — Logo + Brand */}
               <div className="flex items-center gap-3">
                 <svg width="36" height="22" viewBox="0 0 200 120" style={{ filter: 'drop-shadow(0 0 8px rgba(6, 182, 212, 0.5))' }}>
-                  <circle cx="72" cy="60" r="34" fill="none" stroke="#67e8f9" strokeWidth="7" />
-                  <circle cx="128" cy="60" r="34" fill="none" stroke="#67e8f9" strokeWidth="7" />
+                  <circle cx="50" cy="60" r="34" fill="none" stroke="#00F0FF" strokeWidth="7" />
+                  <circle cx="150" cy="60" r="34" fill="none" stroke="#00F0FF" strokeWidth="7" />
                 </svg>
                 <span className="text-sm font-light tracking-[0.4em] text-cyan-400/80 uppercase hidden sm:inline">OverPixel</span>
               </div>
@@ -669,23 +977,23 @@ const Layout = () => {
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-cyan-500/15 bg-cyan-500/5 hover:bg-cyan-500/10 transition-colors cursor-pointer group" title="Créditos OverPixel">
                   <div className="w-6 h-6 rounded-full flex items-center justify-center bg-gradient-to-br from-cyan-400/20 to-cyan-600/20 border border-cyan-400/30 group-hover:border-cyan-400/50 transition-all shadow-[0_0_8px_rgba(6,182,212,0.15)]">
                     <svg width="12" height="8" viewBox="0 0 200 120">
-                      <circle cx="72" cy="60" r="38" fill="none" stroke="#67e8f9" strokeWidth="12" />
-                      <circle cx="128" cy="60" r="38" fill="none" stroke="#67e8f9" strokeWidth="12" />
+                      <circle cx="50" cy="60" r="38" fill="none" stroke="#00F0FF" strokeWidth="12" />
+                      <circle cx="150" cy="60" r="38" fill="none" stroke="#00F0FF" strokeWidth="12" />
                     </svg>
                   </div>
                   <span className="text-xs font-bold text-cyan-300/80 tabular-nums">
-                    {(profile as any)?.ai_credits ?? 0}
+                    {(profile as any)?.token_balance ?? (profile as any)?.ai_credits ?? 0}
                   </span>
                   <span className="text-[9px] font-bold tracking-wider text-cyan-400/40 uppercase hidden sm:inline">CRÉDITOS IA</span>
                 </div>
 
                 {/* Profile */}
-                <div className="flex items-center gap-2 px-2 py-1.5 rounded-full hover:bg-white/5 transition-colors cursor-pointer" title={(profile as any)?.full_name || (profile as any)?.name || 'Perfil'}>
+                <div className="flex items-center gap-2 px-2 py-1.5 rounded-full hover:bg-white/5 transition-colors cursor-pointer" title={activeSubProfile?.name || profile?.first_name || 'Perfil'}>
                   <div className="w-7 h-7 rounded-full bg-gradient-to-br from-fuchsia-500/40 to-cyan-500/40 border border-white/10 flex items-center justify-center text-[11px] font-bold text-white/80">
-                    {((profile as any)?.full_name || (profile as any)?.name)?.charAt(0)?.toUpperCase() || 'U'}
+                    {(activeSubProfile?.name || profile?.first_name || 'U').charAt(0).toUpperCase()}
                   </div>
                   <span className="text-xs font-medium text-white/50 hidden sm:inline max-w-[100px] truncate">
-                    {(profile as any)?.full_name || (profile as any)?.name || 'Usuário'}
+                    {activeSubProfile?.name || profile?.first_name || 'Usuário'}
                   </span>
                 </div>
 
@@ -781,7 +1089,7 @@ const Layout = () => {
             {isMobile && (
               <motion.div
                 className={cn(
-                  "fixed left-0 right-0 bottom-0 z-[9993] h-24 px-6 launcher-bottom-bar pointer-events-auto flex items-center justify-center",
+                  "fixed left-0 right-0 bottom-0 z-[9993] h-24 px-6 launcher-bottom-bar pointer-events-auto flex items-center justify-center gap-4",
                   launcherTheme === 'light' ? 'launcher-bar-glass-light' : 'launcher-bar-glass-dark'
                 )}
                 initial={{ y: 96, opacity: 0 }}
@@ -789,6 +1097,17 @@ const Layout = () => {
                 exit={{ y: 96, opacity: 0 }}
                 transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1], delay: 0.05 }}
               >
+                <button
+                  onClick={() => {
+                    closeLauncher();
+                    navigate('/');
+                  }}
+                  className="w-14 h-14 flex-shrink-0 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 border border-white/10 shadow-lg active:scale-95 transition-all text-white"
+                  title="Home"
+                >
+                  <Home className="w-6 h-6" />
+                </button>
+                <div className="w-[1px] h-10 bg-white/10 flex-shrink-0" />
                 <motion.div
                   className="flex items-center justify-center gap-6 select-none touch-pan-y"
                   drag="x"
@@ -885,9 +1204,9 @@ const Layout = () => {
                         title={app.id}
                       >
                         {app.iconType === 'svg' ? (
-                          <svg width="48" height="28" viewBox="0 0 200 120" style={{ filter: 'drop-shadow(0 0 10px rgba(217,70,239,0.35))' }}>
-                            <circle cx="72" cy="60" r="34" fill="none" stroke="#d946ef" strokeWidth="8" />
-                            <circle cx="128" cy="60" r="34" fill="none" stroke="#d946ef" strokeWidth="8" />
+                          <svg width="48" height="28" viewBox="0 0 200 120" style={{ filter: 'drop-shadow(0 0 10px var(--primary-custom))' }}>
+                            <circle cx="50" cy="60" r="34" fill="none" stroke="var(--primary-custom)" strokeWidth="8" />
+                            <circle cx="150" cy="60" r="34" fill="none" stroke="var(--primary-custom)" strokeWidth="8" />
                           </svg>
                         ) : (
                           <img

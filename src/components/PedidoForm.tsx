@@ -42,13 +42,14 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { NewPedido, Pedido } from "@/types/pedido";
 import { Cliente } from "@/types/cliente";
 import { Produto } from "@/types/produto";
 import { useEffect, useState, useRef, useMemo, useCallback } from "react";
-import { Trash2, Plus, Search, Edit3, X, User, Package, Wrench, Save, Zap, CalendarIcon, Ruler, ChevronDown, Loader2, FileText, Copy, GripVertical, Sparkles, Printer, Scissors, Settings, Bike, Star, Info, Tag, Layers, PenTool, BadgeCheck, Palette, Truck, Calculator, Brain } from "lucide-react";
+import { Trash2, Plus, Search, Edit3, X, User, Package, Wrench, Save, Zap, CalendarIcon, Ruler, ChevronDown, Loader2, FileText, Copy, GripVertical, Sparkles, Printer, Scissors, Settings, Bike, Star, Info, Tag, Layers, PenTool, BadgeCheck, Palette, Truck, Calculator, Brain, UploadCloud, ChevronRight, File as FileIcon, Banknote } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -102,6 +103,9 @@ import { useTour } from '@/hooks/useTour';
 import { NEW_ORDER_TOUR } from '@/utils/tours';
 import { TutorialGuide } from '@/components/TutorialGuide';
 import { FreightQuoteModal } from './FreightQuoteModal';
+import { OrderFileUpload, UploadedFile } from './OrderFileUpload';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ShippingSection } from './ShippingSection';
 
 
 const formSchema = z.object({
@@ -114,6 +118,14 @@ const formSchema = z.object({
   desconto_valor: z.coerce.number().min(0).optional(),
   desconto_percentual: z.coerce.number().min(0).max(100).optional(),
   shipping_cep: z.string().optional().nullable(),
+  shipping_address: z.string().optional().nullable(),
+  shipping_number: z.string().optional().nullable(),
+  shipping_complement: z.string().optional().nullable(),
+  shipping_neighborhood: z.string().optional().nullable(),
+  shipping_city: z.string().optional().nullable(),
+  shipping_state: z.string().optional().nullable(),
+  shipping_name: z.string().optional().nullable(),
+  shipping_cpf: z.string().optional().nullable(),
   shipping_details: z.any().optional().nullable(),
   created_at: z.date({
     required_error: "A data do pedido é obrigatória.",
@@ -127,6 +139,7 @@ const formSchema = z.object({
     preco_unitario: z.coerce.number().min(0, { message: "Preço deve ser maior ou igual a 0." }),
     observacao: z.string().optional(),
     tipo: z.string().default('dtf'),
+    wasabi_url: z.string().optional(), // Nova propriedade para armazenar a URL do Wasabi
   })).min(1, { message: "Pelo menos um item é obrigatório para o pedido." }),
   servicos: z.array(z.object({
     nome: z.string().min(1, { message: "Nome do serviço é obrigatório." }),
@@ -172,6 +185,14 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
   const [isOrderArtModalOpen, setIsOrderArtModalOpen] = useState(false);
   const [selectedItemForArt, setSelectedItemForArt] = useState<string | undefined>(undefined);
 
+  const [quoteModalCEP, setQuoteModalCEP] = useState("");
+  const [useNewAddress, setUseNewAddress] = useState(false);
+  
+  // Wizard States
+  const [wizardStep, setWizardStep] = useState<number>(initialData ? 1 : 0);
+  const [orderMode, setOrderMode] = useState<'files' | 'direct' | null>(initialData ? 'direct' : null);
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+
 
   const form = useForm<PedidoFormValues>({
     resolver: zodResolver(formSchema),
@@ -184,6 +205,15 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
       tracking_code: "",
       desconto_valor: 0,
       desconto_percentual: 0,
+      shipping_cep: "",
+      shipping_address: "",
+      shipping_number: "",
+      shipping_complement: "",
+      shipping_neighborhood: "",
+      shipping_city: "",
+      shipping_state: "",
+      shipping_name: "",
+      shipping_cpf: "",
       created_at: new Date(),
       items: [],
       servicos: [],
@@ -259,6 +289,62 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
     }
   }, [isTourOpen, itemFields, currentStep]);
 
+  useEffect(() => {
+    if (selectedCliente && !isEditing) {
+      form.setValue('shipping_cep', selectedCliente.cep || "");
+      form.setValue('shipping_address', selectedCliente.endereco || "");
+      form.setValue('shipping_number', selectedCliente.numero || "");
+      form.setValue('shipping_complement', selectedCliente.complemento || "");
+      form.setValue('shipping_neighborhood', selectedCliente.bairro || "");
+      form.setValue('shipping_city', selectedCliente.cidade || "");
+      form.setValue('shipping_state', selectedCliente.estado || "");
+      form.setValue('shipping_name', selectedCliente.nome || "");
+      form.setValue('shipping_cpf', selectedCliente.cpf || "");
+    }
+  }, [selectedCliente, isEditing, form]);
+
+  useEffect(() => {
+    if (orderMode === 'files') {
+      const newItems = uploadedFiles.map(file => {
+        const ml = Number(((file.heightCm || 0) / 100) * file.copies).toFixed(2);
+        return {
+          tempId: file.id,
+          produto_id: null,
+          produto_nome: file.name,
+          quantidade: Number(ml),
+          preco_unitario: selectedCliente?.valor_metro || 0,
+          observacao: `Arquivo: ${file.originalName} | Dimensões: ${file.widthCm}x${file.heightCm}cm | Cópias: ${file.copies}${file.wasabiUrl ? ` | URL: ${file.wasabiUrl}` : ''}`,
+          tipo: 'dtf',
+          wasabi_url: file.wasabiUrl || undefined,
+        };
+      });
+      form.setValue('items', newItems, { shouldValidate: true });
+    }
+  }, [uploadedFiles, selectedCliente, orderMode, form]);
+
+  const watchedShippingCep = form.watch('shipping_cep');
+  const lastViaCEPLookup = useRef("");
+
+  useEffect(() => {
+    if (!watchedShippingCep) return;
+    const cleanCEP = watchedShippingCep.replace(/\D/g, '');
+    if (cleanCEP.length === 8 && lastViaCEPLookup.current !== cleanCEP) {
+      lastViaCEPLookup.current = cleanCEP;
+      fetch(`https://viacep.com.br/ws/${cleanCEP}/json/`)
+        .then(res => res.json())
+        .then(data => {
+          if (!data.erro) {
+            form.setValue('shipping_address', data.logradouro || "");
+            form.setValue('shipping_neighborhood', data.bairro || "");
+            form.setValue('shipping_city', data.localidade || "");
+            form.setValue('shipping_state', data.uf || "");
+            if (data.complemento) form.setValue('shipping_complement', data.complemento);
+          }
+        })
+        .catch(err => console.error("Erro ViaCEP:", err));
+    }
+  }, [watchedShippingCep, form]);
+
   // Efeito para filtrar clientes
   useEffect(() => {
     if (clienteSearch.trim() === '') {
@@ -307,6 +393,15 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
           tracking_code: initialData.tracking_code || "",
           desconto_valor: Number(initialData.desconto_valor) || 0,
           desconto_percentual: Number(initialData.desconto_percentual) || 0,
+          shipping_cep: initialData.shipping_cep || initialData.shipping_details?.cep || "",
+          shipping_address: initialData.shipping_details?.address || "",
+          shipping_number: initialData.shipping_details?.number || "",
+          shipping_complement: initialData.shipping_details?.complement || "",
+          shipping_neighborhood: initialData.shipping_details?.neighborhood || "",
+          shipping_city: initialData.shipping_details?.city || "",
+          shipping_state: initialData.shipping_details?.state || "",
+          shipping_name: initialData.shipping_details?.name || "",
+          shipping_cpf: initialData.shipping_details?.cpf || "",
           created_at: new Date(initialData.created_at),
           items: itemsData,
           servicos: servicosData,
@@ -383,6 +478,15 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
             tracking_code: "",
             desconto_valor: 0,
             desconto_percentual: 0,
+            shipping_cep: "",
+            shipping_address: "",
+            shipping_number: "",
+            shipping_complement: "",
+            shipping_neighborhood: "",
+            shipping_city: "",
+            shipping_state: "",
+            shipping_name: "",
+            shipping_cpf: "",
             created_at: new Date(),
             items: [],
             servicos: [],
@@ -473,20 +577,32 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
       valor_frete: data.tipo_entrega === 'frete' ? data.valor_frete : 0,
       transportadora: data.tipo_entrega === 'frete' ? data.transportadora : null,
       tracking_code: data.tipo_entrega === 'frete' ? data.tracking_code : null,
-      shipping_cep: data.shipping_cep || null,
-      shipping_details: data.shipping_details || null,
+      shipping_cep: data.tipo_entrega === 'frete' ? (data.shipping_cep || null) : null,
+      shipping_details: data.tipo_entrega === 'frete' ? {
+        address: data.shipping_address,
+        number: data.shipping_number,
+        complement: data.shipping_complement,
+        neighborhood: data.shipping_neighborhood,
+        city: data.shipping_city,
+        state: data.shipping_state,
+        name: data.shipping_name,
+        cpf: data.shipping_cpf
+      } : null,
       created_at: data.created_at.toISOString(),
       items: items.map((item, index) => {
-        return {
-          // GARANTIA: Se produto_id for string vazia ou undefined, envia null
+        const payload: any = {
           produto_id: (item.produto_id && item.produto_id.trim() !== "") ? item.produto_id : null,
           produto_nome: item.produto_nome,
           quantidade: Number(item.quantidade),
           preco_unitario: Number(item.preco_unitario),
           observacao: item.observacao || '',
-          tipo: item.tipo, // Campo auxiliar não salvo no banco, mas útil para debug/cache
-          ordem: index, // Garantir a ordem correta
+          tipo: item.tipo,
+          ordem: index,
         };
+        if (item.wasabi_url) {
+          payload.wasabi_url = item.wasabi_url;
+        }
+        return payload;
       }),
       servicos: servicos.map(servico => ({
         nome: servico.nome, // Garantir que o nome está presente
@@ -917,15 +1033,17 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-4xl w-[95vw] sm:w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto p-4 sm:p-6">
-          <DialogHeader className="space-y-2 sm:space-y-3">
+        <DialogContent className="max-w-4xl w-[95vw] sm:w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto p-4 sm:p-6 bg-background/95 backdrop-blur-xl border-t border-t-primary/20 shadow-2xl flex flex-col">
+          <DialogHeader className="space-y-2 sm:space-y-3 shrink-0">
             <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl font-black italic tracking-tighter uppercase">
-              <Package className="h-4 w-4 sm:h-5 sm:w-5 text-primary flex-shrink-0" />
-              <span className="truncate">{isEditing ? "Editar Pedido" : "Criar Novo Pedido"}</span>
+              <div className="h-8 w-8 rounded-lg bg-primary/20 flex items-center justify-center border border-primary/30 shrink-0">
+                <Package className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+              </div>
+              <span className="truncate">{isEditing ? "EDITAR PEDIDO DE IMPRESSÃO" : "NOVO PEDIDO DE IMPRESSÃO DTF"}</span>
             </DialogTitle>
             <DialogDescription asChild>
               <div className="text-xs sm:text-sm flex items-center justify-between font-medium text-muted-foreground">
-                <span>{isEditing ? "Atualize as informações do pedido." : "Preencha as informações do novo pedido."}</span>
+                <span>{isEditing ? "Atualize as informações do pedido." : "Selecione o tipo de pedido e preencha as informações para a produção."}</span>
                 <div className="flex items-center gap-2">
                   {!isEditing && (
                     <Button
@@ -959,11 +1077,84 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
               </div>
             </DialogDescription>
           </DialogHeader>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleValidSubmit, handleInvalidSubmit)} className="space-y-4 sm:space-y-6">
+          
+          <div className="flex-1 overflow-y-auto w-full max-w-full overflow-x-hidden min-h-0 relative pr-1 pt-4">
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(handleValidSubmit, handleInvalidSubmit)} className="space-y-4 sm:space-y-6">
+              
+              {!isEditing && wizardStep === 0 && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-black uppercase tracking-wider text-muted-foreground">TIPO DE PEDIDO</Label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div 
+                        className={cn(
+                          "relative group cursor-pointer rounded-xl border-2 p-6 transition-all duration-300",
+                          orderMode === 'files' 
+                            ? "border-primary bg-primary/5 shadow-[0_0_20px_rgba(var(--primary),0.15)]" 
+                            : "border-zinc-800 hover:border-zinc-700 bg-background"
+                        )}
+                        onClick={() => setOrderMode('files')}
+                      >
+                        <div className="absolute top-4 right-4 h-5 w-5 rounded-full border-2 border-zinc-700 flex items-center justify-center">
+                          {orderMode === 'files' && <div className="h-2.5 w-2.5 rounded-full bg-primary" />}
+                        </div>
+                        <UploadCloud className={cn("h-8 w-8 mb-4", orderMode === 'files' ? "text-primary" : "text-muted-foreground")} />
+                        <h3 className="font-bold text-lg mb-1">PEDIDO COM ARQUIVOS</h3>
+                        <p className="text-sm text-muted-foreground">Upload de arquivos digitais para cálculo automático de área e métricas.</p>
+                      </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-                <div className="md:col-span-1">
+                      <div 
+                        className={cn(
+                          "relative group cursor-pointer rounded-xl border-2 p-6 transition-all duration-300",
+                          orderMode === 'direct' 
+                            ? "border-primary bg-primary/5 shadow-[0_0_20px_rgba(var(--primary),0.15)]" 
+                            : "border-zinc-800 hover:border-zinc-700 bg-background"
+                        )}
+                        onClick={() => setOrderMode('direct')}
+                      >
+                        <div className="absolute top-4 right-4 h-5 w-5 rounded-full border-2 border-zinc-700 flex items-center justify-center">
+                          {orderMode === 'direct' && <div className="h-2.5 w-2.5 rounded-full bg-primary" />}
+                        </div>
+                        <Zap className={cn("h-8 w-8 mb-4", orderMode === 'direct' ? "text-primary" : "text-muted-foreground")} />
+                        <h3 className="font-bold text-lg mb-1">PEDIDO DIRETO</h3>
+                        <p className="text-sm text-muted-foreground">Entrada manual rápida. Ideal para arquivos já faturados ou pedidos de balcão.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end pt-4 border-t border-white/5">
+                    <Button 
+                      type="button" 
+                      size="lg" 
+                      disabled={!orderMode}
+                      onClick={() => setWizardStep(1)}
+                      className="font-bold uppercase tracking-wide gap-2 w-full md:w-auto"
+                    >
+                      Continuar <ChevronRight className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Wizard Step 1: Informações e Upload */}
+              {(isEditing || wizardStep === 1) && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
+                  {/* Seção do Cliente (Sempre visível no passo 1) */}
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                        <User className="w-4 h-4" /> 1. Informações Iniciais
+                      </h3>
+                      {!isEditing && (
+                        <Button variant="ghost" size="sm" onClick={() => setWizardStep(0)} className="h-8 text-xs text-muted-foreground">
+                          Trocar Tipo de Pedido
+                        </Button>
+                      )}
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 bg-background border border-white/5 p-4 rounded-xl">
+                      <div className="md:col-span-1">
                   <FormField
                     control={form.control}
                     name="cliente_id"
@@ -1107,7 +1298,26 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                   </p>
                 </div>
               )}
+            </div>
 
+            {/* Seção de Arquivos (Apenas se o modo for 'files') */}
+            {orderMode === 'files' && (
+              <div className="space-y-4 pt-4 border-t border-white/5">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                  <FileIcon className="w-4 h-4" /> 2. Arquivos para Impressão
+                </h3>
+                <OrderFileUpload files={uploadedFiles} onChange={setUploadedFiles} />
+              </div>
+            )}
+
+            {/* Detalhes do Pedido (Produtos/Serviços Originais) */}
+            {((orderMode === 'direct') || (orderMode === 'files' && uploadedFiles.length > 0)) && (
+              <div className="space-y-4 pt-4 border-t border-white/5">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                  <Package className="w-4 h-4" /> {orderMode === 'files' ? '3' : '2'}. Detalhes do Pedido
+                </h3>
+                  
+                {orderMode === 'direct' && (
               <FormField
                 control={form.control}
                 name="items"
@@ -1144,12 +1354,17 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                     </div>
 
                     {totalMetros > 0 && (
-                      <div className="mt-2 p-2 bg-primary/20 rounded-md text-sm font-semibold flex justify-between items-center">
+                      <div className="mt-2 p-2 bg-primary/20 rounded-md text-sm font-semibold flex justify-between items-center mb-4 flex-wrap gap-2">
                         <span className="text-primary-foreground flex items-center gap-1">
                           <Ruler className="h-4 w-4" />
-                          Total de Metros Lineares (ML):
+                          Total de Metros Lineares (M):
                         </span>
-                        <span className="text-primary-foreground">{Number(totalMetros).toFixed(2)} ML</span>
+                        <div className="flex items-center gap-3">
+                            <span className="text-primary-foreground">{Number(totalMetros).toFixed(2)} M</span>
+                            <span className="text-primary-foreground font-black bg-primary/30 px-2 py-0.5 rounded">
+                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalMetros * (selectedCliente?.valor_metro || 0))}
+                            </span>
+                        </div>
                       </div>
                     )}
 
@@ -1253,7 +1468,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                                       )}>
                                                         <IconComp className="h-3 w-3" />
                                                       </div>
-                                                      <span>{Number(quantidade || 0).toFixed(isMetro ? 2 : 0)} {isMetro ? 'ML' : 'UND'}</span>
+                                                      <span>{Number(quantidade || 0).toFixed(isMetro ? 2 : 0)} {isMetro ? 'M' : 'UND'}</span>
                                                     </div>
                                                   );
                                                 })()}
@@ -1543,7 +1758,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                                                                           {tipo.nome}
                                                                                         </span>
                                                                                         <span className="text-[9px] opacity-70 font-medium">
-                                                                                          {tipo.unidade_medida === 'metro' ? 'Cobrado por ML' : 'Cobrado por UND'}
+                                                                                          {tipo.unidade_medida === 'metro' ? 'Cobrado por M' : 'Cobrado por UND'}
                                                                                         </span>
                                                                                       </div>
                                                                                     </div>
@@ -1596,7 +1811,7 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                                                       {(() => {
                                                         const itemTipo = form.watch(`items.${index}.tipo`) || 'dtf';
                                                         const tipoInfo = tiposProducao?.find(t => t.nome?.toLowerCase() === itemTipo.toLowerCase());
-                                                        return tipoInfo?.unidade_medida === 'unidade' ? 'Qtd (UND)' : 'Qtd (ML)';
+                                                        return tipoInfo?.unidade_medida === 'unidade' ? 'Qtd (UND)' : 'Qtd (M)';
                                                       })()}
                                                     </FormLabel>
                                                     <FormControl>
@@ -1711,6 +1926,22 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                 )
                 }
               />
+              )}
+
+              {orderMode === 'files' && (
+                <div className="mt-2 p-4 bg-primary/20 border border-primary/30 rounded-lg text-sm font-bold flex justify-between items-center mb-6 shadow-sm flex-wrap gap-4">
+                  <span className="text-primary-foreground flex items-center gap-2">
+                    <Ruler className="h-5 w-5" />
+                    TOTAL DE METROS LINEARES (M) - DOS ARQUIVOS:
+                  </span>
+                  <div className="flex items-center gap-4">
+                    <span className="text-primary-foreground text-lg">{Number(totalMetros).toFixed(2)} M</span>
+                    <span className="text-primary-foreground text-lg font-black bg-primary/30 px-3 py-1 rounded-md">
+                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalMetros * (selectedCliente?.valor_metro || 0))}
+                    </span>
+                  </div>
+                </div>
+              )}
 
               < Separator className="my-6" />
 
@@ -1935,8 +2166,50 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
                   )}
                 </div>
               </div>
+              </div>
+            )}
+            </div>
+            )}
+              
+              {!isEditing && wizardStep === 1 && (
+                <div className="flex justify-end pt-4 border-t border-white/5 mt-6">
+                  <Button 
+                    type="button" 
+                    size="lg" 
+                    onClick={() => {
+                      // Basic validation before moving to step 2
+                      const clienteId = form.getValues('cliente_id');
+                      if (!clienteId) {
+                        toast.error('Selecione um cliente para continuar.');
+                        return;
+                      }
+                      if (orderMode === 'direct' && itemFields.length === 0) {
+                        toast.error('Adicione pelo menos um produto.');
+                        return;
+                      }
+                      if (orderMode === 'files' && uploadedFiles.length === 0) {
+                        toast.error('Faça o upload de pelo menos um arquivo.');
+                        return;
+                      }
+                      if (orderMode === 'files' && uploadedFiles.some(f => f.isUploading)) {
+                        toast.error('Aguarde terminar o upload dos arquivos antes de continuar.');
+                        return;
+                      }
+                      setWizardStep(2);
+                    }}
+                    className="font-bold uppercase tracking-wide gap-2 w-full md:w-auto"
+                  >
+                    Próximo Passo <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
 
-              <div className="space-y-4 my-6">
+              {(isEditing || wizardStep >= 2) && (
+              <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
+              <div className="space-y-4 my-6 pt-4 border-t border-white/5">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                  <Truck className="w-4 h-4" /> {orderMode === 'files' ? '4' : '3'}. Logística
+                </h3>
                 <FormField
                   control={form.control}
                   name="tipo_entrega"
@@ -1989,126 +2262,238 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
 
                 {watchedTipoEntrega === 'frete' && (
                   <div className="p-4 bg-orange-50/50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-800 rounded-lg animate-in fade-in slide-in-from-top-2 duration-300 my-4 space-y-4">
-                    <Button
-                      type="button"
-                      className="w-full h-12 bg-orange-500 hover:bg-orange-600 text-white font-black uppercase tracking-wide shadow-md transition-all active:scale-[0.98] text-base gap-2 mb-2"
-                      onClick={() => setIsFreightModalOpen(true)}
-                    >
-                      <Truck className="h-5 w-5 stroke-[2.5]" />
-                      CRIAR ETIQUETA DE ENVIO
-                    </Button>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="transportadora"
-                        render={({ field }) => (
-                          <FormItem className="flex flex-col">
-                            <FormLabel className="text-orange-700 dark:text-orange-400 font-semibold mb-1 flex items-center gap-2">
-                              Transportadora
-                            </FormLabel>
-                            <Popover open={transportadoraOpen} onOpenChange={setTransportadoraOpen}>
-                              <PopoverTrigger asChild>
-                                <FormControl>
-                                  <Button
-                                    variant="outline"
-                                    role="combobox"
-                                    className={cn(
-                                      "w-full justify-between h-9 text-sm border-orange-200 focus:border-orange-400 bg-background",
-                                      !field.value && "text-muted-foreground"
-                                    )}
-                                  >
-                                    {field.value || "Selecione ou digite..."}
-                                    <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                  </Button>
-                                </FormControl>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-[250px] p-0" align="start">
-                                <Command>
-                                  <CommandInput
-                                    placeholder="Buscar ou criar..."
-                                    value={transportadoraSearch}
-                                    onValueChange={(val) => {
-                                      setTransportadoraSearch(val);
-                                      field.onChange(val);
-                                    }}
-                                  />
-                                  <CommandList>
-                                    <CommandEmpty className="py-2 px-4 text-xs">
-                                      Pressione Enter para usar "{transportadoraSearch}"
-                                    </CommandEmpty>
-                                    <CommandGroup heading="Salvas">
-                                      {transportadoras?.map((t) => (
-                                        <CommandItem
-                                          key={t.id}
-                                          value={t.nome}
-                                          onSelect={() => {
-                                            field.onChange(t.nome);
-                                            setTransportadoraOpen(false);
-                                            setTransportadoraSearch('');
-                                          }}
-                                        >
-                                          {t.nome}
-                                        </CommandItem>
-                                      ))}
-                                    </CommandGroup>
-                                  </CommandList>
-                                </Command>
-                              </PopoverContent>
-                            </Popover>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                    {selectedCliente?.cep && !useNewAddress && !isEditing ? (
+                      <div className="space-y-4">
+                        <div className="bg-background border border-orange-200 dark:border-orange-800 rounded-lg p-4 relative overflow-hidden">
+                          <div className="absolute top-0 left-0 w-1 h-full bg-orange-500"></div>
+                          <h4 className="text-sm font-bold text-orange-800 dark:text-orange-300 mb-2 flex items-center gap-2">
+                            <Truck className="w-4 h-4" />
+                            Endereço Salvo
+                          </h4>
+                          <p className="text-sm font-semibold">{selectedCliente.nome}</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {selectedCliente.endereco}, {selectedCliente.numero} {selectedCliente.complemento ? `- ${selectedCliente.complemento}` : ''}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {selectedCliente.bairro} - {selectedCliente.cidade}/{selectedCliente.estado}
+                          </p>
+                          <p className="text-xs font-medium mt-1">CEP: {selectedCliente.cep}</p>
+                          
+                          <Button 
+                            type="button" 
+                            variant="outline" 
+                            size="sm" 
+                            className="mt-3 text-xs w-full sm:w-auto"
+                            onClick={() => {
+                              setUseNewAddress(true);
+                              form.setValue('shipping_cep', '');
+                              form.setValue('shipping_address', '');
+                              form.setValue('shipping_number', '');
+                              form.setValue('shipping_complement', '');
+                              form.setValue('shipping_neighborhood', '');
+                              form.setValue('shipping_city', '');
+                              form.setValue('shipping_state', '');
+                              form.setValue('shipping_name', '');
+                              form.setValue('shipping_cpf', '');
+                            }}
+                          >
+                            Usar outro endereço
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-4 pb-4 mb-4">
+                        <div className="flex justify-between items-center">
+                          <h4 className="text-sm font-bold text-orange-800 dark:text-orange-300">Dados de Envio</h4>
+                          {selectedCliente?.cep && !isEditing && (
+                            <Button 
+                              type="button" 
+                              variant="ghost" 
+                              size="sm" 
+                              className="text-xs text-orange-600 hover:text-orange-700"
+                              onClick={() => {
+                                setUseNewAddress(false);
+                                form.setValue('shipping_cep', selectedCliente.cep || "");
+                                form.setValue('shipping_address', selectedCliente.endereco || "");
+                                form.setValue('shipping_number', selectedCliente.numero || "");
+                                form.setValue('shipping_complement', selectedCliente.complemento || "");
+                                form.setValue('shipping_neighborhood', selectedCliente.bairro || "");
+                                form.setValue('shipping_city', selectedCliente.cidade || "");
+                                form.setValue('shipping_state', selectedCliente.estado || "");
+                                form.setValue('shipping_name', selectedCliente.nome || "");
+                                form.setValue('shipping_cpf', selectedCliente.cpf || "");
+                              }}
+                            >
+                              Voltar para endereço salvo
+                            </Button>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <FormField
+                          control={form.control}
+                          name="shipping_cep"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-xs">CEP</FormLabel>
+                              <FormControl>
+                                <Input {...field} value={field.value || ""} placeholder="Ex: 00000-000" className="h-9 text-sm bg-background" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="shipping_address"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-xs">Endereço</FormLabel>
+                              <FormControl>
+                                <Input {...field} value={field.value || ""} placeholder="Ex: Rua das Flores" className="h-9 text-sm bg-background" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
 
-                      <FormField
-                        control={form.control}
-                        name="valor_frete"
-                        render={({ field }) => (
-                          <FormItem className="flex flex-col">
-                            <FormLabel className="text-orange-700 dark:text-orange-400 font-semibold mb-1 flex items-center gap-2">
-                              Valor do Frete
-                            </FormLabel>
-                            <FormControl>
-                              <CurrencyInput
-                                value={field.value}
-                                onChange={(value) => field.onChange(value)}
-                                placeholder="0,00"
-                                className="h-9 text-right font-bold border-orange-200 focus-visible:ring-orange-400 bg-background"
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <FormField
+                          control={form.control}
+                          name="shipping_number"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-xs">Número</FormLabel>
+                              <FormControl>
+                                <Input {...field} value={field.value || ""} placeholder="Ex: 123" className="h-9 text-sm bg-background" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="shipping_complement"
+                          render={({ field }) => (
+                            <FormItem className="md:col-span-2">
+                              <FormLabel className="text-xs">Complemento</FormLabel>
+                              <FormControl>
+                                <Input {...field} value={field.value || ""} placeholder="Ex: Apto 42" className="h-9 text-sm bg-background" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <FormField
+                          control={form.control}
+                          name="shipping_neighborhood"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-xs">Bairro</FormLabel>
+                              <FormControl>
+                                <Input {...field} value={field.value || ""} placeholder="Ex: Centro" className="h-9 text-sm bg-background" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="shipping_city"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-xs">Cidade</FormLabel>
+                              <FormControl>
+                                <Input {...field} value={field.value || ""} placeholder="Ex: São Paulo" className="h-9 text-sm bg-background" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="shipping_state"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-xs">Estado (UF)</FormLabel>
+                              <FormControl>
+                                <Input {...field} value={field.value || ""} placeholder="Ex: SP" maxLength={2} className="h-9 text-sm bg-background uppercase" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <FormField
+                          control={form.control}
+                          name="shipping_name"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-xs">Nome do Destinatário</FormLabel>
+                              <FormControl>
+                                <Input {...field} value={field.value || ""} placeholder="Ex: João da Silva" className="h-9 text-sm bg-background" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="shipping_cpf"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-xs">CPF / CNPJ</FormLabel>
+                              <FormControl>
+                                <Input {...field} value={field.value || ""} placeholder="Ex: 000.000.000-00" className="h-9 text-sm bg-background" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                      </div>
+                    )}
+
+                    <div className="flex flex-col gap-3 pt-4 border-t border-orange-200 dark:border-orange-800/50">
+                      <Button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          const cep = form.getValues('shipping_cep');
+                          if (!cep || cep.replace(/\D/g, '').length < 8) {
+                            toast.error('Preencha um CEP válido primeiro.');
+                            return;
+                          }
+                          setQuoteModalCEP(cep);
+                          setIsFreightModalOpen(true);
+                        }}
+                        className="w-full bg-orange-600 hover:bg-orange-700 text-white font-black h-12 shadow-lg hover:shadow-orange-600/25 transition-all text-sm gap-2"
+                      >
+                        <Truck className="h-5 w-5" />
+                        CALCULAR FRETE E GERAR ETIQUETA
+                      </Button>
+
+                      {/* Campos ocultos mas mantidos para o react-hook-form não perder a referência se precisarmos atualizar programaticamente */}
+                      <div className="hidden">
+                        <FormField control={form.control} name="transportadora" render={({ field }) => <Input {...field} value={field.value || ""} />} />
+                        <FormField control={form.control} name="valor_frete" render={({ field }) => <Input type="number" {...field} value={field.value || 0} />} />
+                      </div>
                     </div>
-
-                    <FormField
-                      control={form.control}
-                      name="tracking_code"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-orange-700 dark:text-orange-400 font-semibold mb-1 flex items-center gap-2">
-                            Código de Rastreio
-                          </FormLabel>
-                          <FormControl>
-                            <Input
-                              {...field}
-                              value={field.value || ""}
-                              placeholder="Ex: BR123456789BR"
-                              className="h-9 border-orange-200 focus-visible:ring-orange-400 bg-background"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
                   </div>
                 )}
               </div>
-
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
+              
+              <div className="space-y-4 my-6 pt-4 border-t border-white/5">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                  <Banknote className="w-4 h-4" /> {orderMode === 'files' ? '5' : '4'}. Descontos e Acréscimos
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
                   control={form.control}
                   name="desconto_valor"
                   render={({ field }) => (
@@ -2161,35 +2546,50 @@ export const PedidoForm = ({ isOpen, onOpenChange, onSubmit, isSubmitting, clien
               <div className="flex items-center justify-between p-3 sm:p-4 bg-muted rounded-lg">
                 <span className="text-base sm:text-lg font-medium">Total: {formatCurrency(valorTotal)}</span>
               </div>
+            </div>
+            </div>
+            )}
 
-              <DialogFooter className="gap-2 flex-col sm:flex-row">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => onOpenChange(false)}
-                  className="w-full sm:w-auto transition-all duration-300 hover:scale-[1.02] h-9 sm:h-10 text-sm"
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  id="btn-save-pedido"
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="w-full sm:w-auto transition-all duration-300 hover:scale-[1.02] h-9 sm:h-10 text-sm"
-                >
-                  {isSubmitting && <Loader2 className="mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" />}
-                  {isSubmitting ? "Salvando..." : isEditing ? "Salvar Alterações" : "Criar Pedido"}
-                </Button>
-              </DialogFooter>
-              <MagicPasteModal
-                isOpen={isMagicModalOpen}
-                onOpenChange={setIsMagicModalOpen}
-                onImportItems={handleImportItems}
-              />
+            {/* Botões do Footer - Mostrar Apenas se o modo estiver selecionado ou se estiver editando */}
+              {(isEditing || wizardStep >= 2) && (
+                <>
+                  <DialogFooter className="gap-2 flex-col sm:flex-row mt-8 pt-4 border-t sticky bottom-0 bg-background/95 backdrop-blur-sm z-10 pb-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        if (!isEditing && wizardStep === 2) {
+                          setWizardStep(1);
+                        } else {
+                          onOpenChange(false);
+                        }
+                      }}
+                      className="w-full sm:w-auto transition-all duration-300 hover:scale-[1.02] h-9 sm:h-10 text-sm"
+                    >
+                      {!isEditing && wizardStep === 2 ? 'Voltar' : 'Cancelar'}
+                    </Button>
+                    <Button
+                      id="btn-save-pedido"
+                      type="submit"
+                      disabled={isSubmitting || (orderMode === 'files' && uploadedFiles?.some(f => f.isUploading))}
+                      className="w-full sm:w-auto transition-all duration-300 hover:scale-[1.02] h-9 sm:h-10 text-sm"
+                    >
+                      {isSubmitting && <Loader2 className="mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" />}
+                      {isSubmitting ? "Salvando..." : isEditing ? "Salvar Alterações" : "Criar Pedido"}
+                    </Button>
+                  </DialogFooter>
+                  <MagicPasteModal
+                    isOpen={isMagicModalOpen}
+                    onOpenChange={setIsMagicModalOpen}
+                    onImportItems={handleImportItems}
+                  />
+                </>
+              )}
             </form>
           </Form>
+          </div>
         </DialogContent>
-      </Dialog >
+      </Dialog>
 
       <QuickClientForm
         isOpen={isQuickClientFormOpen}

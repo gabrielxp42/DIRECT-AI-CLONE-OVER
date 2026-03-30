@@ -26,6 +26,9 @@ const Login = lazy(() => import("./pages/Login"));
 const Clientes = lazy(() => import("./pages/Clientes"));
 const Produtos = lazy(() => import("./pages/Produtos"));
 const Pedidos = lazy(() => import("./pages/Pedidos"));
+const PedidosLoja = lazy(() => import("./pages/PedidosLoja"));
+const ErrosDefeitos = lazy(() => import("./pages/ErrosDefeitos"));
+const TrocasDevolucoes = lazy(() => import("./pages/TrocasDevolucoes"));
 const Reports = lazy(() => import("./pages/Reports"));
 const Insumos = lazy(() => import("./pages/Insumos"));
 const Settings = lazy(() => import("./pages/Settings"));
@@ -46,8 +49,8 @@ const Vetorizador = lazy(() => import("./pages/Vetorizador"));
 import ProductionKanban from "./pages/ProductionKanban";
 const ProductionTV = lazy(() => import("./pages/ProductionTV"));
 const MontadorPage = lazy(() => import("./pages/Montador"));
+const MelhoradorPage = lazy(() => import("./pages/Melhorador"));
 import { OverPixelDock } from './components/OverPixelDock';
-
 
 // Configurar QueryClient com opções otimizadas
 const queryClient = new QueryClient({
@@ -99,19 +102,24 @@ const App = () => (
                       <Route path="/auth/callback" element={<AuthCallback />} />
                       <Route path="/producao/tv" element={<ProductionTV />} />
                       <Route path="/index.html" element={<Navigate to="/" replace />} />
-                      <Route path="/" element={<OverPixelLauncher />} />
                       <Route element={<ProtectedRoute />}>
                         <Route element={<SubscriptionGuard />}>
+                          {/* Rotas com Layout padrão (inclui os apps full-bleed persistentes) */}
                           <Route element={
                             <>
                               <DeviceTracker />
                               <Layout />
                             </>
                           }>
+                            <Route path="/" element={<OverPixelLauncher />} />
                             <Route path="/dashboard" element={<Index />} />
                             <Route path="/clientes" element={<Clientes />} />
                             <Route path="/produtos" element={<Produtos />} />
                             <Route path="/pedidos" element={<Pedidos />} />
+                            <Route path="/pedidos-dtf" element={<Pedidos />} />
+                            <Route path="/pedidos-loja" element={<PedidosLoja />} />
+                            <Route path="/erros-defeitos" element={<ErrosDefeitos />} />
+                            <Route path="/trocas-devolucoes" element={<TrocasDevolucoes />} />
                             <Route path="/reports" element={<Reports />} />
                             <Route path="/insumos" element={<Insumos />} />
                             <Route path="/logistica" element={<Logistics />} />

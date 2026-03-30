@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { 
-  Sparkles, Home, Star, GripVertical, CheckCircle2, CloudLightning, Bot, Package, Settings
+  Sparkles, Home, Star, GripVertical, CheckCircle2, CloudLightning, Bot, Package, Settings, User, Image as ImageIcon, Search, CircleDollarSign, BadgeCheck
 } from 'lucide-react';
 import { useSession } from '@/contexts/SessionProvider';
 import { cn } from '@/lib/utils';
@@ -14,6 +14,7 @@ import {
   InventoryWidget 
 } from './components/Widgets';
 import './Launcher.css';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 
 type CSSVars = React.CSSProperties & Record<`--${string}`, string | number>;
 
@@ -150,16 +151,20 @@ const DirectAILogo = ({ className }: { className?: string }) => (
 );
 
 const MelhoradorLogo = ({ className }: { className?: string }) => (
-  <div className={cn("relative flex items-center justify-center w-full h-full scale-[1.3]", className)}>
-    <Sparkles className="w-full h-full text-rose-200" strokeWidth={1} style={{ filter: "drop-shadow(0 0 15px rgba(251,113,133,0.9))" }} />
-  </div>
+  <img 
+    src={encodeURI('/logo melhorador cloud.png')}
+    alt="Melhorador Cloud" 
+    className={cn("w-full h-full object-contain p-0.5", className)} 
+    draggable={false}
+    onDragStart={(e) => e.preventDefault()}
+  />
 );
 
 const apps = [
   { id: 'direct-ai', name: 'Direct AI', icon: DirectAILogo, color: 'linear-gradient(135deg, #06b6d4, #3b82f6)', badge: 'Assinado', badgeClass: 'assinado', route: '/dashboard' },
   { id: 'dtf-factory', name: 'DTF Factory', icon: DTFFactoryLogo, color: 'linear-gradient(135deg, #f59e0b, #ea580c)', badge: 'Pro', badgeClass: 'pro', route: '/dtf-factory' },
   { id: 'montador', name: 'O Montador', icon: MontadorIcon, color: 'linear-gradient(135deg, #8b5cf6, #d946ef)', badge: 'Assinado', badgeClass: 'assinado', route: '/montador' },
-  { id: 'melhorador', name: 'Melhorador Cloud', icon: MelhoradorLogo, color: 'linear-gradient(135deg, #e11d48, #9f1239)', badge: 'Em Breve', badgeClass: 'em-breve', route: null }
+  { id: 'melhorador', name: 'Melhorador Cloud', icon: MelhoradorLogo, color: 'linear-gradient(135deg, #e11d48, #9f1239)', badge: 'Pro', badgeClass: 'pro', route: '/melhorador' }
 ];
 
 const availableWidgets = [
@@ -172,7 +177,7 @@ const availableWidgets = [
 const OverPixelLauncher = React.forwardRef<HTMLDivElement, OverPixelLauncherProps>(
   ({ isOpen, onClose, onAppClick, isInline, showSettings, glassTone, onToneChange, glassOpacity, onOpacityChange, isSidebarExpanded, mode = 'full', activeAppOverride }, ref) => {
     const navigate = useNavigate();
-    const { profile, activeSubProfile } = useSession();
+    const { profile, activeSubProfile, session } = useSession();
     const location = useLocation();
     
     // States
@@ -186,6 +191,16 @@ const OverPixelLauncher = React.forwardRef<HTMLDivElement, OverPixelLauncherProp
     });
     const [currentTime, setCurrentTime] = useState(new Date());
     const [localShowSettings, setLocalShowSettings] = useState(false);
+    const [bgMode, setBgMode] = useState<'ambient' | 'camera'>(() => {
+      const saved = localStorage.getItem('op-launcher-bg-mode');
+      return saved === 'camera' ? 'camera' : 'ambient';
+    });
+    const videoRef = React.useRef<HTMLVideoElement | null>(null);
+    const [bgBrightness, setBgBrightness] = useState<number>(() => {
+      const saved = localStorage.getItem('op-launcher-bg-brightness');
+      const v = saved ? Number(saved) : 0.9;
+      return isNaN(v) ? 0.9 : Math.min(1.4, Math.max(0.5, v));
+    });
 
     // Current app context based on route
     const currentAppId = useMemo(() => {
@@ -250,17 +265,93 @@ const OverPixelLauncher = React.forwardRef<HTMLDivElement, OverPixelLauncherProp
 
     const handleAppClickInternal = (appId: string, route: string | null) => {
       console.log(`[Launcher] App clicked: ${appId} -> Route: ${route || 'none'}`);
+      // Fechar o launcher imediatamente ao clicar, antes de navegar
+      if (onClose) onClose();
+      // Forçar fechamento via evento global (fallback robusto)
+      try {
+        window.dispatchEvent(new CustomEvent('toggle-launcher', { detail: { force: 'close' } }));
+      } catch {}
       if (onAppClick) {
-        onAppClick(appId, route || undefined); 
-        return; 
+        onAppClick(appId, route || undefined);
+        return;
       }
       if (route) {
-        navigate(route); 
-        if (onClose) onClose(); 
+        navigate(route);
+        // Fail-safe: reforçar fechamento após a navegação inicial
+        setTimeout(() => {
+          try {
+            window.dispatchEvent(new CustomEvent('toggle-launcher', { detail: { force: 'close' } }));
+          } catch {}
+          if (onClose) onClose();
+          
+          // Apenas ocultar o Launcher Overlay, NUNCA a página raiz do Launcher principal
+          if (location.pathname !== '/') {
+             const overlays = document.querySelectorAll('.ios-launcher-container');
+             overlays.forEach(el => {
+                if (el.closest('.z-\\[9995\\]') || el.classList.contains('mobile-overlay')) {
+                    (el as HTMLElement).style.display = 'none';
+                }
+             });
+          }
+        }, 120);
       }
     };
 
     const userName = activeSubProfile?.name || profile?.first_name || 'Usuário';
+    const timeStr = useMemo(() => {
+      try {
+        return new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(currentTime);
+      } catch {
+        const h = String(currentTime.getHours()).padStart(2, '0');
+        const m = String(currentTime.getMinutes()).padStart(2, '0');
+        return `${h}:${m}`;
+      }
+    }, [currentTime]);
+
+    useEffect(() => {
+      const id = setInterval(() => setCurrentTime(new Date()), 1000 * 30);
+      return () => clearInterval(id);
+    }, []);
+
+    useEffect(() => {
+      localStorage.setItem('op-launcher-bg-mode', bgMode);
+      if (bgMode !== 'camera') return;
+      const startCamera = async () => {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: { width: { ideal: 1920 }, height: { ideal: 1080 } },
+            audio: false
+          });
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+            await videoRef.current.play().catch(() => {});
+          }
+        } catch (e) {
+          setBgMode('ambient');
+        }
+      };
+      startCamera();
+      return () => {
+        const v = videoRef.current;
+        const s = (v?.srcObject as MediaStream | null);
+        s?.getTracks().forEach(t => t.stop());
+        if (v) v.srcObject = null;
+      };
+    }, [bgMode]);
+    useEffect(() => {
+      localStorage.setItem('op-launcher-bg-brightness', String(bgBrightness));
+    }, [bgBrightness]);
+
+    const openGalleryShortcut = () => {
+      if (location.pathname !== '/dtf-factory') {
+        navigate('/dtf-factory');
+        window.setTimeout(() => {
+          try { window.dispatchEvent(new CustomEvent('OVERPIXEL_OPEN_GALLERY')); } catch {}
+        }, 150);
+        return;
+      }
+      try { window.dispatchEvent(new CustomEvent('OVERPIXEL_OPEN_GALLERY')); } catch {}
+    };
 
     if (mode === 'mobileOverlay') {
       return (
@@ -324,9 +415,18 @@ const OverPixelLauncher = React.forwardRef<HTMLDivElement, OverPixelLauncherProp
         transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
         style={{ 
           '--glass-opacity': glassOpacity,
-          '--glass-border-opacity': (glassOpacity ?? 0.12) + 0.15 
+          '--glass-border-opacity': (glassOpacity ?? 0.12) + 0.15,
+          '--bg-brightness': bgBrightness
         } as React.CSSProperties}
       >
+        <div className="quest-video-bg" aria-hidden="true">
+          {bgMode === 'camera' ? (
+            <video ref={videoRef} muted playsInline />
+          ) : (
+            <img src="/overbuilder-1774815289052.png" alt="Background" />
+          )}
+        </div>
+
         <div className="ios-bg-mesh" />
         <div className={cn("ios-app-bg", currentAppId)} aria-hidden="true">
           {currentAppId === 'app-dtf-factory' && (
@@ -374,6 +474,58 @@ const OverPixelLauncher = React.forwardRef<HTMLDivElement, OverPixelLauncherProp
           )}
         </div>
 
+        <div className="quest-topbar">
+          <span className="quest-topbar-time">{timeStr}</span>
+        </div>
+
+        <div className={cn("quest-leftbar", (showSettings || localShowSettings) && "shift")}>
+          <button
+            className="quest-left-btn"
+            title="Buscar"
+            onClick={() => {
+              const evt = new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true });
+              document.dispatchEvent(evt);
+            }}
+          >
+            <Search className="w-5 h-5" />
+          </button>
+          <button
+            className="quest-left-btn"
+            title="Recarregar Tokens"
+            onClick={() => {
+              const at = session?.access_token || '';
+              const rt = (session as any)?.refresh_token || '';
+              const qs = new URLSearchParams({ access_token: at, refresh_token: rt }).toString();
+              const url = `https://overpixel.online/tokens?${qs}`;
+              window.open(url, '_blank');
+            }}
+          >
+            <CircleDollarSign className="w-5 h-5" />
+          </button>
+          <button
+            className="quest-left-btn"
+            title="Perfis"
+            onClick={() => {
+              try { window.dispatchEvent(new CustomEvent('OPEN_PROFILE_SELECTOR')); } catch {}
+            }}
+          >
+            <BadgeCheck className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className={cn("quest-rightbar", (showSettings || localShowSettings) && "quest-rightbar-hidden")}>
+          <input
+            type="range"
+            min={0.5}
+            max={1.4}
+            step={0.01}
+            value={bgBrightness}
+            onChange={(e) => setBgBrightness(Number(e.target.value))}
+            className="quest-slider"
+            aria-label="Brilho do fundo"
+          />
+        </div>
+
         {/* New Sidebar Integration — Toggleable internally or externally */}
         <AnimatePresence>
           {(showSettings || localShowSettings) && (
@@ -391,102 +543,72 @@ const OverPixelLauncher = React.forwardRef<HTMLDivElement, OverPixelLauncherProp
 
         <div className="ios-main-content">
           <div className="ios-content-wrapper max-w-[1240px] mx-auto w-full flex flex-col md:px-12 md:py-12 px-6 py-6 transition-all">
-            
-            <div className="ios-top-info flex items-center justify-between mb-8 md:mb-12">
-               <div className="flex-1">
-                 <h1 className="ios-greeting text-3xl md:text-5xl font-black text-white leading-[1.1] md:leading-tight">
-                    Boa tarde, {userName}.
-                 </h1>
-                 <p className="text-white/40 text-[10px] md:text-sm font-medium tracking-wide mt-2 uppercase md:normal-case">
-                    Online • OverPixel Central Control
-                 </p>
-               </div>
-
-               {/* Unified Settings Trigger inside the Card */}
-               <motion.button
-                  onClick={() => setLocalShowSettings(!localShowSettings)}
-                  className={cn(
-                    "p-3 md:p-4 rounded-2xl md:rounded-3xl transition-all border shrink-0",
-                    localShowSettings 
-                      ? "bg-cyan-500/20 border-cyan-500/40 shadow-[0_0_20px_rgba(6,182,212,0.2)]" 
-                      : "bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20"
-                  )}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  title="Ajustes e Personalização"
-               >
-                  <Settings className={cn(
-                    "w-5 h-5 md:w-7 md:h-7 transition-colors",
-                    localShowSettings ? "text-cyan-400 animate-spin-slow" : "text-white/30"
-                  )} />
-               </motion.button>
-            </div>
-
-            {/* App Grid */}
-            <Reorder.Group 
-              axis="x" 
-              values={sortedApps} 
-              onReorder={setSortedApps}
-              className="ios-app-grid"
-              onContextMenu={(e) => { e.preventDefault(); setIsEditingApps(true); }}
-            >
-              {sortedApps.map((app) => (
-                <Reorder.Item 
-                  key={app.id} value={app}
-                  className={cn("ios-app-container relative", isEditingApps && "ios-wiggle-animation")}
-                  onClick={() => !isEditingApps && handleAppClickInternal(app.id, app.route)}
-                >
-                  <div className="ios-squircle relative overflow-visible" style={{ background: app.color, borderRadius: '24px' }}>
-                    <app.icon className="ios-squircle-logo text-white" />
-                    {isEditingApps && (
-                      <div className="absolute inset-0 flex items-center justify-center opacity-40 pointer-events-none">
-                        <GripVertical className="text-white" />
-                      </div>
-                    )}
-                    {app.badge && (
-                      <div className={cn("ios-badge", app.badgeClass)} style={{ borderRadius: '8px' }}>
-                        {app.badge}
-                      </div>
-                    )}
-                  </div>
-                  <div className="ios-app-name">{app.name}</div>
-                </Reorder.Item>
-              ))}
-            </Reorder.Group>
-
-            {/* Widgets Grid */}
-            <div className="ios-widgets-area">
-              <AnimatePresence>
-                {availableWidgets.map((widget) => {
-                  const isVisible = visibleWidgets.includes(widget.id);
-                  if (!isVisible && !isManagingWidgets) return null;
-                  
-                  return (
-                    <motion.div 
-                      key={widget.id}
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: isVisible ? 1 : 0.3, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.9 }}
-                      className="relative"
-                    >
-                      <widget.component />
-                      {isManagingWidgets && (
-                        <button 
-                          onClick={() => toggleWidget(widget.id)}
-                          className={cn(
-                            "absolute -top-2 -right-2 w-8 h-8 rounded-full flex items-center justify-center shadow-xl z-30 transition-all",
-                            isVisible ? "bg-rose-500 text-white" : "bg-emerald-500 text-white"
-                          )}
-                        >
-                          {isVisible ? <Settings size={14} /> : <Settings size={14} className="rotate-45" />}
-                        </button>
+            <div className="quest-panel">
+              <Reorder.Group 
+                axis="x" 
+                values={sortedApps} 
+                onReorder={setSortedApps}
+                className="quest-grid"
+                onContextMenu={(e) => { e.preventDefault(); setIsEditingApps(true); }}
+              >
+                {sortedApps.map((app) => (
+                  <Reorder.Item 
+                    key={app.id} value={app}
+                    onClick={() => !isEditingApps && handleAppClickInternal(app.id, app.route)}
+                    className={cn(isEditingApps && "ios-wiggle-animation")}
+                  >
+                    <div className="quest-icon">
+                      <app.icon className="ios-squircle-logo text-white" />
+                      {isEditingApps && (
+                        <div className="absolute inset-0 flex items-center justify-center opacity-40 pointer-events-none">
+                          <GripVertical className="text-white" />
+                        </div>
                       )}
-                    </motion.div>
-                  );
-                })}
-              </AnimatePresence>
+                    </div>
+                    <div className="quest-label">{app.name}</div>
+                  </Reorder.Item>
+                ))}
+              </Reorder.Group>
             </div>
           </div>
+        </div>
+
+        <div className="quest-dock">
+          <button
+            className="quest-dock-btn"
+            title="Minha Conta"
+            onClick={() => navigate('/profile')}
+          >
+            <Avatar className="h-8 w-8">
+              <AvatarImage 
+                src={
+                  activeSubProfile?.avatar_url || 
+                  profile?.avatar_url || 
+                  ((session?.user as any)?.user_metadata?.avatar_url) || 
+                  ((session?.user as any)?.user_metadata?.picture) || 
+                  undefined
+                } 
+                alt={userName || 'Perfil'} 
+              />
+              <AvatarFallback className="bg-white/10 text-white/80 text-xs font-bold">
+                {(userName || 'U').slice(0,2).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+          </button>
+          <button
+            className="quest-dock-btn"
+            title="Configurações do Launcher"
+            onClick={() => setLocalShowSettings(!localShowSettings)}
+          >
+            <Settings className="w-6 h-6 text-white" />
+          </button>
+          <button
+            className="quest-dock-btn"
+            title="Galeria"
+            onClick={openGalleryShortcut}
+          >
+            <ImageIcon className="w-6 h-6 text-white" />
+          </button>
         </div>
 
         {isEditingApps && (

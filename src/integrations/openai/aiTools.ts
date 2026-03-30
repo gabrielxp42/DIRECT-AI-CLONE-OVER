@@ -75,9 +75,8 @@ const getUserContext = async (): Promise<UserContext | null> => {
     const userId = userData.id;
 
     // Buscar o organization_id no perfil do usuário
-    const profileResponse = await fetch(`${SUPABASE_URL}/rest/v1/profiles_v2?select=organization_id&uid=eq.${userId}&limit=1`, {
+    const profileResponse = await fetch(`${SUPABASE_URL}/rest/v1/profiles_v2?select=organization_id&uid=eq.${userId}&limit=1&apikey=${SUPABASE_ANON_KEY}`, {
       headers: {
-        'apikey': SUPABASE_ANON_KEY,
         'Authorization': `Bearer ${token}`
       }
     });
@@ -267,10 +266,9 @@ const update_branding = async (args: { primary_color?: string; company_name?: st
     if (args.company_name) updates.company_name = args.company_name;
     if (args.logo_url) updates.company_logo_url = args.logo_url;
 
-    const updateResponse = await fetch(`${SUPABASE_URL}/rest/v1/profiles_v2?uid=eq.${userId}`, {
+    const updateResponse = await fetch(`${SUPABASE_URL}/rest/v1/profiles_v2?uid=eq.${userId}&apikey=${SUPABASE_ANON_KEY}`, {
       method: 'PATCH',
       headers: {
-        'apikey': SUPABASE_ANON_KEY,
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       },
@@ -1611,7 +1609,7 @@ const getCompanyInfo = async () => {
     const userData = await response.json();
     const userId = userData.id;
 
-    const profileResponse = await fetch(`${SUPABASE_URL}/rest/v1/profiles?select=*&id=eq.${userId}&limit=1`, {
+    const profileResponse = await fetch(`${SUPABASE_URL}/rest/v1/profiles_v2?select=*&uid=eq.${userId}&limit=1`, {
       headers: {
         'apikey': SUPABASE_ANON_KEY,
         'Authorization': `Bearer ${token}`

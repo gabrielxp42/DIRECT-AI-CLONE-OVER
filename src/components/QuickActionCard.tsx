@@ -28,12 +28,12 @@ export const QuickActionCard: React.FC<QuickActionCardProps> = ({
   const navigate = useNavigate();
 
   const variantStyles = {
-    amber: "bg-transparent border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/5 dark:bg-card/40",
-    blue: "bg-transparent border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-500/5 dark:bg-card/40",
-    rose: "bg-transparent border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-500/5 dark:bg-card/40",
-    indigo: "bg-transparent border-indigo-500/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/5 dark:bg-card/40",
-    emerald: "bg-transparent border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/5 dark:bg-card/40",
-    zinc: "bg-transparent border-zinc-500/30 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-500/5 dark:bg-card/40",
+    amber: "bg-amber-500/5 border-amber-500/20 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/40 hover:shadow-[0_0_20px_rgba(245,158,11,0.2)] dark:hover:shadow-[0_0_20px_rgba(251,191,36,0.15)]",
+    blue: "bg-blue-500/5 border-blue-500/20 text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 hover:border-blue-500/40 hover:shadow-[0_0_20px_rgba(59,130,246,0.2)] dark:hover:shadow-[0_0_20px_rgba(96,165,250,0.15)]",
+    rose: "bg-rose-500/5 border-rose-500/20 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 hover:border-rose-500/40 hover:shadow-[0_0_20px_rgba(244,63,94,0.2)] dark:hover:shadow-[0_0_20px_rgba(251,113,133,0.15)]",
+    indigo: "bg-indigo-500/5 border-indigo-500/20 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/10 hover:border-indigo-500/40 hover:shadow-[0_0_20px_rgba(99,102,241,0.2)] dark:hover:shadow-[0_0_20px_rgba(129,140,248,0.15)]",
+    emerald: "bg-emerald-500/5 border-emerald-500/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 hover:border-emerald-500/40 hover:shadow-[0_0_20px_rgba(16,185,129,0.2)] dark:hover:shadow-[0_0_20px_rgba(52,211,153,0.15)]",
+    zinc: "bg-zinc-500/5 border-zinc-500/20 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-500/10 hover:border-zinc-500/40 hover:shadow-[0_0_20px_rgba(113,113,122,0.2)] dark:hover:shadow-[0_0_20px_rgba(161,161,170,0.15)]",
   };
 
   const handleClick = () => {
@@ -47,8 +47,8 @@ export const QuickActionCard: React.FC<QuickActionCardProps> = ({
   return (
     <Card
       className={cn(
-        "flex flex-col items-center justify-center p-3 h-full text-center cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-[1.02] border-2 shadow-sm rounded-2xl",
-        "min-w-[100px] min-h-[90px] md:min-w-[120px]",
+        "flex flex-col items-center justify-center p-3 h-full text-center cursor-pointer transition-all duration-300 hover:scale-[1.03] border backdrop-blur-md rounded-2xl group relative overflow-hidden",
+        "min-w-[100px] min-h-[90px] md:min-w-[120px] bg-card/40 dark:bg-slate-900/40",
         variantStyles[variant],
         className
       )}

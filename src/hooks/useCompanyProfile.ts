@@ -27,15 +27,18 @@ export interface CompanyProfile {
     gabi_templates: Record<string, string> | null;
     company_business_hours: string | null;
     wallet_balance: number | null;
-    frenet_balance: number | null; // Novo campo separado
+    frenet_balance: number | null;
     logistics_provider: 'superfrete' | 'frenet' | null;
     frenet_token: string | null;
-    superfrete_token: string | null; // Novo campo
+    superfrete_token: string | null;
     frenet_access_key: string | null;
     frenet_access_password: string | null;
     operator_phone: string | null;
     whatsapp_boss_group_id: string | null;
     organization_id: string | null;
+    dtf_roll_width: number | null;
+    origin_zip_code: string | null;
+    gabi_boss_name: string | null;
 }
 
 export interface CompanyProfileUpdate {
@@ -71,6 +74,9 @@ export interface CompanyProfileUpdate {
     sync_frenet_balance?: boolean;
     operator_phone?: string | null;
     whatsapp_boss_group_id?: string | null;
+    dtf_roll_width?: number;
+    origin_zip_code?: string;
+    gabi_boss_name?: string;
 }
 
 // Helper to format full address
@@ -118,7 +124,7 @@ export const useCompanyProfile = () => {
     const queryClient = useQueryClient();
     const userId = session?.user?.id;
 
-    // Fetch company profile (from profiles table) using direct REST for stability
+    // Fetch company profile from profiles_v2 using direct REST for stability
     const { data: companyProfile, isLoading, error, refetch } = useQuery({
         queryKey: ['companyProfile', userId],
         queryFn: async () => {
@@ -128,7 +134,7 @@ export const useCompanyProfile = () => {
                 const token = await getValidToken();
                 if (!token) return null;
 
-                const url = `${SUPABASE_URL}/rest/v1/profiles_v2?uid=eq.${userId}&select=company_name,company_slogan,company_phone,company_whatsapp,company_email,company_website,company_address_street,company_address_number,company_address_neighborhood,company_address_city,company_address_state,company_address_zip,company_address_complement,company_pix_key,company_pix_key_type,company_logo_url,sidebar_shortcuts,company_primary_color,gabi_templates,company_business_hours,wallet_balance,frenet_balance,logistics_provider,frenet_token,superfrete_token,frenet_access_key,frenet_access_password,operator_phone,whatsapp_boss_group_id,organization_id`;
+                const url = `${SUPABASE_URL}/rest/v1/profiles_v2?uid=eq.${userId}&select=company_name,company_slogan,company_phone,company_whatsapp,company_email,company_website,company_address_street,company_address_number,company_address_neighborhood,company_address_city,company_address_state,company_address_zip,company_address_complement,company_pix_key,company_pix_key_type,company_logo_url,sidebar_shortcuts,company_primary_color,gabi_templates,company_business_hours,wallet_balance,frenet_balance,logistics_provider,frenet_token,superfrete_token,frenet_access_key,frenet_access_password,operator_phone,whatsapp_boss_group_id,organization_id,dtf_roll_width,origin_zip_code,gabi_boss_name&apikey=${SUPABASE_ANON_KEY}`;
 
                 const response = await fetch(url, {
                     method: 'GET',
@@ -170,7 +176,7 @@ export const useCompanyProfile = () => {
             const token = await getValidToken();
             if (!token) throw new Error('Sessão expirada. Por favor, recarregue a página.');
 
-            const url = `${SUPABASE_URL}/rest/v1/profiles_v2?uid=eq.${userId}`;
+            const url = `${SUPABASE_URL}/rest/v1/profiles_v2?uid=eq.${userId}&apikey=${SUPABASE_ANON_KEY}`;
             const response = await fetch(url, {
                 method: 'PATCH',
                 headers: {
@@ -188,39 +194,7 @@ export const useCompanyProfile = () => {
             }
 
             const data = await response.json();
-
-            // If the UPDATE returned an empty array, it means no row matched the ID.
-            // This happens if the profile row doesn't exist yet. We must create it.
-            if (!data || data.length === 0) {
-                console.warn('[useCompanyProfile] Update returned no data. Attemping INSERT (upsert)...');
-
-                const insertUrl = `${SUPABASE_URL}/rest/v1/profiles`;
-                const insertBody = {
-                    id: userId,
-                    ...updates
-                };
-
-                const insertResponse = await fetch(insertUrl, {
-                    method: 'POST',
-                    headers: {
-                        'apikey': SUPABASE_ANON_KEY,
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                        'Prefer': 'return=representation'
-                    },
-                    body: JSON.stringify(insertBody)
-                });
-
-                if (!insertResponse.ok) {
-                    const insertError = await insertResponse.text();
-                    throw new Error(`Erro ao criar perfil: ${insertResponse.status} - ${insertError}`);
-                }
-
-                const insertData = await insertResponse.json();
-                return insertData[0];
-            }
-
-            return data[0];
+            return data?.[0] ?? null;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['companyProfile', userId] });

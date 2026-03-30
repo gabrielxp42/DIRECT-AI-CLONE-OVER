@@ -9,6 +9,8 @@ import { HalftoneSettings, applyHalftoneToBlob } from '@dtf/services/halftoneSer
 import { electronBridge } from '@dtf/lib/electronBridge';
 import { fetchWithRetry } from '@dtf/lib/imageUtils';
 import { saveGalleryItem, createThumbnail, GalleryItem } from '@dtf/services/galleryService';
+import { uploadFileToWasabi } from '@/integrations/wasabi/upload';
+import { ensureOpaquePixels } from '../../utils/imageUtils';
 import { ErrorBoundary } from '@dtf/components/ErrorBoundary';
 
 const HalftoneSelectorLazy = React.lazy(() => import('@dtf/components/HalftoneSelector'));
@@ -79,18 +81,22 @@ export default function HalftoneEditorOverlay({ isOpen, imageUrl, garmentMode, i
                 // 4. Save to Gallery if we have item context
                 if (item) {
                     try {
-                        const thumbDataUrl = URL.createObjectURL(halftoneBlob);
+                        // Normalize alpha to ensure solid dots
+                        const opaqueBlob = await ensureOpaquePixels(halftoneBlob);
+                        const thumbDataUrl = URL.createObjectURL(opaqueBlob);
                         const thumbnail = await createThumbnail(thumbDataUrl);
                         URL.revokeObjectURL(thumbDataUrl);
 
-                        const treatedBlobUrl = URL.createObjectURL(halftoneBlob);
+                        // Upload treated (final) to Wasabi for persistence cross-device
+                        const fileFinal = new File([opaqueBlob], filename, { type: 'image/png' });
+                        const { path: treatedPath } = await uploadFileToWasabi(fileFinal, 'dtf-treated');
 
                         saveGalleryItem({
                             prompt: item.prompt,
                             timestamp: Date.now(),
                             savedPath: result.path || filename,
                             masterFilePath: item.masterFilePath, // Keep linkage to master!
-                            treatedUrl: treatedBlobUrl, // The treated/halftone image URL for web
+                            treatedWasabiKey: treatedPath, // Persisted final image
                             thumbnail,
                             aspectRatio: item.aspectRatio,
                             garmentMode: garmentMode, // Uses the mode selected in editor
@@ -127,7 +133,9 @@ export default function HalftoneEditorOverlay({ isOpen, imageUrl, garmentMode, i
         setIsSaving(true);
         setSaveStatus('idle');
         try {
-            const buffer = await processedBlob.arrayBuffer();
+            // Normalize alpha and save
+            const opaqueBlob = await ensureOpaquePixels(processedBlob);
+            const buffer = await opaqueBlob.arrayBuffer();
             const filename = `dtf-color-edit-${Date.now()}.png`;
 
             const result = await electronBridge.saveImage(buffer, filename);
@@ -135,11 +143,12 @@ export default function HalftoneEditorOverlay({ isOpen, imageUrl, garmentMode, i
             if (result.success) {
                 if (item) {
                     try {
-                        const thumbDataUrl = URL.createObjectURL(processedBlob);
+                        const thumbDataUrl = URL.createObjectURL(opaqueBlob);
                         const thumbnail = await createThumbnail(thumbDataUrl);
                         URL.revokeObjectURL(thumbDataUrl);
 
-                        const treatedBlobUrl = URL.createObjectURL(processedBlob);
+                        const fileFinal = new File([opaqueBlob], filename, { type: 'image/png' });
+                        const { path: treatedPath } = await uploadFileToWasabi(fileFinal, 'dtf-treated');
 
                         saveGalleryItem({
                             prompt: item.prompt,
@@ -147,7 +156,7 @@ export default function HalftoneEditorOverlay({ isOpen, imageUrl, garmentMode, i
                             savedPath: result.path || filename,
                             // CRÍTICO: Substitui o masterFilePath pela própria imagem limpa
                             masterFilePath: result.path || filename,
-                            treatedUrl: treatedBlobUrl, // The treated image URL for web
+                            treatedWasabiKey: treatedPath, // Persisted final image
                             thumbnail,
                             aspectRatio: item.aspectRatio,
                             garmentMode: 'color', // Explicitly color

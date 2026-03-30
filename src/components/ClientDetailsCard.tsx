@@ -1,7 +1,7 @@
 import React from 'react';
 import { Cliente } from '@/types/cliente';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { DollarSign, ShoppingCart, Calendar, Clock, Loader2, User, ArrowRight, Ruler, Brain, Sparkles } from 'lucide-react';
+import { DollarSign, ShoppingCart, Calendar, Clock, Loader2, User, ArrowRight, Ruler, Brain, Sparkles, Bot } from 'lucide-react';
 import { useClientMetrics } from '@/hooks/useClientMetrics';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
+import { useAIAssistant } from '@/contexts/AIAssistantProvider';
 
 interface ClientDetailsCardProps {
   cliente: Cliente;
@@ -43,6 +44,7 @@ const getStatusColor = (status: string) => {
 export const ClientDetailsCard: React.FC<ClientDetailsCardProps> = ({ cliente, onClose }) => {
   const { data: metrics, isLoading, error } = useClientMetrics(cliente.id);
   const navigate = useNavigate();
+  const { open: openAssistant } = useAIAssistant();
 
   const handleViewAllOrders = () => {
     // Redireciona para a página de pedidos com o ID do cliente no estado
@@ -50,16 +52,41 @@ export const ClientDetailsCard: React.FC<ClientDetailsCardProps> = ({ cliente, o
     onClose(); // Fecha o modal
   };
 
+  const handleSendToGabi = () => {
+    openAssistant();
+    onClose();
+    // Preecher um input do chat ou simplesmente abrir a Gabi
+    // Idealmente, a Gabi poderia ter um state global para 'mensagem inicial'
+    // Como a Gabi abre, o usuário já pode falar sobre o cliente lá.
+    // Simulando o envio de uma mensagem sobre o cliente via localStorage ou event listener:
+    window.dispatchEvent(new CustomEvent('gabi:ask', { 
+      detail: `Me fale sobre o cliente ${cliente.nome} (telefone: ${cliente.telefone})` 
+    }));
+  };
+
   return (
     <Card className="w-full h-full flex flex-col border-none shadow-none">
       <CardHeader className="pb-4 border-b relative">
-        <CardTitle className="text-xl flex items-center gap-2">
-          <User className="h-5 w-5 text-primary" />
-          {cliente.nome}
-        </CardTitle>
-        <CardDescription>
-          Métricas e histórico de pedidos.
-        </CardDescription>
+        <div className="flex justify-between items-start">
+          <div>
+            <CardTitle className="text-xl flex items-center gap-2">
+              <User className="h-5 w-5 text-primary" />
+              {cliente.nome}
+            </CardTitle>
+            <CardDescription className="mt-1">
+              Métricas e histórico de pedidos.
+            </CardDescription>
+          </div>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="gap-2 bg-primary/5 hover:bg-primary/10 border-primary/20 text-primary"
+            onClick={handleSendToGabi}
+          >
+            <Bot className="h-4 w-4" />
+            <span className="hidden sm:inline">Perguntar à Gabi</span>
+          </Button>
+        </div>
         {/* REMOVIDO O BOTÃO DE FECHAR DUPLICADO */}
       </CardHeader>
 

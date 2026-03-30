@@ -1,4 +1,4 @@
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "@/integrations/supabase/client";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, supabase } from "@/integrations/supabase/client";
 import { getValidToken } from "@/utils/tokenGuard";
 import { DateRange } from "react-day-picker";
 
@@ -97,12 +97,14 @@ export const calculatePeriodDates = (period: string, customRange?: DateRange, sp
 
 // Helper to fetch all rows handling pagination automatically
 const doFetch = async (endpoint: string, params: URLSearchParams, token: string, fetchAll = false) => {
-    const headers = {
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${token}`,
+    const headers: Record<string, string> = {
+        apikey: SUPABASE_ANON_KEY,
         'Content-Type': 'application/json',
-        ...(fetchAll ? { 'Prefer': 'count=exact' } : {})
+        ...(fetchAll ? { Prefer: 'count=exact' } : {})
     };
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
 
     let allData: any[] = [];
     let page = 0;
@@ -111,7 +113,7 @@ const doFetch = async (endpoint: string, params: URLSearchParams, token: string,
 
     // If not needing all data, just do standard single fetch
     if (!fetchAll) {
-        const url = `${SUPABASE_URL}/rest/v1/${endpoint}?${params.toString()}`;
+        const url = `${SUPABASE_URL}/rest/v1/${endpoint}?${params.toString()}&apikey=${SUPABASE_ANON_KEY}`;
         const res = await fetch(url, { method: 'GET', headers });
         if (!res.ok) throw new Error(`Fetch error ${endpoint}: ${res.statusText}`);
         return res.json();
@@ -124,7 +126,7 @@ const doFetch = async (endpoint: string, params: URLSearchParams, token: string,
         const rangeEnd = rangeStart + pageSize - 1;
         const fetchHeaders = { ...headers, 'Range': `${rangeStart}-${rangeEnd}` };
 
-        const url = `${SUPABASE_URL}/rest/v1/${endpoint}?${params.toString()}`;
+        const url = `${SUPABASE_URL}/rest/v1/${endpoint}?${params.toString()}&apikey=${SUPABASE_ANON_KEY}`;
         const res = await fetch(url, { method: 'GET', headers: fetchHeaders });
 
         if (!res.ok) throw new Error(`Fetch error ${endpoint} (page ${page}): ${res.statusText}`);
@@ -149,19 +151,21 @@ const doFetch = async (endpoint: string, params: URLSearchParams, token: string,
 };
 
 const doCount = async (endpoint: string, token: string, userId?: string) => {
-    const headers = {
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${token}`,
+    const headers: Record<string, string> = {
+        apikey: SUPABASE_ANON_KEY,
         'Content-Type': 'application/json',
-        'Range': '0-0'
+        Range: '0-0'
     };
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
 
-    let url = `${SUPABASE_URL}/rest/v1/${endpoint}?select=id&limit=1`;
+    let url = `${SUPABASE_URL}/rest/v1/${endpoint}?select=id&limit=1&apikey=${SUPABASE_ANON_KEY}`;
     if (userId) {
         url += `&user_id=eq.${userId}`;
     }
     // We need to pass Prefer: count=exact
-    const countHeaders = { ...headers, 'Prefer': 'count=exact' };
+    const countHeaders = { ...headers, Prefer: 'count=exact' };
     const res = await fetch(url, { method: 'GET', headers: countHeaders });
     if (!res.ok) throw new Error(`Count error ${endpoint}`);
 
@@ -263,11 +267,16 @@ export const fetchReportData = async (
         })(), effectiveToken),
 
         // 6. User Profile for target profit margin
-        doFetch('profiles', (() => {
-            const params = new URLSearchParams({ select: 'target_profit_margin' });
-            if (userId) params.append('id', `eq.${userId}`);
-            return params;
-        })(), effectiveToken)
+        (async () => {
+            if (!userId) return [];
+            const { data, error } = await supabase
+                .from('profiles_v2')
+                .select('target_profit_margin')
+                .eq('uid', userId)
+                .maybeSingle();
+            if (error) return [];
+            return data ? [data] : [];
+        })()
     ]);
 
     const [previousMonthOrders, previousMonthCustomers] = previousMonthStats;

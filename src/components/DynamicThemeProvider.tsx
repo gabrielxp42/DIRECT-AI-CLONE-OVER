@@ -7,7 +7,8 @@ export const DynamicThemeProvider = ({ children }: { children: React.ReactNode }
 
     useEffect(() => {
         const cachedColor = typeof localStorage !== 'undefined' ? localStorage.getItem('cached_primary_color') : null;
-        const primaryColor = companyProfile?.company_primary_color || cachedColor || '#FFF200';
+        // User's custom selected color in localStorage overrides the company default initially for fast rendering
+        const primaryColor = companyProfile?.company_primary_color || cachedColor || '#00E5FF';
 
         // Update the --primary variable in the :root
         const root = document.documentElement;
@@ -22,7 +23,9 @@ export const DynamicThemeProvider = ({ children }: { children: React.ReactNode }
         if (companyProfile) {
             localStorage.setItem('cached_company_logo', companyProfile.company_logo_url || '');
             localStorage.setItem('cached_company_name', companyProfile.company_name || '');
-            localStorage.setItem('cached_primary_color', primaryColor);
+            if (companyProfile.company_primary_color) {
+                localStorage.setItem('cached_primary_color', companyProfile.company_primary_color);
+            }
         }
 
         // 1. Meta theme-color for PWA

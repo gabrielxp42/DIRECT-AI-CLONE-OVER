@@ -4,7 +4,7 @@ import React, { useState, useRef, useCallback, useEffect, Suspense } from 'react
 import { useLocation } from 'react-router-dom';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, X, ArrowLeft, Check, Loader2, Settings2, Sparkles, ImageIcon, Bug, Lock, Minus, Coins, RefreshCw, Image as GalleryIcon, Crown, MessageSquare, Package } from 'lucide-react';
+import { Send, X, ArrowLeft, Check, Loader2, Settings2, Sparkles, ImageIcon, Bug, Lock, Minus, Coins, RefreshCw, Image as GalleryIcon, Crown, MessageSquare, Package, Trash2 } from 'lucide-react';
 
 
 import { useDtfPipeline, PipelineStep } from '@dtf/hooks/useDtfPipeline';
@@ -150,7 +150,7 @@ export default function HomePage() {
 
   // ==== HOOKS QUE PRECISAM ESTAR NO TOPO ====
   // Escutar requisições de geração da CLI (API Externa)
-  const { addWidget, updateWidget, setWidgetGenerating, isAnyGenerating } = useWidgets(); // Reusing the global widget context
+  const { addWidget, updateWidget, setWidgetGenerating, isAnyGenerating, clearAllWidgets, triggerAllGenerations, widgets } = useWidgets(); // Reusing the global widget context
 
   // States para modais Pro
   const [showProUpgrade, setShowProUpgrade] = useState(false);
@@ -855,6 +855,14 @@ export default function HomePage() {
     }
   }, [state.progress, notification.show, notification.type]);
 
+  // Abrir Galeria via evento global
+  useEffect(() => {
+    const handler = (e: any) => {
+      setShowGallery(true);
+    };
+    window.addEventListener('OVERPIXEL_OPEN_GALLERY' as any, handler);
+    return () => window.removeEventListener('OVERPIXEL_OPEN_GALLERY' as any, handler);
+  }, []);
   // Atualizar widgetStep baseado no pipeline state
   if (widgetStep === 'processing') {
     // REMOVIDO: if (state.step === 'completed') setWidgetStep('completed');
@@ -875,7 +883,16 @@ export default function HomePage() {
       {/* Header - Apenas modo Pro (Desktop) */}
       {isProMode && (
         <header className="fixed top-0 left-0 right-0 z-50 px-6 py-4 flex items-center justify-between bg-black/20 backdrop-blur-xl border-b border-white/5" style={{ paddingTop: '40px' }}>
-          <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => window.dispatchEvent(new CustomEvent('toggle-launcher'))}>
+          <div 
+            className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity" 
+            onClick={() => {
+              if (window.innerWidth >= 768) {
+                window.dispatchEvent(new CustomEvent('OVERPIXEL_NAVIGATE', { detail: '/' }));
+              } else {
+                window.dispatchEvent(new CustomEvent('toggle-launcher'));
+              }
+            }}
+          >
             <img src="/dtf-fabric-logo.png" alt="DTF Factory" className="w-10 h-10 rounded-xl object-contain" />
             <div>
               <h1 className="text-xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">
@@ -915,6 +932,41 @@ export default function HomePage() {
               >
                 <MessageSquare size={16} />
                 Chat IA
+              </button>
+              {/* Mover ações da toolbar para o header */}
+              <div className="ml-2 h-6 w-px bg-white/10" />
+              <div className="px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-xs text-white/60 font-mono">
+                {widgets.length} ATIVOS
+              </div>
+              <button
+                onClick={clearAllWidgets}
+                className="px-3 py-1.5 rounded-lg text-white/60 hover:text-red-400 hover:bg-red-500/10 transition-all text-xs font-bold flex items-center gap-1 border border-white/10 hover:border-red-500/30"
+                title="Limpar Widgets"
+              >
+                <Trash2 size={14} />
+                <span className="hidden lg:inline">Limpar</span>
+              </button>
+              <button
+                onClick={triggerAllGenerations}
+                disabled={isAnyGenerating}
+                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 shadow-lg border
+                  ${isAnyGenerating
+                    ? 'bg-white/5 text-white/30 cursor-not-allowed border-white/10'
+                    : 'bg-white/10 hover:bg-white/20 text-white border-white/10 shadow-white/5'
+                  }`}
+                title="Gerar Todos"
+              >
+                {isAnyGenerating ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin text-cyan-400" />
+                    <span>Gerando...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={14} className="text-cyan-400" />
+                    <span>Gerar Todos</span>
+                  </>
+                )}
               </button>
             </div>
 

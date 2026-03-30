@@ -77,54 +77,7 @@ export default function WidgetGrid() {
             ) : (
                 /* ═══ GRID VIEW ═══ */
                 <div className="flex-1 flex flex-col min-h-0">
-                    {/* Toolbar */}
-                    <div className="px-6 py-4 border-b border-white/5 bg-[#0a0a0a]/50 backdrop-blur-xl flex items-center justify-between shrink-0 z-20">
-                        <div className="flex items-center gap-2">
-                            <div className="p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
-                                <LayoutGrid className="text-cyan-400" size={18} />
-                            </div>
-                            <div>
-                                <h2 className="text-sm font-bold text-white/90 uppercase tracking-tight">Suas Estampas</h2>
-                                <p className="text-[10px] text-white/30 font-mono tracking-widest">{widgets.length} ATIVOS</p>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                            <button
-                                onClick={clearAllWidgets}
-                                className="px-3 py-2 rounded-xl text-white/30 hover:text-red-400 hover:bg-red-500/10 transition-all text-xs font-bold flex items-center gap-1.5 border border-transparent hover:border-red-500/20"
-                            >
-                                <Trash2 size={14} />
-                                <span className="hidden sm:inline">Limpar</span>
-                            </button>
-                            
-                            <button
-                                onClick={triggerAllGenerations}
-                                disabled={isAnyGenerating}
-                                className={`
-                                    px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-lg
-                                    ${isAnyGenerating
-                                        ? 'bg-white/5 text-white/20 cursor-not-allowed border border-white/5'
-                                        : 'bg-white/10 hover:bg-white/20 text-white border border-white/10 shadow-white/5'
-                                    }
-                                `}
-                            >
-                                {isAnyGenerating ? (
-                                    <>
-                                        <Loader2 size={14} className="animate-spin text-cyan-400" />
-                                        <span>Gerando...</span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <Sparkles size={14} className="text-cyan-400" />
-                                        <span>Gerar Todos</span>
-                                    </>
-                                )}
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Scrollable Grid */}
+                    {/* Scrollable Grid - sem toolbar para maximizar espaço */}
                     <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 auto-rows-min pb-40">
                             <AnimatePresence mode="popLayout">
@@ -154,34 +107,6 @@ export default function WidgetGrid() {
                 </div>
             )}
 
-            {/* ═══ FLOATING ACTION BUTTON (FAB) ═══ */}
-            <AnimatePresence>
-                {widgets.length > 0 && !isSelectionMode && (
-                    <motion.button
-                        initial={{ scale: 0, opacity: 0, y: 20 }}
-                        animate={{ scale: 1, opacity: 1, y: 0 }}
-                        exit={{ scale: 0, opacity: 0, y: 20 }}
-                        whileHover={{ scale: 1.05, y: -5 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => setIsSelectionMode(true)}
-                        className="fixed bottom-10 right-10 z-[100] group"
-                    >
-                        <div className="relative h-20 w-20 flex items-center justify-center">
-                            {/* Glow Effect */}
-                            <div className="absolute inset-0 bg-orange-500/40 blur-2xl rounded-full animate-pulse group-hover:bg-orange-400/60" />
-                            
-                            {/* Liquid Glass Body */}
-                            <div className="absolute inset-0 bg-gradient-to-br from-orange-400 to-amber-600 rounded-[24px] border border-white/30 backdrop-blur-xl shadow-[0_20px_40px_rgba(245,158,11,0.4)] flex flex-col items-center justify-center overflow-hidden">
-                                {/* Shine */}
-                                <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/20 to-transparent pointer-events-none" />
-                                
-                                <LayoutGrid size={28} className="text-black mb-1 group-hover:rotate-12 transition-transform duration-300" />
-                                <span className="text-[10px] font-black text-black px-2 text-center leading-none uppercase">Montar</span>
-                            </div>
-                        </div>
-                    </motion.button>
-                )}
-            </AnimatePresence>
 
             {/* ═══ BULK ACTIONS BAR ═══ */}
             <AnimatePresence>

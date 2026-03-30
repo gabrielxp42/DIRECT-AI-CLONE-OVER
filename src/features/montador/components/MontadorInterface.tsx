@@ -9,7 +9,7 @@ import { LineConfig } from '@/features/montador/lib/types';
 import { getImageDimensions } from '@/features/montador/lib/packingEngine';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/integrations/supabase/client';
-import { Package } from 'lucide-react';
+import { Package, Loader2 } from 'lucide-react';
 
 
 export default function MontadorInterface() {
@@ -236,6 +236,8 @@ export default function MontadorInterface() {
     }, []);
 
     // --- OVERPIXEL BRIDGE ---
+    const [batchLoading, setBatchLoading] = useState<{ active: boolean; total: number; done: number }>({ active: false, total: 0, done: 0 });
+
     useEffect(() => {
         const checkBridge = async () => {
             // Check window global first (avoids localStorage quota limits for large base64 images)
@@ -266,17 +268,15 @@ export default function MontadorInterface() {
                     console.log('[Montador] Received design(s)', data);
 
                     const imagePaths: string[] = data.images || (data.image ? [data.image] : []);
-                    
-                    const newLinesPromises = imagePaths.map(async (imagePath) => {
+                    setBatchLoading({ active: true, total: imagePaths.length, done: 0 });
+                    for (const imagePath of imagePaths) {
                         try {
                             const res = await fetch(imagePath);
                             const blob = await res.blob();
                             const filename = imagePath.split(/[/\\]/).pop() || "design.png";
                             const file = new File([blob], filename, { type: "image/png" });
-
                             const { dimensions, croppedImageUrl } = await getImageDimensions(file);
-                            
-                            return {
+                            const newLine: LineConfig = {
                                 id: Math.random().toString(36).substr(2, 9),
                                 imageUrl: croppedImageUrl,
                                 dimensions: dimensions,
@@ -285,19 +285,17 @@ export default function MontadorInterface() {
                                 quantity: 1,
                                 spacingPx: undefined
                             } as LineConfig;
+                            setLines(prev => [...prev, newLine]);
                         } catch (err) {
                             console.error('[Montador] Error processing image:', imagePath, err);
-                            return null;
+                        } finally {
+                            setBatchLoading(prev => ({ ...prev, done: Math.min(prev.done + 1, prev.total) }));
                         }
-                    });
-
-                    const processedLines = (await Promise.all(newLinesPromises)).filter(Boolean) as LineConfig[];
-                    if (processedLines.length > 0) {
-                        setLines(prev => [...prev, ...processedLines]);
                     }
 
                     // --- Signal completion to the bridge loading overlay ---
                     window.dispatchEvent(new CustomEvent('OVERPIXEL_MONTADOR_READY'));
+                    setBatchLoading({ active: false, total: 0, done: 0 });
                 } else {
                     // Always signal ready even if not our type, to prevent hanging overlays
                     window.dispatchEvent(new CustomEvent('OVERPIXEL_MONTADOR_READY'));
@@ -305,11 +303,54 @@ export default function MontadorInterface() {
             } catch (err) {
                 console.error('[Montador] Bridge error:', err);
                 window.dispatchEvent(new CustomEvent('OVERPIXEL_MONTADOR_READY'));
+                setBatchLoading({ active: false, total: 0, done: 0 });
+
             }
         };
+        try { window.dispatchEvent(new CustomEvent('OVERPIXEL_MONTADOR_READY')); } catch {}
+        checkBridge();
+    }, []);
 
-        const timer = setTimeout(checkBridge, 200);
-        return () => clearTimeout(timer);
+    useEffect(() => {
+        const handler = async (ev: any) => {
+            try {
+                const imgs: string[] = ev?.detail?.images || [];
+                if (!imgs || imgs.length === 0) return;
+                setBatchLoading({ active: true, total: imgs.length, done: 0 });
+                for (const imagePath of imgs) {
+                    try {
+                        const res = await fetch(imagePath);
+                        let blob = await res.blob();
+                        const { ensureOpaquePixels } = await import('../../dtf-factory/utils/imageUtils');
+                        blob = await ensureOpaquePixels(blob);
+                        const filename = imagePath.split(/[/\\]/).pop() || "design.png";
+                        const file = new File([blob], filename, { type: blob.type || "image/png" });
+                        const { dimensions, croppedImageUrl } = await getImageDimensions(file);
+                        const newLine: LineConfig = {
+                            id: Math.random().toString(36).substr(2, 9),
+                            imageUrl: croppedImageUrl,
+                            dimensions,
+                            result: { success: true, copies: 1, rotation: 0 } as any,
+                            yOffset: 0,
+                            quantity: 1,
+                            spacingPx: undefined
+                        } as LineConfig;
+                        setLines(prev => [...prev, newLine]);
+                    } catch (err) {
+                        console.error('[Montador] Error processing appended image:', imagePath, err);
+                    } finally {
+                        setBatchLoading(prev => ({ ...prev, done: Math.min(prev.done + 1, prev.total) }));
+                    }
+                }
+                setBatchLoading({ active: false, total: 0, done: 0 });
+            } catch (e) {
+                console.error('[Montador] Append handler error:', e);
+                setBatchLoading({ active: false, total: 0, done: 0 });
+            }
+        };
+        window.addEventListener('OVERPIXEL_MONTADOR_APPEND' as any, handler);
+        return () => window.removeEventListener('OVERPIXEL_MONTADOR_APPEND' as any, handler);
+
     }, []);
 
     return (
@@ -452,6 +493,23 @@ export default function MontadorInterface() {
                         selectedLineId={selectedLineId}
                     />
                 </div>
+
+                <AnimatePresence>
+                    {batchLoading.active && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 z-[70] flex items-center justify-center pointer-events-none"
+                        >
+                            <div className="px-5 py-3 rounded-2xl bg-black/60 border border-white/10 backdrop-blur-xl text-white flex items-center gap-3">
+                                <Loader2 className="h-5 w-5 animate-spin" />
+                                <div className="text-sm font-bold">Carregando {batchLoading.total} arquivos</div>
+                                <div className="text-xs text-white/60">{batchLoading.done}/{batchLoading.total}</div>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
 
                 {/* Quick Edit Widget (Mobile only, shows when an item is selected) */}
                 <AnimatePresence>
