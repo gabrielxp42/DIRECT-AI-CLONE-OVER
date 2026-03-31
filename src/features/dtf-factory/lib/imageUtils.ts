@@ -52,24 +52,66 @@ export async function fetchWithRetry(url: string, retries = 5, delay = 1000): Pr
         }
     }
 
-    // console.log(`[IMAGE-UTILS] Fetching blob (attempts left: ${retries}):`, url.length > 50 ? url.substring(0, 50) + '...' : url);
+    // =====================================================================
+    // FAST PATH: Domínios bloqueados por CORS (Kie AI / aiquickdraw.com)
+    // Sabemos que o fetch direto SEMPRE falha, então vamos direto ao proxy.
+    // =====================================================================
+    const isCorsBlocked = url.includes('aiquickdraw.com') || url.includes('tempfile.');
 
+    if (isCorsBlocked) {
+        console.log('[IMAGE-UTILS] 🚀 Domínio CORS-bloqueado detectado (Kie AI). Usando proxy direto...');
+        
+        // Tenta múltiplos proxies CORS públicos
+        const proxies = [
+            `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+            `https://corsproxy.io/?${encodeURIComponent(url)}`,
+        ];
+
+        for (const proxyUrl of proxies) {
+            try {
+                const response = await fetch(proxyUrl);
+                if (response.ok) {
+                    const blob = await response.blob();
+                    if (blob.size > 0) {
+                        console.log(`[IMAGE-UTILS] ✅ Proxy funcionou! Blob size: ${blob.size}`);
+                        return blob;
+                    }
+                }
+            } catch (proxyErr) {
+                console.warn('[IMAGE-UTILS] Proxy falhou, tentando próximo...', proxyErr);
+            }
+        }
+
+        // Se todos os proxies falharam, tenta o Electron Bridge como último recurso
+        try {
+            const result = await electronBridge.downloadImage(url);
+            if (result.success && result.data) {
+                if (result.data.startsWith('data:')) {
+                    return await dataURItoBlob(result.data);
+                }
+                const res = await fetch(result.data);
+                return await res.blob();
+            }
+        } catch (_) { /* silencioso */ }
+
+        throw new Error('Não foi possível baixar a imagem da IA. Todos os métodos falharam.');
+    }
+
+    // =====================================================================
+    // NORMAL PATH: URLs normais (Supabase Storage, blob:, etc)
+    // =====================================================================
     try {
-        // 2. Tenta fetch normal do navegador
         const response = await fetch(url);
         if (!response.ok) throw new Error(`HTTP Error ${response.status} ${response.statusText}`);
         return await response.blob();
     } catch (e) {
         console.warn(`⚠️ [IMAGE-UTILS] Browser fetch failed (Attempt ${6 - retries}/5). Error:`, e instanceof Error ? e.message : String(e));
 
-        // 3. Se ainda tem retries, tenta via Electron Bridge como backup imediato
-        // (Evita para blob: no modo web — isso vira fetch duplicado e não resolve abort)
+        // Tenta via Electron Bridge como backup
         if (!url.startsWith('blob:')) {
             try {
-                console.log('[IMAGE-UTILS] Trying Electron Bridge fallback...');
                 const result = await electronBridge.downloadImage(url);
                 if (result.success && result.data) {
-                    // Se o bridge retornou um data URI, converte direto sem fetch
                     if (result.data.startsWith('data:')) {
                         return await dataURItoBlob(result.data);
                     }
@@ -77,14 +119,13 @@ export async function fetchWithRetry(url: string, retries = 5, delay = 1000): Pr
                     return await res.blob();
                 }
             } catch (bridgeError) {
-                console.warn('[IMAGE-UTILS] Bridge fallback also failed (error suppressed to avoid spam)');
+                console.warn('[IMAGE-UTILS] Bridge fallback failed');
             }
         }
 
-        // 4. Fallback final: Image Tag -> Canvas (se bridge falhou e browser fetch falhou)
+        // Fallback final: Image Tag -> Canvas
         if (retries === 1) {
             try {
-                console.log('[IMAGE-UTILS] Trying Last Resort: Image Tag fallback...');
                 return await new Promise<Blob>((resolve, reject) => {
                     const img = new Image();
                     img.crossOrigin = 'anonymous';
@@ -108,13 +149,10 @@ export async function fetchWithRetry(url: string, retries = 5, delay = 1000): Pr
             }
         }
 
-        // Se falhou tudo e não tem mais retries, desiste
         if (retries <= 1) {
             throw new Error(`Failed to fetch image after multiple attempts.`);
         }
 
-        // Backoff exponencial
-        // console.log(`[IMAGE-UTILS] Waiting ${delay}ms before next retry...`);
         await new Promise(r => setTimeout(r, delay));
         return fetchWithRetry(url, retries - 1, delay * 2);
     }

@@ -7,9 +7,10 @@ import { useSession } from '@/contexts/SessionProvider';
 
 interface LoadingScreenProps {
   minDisplayTime?: number; // Tempo mínimo de exibição em ms
+  isLoading?: boolean;
 }
 
-const LoadingScreen = ({ minDisplayTime = 800 }: LoadingScreenProps) => {
+const LoadingScreen = ({ minDisplayTime = 800, isLoading = false }: LoadingScreenProps) => {
   const [isVisible, setIsVisible] = useState(true);
   const [shouldRender, setShouldRender] = useState(true);
   const { companyProfile: queryProfile } = useCompanyProfile();
@@ -45,6 +46,8 @@ const LoadingScreen = ({ minDisplayTime = 800 }: LoadingScreenProps) => {
     img.onload = () => setImgError(false);
     img.onerror = () => setImgError(true);
 
+    if (isLoading) return;
+
     // Garantir tempo mínimo de exibição para evitar flash
     // Mas se o perfil carregou e foi alterado, podemos querer atualizar
     const timer = setTimeout(() => {
@@ -54,7 +57,7 @@ const LoadingScreen = ({ minDisplayTime = 800 }: LoadingScreenProps) => {
     }, minDisplayTime);
 
     return () => clearTimeout(timer);
-  }, [minDisplayTime, logoUrl]); // Added logoUrl dependency
+  }, [minDisplayTime, logoUrl, isLoading]); // Added isLoading dependency
 
   if (!shouldRender) return null;
 

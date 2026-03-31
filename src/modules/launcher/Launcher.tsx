@@ -1,20 +1,22 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
-import { 
+import {
   Sparkles, Home, Star, GripVertical, CheckCircle2, CloudLightning, Bot, Package, Settings, User, Image as ImageIcon, Search, CircleDollarSign, BadgeCheck
 } from 'lucide-react';
 import { useSession } from '@/contexts/SessionProvider';
 import { cn } from '@/lib/utils';
 import { LauncherSidebar } from './components/Sidebar';
-import { 
-  CloudStatusWidget, 
-  DailySummaryWidget, 
-  GabiAnalyticsWidget, 
-  InventoryWidget 
+import {
+  CloudStatusWidget,
+  DailySummaryWidget,
+  GabiAnalyticsWidget,
+  InventoryWidget
 } from './components/Widgets';
 import './Launcher.css';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { UpgradeModal } from '@/components/Checkout/UpgradeModal';
+import { DirectAIPaywall } from '@/components/DirectAIPaywall';
 
 type CSSVars = React.CSSProperties & Record<`--${string}`, string | number>;
 
@@ -122,20 +124,20 @@ interface OverPixelLauncherProps {
 
 // Custom App Logos
 const MontadorIcon = ({ className }: { className?: string }) => (
-  <img 
-    src="/montador/logo-montador-fast.png" 
-    alt="O Montador" 
-    className={cn("w-full h-full object-contain p-0.5", className)} 
+  <img
+    src="/montador/logo-montador-fast.png"
+    alt="O Montador"
+    className={cn("w-full h-full object-contain p-0.5", className)}
     draggable={false}
     onDragStart={(e) => e.preventDefault()}
   />
 );
 
 const DTFFactoryLogo = ({ className }: { className?: string }) => (
-  <img 
-    src="/dtf-fabric-logo.png" 
-    alt="DTF Factory" 
-    className={cn("w-full h-full object-contain p-0.5", className)} 
+  <img
+    src="/dtf-fabric-logo.png"
+    alt="DTF Factory"
+    className={cn("w-full h-full object-contain p-0.5", className)}
     draggable={false}
     onDragStart={(e) => e.preventDefault()}
   />
@@ -151,20 +153,20 @@ const DirectAILogo = ({ className }: { className?: string }) => (
 );
 
 const MelhoradorLogo = ({ className }: { className?: string }) => (
-  <img 
+  <img
     src={encodeURI('/logo melhorador cloud.png')}
-    alt="Melhorador Cloud" 
-    className={cn("w-full h-full object-contain p-0.5", className)} 
+    alt="Melhorador Cloud"
+    className={cn("w-full h-full object-contain p-0.5", className)}
     draggable={false}
     onDragStart={(e) => e.preventDefault()}
   />
 );
 
-const apps = [
-  { id: 'direct-ai', name: 'Direct AI', icon: DirectAILogo, color: 'linear-gradient(135deg, #06b6d4, #3b82f6)', badge: 'Assinado', badgeClass: 'assinado', route: '/dashboard' },
-  { id: 'dtf-factory', name: 'DTF Factory', icon: DTFFactoryLogo, color: 'linear-gradient(135deg, #f59e0b, #ea580c)', badge: 'Pro', badgeClass: 'pro', route: '/dtf-factory' },
-  { id: 'montador', name: 'O Montador', icon: MontadorIcon, color: 'linear-gradient(135deg, #8b5cf6, #d946ef)', badge: 'Assinado', badgeClass: 'assinado', route: '/montador' },
-  { id: 'melhorador', name: 'Melhorador Cloud', icon: MelhoradorLogo, color: 'linear-gradient(135deg, #e11d48, #9f1239)', badge: 'Pro', badgeClass: 'pro', route: '/melhorador' }
+const appsConfig = [
+  { id: 'direct-ai', name: 'Direct AI', icon: DirectAILogo, color: 'linear-gradient(135deg, #06b6d4, #3b82f6)', route: '/dashboard' },
+  { id: 'dtf-factory', name: 'DTF Factory', icon: DTFFactoryLogo, color: 'linear-gradient(135deg, #f59e0b, #ea580c)', route: '/dtf-factory' },
+  { id: 'montador', name: 'O Montador', icon: MontadorIcon, color: 'linear-gradient(135deg, #8b5cf6, #d946ef)', route: '/montador' },
+  { id: 'melhorador', name: 'Melhorador Cloud', icon: MelhoradorLogo, color: 'linear-gradient(135deg, #e11d48, #9f1239)', route: '/melhorador' }
 ];
 
 const availableWidgets = [
@@ -177,13 +179,18 @@ const availableWidgets = [
 const OverPixelLauncher = React.forwardRef<HTMLDivElement, OverPixelLauncherProps>(
   ({ isOpen, onClose, onAppClick, isInline, showSettings, glassTone, onToneChange, glassOpacity, onOpacityChange, isSidebarExpanded, mode = 'full', activeAppOverride }, ref) => {
     const navigate = useNavigate();
-    const { profile, activeSubProfile, session } = useSession();
+    const { profile, activeSubProfile, session, consumeTrialToken } = useSession();
     const location = useLocation();
-    
+
     // States
     const [isEditingApps, setIsEditingApps] = useState(false);
+    const dragStarted = useRef(false);
+    const [isBgLoaded, setIsBgLoaded] = useState(false);
     const [isManagingWidgets, setIsManagingWidgets] = useState(false);
-    const [sortedApps, setSortedApps] = useState(apps);
+    const bgImgRef = useRef<HTMLImageElement>(null);
+    const [sortedApps, setSortedApps] = useState(appsConfig);
+    const [upgradeModal, setUpgradeModal] = useState<{ isOpen: boolean; appId: string; appName: string }>({ isOpen: false, appId: '', appName: '' });
+    const [showDirectAIPaywall, setShowDirectAIPaywall] = useState(false);
     const [favorites, setFavorites] = useState<string[]>([]);
     const [visibleWidgets, setVisibleWidgets] = useState<string[]>(() => {
       const saved = localStorage.getItem('op-launcher-widgets');
@@ -245,59 +252,104 @@ const OverPixelLauncher = React.forwardRef<HTMLDivElement, OverPixelLauncherProp
       const savedOrder = localStorage.getItem('op-launcher-apps-order');
       if (savedOrder) {
         try {
-          const orderIds = JSON.parse(savedOrder) as string[];
-          const ordered = orderIds.map(id => apps.find(a => a.id === id)).filter(Boolean) as typeof apps;
-          const missing = apps.filter(a => !orderIds.includes(a.id));
+          const parsedIds = JSON.parse(savedOrder);
+          const ordered = parsedIds
+            .map((id: string) => appsConfig.find(a => a.id === id))
+            .filter(Boolean);
+          // Add any new apps that aren't in the saved order
+          const missing = appsConfig.filter(a => !parsedIds.includes(a.id));
           setSortedApps([...ordered, ...missing]);
-        } catch {}
+        } catch (e) {
+          console.error('Failed to parse app order', e);
+        }
       }
       const savedFavs = localStorage.getItem('op-launcher-favorites');
       if (savedFavs) {
-        try { setFavorites(JSON.parse(savedFavs)); } catch {}
+        try { setFavorites(JSON.parse(savedFavs)); } catch { }
       }
     }, []);
 
+    const isAppUnlocked = (appId: string) => {
+      if (!profile) return false;
+      const tier = profile.subscription_tier?.toUpperCase() || '';
+      
+      // Admins and full chiefs get access
+      if (profile.is_admin) return true;
+      if (activeSubProfile?.role === 'chefe') return true;
+
+      // Logic mapping tiers to apps
+      const hasDirectAI = tier.includes('DIRECT_AI') || tier.includes('PRO') || tier.includes('COMBO');
+      const hasFactory = tier.includes('PRO') || tier.includes('COMBO');
+      
+      switch (appId) {
+        case 'direct-ai': return hasDirectAI;
+        case 'dtf-factory': return hasFactory;
+        case 'montador': return hasFactory; // Montador included with Factory/Pro
+        case 'melhorador': return hasFactory;
+        default: return false;
+      }
+    };
+
     const toggleWidget = (id: string) => {
-      setVisibleWidgets(prev => 
+      setVisibleWidgets(prev =>
         prev.includes(id) ? prev.filter(w => w !== id) : [...prev, id]
       );
     };
 
-    const handleAppClickInternal = (appId: string, route: string | null) => {
-      console.log(`[Launcher] App clicked: ${appId} -> Route: ${route || 'none'}`);
-      // Fechar o launcher imediatamente ao clicar, antes de navegar
-      if (onClose) onClose();
-      // Forçar fechamento via evento global (fallback robusto)
-      try {
-        window.dispatchEvent(new CustomEvent('toggle-launcher', { detail: { force: 'close' } }));
-      } catch {}
-      if (onAppClick) {
-        onAppClick(appId, route || undefined);
+    const handleAppClickInternal = (e: React.MouseEvent | React.TouchEvent, appId: string, route: string, appName: string) => {
+      if (dragStarted.current || isEditingApps) {
+        e.preventDefault();
+        e.stopPropagation();
         return;
       }
-      if (route) {
-        navigate(route);
-        // Fail-safe: reforçar fechamento após a navegação inicial
-        setTimeout(() => {
-          try {
-            window.dispatchEvent(new CustomEvent('toggle-launcher', { detail: { force: 'close' } }));
-          } catch {}
-          if (onClose) onClose();
-          
-          // Apenas ocultar o Launcher Overlay, NUNCA a página raiz do Launcher principal
-          if (location.pathname !== '/') {
-             const overlays = document.querySelectorAll('.ios-launcher-container');
-             overlays.forEach(el => {
-                if (el.closest('.z-\\[9995\\]') || el.classList.contains('mobile-overlay')) {
-                    (el as HTMLElement).style.display = 'none';
-                }
-             });
-          }
-        }, 120);
+
+      // Play sound
+      const audio = new Audio('/click.mp3');
+      audio.volume = 0.5;
+      audio.play().catch(() => {});
+
+      // Check permissions
+      if (!isAppUnlocked(appId)) {
+        e.preventDefault();
+        
+        if (appId === 'direct-ai') {
+          setShowDirectAIPaywall(true);
+        } else {
+          setUpgradeModal({ isOpen: true, appId, appName });
+        }
+        return;
+      }
+
+      // Valid Access, Proceed
+      if (mode === 'mobileOverlay' && onClose) {
+        onClose();
+        setTimeout(() => navigate(route), 300);
+      } else {
+        if (onAppClick) onAppClick(appId, route);
+        else navigate(route);
       }
     };
 
     const userName = activeSubProfile?.name || profile?.first_name || 'Usuário';
+
+    // Se estiver em cache, o browser carrega quase instantaneamente. Removemos o loader.
+    useEffect(() => {
+      if (bgImgRef.current && bgImgRef.current.complete) {
+        setIsBgLoaded(true);
+      }
+    }, [bgMode]);
+
+    const hour = currentTime.getHours();
+    let greetingPrefix = "Boa noite";
+    if (hour >= 5 && hour < 12) greetingPrefix = "Bom dia";
+    else if (hour >= 12 && hour < 18) greetingPrefix = "Boa tarde";
+
+    const userRole = activeSubProfile?.role;
+    let displayName = userName;
+    if (userRole && (userRole.toLowerCase() === 'chefe' || userRole.toLowerCase() === 'designer' || userRole.toLowerCase() === 'admin')) {
+      displayName = userRole.charAt(0).toUpperCase() + userRole.slice(1);
+    }
+
     const timeStr = useMemo(() => {
       try {
         return new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(currentTime);
@@ -324,7 +376,7 @@ const OverPixelLauncher = React.forwardRef<HTMLDivElement, OverPixelLauncherProp
           });
           if (videoRef.current) {
             videoRef.current.srcObject = stream;
-            await videoRef.current.play().catch(() => {});
+            await videoRef.current.play().catch(() => { });
           }
         } catch (e) {
           setBgMode('ambient');
@@ -346,11 +398,11 @@ const OverPixelLauncher = React.forwardRef<HTMLDivElement, OverPixelLauncherProp
       if (location.pathname !== '/dtf-factory') {
         navigate('/dtf-factory');
         window.setTimeout(() => {
-          try { window.dispatchEvent(new CustomEvent('OVERPIXEL_OPEN_GALLERY')); } catch {}
+          try { window.dispatchEvent(new CustomEvent('OVERPIXEL_OPEN_GALLERY')); } catch { }
         }, 150);
         return;
       }
-      try { window.dispatchEvent(new CustomEvent('OVERPIXEL_OPEN_GALLERY')); } catch {}
+      try { window.dispatchEvent(new CustomEvent('OVERPIXEL_OPEN_GALLERY')); } catch { }
     };
 
     if (mode === 'mobileOverlay') {
@@ -401,29 +453,63 @@ const OverPixelLauncher = React.forwardRef<HTMLDivElement, OverPixelLauncherProp
               </div>
             )}
           </div>
+          {upgradeModal.isOpen && (
+          <UpgradeModal 
+            isOpen={upgradeModal.isOpen} 
+            onClose={() => setUpgradeModal({ isOpen: false, appId: '', appName: '' })} 
+            appName={upgradeModal.appName}
+            appId={upgradeModal.appId}
+            requiredPlan={upgradeModal.appId.includes('direct') ? 'direct_ai' : 'factory'}
+            trialTokensRemaining={profile?.ai_credits || 0}
+            onConsumeTrial={async () => {
+              if (profile?.ai_credits && profile.ai_credits > 0) {
+                const ok = await consumeTrialToken();
+                if (ok) {
+                  setUpgradeModal({ isOpen: false, appId: '', appName: '' });
+                  const appRoute = appsConfig.find(a => a.id === upgradeModal.appId)?.route;
+                  if(appRoute) navigate(appRoute);
+                } else {
+                  alert('Não foi possível deduzir créditos no momento. Tente novamente mais tarde.');
+                }
+              }
+            }}
+          />
+        )}
         </div>
       );
     }
 
     return (
-      <motion.div 
-        className={cn("ios-launcher-container", isInline && "inline-mode", `tone-${glassTone}`, currentAppId)} 
+      <motion.div
+        className={cn("ios-launcher-container", isInline && "inline-mode", `tone-${glassTone}`, currentAppId)}
         ref={ref}
         initial={{ opacity: 0, scale: 1.05 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
         transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-        style={{ 
+        style={{
           '--glass-opacity': glassOpacity,
           '--glass-border-opacity': (glassOpacity ?? 0.12) + 0.15,
           '--bg-brightness': bgBrightness
         } as React.CSSProperties}
       >
-        <div className="quest-video-bg" aria-hidden="true">
+        <div 
+          className={cn(
+            "absolute inset-0 z-[99999] bg-[#0a0a12] transition-opacity duration-[800ms] ease-in-out",
+            (isBgLoaded || bgMode === 'camera') ? "opacity-0 pointer-events-none" : "opacity-100"
+          )}
+        />
+
+        <div className="quest-video-bg" aria-hidden="true" style={{ opacity: isBgLoaded || bgMode === 'camera' ? 1 : 0, transition: 'opacity 0.6s ease' }}>
           {bgMode === 'camera' ? (
             <video ref={videoRef} muted playsInline />
           ) : (
-            <img src="/overbuilder-1774815289052.png" alt="Background" />
+            <img 
+              ref={bgImgRef}
+              src="/overbuilder-1774815289052.png" 
+              alt="Background" 
+              onLoad={() => setIsBgLoaded(true)}
+            />
           )}
         </div>
 
@@ -506,7 +592,7 @@ const OverPixelLauncher = React.forwardRef<HTMLDivElement, OverPixelLauncherProp
             className="quest-left-btn"
             title="Perfis"
             onClick={() => {
-              try { window.dispatchEvent(new CustomEvent('OPEN_PROFILE_SELECTOR')); } catch {}
+              try { window.dispatchEvent(new CustomEvent('OPEN_PROFILE_SELECTOR')); } catch { }
             }}
           >
             <BadgeCheck className="w-5 h-5" />
@@ -529,7 +615,7 @@ const OverPixelLauncher = React.forwardRef<HTMLDivElement, OverPixelLauncherProp
         {/* New Sidebar Integration — Toggleable internally or externally */}
         <AnimatePresence>
           {(showSettings || localShowSettings) && (
-            <LauncherSidebar 
+            <LauncherSidebar
               activeTone={glassTone || 'clear'}
               onPersonalize={onToneChange}
               glassOpacity={glassOpacity || 0.15}
@@ -543,20 +629,48 @@ const OverPixelLauncher = React.forwardRef<HTMLDivElement, OverPixelLauncherProp
 
         <div className="ios-main-content">
           <div className="ios-content-wrapper max-w-[1240px] mx-auto w-full flex flex-col md:px-12 md:py-12 px-6 py-6 transition-all">
+            <div className="mb-10 pl-2">
+              <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight mb-2 text-white drop-shadow-md">
+                {greetingPrefix}, {displayName}.
+              </h1>
+              <div className="flex items-center gap-2 text-white/70 text-sm font-semibold tracking-wide">
+                <span>Online</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]"></span>
+                <span>OverPixel Central Control</span>
+              </div>
+            </div>
+
             <div className="quest-panel">
-              <Reorder.Group 
-                axis="x" 
-                values={sortedApps} 
+              <Reorder.Group
+                axis="x"
+                values={sortedApps}
                 onReorder={setSortedApps}
                 className="quest-grid"
                 onContextMenu={(e) => { e.preventDefault(); setIsEditingApps(true); }}
               >
                 {sortedApps.map((app) => (
-                  <Reorder.Item 
-                    key={app.id} value={app}
-                    onClick={() => !isEditingApps && handleAppClickInternal(app.id, app.route)}
-                    className={cn(isEditingApps && "ios-wiggle-animation")}
+                  <Reorder.Item
+                    key={app.id}
+                    value={app}
+                    onDragStart={() => { dragStarted.current = true; }}
+                    onDragEnd={() => { 
+                      setTimeout(() => { dragStarted.current = false; }, 100); 
+                    }}
+                    className={cn(
+                      "relative group rounded-3xl touch-manipulation cursor-pointer flex flex-col justify-center",
+                      "w-[100px] sm:w-[120px] md:w-[130px] h-[130px] md:h-[140px] flex-shrink-0"
+                    )}
+                    onClick={(e) => handleAppClickInternal(e, app.id, app.route, app.name)}
                   >
+                    {/* Badge dinâmico de assinatura */}
+                    <div className={cn(
+                      "absolute -top-1 font-black left-1/2 -translate-x-1/2 px-3 py-1 text-[10px] md:text-xs rounded-full border shadow-lg z-20 whitespace-nowrap tracking-wider uppercase transition-transform group-hover:-translate-y-1",
+                      isAppUnlocked(app.id) 
+                        ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
+                        : "bg-orange-500/20 text-orange-300 border-orange-500/30"
+                    )}>
+                      {isAppUnlocked(app.id) ? "Assinado" : "Bloqueado"}
+                    </div>
                     <div className="quest-icon">
                       <app.icon className="ios-squircle-logo text-white" />
                       {isEditingApps && (
@@ -570,6 +684,22 @@ const OverPixelLauncher = React.forwardRef<HTMLDivElement, OverPixelLauncherProp
                 ))}
               </Reorder.Group>
             </div>
+
+            <div className="ios-widgets-area mt-12 w-full max-w-7xl mx-auto px-4 md:px-0">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8 lg:gap-12 w-full">
+                {visibleWidgets.map(widgetId => {
+                  const widgetConf = availableWidgets.find(w => w.id === widgetId);
+                  if (!widgetConf) return null;
+                  const WidgetComponent = widgetConf.component;
+                  return (
+                    <div key={widgetId} className="ios-widget-wrapper relative group h-full">
+                      <WidgetComponent />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
           </div>
         </div>
 
@@ -580,18 +710,18 @@ const OverPixelLauncher = React.forwardRef<HTMLDivElement, OverPixelLauncherProp
             onClick={() => navigate('/profile')}
           >
             <Avatar className="h-8 w-8">
-              <AvatarImage 
+              <AvatarImage
                 src={
-                  activeSubProfile?.avatar_url || 
-                  profile?.avatar_url || 
-                  ((session?.user as any)?.user_metadata?.avatar_url) || 
-                  ((session?.user as any)?.user_metadata?.picture) || 
+                  activeSubProfile?.avatar_url ||
+                  profile?.avatar_url ||
+                  ((session?.user as any)?.user_metadata?.avatar_url) ||
+                  ((session?.user as any)?.user_metadata?.picture) ||
                   undefined
-                } 
-                alt={userName || 'Perfil'} 
+                }
+                alt={userName || 'Perfil'}
               />
               <AvatarFallback className="bg-white/10 text-white/80 text-xs font-bold">
-                {(userName || 'U').slice(0,2).toUpperCase()}
+                {(userName || 'U').slice(0, 2).toUpperCase()}
               </AvatarFallback>
             </Avatar>
           </button>
@@ -612,9 +742,32 @@ const OverPixelLauncher = React.forwardRef<HTMLDivElement, OverPixelLauncherProp
         </div>
 
         {isEditingApps && (
-            <motion.div initial={{ y: 50 }} animate={{ y: 0 }} className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[20000]">
-              <button onClick={() => setIsEditingApps(false)} className="px-8 py-4 rounded-3xl bg-white text-black font-black shadow-2xl hover:scale-105 active:scale-95 transition-all">Finalizar Organização</button>
-            </motion.div>
+          <motion.div initial={{ y: 50 }} animate={{ y: 0 }} className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[20000]">
+            <button onClick={() => setIsEditingApps(false)} className="px-8 py-4 rounded-3xl bg-white text-black font-black shadow-2xl hover:scale-105 active:scale-95 transition-all">Finalizar Organização</button>
+          </motion.div>
+        )}
+
+        {upgradeModal.isOpen && (
+          <UpgradeModal 
+            isOpen={upgradeModal.isOpen} 
+            onClose={() => setUpgradeModal({ isOpen: false, appId: '', appName: '' })} 
+            appName={upgradeModal.appName}
+            appId={upgradeModal.appId}
+            requiredPlan={upgradeModal.appId.includes('direct') ? 'direct_ai' : 'factory'}
+            trialTokensRemaining={profile?.ai_credits || 0}
+            onConsumeTrial={async () => {
+              if (profile?.ai_credits && profile.ai_credits > 0) {
+                const ok = await consumeTrialToken();
+                if (ok) {
+                  setUpgradeModal({ isOpen: false, appId: '', appName: '' });
+                  const appRoute = appsConfig.find(a => a.id === upgradeModal.appId)?.route;
+                  if(appRoute) navigate(appRoute);
+                } else {
+                  alert('Não foi possível deduzir créditos no momento. Tente novamente mais tarde.');
+                }
+              }
+            }}
+          />
         )}
       </motion.div>
     );

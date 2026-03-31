@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { lazy, Suspense } from "react";
 import Layout from "./components/Layout";
 import { SessionProvider } from "./contexts/SessionProvider";
@@ -12,6 +12,7 @@ import { AIAssistantProvider } from "./contexts/AIAssistantProvider";
 import { DynamicThemeProvider } from "./components/DynamicThemeProvider";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { TrialBanner } from "./components/TrialBanner";
+import { AppEnforcer } from "./components/AppEnforcer";
 import { AntiScraper } from "./components/AntiScraper";
 import { PWAManager } from "./components/PWAManager";
 import { InstallPrompt } from "./components/InstallPrompt";
@@ -43,6 +44,7 @@ const LandingPage = lazy(() => import("./pages/LandingPage"));
 const OverPixelLauncher = lazy(() => import("./modules/launcher/Launcher"));
 const AuthConfirm = lazy(() => import("./pages/AuthConfirm"));
 const AuthCallback = lazy(() => import("./pages/AuthCallback"));
+const SuccessCheckout = lazy(() => import("./pages/SuccessCheckout"));
 const DTFFactory = lazy(() => import("./pages/DTFFactory.tsx"));
 const Logistics = lazy(() => import("./pages/Logistics"));
 const Vetorizador = lazy(() => import("./pages/Vetorizador"));
@@ -97,6 +99,7 @@ const App = () => (
                       <Route path="/terms" element={<Legal />} />
                       <Route path="/privacy" element={<Legal />} />
                       <Route path="/checkout" element={<Checkout />} />
+                      <Route path="/success" element={<SuccessCheckout />} />
                       <Route path="/landing-page" element={<LandingPage />} />
                       <Route path="/auth/confirm" element={<AuthConfirm />} />
                       <Route path="/auth/callback" element={<AuthCallback />} />
@@ -112,23 +115,37 @@ const App = () => (
                             </>
                           }>
                             <Route path="/" element={<OverPixelLauncher />} />
-                            <Route path="/dashboard" element={<Index />} />
-                            <Route path="/clientes" element={<Clientes />} />
-                            <Route path="/produtos" element={<Produtos />} />
-                            <Route path="/pedidos" element={<Pedidos />} />
-                            <Route path="/pedidos-dtf" element={<Pedidos />} />
-                            <Route path="/pedidos-loja" element={<PedidosLoja />} />
-                            <Route path="/erros-defeitos" element={<ErrosDefeitos />} />
-                            <Route path="/trocas-devolucoes" element={<TrocasDevolucoes />} />
-                            <Route path="/reports" element={<Reports />} />
-                            <Route path="/insumos" element={<Insumos />} />
-                            <Route path="/logistica" element={<Logistics />} />
+                            <Route element={
+                              <AppEnforcer appId="direct-ai">
+                                <Outlet />
+                              </AppEnforcer>
+                            }>
+                              <Route path="/dashboard" element={<Index />} />
+                              <Route path="/clientes" element={<Clientes />} />
+                              <Route path="/produtos" element={<Produtos />} />
+                              <Route path="/pedidos" element={<Pedidos />} />
+                              <Route path="/pedidos-dtf" element={<Pedidos />} />
+                              <Route path="/pedidos-loja" element={<PedidosLoja />} />
+                              <Route path="/erros-defeitos" element={<ErrosDefeitos />} />
+                              <Route path="/trocas-devolucoes" element={<TrocasDevolucoes />} />
+                              <Route path="/reports" element={<Reports />} />
+                              <Route path="/insumos" element={<Insumos />} />
+                              <Route path="/gabi" element={<GabiSettings />} />
+                            </Route>
 
+                            <Route path="/logistica" element={
+                              <AppEnforcer appId="direct-ai">
+                                <Logistics />
+                              </AppEnforcer>
+                            } />
                             <Route path="/settings" element={<Settings />} />
                             <Route path="/profile" element={<Profile />} />
-                            <Route path="/gabi" element={<GabiSettings />} />
                             <Route path="/affiliate" element={<Affiliate />} />
-                            <Route path="/vetorizar" element={<Vetorizador />} />
+                            <Route path="/vetorizar" element={
+                              <AppEnforcer appId="dtf-factory">
+                                <Vetorizador />
+                              </AppEnforcer>
+                            } />
                             <Route path="/producao" element={<ProductionKanban />} />
 
                             <Route path="/admin" element={
@@ -136,8 +153,21 @@ const App = () => (
                                 <Admin />
                               </AdminRoute>
                             } />
-                            <Route path="/dtf-factory" element={<DTFFactory />} />
-                            <Route path="/montador" element={<MontadorPage />} />
+                            <Route path="/dtf-factory" element={
+                              <AppEnforcer appId="dtf-factory">
+                                <DTFFactory />
+                              </AppEnforcer>
+                            } />
+                            <Route path="/montador" element={
+                              <AppEnforcer appId="montador">
+                                <MontadorPage />
+                              </AppEnforcer>
+                            } />
+                            <Route path="/melhorador" element={
+                              <AppEnforcer appId="melhorador">
+                                <MelhoradorPage />
+                              </AppEnforcer>
+                            } />
                             <Route path="*" element={<NotFound />} />
                           </Route>
                         </Route>

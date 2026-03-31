@@ -53,14 +53,15 @@ const corsHeaders = {
         
         // --- 1. HANDLE CREDITS FOR FALLBACK ---
         if (isFallbackRetry) {
-            console.log(`[vectorize] Attempting fallback credit deduction for ${userId} (1 credit)`);
-            const { error: fallbackError } = await supabaseAdmin.rpc('deduct_ai_credits', {
-                p_user_id: userId,
-                p_amount: 1 // 5 (Flux) - 4 (Nano)
+            console.log(`[vectorize] Attempting fallback token debit for ${userId} (20 tokens)`);
+            const { data: debitSuccess, error: fallbackError } = await supabaseAdmin.rpc('debit_user_tokens', {
+                p_user_uid: userId,
+                p_amount: 20, // Unified cost
+                p_reason: `Vetorização AI (Fallback): ${currentModel}`
             });
 
-            if (fallbackError) {
-                console.error("[vectorize] Fallback credit deduction failed:", fallbackError);
+            if (fallbackError || !debitSuccess) {
+                console.error("[vectorize] Fallback token debit failed:", fallbackError);
                 throw new Error("Saldo insuficiente para o modelo alternativo (Flux 2).");
             }
         }
@@ -248,11 +249,21 @@ const corsHeaders = {
         const { image_url, model = "standard", prompt } = payload;
         if (!image_url) return new Response(JSON.stringify({ error: "image_url required" }), { status: 400, headers: corsHeaders });
 
-        // dedução inicial (4 créditos)
-        const cost = 4; // Nano Banana cost
-        const { error: deductionError } = await supabaseAdmin.rpc('deduct_ai_credits', { p_user_id: user.id, p_amount: cost });
-        if (deductionError) {
-            return new Response(JSON.stringify({ error: "Créditos insuficientes.", code: "INSUFFICIENT_CREDITS" }), { status: 402, headers: corsHeaders });
+        // UNIFIED COST: 20 tokens
+        const UNIFIED_COST = 20;
+
+        // 1. Debit tokens using the unified RPC
+        const { data: debitSuccess, error: deductionError } = await supabaseAdmin.rpc('debit_user_tokens', {
+            p_user_uid: user.id,
+            p_amount: UNIFIED_COST,
+            p_reason: `Vetorização AI: ${model}`
+        });
+
+        if (deductionError || !debitSuccess) {
+            return new Response(JSON.stringify({ 
+                error: "Saldo insuficiente ou erro ao debitar tokens.", 
+                code: "INSUFFICIENT_CREDITS" 
+            }), { status: 402, headers: corsHeaders });
         }
 
         // 1. Criar registro no banco

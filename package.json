@@ -14,9 +14,9 @@
     "generate:icons": "pwa-assets-generator --preset minimal public/logo.png public"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1018.0",
-    "@aws-sdk/lib-storage": "^3.1018.0",
-    "@aws-sdk/s3-request-presigner": "^3.1018.0",
+    "@aws-sdk/client-s3": "^3.1019.0",
+    "@aws-sdk/lib-storage": "^3.1019.0",
+    "@aws-sdk/s3-request-presigner": "^3.1019.0",
     "@capacitor/android": "^7.4.3",
     "@capacitor/cli": "^7.4.3",
     "@capacitor/core": "^7.4.3",

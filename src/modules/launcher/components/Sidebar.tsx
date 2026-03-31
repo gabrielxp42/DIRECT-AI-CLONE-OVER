@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { 
   User, CreditCard, Key, Palette, LogOut, ChevronRight, Settings, 
-  Layout, Eye, EyeOff, X, Users
+  Layout, Eye, EyeOff, X, Users, Zap, Crown, ArrowRight
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSession } from '@/contexts/SessionProvider';
@@ -46,6 +46,10 @@ export const LauncherSidebar = ({
     if (onClose) onClose();
   };
 
+  const tokenBalance = profile?.ai_credits || 0;
+  const subscriptionTier = profile?.subscription_tier || 'FREE';
+  const isPro = subscriptionTier.toUpperCase().includes('PRO') || subscriptionTier.toUpperCase().includes('COMBO');
+
   return (
     <motion.div 
       initial={{ x: -100, opacity: 0 }}
@@ -83,6 +87,38 @@ export const LauncherSidebar = ({
            <Users size={14} />
            Trocar Perfil
         </button>
+      </div>
+
+      {/* Token Balance Card */}
+      <div className="relative p-5 rounded-3xl overflow-hidden group border border-white/10 bg-[#121216]">
+        <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-transparent z-0" />
+        <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 blur-[50px] rounded-full pointer-events-none" />
+        
+        <div className="relative z-10 flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-indigo-500/20 text-indigo-400">
+                <Zap size={16} className={tokenBalance > 0 ? "fill-indigo-400/20" : ""} />
+              </div>
+              <span className="text-xs font-bold uppercase tracking-widest text-white/60">Gabi Tokens</span>
+            </div>
+            {isPro && (
+              <span className="flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-full border border-amber-400/20">
+                <Crown size={10} /> Pro
+              </span>
+            )}
+          </div>
+          
+          <div className="flex items-baseline gap-1">
+            <span className="text-3xl font-black text-white tracking-tighter">{tokenBalance}</span>
+            <span className="text-xs text-white/40 font-bold uppercase">Restantes</span>
+          </div>
+
+          <button className="flex items-center justify-between w-full mt-2 py-2 px-3 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 transition-all font-bold text-xs shadow-lg shadow-purple-500/20 group/btn hover:scale-[1.02]">
+            <span>Adicionar Fichas</span>
+            <ArrowRight size={14} className="group-hover/btn:translate-x-1 transition-transform" />
+          </button>
+        </div>
       </div>
 
       {/* Main Settings */}

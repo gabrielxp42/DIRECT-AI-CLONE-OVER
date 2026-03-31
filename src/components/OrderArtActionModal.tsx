@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Pedido } from '@/types/pedido';
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
+import { useSession } from '@/contexts/SessionProvider';
+import { UpgradeModal } from '@/components/Checkout/UpgradeModal';
 
 interface OrderArtActionModalProps {
   isOpen: boolean;
@@ -26,6 +28,9 @@ export const OrderArtActionModal: React.FC<OrderArtActionModalProps> = ({
   const navigate = useNavigate();
   const [isTransitioning, setIsTransitioning] = React.useState(false);
   const [transitionTarget, setTransitionTarget] = React.useState<'factory' | 'montador' | null>(null);
+  const { hasAppAccess, profile, consumeTrialToken } = useSession();
+  const [upgradeModal, setUpgradeModal] = React.useState<{ isOpen: boolean; appId: string; appName: string }>({ isOpen: false, appId: '', appName: '' });
+  
   const [selectedItemId, setSelectedItemId] = React.useState<string | null>(
     initialItemId || (pedido.pedido_items?.length === 1 ? pedido.pedido_items[0].id : null)
   );
@@ -42,6 +47,18 @@ export const OrderArtActionModal: React.FC<OrderArtActionModalProps> = ({
 
 
   const handleAction = (target: 'factory' | 'montador') => {
+    // Escudo de Upgrade (Cross-App Protection)
+    const requiredAppId = target === 'factory' ? 'dtf-factory' : 'montador';
+    
+    if (!hasAppAccess(requiredAppId)) {
+       setUpgradeModal({
+         isOpen: true,
+         appId: requiredAppId,
+         appName: target === 'factory' ? 'DTF Factory' : 'Montador Inteligente'
+       });
+       return;
+    }
+
     setIsTransitioning(true);
     setTransitionTarget(target);
 
@@ -269,6 +286,32 @@ export const OrderArtActionModal: React.FC<OrderArtActionModalProps> = ({
             )}
           </motion.div>
         </div>
+      )}
+
+      {/* Upgrade Modal Hook-up */}
+      {upgradeModal.isOpen && (
+        <UpgradeModal 
+          isOpen={upgradeModal.isOpen}
+          onClose={() => setUpgradeModal({ isOpen: false, appId: '', appName: '' })}
+          appName={upgradeModal.appName}
+          appId={upgradeModal.appId}
+          requiredPlan="factory"
+          trialTokensRemaining={profile?.ai_credits || 0}
+          onConsumeTrial={async () => {
+            if (profile?.ai_credits && profile.ai_credits > 0) {
+              const success = await consumeTrialToken();
+              if (success) {
+                setUpgradeModal({ isOpen: false, appId: '', appName: '' });
+                // Retry action since trial conceptually unlocked it temporarily
+                const route = upgradeModal.appId === 'factory' ? '/dtf-factory' : '/montador';
+                navigate(route);
+                onClose();
+              } else {
+                alert('Erro ao processar crédito.');
+              }
+            }
+          }}
+        />
       )}
     </AnimatePresence>
   );

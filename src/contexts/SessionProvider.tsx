@@ -115,6 +115,9 @@ type SessionContextType = {
   activeSubProfile: SubProfile | null;
   switchSubProfile: (subProfile: SubProfile | null) => void;
   hasPermission: (permission: string) => boolean;
+  hasAppAccess: (appId: string) => boolean;
+  consumeTrialToken: (appId: string) => Promise<boolean>;
+  fetchSession: () => Promise<void>;
 };
 
 const SessionContext = createContext<SessionContextType | null>(null);
@@ -126,6 +129,7 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [organizationId, setOrganizationId] = useState<string | null>(null);
   const [activeSubProfile, setActiveSubProfile] = useState<SubProfile | null>(null);
+  const [activeAppTrials, setActiveAppTrials] = useState<string[]>([]);
   const navigate = useNavigate();
 
   // Usar uma ref para evitar closures obsoletas em callbacks assíncronos
@@ -389,6 +393,121 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
     return !!defaultPermissions?.[permission];
   };
 
+  const hasAppAccess = (appId: string): boolean => {
+    if (!profile) {
+      console.log("🛡️ [SessionProvider] No profile found, blocking access to:", appId);
+      return false;
+    }
+
+    // 1. Check if temporary trial unlocked during this session
+    if (activeAppTrials.includes(appId)) {
+      console.log("🛡️ [SessionProvider] Trial unlock found for:", appId);
+      return true;
+    }
+
+    // 2. Admins get global bypass
+    if (profile.is_admin) {
+      console.log("🛡️ [SessionProvider] Admin bypass granted for profile:", profile.id);
+      return true;
+    }
+
+    // 3. Subscription Tier Logic (All roles including Chefe must have a tier)
+    const tier = (profile.subscription_tier || 'FREE').toUpperCase();
+    const status = profile.subscription_status || 'inactive';
+
+    // Diagnostic Log for auditing why someone is getting access
+    console.log(`🛡️ [SessionProvider] hasAppAccess('${appId}') check`, {
+      tier,
+      status,
+      email: profile.email,
+      is_admin: profile.is_admin,
+      activeAppTrials
+    });
+
+    // Inactive subscriptions (expired) block access unless status is active or trial
+    if (status !== 'active' && status !== 'trial') {
+      console.warn("🛡️ [SessionProvider] Subscription is NOT active/trial. Blocking access.");
+      return false;
+    }
+
+    // Tiers required for premium apps
+    const isPremiumTier = tier === 'PRO' || tier === 'COMBO' || tier === 'ENTERPRISE';
+    const isDirectAIPlan = tier === 'DIRECT_AI' || isPremiumTier;
+
+    // Special bypass for gifted plans or legacy users might go here, but we're strict now
+    const hasDirectAI = isDirectAIPlan;
+    const hasFactory = isPremiumTier;
+    
+    let accessGranted = false;
+    switch (appId) {
+      case 'direct-ai': accessGranted = hasDirectAI; break;
+      case 'dtf-factory': accessGranted = hasFactory; break;
+      case 'montador': accessGranted = hasFactory; break; 
+      case 'melhorador': accessGranted = hasFactory; break;
+      case 'logistics': accessGranted = hasDirectAI; break;
+      case 'vetorizador': accessGranted = hasFactory; break;
+      default: accessGranted = false;
+    }
+
+    if (!accessGranted) {
+      console.warn(`🛑 [SessionProvider] ACCESS DENIED: App '${appId}' requires PRO/COMBO tier. Current tier: '${tier}'`);
+    } else {
+      console.log(`✅ [SessionProvider] ACCESS GRANTED: App '${appId}' for tier '${tier}'`);
+    }
+
+    return accessGranted;
+  };
+
+  // Expose global debug object for live inspection in console
+  if (typeof window !== 'undefined') {
+    (window as any).DEBUG_SESSION = {
+      profile,
+      hasAppAccess,
+      activeAppTrials,
+      session
+    };
+  }
+
+  const consumeTrialToken = async (appId: string): Promise<boolean> => {
+    if (!profile || !profile.ai_credits || profile.ai_credits <= 0) return false;
+    
+    // Otimista: deduz da UI e marca o trial
+    const prevTokens = profile.ai_credits;
+    setProfile({ ...profile, ai_credits: prevTokens - 1 });
+    setActiveAppTrials(prev => [...new Set([...prev, appId])]);
+    
+    try {
+      const { error } = await supabaseClient
+        .from('profiles_v2')
+        .update({ ai_credits: prevTokens - 1 })
+        .eq('id', profile.id);
+        
+      if (error) throw error;
+      return true;
+    } catch (e) {
+      console.error('Error consuming token:', e);
+      // Revert if failed
+      setProfile({ ...profile, ai_credits: prevTokens });
+      setActiveAppTrials(prev => prev.filter(id => id !== appId));
+      return false;
+    }
+  };
+
+  const fetchSession = async () => {
+    if (session?.user) {
+      setIsSyncing(true);
+      const token = await getValidToken();
+      if (token) {
+        const p = await fetchProfileWithRetry(session.user.id, token, 1, 0);
+        if (p) {
+          setProfile(p);
+          setOrganizationId(p.organization_id);
+        }
+      }
+      setIsSyncing(false);
+    }
+  };
+
   const memoizedValue = useMemo(() => ({
     session,
     supabase: supabaseClient,
@@ -399,6 +518,9 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
     activeSubProfile,
     switchSubProfile,
     hasPermission,
+    hasAppAccess,
+    consumeTrialToken,
+    fetchSession,
   }), [session, isLoading, isSyncing, organizationId, profile, activeSubProfile]);
 
   return (

@@ -29,8 +29,10 @@ export function useIsPlusMode(): PlusModeStatus {
 
         const isPlus = !!(
             profile.is_admin ||
-            profile.subscription_tier === 'expert' ||
-            profile.subscription_tier === 'pro_max' ||
+            profile.subscription_tier?.toUpperCase() === 'EXPERT' ||
+            profile.subscription_tier?.toUpperCase() === 'PRO_MAX' ||
+            profile.subscription_tier?.toUpperCase() === 'COMBO' ||
+            profile.subscription_tier?.toUpperCase() === 'PRO' ||
             profile.is_gifted_plan ||
             (profile as any).is_whatsapp_plus_active
         );
@@ -69,8 +71,10 @@ export function isEligibleForPlusMode(profile: {
 
     const isPlus = !!(
         profile.is_admin ||
-        profile.subscription_tier === 'expert' ||
-        profile.subscription_tier === 'pro_max' ||
+        profile.subscription_tier?.toUpperCase() === 'EXPERT' ||
+        profile.subscription_tier?.toUpperCase() === 'PRO_MAX' ||
+        profile.subscription_tier?.toUpperCase() === 'COMBO' ||
+        profile.subscription_tier?.toUpperCase() === 'PRO' ||
         profile.is_gifted_plan ||
         (profile as any).is_whatsapp_plus_active
     );

@@ -422,8 +422,9 @@
   padding: 24px !important;
   display: flex !important;
   flex-direction: column !important;
-  width: 260px !important;
-  height: 180px !important;
+  width: 100% !important;
+  min-height: 180px !important;
+  height: 100% !important;
   transition: all 0.3s ease !important;
 }
 

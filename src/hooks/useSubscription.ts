@@ -34,25 +34,20 @@ export const useSubscription = (): SubscriptionState => {
         };
     }
 
-    // Fallback if profile is missing but session exists
-    // We use now() as fallback start date to prevent blocking if profile is truly missing or slow
-    const effectiveProfile = profile || (session?.user ? {
-        subscription_status: 'trial',
-        trial_start_date: new Date().toISOString(),
-        daily_ai_count: 0
-    } : null);
+    // Fallback if profile is missing - Restricted by default
+    const effectiveProfile = profile;
 
     if (!effectiveProfile) {
         return {
-            isTrial: true,
+            isTrial: false,
             isActive: false,
-            isExpired: false,
-            daysRemaining: 30,
+            isExpired: true,
+            daysRemaining: 0,
             trialEndsAt: null,
             dailyUsage: 0,
             maxDailyUsage: 20,
             canUseAI: false,
-            canWriteData: true, // Optimistic for fallback
+            canWriteData: false,
             isWhatsAppPlusActive: false
         };
     }

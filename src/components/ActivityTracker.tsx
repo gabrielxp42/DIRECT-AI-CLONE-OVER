@@ -53,7 +53,6 @@ export function ActivityTracker() {
                         'Prefer': 'return=minimal'
                     },
                     body: JSON.stringify([{
-                        level: 'info',
                         category: 'page_view',
                         message: `O cliente acessou a página: ${location.pathname}`,
                         user_id: profile?.id,

@@ -1368,3 +1368,95 @@
     visibility: visible;
     transform: translateX(-50%) translateY(0);
 }
+
+/* Floating Action Group (Overlay) */
+.floating-actions-vec {
+    position: absolute;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    z-index: 100;
+}
+
+.floating-action-btn-vec {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: white;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    position: relative;
+}
+
+.floating-action-btn-vec:hover {
+    transform: scale(1.1) translateY(-4px);
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.3);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6), 0 0 20px hsla(var(--primary), 0.3);
+    color: hsl(var(--primary));
+}
+
+.floating-action-btn-vec svg {
+    width: 22px;
+    height: 22px;
+}
+
+.floating-action-btn-vec.primary {
+    background: linear-gradient(135deg, hsl(var(--primary) / 0.8), hsl(var(--primary) / 0.4));
+    border-color: hsl(var(--primary) / 0.4);
+    box-shadow: 0 8px 32px hsla(var(--primary), 0.3);
+}
+
+.floating-action-btn-vec.primary:hover {
+    background: hsl(var(--primary));
+    color: #000;
+}
+
+.floating-action-btn-vec.pulse::after {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    border: 2px solid hsl(var(--primary) / 0.5);
+    animation: pulseGlow 2s infinite;
+    pointer-events: none;
+}
+
+@keyframes pulseGlow {
+    0% { transform: scale(1); opacity: 0.8; }
+    100% { transform: scale(1.4); opacity: 0; }
+}
+
+.floating-action-btn-vec[data-label]::before {
+    content: attr(data-label);
+    position: absolute;
+    right: 120%;
+    top: 50%;
+    transform: translateY(-50%) translateX(10px);
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(8px);
+    padding: 0.4rem 0.8rem;
+    border-radius: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: white;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.3s ease;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.floating-action-btn-vec:hover[data-label]::before {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0);
+}

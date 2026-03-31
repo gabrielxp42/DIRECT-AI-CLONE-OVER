@@ -491,25 +491,32 @@ const Layout = () => {
                       <Wand2 className="h-5 w-5 flex-shrink-0" />
                       <span className={cn("whitespace-nowrap transition-opacity duration-300 delay-100", isExpanded ? "opacity-100" : "opacity-0")}>Calculadora DTF</span>
                     </button>
-                    <Link
-                      to="/vetorizar"
+                    <button
                       onClick={(e) => {
-                        if (!(profile as any)?.is_vetoriza_ai_gifted) e.preventDefault();
+                        e.preventDefault();
+                        if ((profile as any)?.is_vetoriza_ai_gifted) {
+                          setIsVetorizadorOpen(true);
+                        } else {
+                          toast({
+                            title: "Acesso Restrito",
+                            description: "Você ainda não possui acesso ao Vetoriza AI. Entre em contato com o suporte.",
+                          });
+                        }
                       }}
                       className={cn(
-                        "flex items-center gap-4 rounded-lg px-3 py-2 transition-all duration-300 ease-in-out relative group",
-                        location.pathname === '/vetorizar'
+                        "w-full flex items-center gap-4 rounded-lg px-3 py-2 transition-all duration-300 ease-in-out relative group",
+                        isVetorizadorOpen
                           ? "bg-primary text-black hover:bg-primary/90"
                           : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:scale-[1.02]",
                         !(profile as any)?.is_vetoriza_ai_gifted && "opacity-50 grayscale-[0.5] cursor-not-allowed"
                       )}
-                      style={location.pathname === '/vetorizar' ? { boxShadow: '0 0 10px rgba(var(--primary), 0.3)' } : {}}
+                      style={isVetorizadorOpen ? { boxShadow: '0 0 10px rgba(var(--primary), 0.3)' } : {}}
                     >
                       <ImageIcon className="h-5 w-5 flex-shrink-0" />
-                      <span className={cn("whitespace-nowrap transition-opacity duration-300 delay-100", isExpanded ? "opacity-100" : "opacity-0")}>
+                      <span className={cn("whitespace-nowrap transition-opacity duration-300 delay-100", isExpanded ? "opacity-100" : "opacity-0 text-left w-full")}>
                         Vetoriza AI
                       </span>
-                    </Link>
+                    </button>
                   </div>
                 )}
               </div>

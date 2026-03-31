@@ -20,13 +20,19 @@ import {
 } from 'lucide-react';
 import { useSession } from '@/contexts/SessionProvider';
 import { DesignAgent } from '@/components/DesignAgent';
+import { DirectAIPaywall } from '@/components/DirectAIPaywall';
+import { UpgradeModal } from '@/components/Checkout/UpgradeModal';
 import './Vetorizador.css';
 
 type ProcessingStatus = 'idle' | 'uploading' | 'processing' | 'done' | 'error';
 
 const Vetorizador: React.FC = () => {
-    const { supabase } = useSession();
+    const { supabase, hasAppAccess, profile, consumeTrialToken } = useSession();
     const [status, setStatus] = useState<ProcessingStatus>('idle');
+    // ... rest of state
+    const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+
+    const hasAccess = hasAppAccess('direct-ai');
     const [originalImage, setOriginalImage] = useState<string | null>(null);
     const [originalFile, setOriginalFile] = useState<File | null>(null);
     const [resultImage, setResultImage] = useState<string | null>(null);
@@ -357,6 +363,29 @@ const Vetorizador: React.FC = () => {
                         onClose={() => setIsAgentOpen(false)}
                     />
                 )}
+
+                <DirectAIPaywall 
+                    isVisible={!hasAccess} 
+                    onUpgrade={() => setIsUpgradeModalOpen(true)} 
+                    onClose={() => navigate('/')} 
+                />
+                
+                <UpgradeModal
+                    isOpen={isUpgradeModalOpen}
+                    onClose={() => setIsUpgradeModalOpen(false)}
+                    appName="Direct AI"
+                    appId="direct-ai"
+                    requiredPlan="direct_ai"
+                    trialTokensRemaining={profile?.ai_credits || 0}
+                    onConsumeTrial={async () => {
+                        if (profile?.ai_credits && profile.ai_credits > 0) {
+                            const success = await consumeTrialToken('direct-ai');
+                            if (!success) {
+                                toast.error('Erro ao resgatar Ficha de Trial.');
+                            }
+                        }
+                    }}
+                />
             </div>
         </div>
     );
