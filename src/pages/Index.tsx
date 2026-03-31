@@ -35,6 +35,43 @@ const Index = () => {
   const canViewFinancials = hasPermission('view_financial_dashboard') || hasPermission('view_financial_goals');
   const { isTourOpen, currentStep, steps, startTour, nextStep, prevStep, closeTour, shouldAutoStart } = useTour(WELCOME_TOUR, 'welcome');
 
+  const [uiMode, setUiMode] = useState<'neon' | 'basic'>(() => 
+    document.documentElement.classList.contains('ui-basic') ? 'basic' : 'neon'
+  );
+
+  useEffect(() => {
+    // Observer for external changes (like from Sidebar or Settings)
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.attributeName === 'class') {
+          const isBasic = document.documentElement.classList.contains('ui-basic');
+          setUiMode(isBasic ? 'basic' : 'neon');
+        }
+      });
+    });
+
+    observer.observe(document.documentElement, { attributes: true });
+    return () => observer.disconnect();
+  }, []);
+
+  const toggleStyle = () => {
+    const isBasic = uiMode === 'basic';
+    const nextMode = isBasic ? 'neon' : 'basic';
+    
+    if (isBasic) {
+      document.documentElement.classList.remove('ui-basic');
+      localStorage.setItem('cached_ui_style', 'neon');
+    } else {
+      document.documentElement.classList.add('ui-basic');
+      localStorage.setItem('cached_ui_style', 'basic');
+    }
+    
+    setUiMode(nextMode);
+  };
+
+  const adaptiveShadow = 'var(--neon-shadow)';
+  const adaptiveBorder = 'hsl(var(--primary) / var(--neon-border-opacity))';
+
   useEffect(() => {
     if (shouldAutoStart && !sessionLoading) {
       const timer = setTimeout(startTour, 5000);
@@ -98,7 +135,7 @@ const Index = () => {
         <div className="dashboard-blob dashboard-blob-2" />
       </div>
 
-      <header className="relative z-10 flex justify-between items-center mb-6 md:mb-10 pt-4 px-2 md:px-0">
+      <header className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-10 pt-4 px-2 md:px-0 gap-4">
         <div className="flex flex-col gap-2">
           <div 
             className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity w-fit"
@@ -111,7 +148,7 @@ const Index = () => {
             }}
           >
             <div className="flex items-center gap-1.5">
-              <svg width="24" height="16" viewBox="0 0 200 120" className="flex-shrink-0" style={{ filter: 'drop-shadow(0 0 5px var(--primary-custom))' }}>
+              <svg width="24" height="16" viewBox="0 0 200 120" className="flex-shrink-0" style={{ filter: uiMode === 'neon' ? 'drop-shadow(0 0 5px var(--primary-custom))' : 'none' }}>
                 <circle cx="50" cy="60" r="34" fill="none" stroke="var(--primary-custom)" strokeWidth="12" />
                 <circle cx="150" cy="60" r="34" fill="none" stroke="var(--primary-custom)" strokeWidth="12" />
               </svg>
@@ -120,45 +157,77 @@ const Index = () => {
           </div>
           <p className="text-[10px] md:text-xs font-bold text-muted-foreground tracking-widest uppercase mt-1 md:mt-2 opacity-50">Direct AI Ecosystem</p>
         </div>
+
+        {/* 🎨 Mode Selector Section */}
+        <div className="flex items-center bg-muted/30 p-1.5 rounded-2xl border border-white/5 backdrop-blur-xl">
+             <button 
+                onClick={() => uiMode !== 'neon' && toggleStyle()}
+                className={cn(
+                    "px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all gap-2 flex items-center",
+                    uiMode === 'neon' 
+                        ? "bg-primary text-black shadow-[0_0_15px_rgba(var(--primary),0.3)]" 
+                        : "text-muted-foreground hover:text-foreground"
+                )}
+             >
+                <Zap className={cn("w-3 h-3", uiMode === 'neon' ? "animate-pulse" : "")} />
+                Neon
+             </button>
+             <button 
+                onClick={() => uiMode !== 'basic' && toggleStyle()}
+                className={cn(
+                    "px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all gap-2 flex items-center",
+                    uiMode === 'basic' 
+                        ? "bg-white text-black shadow-lg" 
+                        : "text-muted-foreground hover:text-foreground"
+                )}
+             >
+                <Sparkles className="w-3 h-3" />
+                Sofisticado
+             </button>
+        </div>
+
         <div className="hidden md:flex gap-3">
-           <Button variant="ghost" size="icon" className="dashboard-glass-card rounded-full" style={{ borderColor: 'var(--primary-custom)', boxShadow: '0 0 10px var(--primary-custom), inset 0 0 5px var(--primary-custom)' }}>
+           <Button variant="ghost" size="icon" className="dashboard-glass-card rounded-full" style={{ borderColor: adaptiveBorder, boxShadow: adaptiveShadow }}>
              <Activity className="w-4 h-4" />
            </Button>
-           <Button variant="ghost" size="icon" className="dashboard-glass-card rounded-full" style={{ borderColor: 'var(--primary-custom)', boxShadow: '0 0 10px var(--primary-custom), inset 0 0 5px var(--primary-custom)' }}>
+           <Button variant="ghost" size="icon" className="dashboard-glass-card rounded-full" style={{ borderColor: adaptiveBorder, boxShadow: adaptiveShadow }}>
              <TrendingUp className="w-4 h-4" />
            </Button>
         </div>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6 mb-8 items-start relative z-10 w-full max-w-full">
-        <div id="ai-assistant-widget" className="lg:col-span-12 xl:col-span-8 flex flex-col gap-4 min-w-0 w-full overflow-hidden">
-          <div onClick={openAIAssistant} className="dashboard-glass-card p-4 md:p-6 shadow-lg relative overflow-hidden group cursor-pointer w-full flex flex-col mx-auto" style={{ borderColor: 'var(--primary-custom)', boxShadow: '0 0 15px var(--primary-custom), inset 0 0 5px var(--primary-custom)' }}>
-            <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity pointer-events-none">
-               <Bot className="w-24 h-24 md:w-32 md:h-32" />
+        {/* Coluna Esquerda: Assistente IA */}
+        <div id="ai-assistant-widget" className="lg:col-span-8 flex flex-col gap-4 min-w-0 w-full overflow-hidden p-1">
+          <div className="flex items-center gap-3 mb-2 shrink-0 px-2">
+            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20 shadow-inner shrink-0">
+              <Sparkles className="h-5 w-5 text-primary" style={{ filter: uiMode === 'neon' ? 'drop-shadow(0 0 5px var(--primary-custom))' : 'none' }} />
             </div>
-            <div className="relative z-10 space-y-4 w-full flex-1 min-w-0">
-              <AILowStockAlert />
-              <AIAttentionBubble />
-              <AIMessagesWidget />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-black uppercase tracking-tight text-white">Assistente IA</p>
+              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Algumas coisas que notei...</p>
             </div>
+          </div>
+          
+          <div className="w-full flex-1">
+             <AIMessagesWidget />
           </div>
         </div>
 
-        <div id="onboarding-container" className="lg:col-span-12 xl:col-span-4 h-full min-w-0 w-full overflow-hidden flex flex-col">
-            <div className="dashboard-glass-card p-4 md:p-6 h-full flex flex-col overflow-hidden w-full flex-1 mx-auto" style={{ borderColor: 'var(--primary-custom)', boxShadow: '0 0 15px var(--primary-custom), inset 0 0 5px var(--primary-custom)' }}>
-              <div className="flex items-center gap-3 mb-4 md:mb-6 shrink-0">
-                <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20 shadow-inner shrink-0">
-                  <Trophy className="h-4 w-4 md:h-5 md:w-5 text-primary" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-black uppercase tracking-tight truncate">Minhas Metas</p>
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase opacity-60 truncate">Evolução do seu negócio</p>
-                </div>
-              </div>
-              <div className="w-full flex-1 overflow-y-auto overflow-x-hidden min-h-[250px]">
-                <SmartGoalCard stats={stats} />
-              </div>
-           </div>
+        {/* Coluna Direita: Metas */}
+        <div id="goals-widget" className="lg:col-span-4 flex flex-col gap-4 min-w-0 w-full overflow-hidden p-1">
+          <div className="flex items-center gap-3 mb-2 shrink-0 px-2">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center border border-amber-500/20 shadow-inner shrink-0">
+              <Trophy className="h-5 w-5 text-amber-500" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-black uppercase tracking-tight text-white">Minhas Metas</p>
+              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Evolução do seu negócio</p>
+            </div>
+          </div>
+          <div className="w-full flex-1">
+             <SmartGoalCard stats={stats} />
+          </div>
         </div>
       </div>
 
@@ -177,8 +246,8 @@ const Index = () => {
 
       <div id="status-charts-container" className="mb-10 relative z-10 w-full max-w-full overflow-hidden">
         <div className="flex items-center gap-3 mb-6 px-2 md:px-0">
-          <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center border border-blue-500/20" style={{ borderColor: 'var(--primary-custom)', boxShadow: '0 0 10px var(--primary-custom)' }}>
-             <Layers className="h-4 w-4 text-blue-500" style={{ color: 'var(--primary-custom)' }} />
+          <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center border border-blue-500/20" style={{ borderColor: adaptiveBorder, boxShadow: adaptiveShadow }}>
+             <Layers className="h-4 w-4 text-blue-500" style={{ color: uiMode === 'neon' ? 'var(--primary-custom)' : 'currentColor' }} />
           </div>
           <h2 className="text-xl font-black italic uppercase tracking-tighter">Status dos Pedidos</h2>
         </div>
@@ -303,7 +372,7 @@ const Index = () => {
       </div>
 
       <div className="mt-16 text-center space-y-6 relative z-10">
-        <p className="text-xl font-medium dashboard-title-gradient opacity-80 italic" style={{ textShadow: '0 0 10px var(--primary-custom)' }}>
+        <p className="text-xl font-medium dashboard-title-gradient opacity-80 italic" style={{ textShadow: uiMode === 'neon' ? '0 0 10px var(--primary-custom)' : 'none' }}>
           Bem-vindo ao Direct AI
         </p>
         {!isTourOpen && (

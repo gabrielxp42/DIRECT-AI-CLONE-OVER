@@ -216,3 +216,62 @@
     min-width: auto;
   }
 }
+
+/* ============================================
+   Sophisticated Mode Overrides (No-Neon)
+   ============================================ */
+
+:root.ui-basic .overpixel-dock-trigger {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  color: #64748b;
+}
+
+.dark :root.ui-basic .overpixel-dock-trigger {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+}
+
+:root.ui-basic .overpixel-dock-trigger:hover {
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+  color: #334155;
+}
+
+.dark :root.ui-basic .overpixel-dock-trigger:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #f1f5f9;
+}
+
+:root.ui-basic .overpixel-dock-trigger svg {
+  filter: none;
+}
+
+:root.ui-basic .overpixel-dock-panel {
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  color: #1e293b;
+}
+
+.dark :root.ui-basic .overpixel-dock-panel {
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+  color: #f1f5f9;
+}
+
+:root.ui-basic .overpixel-dock-header-text {
+  color: #64748b;
+}
+
+:root.ui-basic .overpixel-dock-app-name {
+  color: inherit;
+}
+
+:root.ui-basic .overpixel-dock-active-dot {
+  background: #64748b;
+  box-shadow: none;
+}

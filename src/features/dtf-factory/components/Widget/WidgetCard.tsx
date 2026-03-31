@@ -3,9 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     Send, X, ImageIcon, Loader2, Check, Sparkles, Bug,
     RefreshCw, Lock, Settings2, Trash2, Grid3x3, LayoutGrid, Ruler, Copy, ChevronDown,
-    Square, CheckSquare
+    Square, CheckSquare, Eraser
 } from 'lucide-react';
-import { useDtfPipeline, PipelineStep } from '@dtf/hooks/useDtfPipeline';
+import { useDtfPipeline, PipelineStep, PipelineState } from '@dtf/hooks/useDtfPipeline';
 import { electronBridge } from '@dtf/lib/electronBridge';
 import { useLauncherAuth } from '@dtf/contexts/LauncherAuthContext';
 import { processImageForStorage } from '@dtf/utils/imageUtils';
@@ -21,6 +21,7 @@ import { ensureOpaquePixels, dataUrlToBlob } from '../../utils/imageUtils';
 import { dataURItoBlob } from '@dtf/lib/imageUtils';
 import ProcessingAnimation from '../ProcessingAnimation';
 import InsufficientTokensModal from '../InsufficientTokensModal';
+import { toast } from 'sonner';
 
 const HalftoneSelectorLazy = React.lazy(() => import('@dtf/components/HalftoneSelector'));
 const HalftoneSelector = (props: any) => (
@@ -88,6 +89,7 @@ const WidgetCard = React.forwardRef<HTMLDivElement, WidgetCardProps>(({ config }
 
     const { state: pipelineState, run, reprocessHalftone, reset } = useDtfPipeline();
     const [isEditorOpen, setIsEditorOpen] = useState(false);
+    const [isAutoRemoving, setIsAutoRemoving] = useState(false);
     const gallerySavedRef = useRef(false);
 
     // Override local state with external status (Remote Control for Pro Mode API)
@@ -618,7 +620,7 @@ const WidgetCard = React.forwardRef<HTMLDivElement, WidgetCardProps>(({ config }
         // Voltar para a tela inicial
         setCardStep('config');
     }, [reset, config.id, updateWidget]);
-
+    
     const handleRemove = () => {
         if (cardStep === 'processing') return;
         removeWidget(config.id);
@@ -897,10 +899,12 @@ const WidgetCard = React.forwardRef<HTMLDivElement, WidgetCardProps>(({ config }
                                         )}
                                     </div>
                                     {garmentMode === 'color' && (
-                                        <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 backdrop-blur-sm z-30">
-                                            <button onClick={() => setIsEditorOpen(true)} className="px-6 py-3 bg-cyan-600/90 hover:bg-cyan-500 text-white font-bold rounded-xl shadow-[0_0_20px_rgba(6,182,212,0.5)] border border-cyan-400 hover:scale-105 transition-all flex items-center justify-center gap-2">
-                                                <Sparkles size={18} />
-                                                CONTINUAR
+                                        <div className="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 backdrop-blur-md z-30">
+                                            <button 
+                                                onClick={() => setIsEditorOpen(true)} 
+                                                className="px-6 py-3 bg-white text-black font-black rounded-2xl shadow-2xl hover:scale-110 active:scale-95 transition-all flex items-center gap-2 text-sm uppercase tracking-tighter"
+                                            >
+                                                Remover Fundo
                                             </button>
                                         </div>
                                     )}

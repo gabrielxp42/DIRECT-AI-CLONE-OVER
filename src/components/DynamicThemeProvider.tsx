@@ -19,6 +19,14 @@ export const DynamicThemeProvider = ({ children }: { children: React.ReactNode }
         root.style.setProperty('--primary-foreground', foregroundHsl);
         root.style.setProperty('--primary-custom', primaryColor);
 
+        // UI Style persistence (Neon vs Basic)
+        const uiStyle = typeof localStorage !== 'undefined' ? localStorage.getItem('cached_ui_style') : 'neon';
+        if (uiStyle === 'basic') {
+            root.classList.add('ui-basic');
+        } else {
+            root.classList.remove('ui-basic');
+        }
+
         // Cache branding in localStorage for LoadingScreen (which mounts before profile fetch)
         if (companyProfile) {
             localStorage.setItem('cached_company_logo', companyProfile.company_logo_url || '');

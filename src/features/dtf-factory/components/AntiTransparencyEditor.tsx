@@ -4,17 +4,6 @@ import ResizeModal from '@dtf/components/ResizeModal';
 import { setPngDpi } from '@dtf/services/halftoneService';
 import { fetchWithRetry } from '@dtf/lib/imageUtils';
 
-interface AntiTransparencySettings {
-    mode: 'magicWand' | 'chromaKey';
-    backgroundColor: string; // Hex
-    chromaTolerance: number;
-    shadowTolerance: number;
-    erosion: number;
-    magicPoints: { x: number, y: number }[];
-    alphaThreshold: number;
-    softness: number;
-}
-
 interface AntiTransparencyEditorProps {
     imageUrl: string;
     onClose: () => void;
@@ -30,12 +19,12 @@ export default function AntiTransparencyEditor({ imageUrl, onClose, onSave, skip
     const [previewImageData, setPreviewImageData] = useState<Uint8ClampedArray | null>(null);
     const [previewDim, setPreviewDim] = useState({ w: 0, h: 0, scale: 1 });
 
-    const [settings, setSettings] = useState<AntiTransparencySettings>({
+    const [settings, setSettings] = useState<any>({
         mode: 'magicWand',
         backgroundColor: '#00ff00',
         chromaTolerance: 50,
         shadowTolerance: 0,
-        erosion: 3, // Changed from 0 to 3
+        erosion: 0, 
         magicPoints: [],
         alphaThreshold: 10,
         softness: 15
@@ -145,213 +134,7 @@ export default function AntiTransparencyEditor({ imageUrl, onClose, onSave, skip
         return { h: h * 360, s: s * 100, l: l * 100 };
     }
 
-    // Processador isolado para poder rodar tanto no Preview (rápido) quanto Original (no save)
-    const runProcessing = (
-        sourceData: Uint8ClampedArray,
-        width: number,
-        height: number,
-        settingsToUse: AntiTransparencySettings,
-        pointScale: number
-    ): ImageData => {
-        const outputImageData = new ImageData(width, height);
-        const outputData = outputImageData.data;
-
-        const bgColor = hexToRgb(settingsToUse.backgroundColor || '#00ff00');
-        const erosion = settingsToUse.erosion || 0;
-        const threshold = settingsToUse.alphaThreshold || 10;
-        const mode = settingsToUse.mode;
-        const chromaTolerance = settingsToUse.chromaTolerance || 50;
-        const shadowTolerance = settingsToUse.shadowTolerance || 0;
-        const softness = settingsToUse.softness || 0;
-        const rawMagicPoints = settingsToUse.magicPoints || [];
-
-        // Escalar pontos mágicos para resolução alvo
-        const magicPoints = rawMagicPoints.map(p => ({
-            x: Math.round(p.x * pointScale),
-            y: Math.round(p.y * pointScale)
-        }));
-
-        let finalAlpha = new Uint8Array(width * height);
-
-        if (mode === 'magicWand' && magicPoints.length > 0) {
-            for (let i = 0; i < width * height; i++) {
-                const idx = i * 4;
-                const r = sourceData[idx];
-                const g = sourceData[idx + 1];
-                const b = sourceData[idx + 2];
-                const a = sourceData[idx + 3];
-
-                if (a <= threshold) {
-                    finalAlpha[i] = 0;
-                    continue;
-                }
-
-                // Se removeBlack estiver ativo (implícito no modo magic wand se clicarmos no preto)
-                // Usamos a lógica de softness se a cor for próxima da cor de fundo (que o user clicou)
-                // Para o Magic Wand, usamos o bgcolor como referência se houver, ou apenas o threshold
-                finalAlpha[i] = a; 
-
-                // Lógica de Softness para o "Fundo" inicial
-                if (softness > 0) {
-                    const bgColor_raw = hexToRgb(settingsToUse.backgroundColor || '#000000');
-                    const dr = r - bgColor_raw.r;
-                    const dg = g - bgColor_raw.g;
-                    const db = b - bgColor_raw.b;
-                    const dist = Math.sqrt(dr * dr + dg * dg + db * db);
-
-                    if (dist < chromaTolerance) {
-                        const ramp = (softness / 100) * 128;
-                        const diff = chromaTolerance - dist;
-                        const softAlpha = Math.max(0, 255 - (diff / ramp) * 255);
-                        finalAlpha[i] = Math.min(a, Math.round(softAlpha));
-                    }
-                }
-            }
-
-            const stack: { x: number, y: number, startR: number, startG: number, startB: number }[] = [];
-            const visited = new Uint8Array(width * height);
-
-            for (const point of magicPoints) {
-                if (point.x >= 0 && point.x < width && point.y >= 0 && point.y < height) {
-                    const idx = point.y * width + point.x;
-                    stack.push({
-                        x: point.x,
-                        y: point.y,
-                        startR: sourceData[idx * 4],
-                        startG: sourceData[idx * 4 + 1],
-                        startB: sourceData[idx * 4 + 2]
-                    });
-                    visited[idx] = 1;
-                }
-            }
-
-            while (stack.length > 0) {
-                const { x: cx, y: cy, startR, startG, startB } = stack.pop()!;
-                const cIdx = cy * width + cx;
-
-                finalAlpha[cIdx] = 0; // Remove pixel
-
-                const neighbors = [
-                    [cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]
-                ];
-
-                for (const [nx, ny] of neighbors) {
-                    if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-                        const nIdx = ny * width + nx;
-                        if (visited[nIdx]) continue;
-
-                        const na = sourceData[nIdx * 4 + 3];
-                        if (na <= threshold) continue;
-
-                        const nr = sourceData[nIdx * 4];
-                        const ng = sourceData[nIdx * 4 + 1];
-                        const nb = sourceData[nIdx * 4 + 2];
-
-                        const dr = nr - startR;
-                        const dg = ng - startG;
-                        const db = nb - startB;
-                        const dist = Math.sqrt(dr * dr + dg * dg + db * db);
-
-                        if (dist < chromaTolerance) {
-                            visited[nIdx] = 1;
-                            stack.push({ x: nx, y: ny, startR, startG, startB });
-                        }
-                    }
-                }
-            }
-        } else if (mode === 'magicWand' && magicPoints.length === 0) {
-            for (let i = 0; i < width * height; i++) {
-                finalAlpha[i] = sourceData[i * 4 + 3] > threshold ? 255 : 0;
-            }
-        } else if (mode === 'chromaKey') {
-            for (let i = 0; i < width * height; i++) {
-                const idx = i * 4;
-                const r = sourceData[idx];
-                const g = sourceData[idx + 1];
-                const b = sourceData[idx + 2];
-                const a = sourceData[idx + 3];
-
-                if (a <= threshold) {
-                    finalAlpha[i] = 0;
-                    continue;
-                }
-
-                const dr = r - bgColor.r;
-                const dg = g - bgColor.g;
-                const db = b - bgColor.b;
-                const rgbDistance = Math.sqrt(dr * dr + dg * dg + db * db);
-
-                const pixelLuma = 0.299 * r + 0.587 * g + 0.114 * b;
-                const targetLuma = 0.299 * bgColor.r + 0.587 * bgColor.g + 0.114 * bgColor.b;
-
-                let effectiveTolerance = chromaTolerance;
-
-                if (pixelLuma < targetLuma) {
-                    const shadowFactor = 1 + (shadowTolerance / 50);
-                    effectiveTolerance *= shadowFactor;
-                }
-
-                if (rgbDistance < effectiveTolerance) {
-                    if (softness === 0) {
-                        finalAlpha[i] = 0;
-                    } else {
-                        const ramp = (softness / 100) * 128;
-                        const diff = effectiveTolerance - rgbDistance;
-                        const alpha = Math.max(0, 255 - (diff / ramp) * 255);
-                        finalAlpha[i] = Math.round(alpha);
-                    }
-                } else {
-                    finalAlpha[i] = 255;
-                }
-            }
-        }
-
-        // 2. EROSÃO
-        if (erosion > 0) {
-            let currentAlpha = new Uint8Array(finalAlpha);
-
-            for (let pass = 0; pass < erosion; pass++) {
-                currentAlpha.set(finalAlpha);
-
-                for (let y = 0; y < height; y++) {
-                    for (let x = 0; x < width; x++) {
-                        const idx = y * width + x;
-                        if (currentAlpha[idx] === 0) continue;
-
-                        let isEdge = false;
-                        if (y > 0 && currentAlpha[idx - width] === 0) isEdge = true;
-                        else if (y < height - 1 && currentAlpha[idx + width] === 0) isEdge = true;
-                        else if (x > 0 && currentAlpha[idx - 1] === 0) isEdge = true;
-                        else if (x < width - 1 && currentAlpha[idx + 1] === 0) isEdge = true;
-
-                        if (isEdge) {
-                            finalAlpha[idx] = 0;
-                        }
-                    }
-                }
-            }
-        }
-
-        // 3. OUPUT
-        for (let i = 0; i < width * height; i++) {
-            const idx = i * 4;
-            const alpha = finalAlpha[i];
-
-            if (alpha > 0) {
-                outputData[idx] = sourceData[idx];
-                outputData[idx + 1] = sourceData[idx + 1];
-                outputData[idx + 2] = sourceData[idx + 2];
-                outputData[idx + 3] = 255;
-            } else {
-                outputData[idx] = 0;
-                outputData[idx + 1] = 0;
-                outputData[idx + 2] = 0;
-                outputData[idx + 3] = 0;
-            }
-        }
-
-        return outputImageData;
-    };
+    // Os pontos de processamento agora estão no serviço externo antiTransparencyService
 
     // Live Preview Effect (Renderiza no canvas de baixa resolução pro usuário interagir)
     useEffect(() => {
@@ -368,12 +151,12 @@ export default function AntiTransparencyEditor({ imageUrl, onClose, onSave, skip
                     canvas.height = previewDim.h;
                 }
 
-                const outputImageData = runProcessing(
+                const outputImageData = runInternalProcessing(
                     previewImageData,
                     previewDim.w,
                     previewDim.h,
                     settings,
-                    1 // sem escalar pontos mágicos pois eles já vêm no padrão de resolução de preview
+                    1
                 );
 
                 ctx.putImageData(outputImageData, 0, 0);
@@ -490,7 +273,7 @@ export default function AntiTransparencyEditor({ imageUrl, onClose, onSave, skip
             const originalData = tCtx.getImageData(0, 0, originalImage.width, originalImage.height).data;
             const scaleToOriginal = 1 / previewDim.scale;
 
-            const outputData = runProcessing(
+            const outputData = runInternalProcessing(
                 originalData,
                 originalImage.width,
                 originalImage.height,
@@ -797,4 +580,170 @@ export default function AntiTransparencyEditor({ imageUrl, onClose, onSave, skip
             </div>
         </div>
     );
+
+    function runInternalProcessing(
+        sourceData: Uint8ClampedArray,
+        width: number,
+        height: number,
+        settingsToUse: any,
+        pointScale: number
+    ): ImageData {
+        const outputImageData = new ImageData(width, height);
+        const outputData = outputImageData.data;
+
+        const hexToRgbLocal = (hex: string) => {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? {
+                r: parseInt(result[1], 16),
+                g: parseInt(result[2], 16),
+                b: parseInt(result[3], 16)
+            } : { r: 0, g: 255, b: 0 };
+        };
+
+        const bgColor = hexToRgbLocal(settingsToUse.backgroundColor || '#00ff00');
+        const erosion = settingsToUse.erosion || 0;
+        const threshold = settingsToUse.alphaThreshold || 10;
+        const mode = settingsToUse.mode;
+        const chromaTolerance = settingsToUse.chromaTolerance || 50;
+        const shadowTolerance = settingsToUse.shadowTolerance || 0;
+        const softness = settingsToUse.softness || 0;
+        const rawMagicPoints = settingsToUse.magicPoints || [];
+
+        const magicPoints = rawMagicPoints.map((p: any) => ({
+            x: Math.round(p.x * pointScale),
+            y: Math.round(p.y * pointScale)
+        }));
+
+        let finalAlpha = new Uint8Array(width * height);
+
+        if (mode === 'magicWand' && magicPoints.length > 0) {
+            for (let i = 0; i < width * height; i++) {
+                const idx = i * 4;
+                const r = sourceData[idx];
+                const g = sourceData[idx + 1];
+                const b = sourceData[idx + 2];
+                const a = sourceData[idx + 3];
+                if (a <= threshold) {
+                    finalAlpha[i] = 0;
+                    continue;
+                }
+                finalAlpha[i] = a; 
+                if (softness > 0) {
+                    const bgColor_raw = hexToRgbLocal(settingsToUse.backgroundColor || '#000000');
+                    const dr = r - bgColor_raw.r;
+                    const dg = g - bgColor_raw.g;
+                    const db = b - bgColor_raw.b;
+                    const dist = Math.sqrt(dr * dr + dg * dg + db * db);
+                    if (dist < chromaTolerance) {
+                        const ramp = (softness / 100) * 128;
+                        const diff = chromaTolerance - dist;
+                        const softAlpha = Math.max(0, 255 - (diff / ramp) * 255);
+                        finalAlpha[i] = Math.min(a, Math.round(softAlpha));
+                    }
+                }
+            }
+
+            const stack: { x: number, y: number, startR: number, startG: number, startB: number }[] = [];
+            const visited = new Uint8Array(width * height);
+
+            for (const point of magicPoints) {
+                if (point.x >= 0 && point.x < width && point.y >= 0 && point.y < height) {
+                    const idx = point.y * width + point.x;
+                    stack.push({
+                        x: point.x,
+                        y: point.y,
+                        startR: sourceData[idx * 4],
+                        startG: sourceData[idx * 4 + 1],
+                        startB: sourceData[idx * 4 + 2]
+                    });
+                    visited[idx] = 1;
+                }
+            }
+
+            while (stack.length > 0) {
+                const { x: cx, y: cy, startR, startG, startB } = stack.pop()!;
+                const cIdx = cy * width + cx;
+                finalAlpha[cIdx] = 0; 
+                const neighbors = [[cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]];
+                for (const [nx, ny] of neighbors) {
+                    if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                        const nIdx = ny * width + nx;
+                        if (visited[nIdx]) continue;
+                        const na = sourceData[nIdx * 4 + 3];
+                        if (na <= threshold) continue;
+                        const nr = sourceData[nIdx * 4], ng = sourceData[nIdx * 4 + 1], nb = sourceData[nIdx * 4 + 2];
+                        const dist = Math.sqrt(Math.pow(nr - startR, 2) + Math.pow(ng - startG, 2) + Math.pow(nb - startB, 2));
+                        if (dist < chromaTolerance) {
+                            visited[nIdx] = 1;
+                            stack.push({ x: nx, y: ny, startR, startG, startB });
+                        }
+                    }
+                }
+            }
+        } else if (mode === 'magicWand' && magicPoints.length === 0) {
+            for (let i = 0; i < width * height; i++) {
+                finalAlpha[i] = sourceData[i * 4 + 3] > threshold ? 255 : 0;
+            }
+        } else if (mode === 'chromaKey') {
+            for (let i = 0; i < width * height; i++) {
+                const idx = i * 4;
+                const r = sourceData[idx], g = sourceData[idx + 1], b = sourceData[idx + 2], a = sourceData[idx + 3];
+                if (a <= threshold) {
+                    finalAlpha[i] = 0;
+                    continue;
+                }
+                const dr = r - bgColor.r, dg = g - bgColor.g, db = b - bgColor.b;
+                const rgbDistance = Math.sqrt(dr * dr + dg * dg + db * db);
+                const pixelLuma = 0.299 * r + 0.587 * g + 0.114 * b;
+                const targetLuma = 0.299 * bgColor.r + 0.587 * bgColor.g + 0.114 * bgColor.b;
+                let effectiveTolerance = chromaTolerance;
+                if (pixelLuma < targetLuma) {
+                    const shadowFactor = 1 + (shadowTolerance / 50);
+                    effectiveTolerance *= shadowFactor;
+                }
+                if (rgbDistance < effectiveTolerance) {
+                    if (softness === 0) finalAlpha[i] = 0;
+                    else {
+                        const ramp = (softness / 100) * 128;
+                        const diff = effectiveTolerance - rgbDistance;
+                        const alpha = Math.max(0, 255 - (diff / ramp) * 255);
+                        finalAlpha[i] = Math.round(alpha);
+                    }
+                } else finalAlpha[i] = 255;
+            }
+        }
+
+        if (erosion > 0) {
+            let currentAlpha = new Uint8Array(finalAlpha);
+            for (let pass = 0; pass < erosion; pass++) {
+                currentAlpha.set(finalAlpha);
+                for (let y = 0; y < height; y++) {
+                    for (let x = 0; x < width; x++) {
+                        const idx = y * width + x;
+                        if (currentAlpha[idx] === 0) continue;
+                        let isEdge = false;
+                        if (y > 0 && currentAlpha[idx - width] === 0) isEdge = true;
+                        else if (y < height - 1 && currentAlpha[idx + width] === 0) isEdge = true;
+                        else if (x > 0 && currentAlpha[idx - 1] === 0) isEdge = true;
+                        else if (x < width - 1 && currentAlpha[idx + 1] === 0) isEdge = true;
+                        if (isEdge) finalAlpha[idx] = 0;
+                    }
+                }
+            }
+        }
+
+        for (let i = 0; i < width * height; i++) {
+            const idx = i * 4;
+            const alpha = finalAlpha[i];
+            if (alpha > 0) {
+                outputData[idx] = sourceData[idx];
+                outputData[idx + 1] = sourceData[idx + 1];
+                outputData[idx + 2] = sourceData[idx + 2];
+                outputData[idx + 3] = alpha;
+            } else {
+                outputData[idx] = outputData[idx+1] = outputData[idx+2] = outputData[idx+3] = 0;
+            }
+        }
+        return outputImageData;
+    }
 }

@@ -573,7 +573,7 @@ export const AIAssistant = () => {
                                             </div>
 
                                             <div className="relative rounded-3xl overflow-hidden shadow-2xl ring-1 ring-white/10 bg-slate-950/60 backdrop-blur-xl border border-white/5">
-                                              <div className="relative h-1.5 w-full bg-gradient-to-r from-yellow-400 via-[#f2e635] to-amber-500 shadow-[0_0_20px_rgba(242,230,53,0.4)]" />
+                                              <div className="relative h-1.5 w-full bg-gradient-to-r from-yellow-400 via-[#f2e635] to-amber-500 neon-only shadow-[0_0_20px_rgba(242,230,53,0.4)]" />
 
                                               <div className="relative p-5 space-y-4">
                                                 <div className="flex items-center justify-between">
@@ -659,7 +659,7 @@ export const AIAssistant = () => {
                                             </div>
 
                                             <div className="relative rounded-3xl overflow-hidden shadow-2xl ring-1 ring-white/10 bg-slate-950/60 backdrop-blur-xl border border-white/5">
-                                              <div className="relative h-1.5 w-full bg-gradient-to-r from-emerald-400 via-green-500 to-emerald-600 shadow-[0_0_20px_rgba(16,185,129,0.4)]" />
+                                              <div className="relative h-1.5 w-full bg-gradient-to-r from-emerald-400 via-green-500 to-emerald-600 neon-only shadow-[0_0_20px_rgba(16,185,129,0.4)]" />
 
                                               <div className="relative p-6 space-y-5">
                                                 <div className="flex items-center justify-between">
@@ -722,7 +722,7 @@ export const AIAssistant = () => {
                                             </div>
 
                                             <div className="relative rounded-3xl overflow-hidden shadow-2xl ring-1 ring-white/10 bg-slate-950/60 backdrop-blur-xl border border-white/5">
-                                              <div className="relative h-1.5 w-full bg-gradient-to-r from-emerald-400 via-green-500 to-amber-500 shadow-[0_0_20px_rgba(16,185,129,0.4)]" />
+                                              <div className="relative h-1.5 w-full bg-gradient-to-r from-emerald-400 via-green-500 to-amber-500 neon-only shadow-[0_0_20px_rgba(16,185,129,0.4)]" />
 
                                               <div className="relative p-6 space-y-5">
                                                 <div className="flex items-center justify-between">
@@ -808,7 +808,7 @@ export const AIAssistant = () => {
                                             </div>
 
                                             <div className="relative rounded-3xl overflow-hidden shadow-2xl ring-1 ring-white/10 bg-slate-950/60 backdrop-blur-xl border border-white/5">
-                                              <div className="relative h-1.5 w-full bg-gradient-to-r from-sky-400 to-blue-600 shadow-[0_0_20px_rgba(56,189,248,0.4)]" />
+                                              <div className="relative h-1.5 w-full bg-gradient-to-r from-sky-400 to-blue-600 neon-only shadow-[0_0_20px_rgba(56,189,248,0.4)]" />
 
                                               <div className="relative p-6 space-y-5">
                                                 <div className="space-y-1">
@@ -863,7 +863,7 @@ export const AIAssistant = () => {
                                             </div>
 
                                             <div className="relative rounded-3xl overflow-hidden shadow-2xl ring-1 ring-white/10 bg-slate-950/60 backdrop-blur-xl border border-white/5">
-                                              <div className="relative h-1.5 w-full bg-gradient-to-r from-violet-400 via-fuchsia-500 to-indigo-500 shadow-[0_0_20px_rgba(139,92,246,0.4)]" />
+                                              <div className="relative h-1.5 w-full bg-gradient-to-r from-violet-400 via-fuchsia-500 to-indigo-500 neon-only shadow-[0_0_20px_rgba(139,92,246,0.4)]" />
 
                                               <div className="relative p-5 space-y-4">
                                                 <div className="flex justify-between items-start">

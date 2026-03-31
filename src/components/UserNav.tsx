@@ -174,15 +174,13 @@ export function UserNav() {
             <span className="text-sm font-medium">Meu Perfil</span>
           </DropdownMenuItem>
 
-          {hasPermission('manage_settings') && (
-            <DropdownMenuItem
-              onClick={() => navigate('/settings')}
-              className="flex items-center gap-3 p-2.5 rounded-xl cursor-pointer hover:bg-secondary/50 transition-colors"
-            >
-              <Settings className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Configurações</span>
-            </DropdownMenuItem>
-          )}
+          <DropdownMenuItem
+            onClick={() => navigate('/settings')}
+            className="flex items-center gap-3 p-2.5 rounded-xl cursor-pointer hover:bg-secondary/50 transition-colors"
+          >
+            <Settings className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-medium">Configurações</span>
+          </DropdownMenuItem>
 
           <DropdownMenuSeparator className="opacity-50 mx-2" />
 

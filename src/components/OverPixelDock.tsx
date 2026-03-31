@@ -10,8 +10,8 @@ import './OverPixelDock.css';
 /* Mini OverPixel logo SVG for the trigger button */
 const MiniOverPixelLogo: React.FC = () => (
   <svg width="24" height="15" viewBox="0 0 200 120">
-    <circle cx="72" cy="60" r="34" fill="none" stroke="#67e8f9" strokeWidth="8" opacity={0.9} />
-    <circle cx="128" cy="60" r="34" fill="none" stroke="#67e8f9" strokeWidth="8" opacity={0.9} />
+    <circle cx="72" cy="60" r="34" fill="none" stroke="currentColor" strokeWidth="8" opacity={0.9} />
+    <circle cx="128" cy="60" r="34" fill="none" stroke="currentColor" strokeWidth="8" opacity={0.9} />
   </svg>
 );
 
@@ -118,7 +118,7 @@ export const OverPixelDock: React.FC = () => {
     <>
       {/* Trigger Button */}
       <motion.button
-        className="overpixel-dock-trigger"
+        className="overpixel-dock-trigger text-cyan-400"
         onClick={() => setIsOpen(!isOpen)}
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.92 }}
@@ -139,7 +139,7 @@ export const OverPixelDock: React.FC = () => {
             transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
           >
             {/* Header */}
-            <div className="overpixel-dock-header">
+            <div className="overpixel-dock-header text-cyan-500">
               <MiniOverPixelLogo />
               <span className="overpixel-dock-header-text">Aplicativos</span>
             </div>

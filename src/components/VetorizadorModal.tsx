@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { applyBackgroundRemovalToBlob } from "@/features/dtf-factory/services/halftoneService";
 import AntiTransparencyEditor from "@/features/dtf-factory/components/AntiTransparencyEditor";
+import { autoRemoveBackground } from "@/features/dtf-factory/services/antiTransparencyService";
 import { useSession } from "@/contexts/SessionProvider";
 import {
   Dialog,
@@ -66,6 +67,8 @@ export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({
   const [aiCredits, setAiCredits] = useState<number>(0);
   const [isShopOpen, setIsShopOpen] = useState(false); // Existing state for shop visibility
   const [isRemovingBackground, setIsRemovingBackground] = useState(false);
+  const [isAutoRemovingBg, setIsAutoRemovingBg] = useState(false);
+  const [autoRemoveTolerance, setAutoRemoveTolerance] = useState(45);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
   const [previewBg, setPreviewBg] = useState<
@@ -87,13 +90,12 @@ export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({
 
     const { data, error } = await supabase
       .from("profiles_v2")
-      .select("ai_credits, token_balance")
+      .select("ai_credits")
       .eq("uid", user.id)
       .single();
 
     if (!error && data) {
-      // Use token_balance as primary, fallback to ai_credits for backward compatibility
-      setAiCredits(data.token_balance ?? data.ai_credits ?? 0);
+      setAiCredits(data.ai_credits || 0);
     }
   };
 
@@ -477,8 +479,30 @@ export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({
     toast.success("Fundo removido com sucesso!");
   };
 
-  const handleRemoveBackground = () => {
-    console.log("[Vetorizador] Abrindo Removedor de Fundo...");
+  const handleRemoveBackground = async () => {
+    const imageToProcess = resultImage || originalImage;
+    if (!imageToProcess) return;
+
+    console.log("[Vetorizador] Borracha Mágica - Removendo fundo automaticamente...");
+    setIsAutoRemovingBg(true);
+    try {
+      const processedBlob = await autoRemoveBackground(imageToProcess, autoRemoveTolerance);
+      const url = URL.createObjectURL(processedBlob);
+      pushToHistory(resultImage || originalImage);
+      setResultImage(url);
+      setStatus("done");
+      toast.success("Fundo removido com sucesso!");
+    } catch (err) {
+      console.error("[Vetorizador] Magic Eraser failed:", err);
+      toast.error("Falha na remoção automática. Abrindo editor manual...");
+      setIsRemovingBackground(true);
+    } finally {
+      setIsAutoRemovingBg(false);
+    }
+  };
+
+  const handleManualRemoveBackground = () => {
+    console.log("[Vetorizador] Abrindo Removedor de Fundo Manual...");
     setIsRemovingBackground(true);
   };
 
@@ -836,15 +860,53 @@ export const VetorizadorModal: React.FC<VetorizadorModalProps> = ({
                           (originalImage || resultImage) && (
                             <div className="floating-glass-actions-vec fade-in z-[100]">
                               <button
-                                className="liquid-glass-btn-vec border-cyan-500/30"
+                                className="liquid-glass-btn-vec border-purple-500/30"
                                 onClick={handleRemoveBackground}
-                                title="Remover Fundo (IA e Manual Interativo)"
+                                disabled={isAutoRemovingBg}
+                                title="Borracha Mágica - Remove o fundo automaticamente"
                               >
                                 <div className="liquid-glass-icon-vec">
-                                  <Eraser size={20} className="text-cyan-400" />
+                                  {isAutoRemovingBg ? (
+                                    <Loader2 size={20} className="text-purple-400 animate-spin" />
+                                  ) : (
+                                    <Eraser size={20} className="text-purple-400" />
+                                  )}
                                 </div>
                                 <span className="liquid-glass-label-vec">
-                                  Remover Fundo
+                                  {isAutoRemovingBg ? 'Removendo...' : 'Borracha Mágica'}
+                                </span>
+                              </button>
+
+                              {/* NEW: Tolerance Slider for Magic Eraser */}
+                              {(originalImage || resultImage) && (
+                                <div className="liquid-glass-control-vec group">
+                                  <div className="flex flex-col gap-1 items-center px-2">
+                                    <span className="text-[8px] font-bold text-white/30 uppercase tracking-tighter">Sensibilidade</span>
+                                    <div className="flex items-center gap-2">
+                                      <input 
+                                        type="range" 
+                                        min="5" 
+                                        max="150" 
+                                        value={autoRemoveTolerance} 
+                                        onChange={(e) => setAutoRemoveTolerance(parseInt(e.target.value))}
+                                        className="w-20 accent-purple-500 h-1 rounded-full bg-white/10"
+                                      />
+                                      <span className="text-[9px] font-mono text-purple-400 w-4">{autoRemoveTolerance}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              <button
+                                className="liquid-glass-btn-vec border-cyan-500/30"
+                                onClick={handleManualRemoveBackground}
+                                title="Ajuste Manual - Editor interativo de remoção"
+                              >
+                                <div className="liquid-glass-icon-vec">
+                                  <Wand2 size={20} className="text-cyan-400" />
+                                </div>
+                                <span className="liquid-glass-label-vec">
+                                  Ajuste Manual
                                 </span>
                               </button>
 

@@ -26,8 +26,6 @@ export interface HalftoneSettings {
     alphaThreshold?: number;
     magicPoints?: {x: number, y: number}[];
     softness?: number; // 0-100: How smooth the edge removal is
-    connectedOnly?: boolean; // Se true, remove apenas o fundo conectado às bordas
-    hardEdge?: boolean; // NOVO: Se true, força o alpha para 0 ou 255 (Padrão DTF Pro)
 }
 
 // Presets de Halftone
@@ -634,27 +632,11 @@ export function applyBackgroundRemoval(imageData: ImageData, settings: HalftoneS
 
     // Aplica o alpha final
     for (let i = 0; i < width * height; i++) {
-        const idx = i * 4;
-        let aValue = finalAlpha[i];
-
-        // MODO DTF: Se connectedOnly, ignoramos pixels que não foram marcados pelo Magic Wand
-        if (settings.connectedOnly && !visited[i]) {
-            aValue = 255; 
-        }
-
-        // Se hardEdge for true, forçamos a binarização (Ideal para Vetoriza AI / DTF Pro)
-        // Se false (padrão), mantemos a semi-transparência original para não quebrar o DTF Factory
-        if (settings.hardEdge) {
-            currentDest[idx + 3] = aValue > 127 ? 255 : 0;
-        } else {
-            currentDest[idx + 3] = aValue;
-        }
+        currentDest[i * 4 + 3] = finalAlpha[i];
     }
-    
     currentSrc.set(currentDest);
 
-    // PASSO DE REFINAMENTO: Suavização de Mascara (Anti-Serrilhado Digital)
-    // Se a suavização estiver alta, vamos "limpar" as bordas para evitar o escadinha
+    // Aplica Erosão se solicitado
     if (erosionAmount > 0) {
         for (let pass = 0; pass < erosionAmount; pass++) {
             for (let y = 0; y < height; y++) {
@@ -752,121 +734,6 @@ export async function applyBackgroundRemovalToBlob(
 
     if (result) return await setPngDpi(result, 300);
     return blob instanceof Blob ? blob : new Blob([]);
-}
-
-/**
- * Varinha Mágica Inteligente - Flood Fill com Erosão de Borda (DTF Pro)
- */
-export async function applyWandRemovalToBlob(
-    blob: Blob,
-    x: number,
-    y: number,
-    tolerance: number = 32
-): Promise<Blob> {
-    const img = new Image();
-    const url = URL.createObjectURL(blob);
-    
-    await new Promise((resolve, reject) => {
-        img.onload = resolve;
-        img.onerror = reject;
-        img.src = url;
-    });
-    
-    URL.revokeObjectURL(url);
-
-    const canvas = document.createElement('canvas');
-    canvas.width = img.width;
-    canvas.height = img.height;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
-    ctx.drawImage(img, 0, 0);
-
-    const width = canvas.width;
-    const height = canvas.height;
-    const imageData = ctx.getImageData(0, 0, width, height);
-    const data = imageData.data;
-
-    const startX = Math.floor(x);
-    const startY = Math.floor(y);
-    const startIdx = (startY * width + startX) * 4;
-    
-    const startR = data[startIdx];
-    const startG = data[startIdx + 1];
-    const startB = data[startIdx + 2];
-    const startA = data[startIdx + 3];
-
-    // If clicking on an already fully transparent pixel, do nothing.
-    if (startA < 10) return blob; 
-
-    // Mask for flood fill
-    const mask = new Uint8Array(width * height);
-    const stack: [number, number][] = [[startX, startY]];
-    mask[startY * width + startX] = 1;
-
-    // 1. Flood Fill
-    while (stack.length > 0) {
-        const [cx, cy] = stack.pop()!;
-        const neighbors: [number, number][] = [
-            [cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]
-        ];
-
-        for (const [nx, ny] of neighbors) {
-            if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-                const nIdx = ny * width + nx;
-                if (mask[nIdx] === 0) {
-                    const pIdx = nIdx * 4;
-                    const nr = data[pIdx];
-                    const ng = data[pIdx + 1];
-                    const nb = data[pIdx + 2];
-                    const na = data[pIdx + 3];
-
-                    if (na > 10) {
-                        const dist = Math.sqrt(
-                            Math.pow(nr - startR, 2) +
-                            Math.pow(ng - startG, 2) +
-                            Math.pow(nb - startB, 2)
-                        );
-                        if (dist <= tolerance) {
-                            mask[nIdx] = 1;
-                            stack.push([nx, ny]);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // 2. Erase the flooded area and apply a smooth 1px expansion (Choke/Feather) to remove halos
-    for (let i = 0; i < width * height; i++) {
-        if (mask[i] === 1) {
-            // It's the background. Remove it completely.
-            data[i * 4 + 3] = 0;
-            
-            // Smoother edge: fade the neighbors that are NOT in the mask
-            const ix = i % width;
-            const iy = Math.floor(i / width);
-            
-            const neighbors = [
-                [ix + 1, iy], [ix - 1, iy], [ix, iy + 1], [ix, iy - 1],
-                [ix + 1, iy + 1], [ix - 1, iy - 1], [ix + 1, iy - 1], [ix - 1, iy + 1]
-            ];
-            
-            for (const [nx, ny] of neighbors) {
-                if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-                    const nIdx = ny * width + nx;
-                    if (mask[nIdx] === 0) {
-                        // Blend the edge pixel's alpha to create a smooth anti-aliased transition (reduces halo)
-                        data[nIdx * 4 + 3] = Math.max(0, data[nIdx * 4 + 3] - 128);
-                    }
-                }
-            }
-        }
-    }
-
-    ctx.putImageData(imageData, 0, 0);
-    
-    return new Promise((resolve) => {
-        canvas.toBlob((b) => resolve(b!), 'image/png');
-    });
 }
 
 

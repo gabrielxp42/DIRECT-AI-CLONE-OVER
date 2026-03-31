@@ -34,6 +34,7 @@ export const GabiAvatar: React.FC<GabiAvatarProps> = ({
   const scale = size / viewH;
 
   const filterId = useMemo(() => `gabi-glow-${Math.random().toString(36).slice(2, 8)}`, []);
+  const isBasic = document.documentElement.classList.contains('ui-basic');
 
   return (
     <div
@@ -112,7 +113,7 @@ export const GabiAvatar: React.FC<GabiAvatarProps> = ({
               transition={{ duration: 0.5 }}
             >
               {/* ---- LEFT EYE ---- */}
-              <g filter={`url(#${filterId})`}>
+              <g filter={isBasic ? undefined : `url(#${filterId})`}>
                 {/* Outer glow ring */}
                 <motion.circle
                   cx="65"
@@ -170,7 +171,7 @@ export const GabiAvatar: React.FC<GabiAvatarProps> = ({
               </g>
 
               {/* ---- RIGHT EYE ---- */}
-              <g filter={`url(#${filterId})`}>
+              <g filter={isBasic ? undefined : `url(#${filterId})`}>
                 {/* Outer glow ring */}
                 <motion.circle
                   cx="135"
